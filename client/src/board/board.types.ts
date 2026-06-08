@@ -69,8 +69,12 @@ export interface DiscountPost {
   /** 직접 촬영분만 안내 — 표시 전용 URL(외부 본문 수집 아님). */
   photo?: string;
   createdAt: string;
-  lat: number;
-  lng: number;
+  /**
+   * 좌표 — 옵셔널(시드만 보유). 사용자 등록분은 좌표 없이 리스트로 표시(요청 레이어 선례).
+   * 지도 렌더·클라 거리계산 전용 — 네트워크 전송 금지(R3/⑤).
+   */
+  lat?: number;
+  lng?: number;
 }
 
 /** 레이어별 데이터 union. */

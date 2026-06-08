@@ -1,0 +1,307 @@
+/* 거버넌스 스타일(S9 신고→블라인드, 운영자 큐). board.css/agent.css 토큰 재사용.
+   모바일우선(<=480px). 상태 신호는 색 + 텍스트 병행(색 단독 의존 금지, 색각 고려). */
+
+/* ── 신고 트리거 버튼 ─────────────────────────────────────── */
+.report-flow__trigger {
+  font-size: 12px;
+  color: #b3261e;
+  background: #fff;
+  border: 1px solid #f0c9c5;
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+/* ── 신고 패널 ────────────────────────────────────────────── */
+.report-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #f0d9d6;
+  background: #fffaf9;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.report-flow__heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+  margin: 0;
+}
+
+.report-flow__reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-flow__reason {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'radio label'
+    'radio hint';
+  column-gap: 8px;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.report-flow__reason input {
+  grid-area: radio;
+}
+
+/* 선택 상태 — 색 + 굵은 보더(라벨 텍스트가 1차 신호). */
+.report-flow__reason--active {
+  border-color: #3b6fd4;
+  border-width: 2px;
+  background: #eef4ff;
+  padding: 7px 9px;
+}
+
+.report-flow__reason-label {
+  grid-area: label;
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+
+.report-flow__reason-hint {
+  grid-area: hint;
+  font-size: 11px;
+  color: #888;
+}
+
+.report-flow__notice {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b5800;
+  background: #fffaf0;
+  border: 1px solid #f0e2bf;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.report-flow__error {
+  font-size: 12px;
+  color: #b3261e;
+  background: #fdecea;
+  border: 1px solid #f5c6c2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.report-flow__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.report-flow__btn {
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.report-flow__btn--primary {
+  background: #3b6fd4;
+  color: #fff;
+}
+
+.report-flow__btn--primary:disabled {
+  background: #a9c0ea;
+  cursor: progress;
+}
+
+.report-flow__btn--ghost {
+  background: #fff;
+  color: #555;
+  border-color: #ddd;
+}
+
+.report-flow__btn--danger {
+  background: #fff;
+  color: #b3261e;
+  border-color: #f0c9c5;
+}
+
+/* ── 신고 완료 안내 ───────────────────────────────────────── */
+.report-flow__done {
+  border: 1px solid #cfe0ff;
+  background: #eef4ff;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.report-flow__done-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a4fb0;
+  margin: 0 0 4px;
+}
+
+.report-flow__done-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #335;
+  margin: 0;
+}
+
+/* ── 운영자 신고 관리 ─────────────────────────────────────── */
+.admin-blind {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.admin-blind__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-blind__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-blind__filter {
+  font-size: 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #555;
+}
+
+.admin-blind__filter--active {
+  border-color: #3b6fd4;
+  border-width: 2px;
+  background: #eef4ff;
+  color: #1a4fb0;
+  font-weight: 700;
+  padding: 5px 11px;
+}
+
+.admin-blind__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-report {
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-report__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-report__target {
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+}
+
+/* 상태 뱃지 — 색 + 텍스트 병행(텍스트가 1차 신호). */
+.admin-status {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+}
+
+.admin-status--blinded {
+  background: #fff3e0;
+  color: #9a5b00;
+  border-color: #f1d9af;
+}
+
+.admin-status--appeal {
+  background: #e7f0ff;
+  color: #1a4fb0;
+  border-color: #c7dbff;
+}
+
+.admin-status--restored {
+  background: #e8f5ec;
+  color: #1f7a43;
+  border-color: #c5e6d1;
+}
+
+.admin-status--removed {
+  background: #fdecea;
+  color: #b3261e;
+  border-color: #f5c6c2;
+}
+
+.admin-status--neutral {
+  background: #f1f3f5;
+  color: #555;
+  border-color: #dde1e5;
+}
+
+.admin-report__meta {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-report__meta-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.admin-report__meta-row dt {
+  flex: 0 0 64px;
+  color: #888;
+}
+
+.admin-report__meta-row dd {
+  margin: 0;
+  color: #333;
+}
+
+.admin-report__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+.admin-report__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px dashed #e3e6ea;
+  padding-top: 8px;
+}

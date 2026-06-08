@@ -8,12 +8,27 @@
 // Epic 3 병합: 선택적 agentRepo(쓰기 리포지토리)를 주입받으면 listAgents 에서
 //   시드 + 등록 프로필을 합쳐 보여준다. 이 클래스 자체는 여전히 읽기 전용이며,
 //   등록/수정 쓰기는 agent.repo.ts(별도 라우터)가 담당한다.
-import type { AgentProfile, DiscountPost, RequestItem } from './listings.types.js';
+import type {
+  AgentProfile,
+  DiscountPost,
+  RequestItem,
+  StoredDiscountPost,
+} from './listings.types.js';
 import { AGENT_SEED, DISCOUNT_SEED, REQUEST_SEED } from './listings.seed.js';
 import type { AgentProfileRepository } from '../agent/agent.repo.js';
 import type { StoredAgentProfile } from '../agent/agent.types.js';
 import type { RequestRepository } from '../request/request.repo.js';
 import type { StoredRequest } from '../request/request.types.js';
+import type { DiscountRepository } from './discount.repo.js';
+
+// 등록 할인소식(StoredDiscountPost)을 보드 응답 shape(DiscountPost)로 매핑.
+//   authorId·status 는 제외(노출 금지). 좌표는 spread 로 있으면 그대로(UGC 는 보통 없음).
+function toBoardDiscount(d: StoredDiscountPost): DiscountPost {
+  const { authorId: _a, status: _s, ...pub } = d;
+  void _a;
+  void _s;
+  return pub;
+}
 
 // 등록 요청(StoredRequest)을 보드 응답 shape(RequestItem)로 매핑.
 // ownerUserId 는 제외(노출 금지). verifiedPrice/options 는 있으면 그대로.
@@ -58,22 +73,25 @@ export interface ListingsRepository {
 export class InMemoryListingsRepository implements ListingsRepository {
   private readonly agents: readonly AgentProfile[];
   private readonly requests: readonly RequestItem[];
-  private readonly discounts: readonly DiscountPost[];
+  private readonly discounts: readonly StoredDiscountPost[];
   private readonly agentRepo?: AgentProfileRepository;
   private readonly requestRepo?: RequestRepository;
+  private readonly discountRepo?: DiscountRepository;
 
   constructor(
     agents: readonly AgentProfile[] = AGENT_SEED,
     requests: readonly RequestItem[] = REQUEST_SEED,
-    discounts: readonly DiscountPost[] = DISCOUNT_SEED,
+    discounts: readonly StoredDiscountPost[] = DISCOUNT_SEED,
     agentRepo?: AgentProfileRepository,
     requestRepo?: RequestRepository,
+    discountRepo?: DiscountRepository,
   ) {
     this.agents = agents;
     this.requests = requests;
     this.discounts = discounts;
     this.agentRepo = agentRepo;
     this.requestRepo = requestRepo;
+    this.discountRepo = discountRepo;
   }
 
   async listAgents(region?: string): Promise<AgentProfile[]> {
@@ -100,6 +118,14 @@ export class InMemoryListingsRepository implements ListingsRepository {
     // DiscountPost 계약에는 region 필드가 없다(할인소식은 매장 브랜드 기준).
     // region 쿼리는 현재 무시하고 전체를 반환한다(지역 차원은 후속 에픽에서 도입).
     void _region;
-    return [...this.discounts];
+    // 시드(StoredDiscountPost) + 등록 UGC 병합. 블라인드/삭제 상태는 목록에서 제외(불변식 ③),
+    //   authorId 는 보드 매핑에서 제거(노출 금지).
+    const seed = this.discounts;
+    const registered = this.discountRepo ? await this.discountRepo.listAll() : [];
+    const visible = (status: string): boolean =>
+      status !== '블라인드' && status !== '삭제';
+    return [...seed, ...registered]
+      .filter((d) => visible(d.status))
+      .map(toBoardDiscount);
   }
 }

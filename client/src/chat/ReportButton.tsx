@@ -1,21 +1,37 @@
-// 신고 버튼(거버넌스) — 상시 노출. 동작은 토스트 스텁이며 Epic7 에서 블라인드
-// 플로우(S9)에 연결 예정. 여기서는 어떤 외부 호출도 하지 않는다(①).
+// 신고 버튼(거버넌스) — 채팅 메시지/스레드 신고. 자사 /api/reports 로 실제 POST(①).
+// 신고 시 서버가 즉시 블라인드 처리(notice-and-takedown)하며 작성자는 이의 신청 가능.
+// 미인증(401)은 "로그인 후 신고" 안내로 매핑한다.
 import { useState } from 'react';
+import { useReport } from '../governance/useReport';
 import './chat.css';
 
 interface ReportButtonProps {
-  /** 신고 대상 식별자(스레드/메시지 등). Epic7 연결 시 사용. */
+  /** 신고 대상 식별자(메시지/스레드 식별자). */
   targetId?: string;
 }
 
 export default function ReportButton({ targetId }: ReportButtonProps) {
+  const { busy, report } = useReport();
   const [toast, setToast] = useState<string | null>(null);
 
   const handleReport = () => {
-    // Epic7 연결 전까지 스텁 — 외부 호출 없음. targetId 는 추후 사용.
-    void targetId;
-    setToast('신고가 접수되었습니다. (검토·블라인드 연결 예정)');
-    window.setTimeout(() => setToast(null), 2400);
+    if (!targetId) {
+      setToast('신고할 대상을 찾지 못했습니다.');
+      window.setTimeout(() => setToast(null), 2400);
+      return;
+    }
+    report({ targetType: 'message', targetId, reason: '기타' })
+      .then(() => {
+        setToast('신고가 접수되어 즉시 가려집니다(블라인드). 이의 신청 가능.');
+      })
+      .catch((e: unknown) => {
+        setToast(
+          e instanceof Error ? e.message : '신고 접수에 실패했습니다.',
+        );
+      })
+      .finally(() => {
+        window.setTimeout(() => setToast(null), 2800);
+      });
   };
 
   return (
@@ -24,6 +40,7 @@ export default function ReportButton({ targetId }: ReportButtonProps) {
         type="button"
         className="chat-report__btn"
         onClick={handleReport}
+        disabled={busy}
         aria-label="신고"
       >
         🚩 신고

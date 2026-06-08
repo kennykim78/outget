@@ -39,6 +39,9 @@ export interface RequestItem {
 }
 
 // 할인소식(UGC, 미검증). 정가(listPrice) 미입력 시 서버가 unverifiedBase=true 스탬프.
+//
+// 좌표(lat/lng)는 **옵셔널** — 운영자 시드(매장 앵커)에만 존재하고, 사용자 UGC 등록분은
+//   핀 없이 리스트로만 노출한다(요청 레이어 선례). 서버는 사용자 위경도를 받지/저장하지 않는다(불변식 ⑤).
 export interface DiscountPost {
   id: string;
   storeBrand: string;
@@ -47,8 +50,27 @@ export interface DiscountPost {
   listPrice?: number; // 정가 — opt. 미입력 시 unverifiedBase 강제.
   unverifiedBase: boolean; // 서버 스탬프: 기준가(정가) 미확인 플래그.
   source: string; // 출처(작성자 입력 텍스트).
-  photo?: string; // 사진 URL/식별자(자사 저장, 외부 수집 아님).
+  photo?: string; // 사진 식별자(자사 저장, 외부 수집 아님). 외부 절대 URL 거부.
   createdAt: string; // ISO 시각.
-  lat: number;
-  lng: number;
+  // 매장/지역 앵커(선택) — 운영자 시드만 보유. 사용자 위치 추적 아님.
+  lat?: number;
+  lng?: number;
+}
+
+// UGC 쓰기용 저장 shape — 공개 DiscountPost 에 작성자/상태를 더한다.
+//   authorId·status 는 응답에서 제거한다(toPublicDiscount). status 는 거버넌스 상태머신 라벨.
+//   '정상' = 노출, '블라인드'/'삭제' = 목록 제외, '이의'/'복구' = 운영자 동선 라벨.
+export interface StoredDiscountPost extends DiscountPost {
+  authorId: string; // 작성자(JWT sub). 응답에는 절대 노출하지 않는다.
+  status: '정상' | '블라인드' | '이의' | '복구' | '삭제';
+}
+
+// 작성 입력 — authorId/id/status/unverifiedBase/createdAt/좌표 는 서버가 결정(클라가 보내지 않는다).
+export interface DiscountInput {
+  storeBrand: string;
+  discountRate?: number;
+  discountPrice?: number;
+  listPrice?: number;
+  source: string;
+  photo?: string;
 }

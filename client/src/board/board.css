@@ -48,6 +48,13 @@
   overflow-y: auto;
 }
 
+/* 리스트 안내(예: 좌표 없는 제보 소식). */
+.board-view__list-note {
+  font-size: 12px;
+  color: #777;
+  margin: 0;
+}
+
 /* 대행자 시점 토글(요청 리스트). */
 .board-view__viewpoint {
   display: flex;

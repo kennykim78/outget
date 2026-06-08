@@ -1,7 +1,11 @@
 // Epic 2 시드 — 운영자 수동 입력 상수. 외부 fetch/스크래핑 0건(하드코딩 배열).
 // 좌표는 앵커 매장 placeholder(여주/김포). 사용자 위치 아님(불변식 ⑤).
 // DiscountPost 의 unverifiedBase 는 stampDiscount() 가 정가(listPrice) 유무로 강제한다.
-import type { AgentProfile, DiscountPost, RequestItem } from './listings.types.js';
+import type {
+  AgentProfile,
+  RequestItem,
+  StoredDiscountPost,
+} from './listings.types.js';
 
 // 앵커 지역 좌표 placeholder(매장/지역 중심) — 사용자 추적과 무관.
 const YEOJU = { lat: 37.298, lng: 127.637 };
@@ -64,13 +68,19 @@ export const REQUEST_SEED: readonly RequestItem[] = [
 ];
 
 // 정가 누락 시 unverifiedBase=true 를 서버가 스탬프(기준가 미확인 규칙 시연).
+//   시드는 운영자 수동 입력분이므로 authorId='operator-seed', status='정상' 으로 고정한다.
 function stampDiscount(
-  raw: Omit<DiscountPost, 'unverifiedBase'>,
-): DiscountPost {
-  return { ...raw, unverifiedBase: raw.listPrice === undefined };
+  raw: Omit<StoredDiscountPost, 'unverifiedBase' | 'authorId' | 'status'>,
+): StoredDiscountPost {
+  return {
+    ...raw,
+    unverifiedBase: raw.listPrice === undefined,
+    authorId: 'operator-seed',
+    status: '정상',
+  };
 }
 
-export const DISCOUNT_SEED: readonly DiscountPost[] = [
+export const DISCOUNT_SEED: readonly StoredDiscountPost[] = [
   // 정가 입력 있음 → unverifiedBase=false.
   stampDiscount({
     id: 'd1',

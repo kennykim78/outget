@@ -4,8 +4,10 @@
 //   - listPrice(정가) 없음(unverifiedBase) 이면 `[기준가 미확인·사용자 제보가]` 라벨 강제.
 //   - 플랫폼 산정 단정가 변수(플랫폼가/우리가 류)는 사용하지 않는다.
 //   - 사진은 "직접 촬영분만" 안내(외부 본문/이미지 자동 수집 아님).
-//   - 신고 버튼은 placeholder(동작은 Epic7).
+//   - 신고 버튼 → ReportFlow(즉시 블라인드·이의 안내, Epic7).
+//   - lat/lng 는 옵셔널(사용자 등록분은 좌표 없음) — 카드는 좌표를 사용하지 않아 영향 없음.
 import type { DiscountPost as DiscountPostData } from '../board.types';
+import ReportFlow from '../../governance/ReportFlow';
 import '../board.css';
 
 interface DiscountPostProps {
@@ -23,15 +25,7 @@ export default function DiscountPost({ post }: DiscountPostProps) {
         <span className="chip chip--unverified" aria-label="미검증 제보">
           <span aria-hidden="true">◌</span> 미검증 제보
         </span>
-        <button
-          type="button"
-          className="card__report"
-          aria-label="신고하기"
-          title="신고(준비 중)"
-          disabled
-        >
-          신고
-        </button>
+        <ReportFlow targetType="discount" targetId={post.id} />
       </header>
 
       <h3 className="card__title">{post.storeBrand}</h3>

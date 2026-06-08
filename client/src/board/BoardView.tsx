@@ -24,6 +24,9 @@ import DiscountPost from './cards/DiscountPost';
 import IntermediaryNotice from './cards/IntermediaryNotice';
 import './board.css';
 
+// 좌표 보유 할인소식(시드) — 핀 렌더 전용 narrowed 타입(GeoPin 충족).
+type GeoDiscount = DiscountPostData & { lat: number; lng: number };
+
 // 선택된 항목(바텀시트) — 레이어별 union.
 type Selected =
   | { layer: 'agents'; items: AgentProfile[] }
@@ -125,9 +128,20 @@ export default function BoardView({ onEnterChat }: BoardViewProps) {
     });
   }, [discounts.data, filters.brand, kw]);
 
-  // 지도 핀 — agents/discounts 만 좌표 보유(requests 는 좌표 없음 → 리스트 전용).
+  // 지도 핀 — agents 는 좌표 보유. discounts 는 시드만 좌표 보유(사용자 등록분은 좌표 없음).
   const agentPins = filteredAgents;
-  const discountPins = filteredDiscounts;
+  // 좌표 보유 할인소식만 핀으로(시드). 좌표 없는 등록분은 리스트로 분리(요청 레이어 선례).
+  const discountPins = useMemo<GeoDiscount[]>(
+    () =>
+      filteredDiscounts.filter(
+        (d): d is GeoDiscount => d.lat != null && d.lng != null,
+      ),
+    [filteredDiscounts],
+  );
+  const discountListOnly = useMemo(
+    () => filteredDiscounts.filter((d) => d.lat == null || d.lng == null),
+    [filteredDiscounts],
+  );
 
   const isEmpty =
     layer === 'agents'
@@ -161,10 +175,10 @@ export default function BoardView({ onEnterChat }: BoardViewProps) {
           />
         )}
         {layer === 'discounts' && (
-          <MapMarkers<DiscountPostData>
+          <MapMarkers<GeoDiscount>
             map={mapInstance}
             pins={discountPins}
-            onSelect={(node: ClusterNode<DiscountPostData>) =>
+            onSelect={(node: ClusterNode<GeoDiscount>) =>
               setSelected({ layer: 'discounts', items: node.items })
             }
           />
@@ -230,6 +244,22 @@ export default function BoardView({ onEnterChat }: BoardViewProps) {
           <IntermediaryNotice compact />
         </div>
       )}
+
+      {/* 할인소식: 좌표 없는 사용자 등록분은 리스트로(핀은 시드만, 위 지도). */}
+      {layer === 'discounts' &&
+        current.status === 'ready' &&
+        !isEmpty &&
+        discountListOnly.length > 0 && (
+          <div className="board-view__list">
+            <p className="board-view__list-note" role="note">
+              지도에 표시되지 않은 제보 소식입니다.
+            </p>
+            {discountListOnly.map((d) => (
+              <DiscountPost key={d.id} post={d} />
+            ))}
+            <IntermediaryNotice compact />
+          </div>
+        )}
 
       {/* 핀 클릭 → 바텀시트 카드. */}
       <BottomSheet

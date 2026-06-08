@@ -10,15 +10,20 @@ import { Router } from 'express';
 import { requireAuth } from '../auth/auth.middleware.js';
 import { isParticipant, type MatchRepository } from '../agent/match.repo.js';
 import type { MessageRepository } from './message.repo.js';
+import type { ReportRepository } from '../governance/report.repo.js';
 import { validateMessageInput } from './message.validation.js';
+
+// 블라인드된 메시지 본문을 가리는 대체 문구(증거는 보존, 본문만 차단).
+const BLINDED_BODY = '[신고로 블라인드된 메시지입니다]';
 
 export function createChatRouter(
   matchRepo: MatchRepository,
   messageRepo: MessageRepository,
+  reportRepo: ReportRepository,
 ): Router {
   const router = Router();
 
-  // 메시지 조회 — 당사자만.
+  // 메시지 조회 — 당사자만. 신고로 블라인드된 메시지는 본문을 대체 문구로 가린다(불변식 ③).
   router.get('/matches/:id/messages', requireAuth, async (req, res) => {
     const match = await matchRepo.findById(req.params.id);
     if (!match) {
@@ -30,7 +35,12 @@ export function createChatRouter(
       return;
     }
     const messages = await messageRepo.listByThread(match.chatThreadId);
-    res.status(200).json(messages);
+    const out = [];
+    for (const m of messages) {
+      const blinded = await reportRepo.isBlinded('message', m.id);
+      out.push(blinded ? { ...m, body: BLINDED_BODY } : m);
+    }
+    res.status(200).json(out);
   });
 
   // 메시지 작성 — 당사자만. senderId 는 JWT sub 로 서버 강제(클라가 정하지 못한다).

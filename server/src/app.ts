@@ -15,6 +15,12 @@ import { InMemoryMessageRepository } from './chat/message.repo.js';
 import { createChatRouter } from './chat/chat.routes.js';
 import { GuidancePaymentRail } from './payment/guidance.rail.js';
 import { createPaymentRouter } from './payment/payment.routes.js';
+import { InMemoryDiscountRepository } from './board/discount.repo.js';
+import { createDiscountRouter } from './board/discount.routes.js';
+import { InMemoryReportRepository } from './governance/report.repo.js';
+import { createReportRouter } from './governance/report.routes.js';
+import { InMemoryDisputeRepository } from './governance/dispute.repo.js';
+import { createIdentityRouter } from './governance/identity.routes.js';
 
 // thin Express 앱. auth(역할 기반 JWT)는 Story 1.3, 결제 로직은 없음(Epic 5 외부 비수탁).
 export function createApp(): Express {
@@ -56,13 +62,24 @@ export function createApp(): Express {
   // Epic 5 채팅 메시지(인메모리) + 결제 안내 레일(안내 모드, 자금 미경유).
   const messageRepo = new InMemoryMessageRepository();
   const paymentRail = new GuidancePaymentRail();
+  // Epic 6·7 할인소식(UGC) 쓰기 + 거버넌스(신고/블라인드/분쟁) 인메모리 리포지토리.
+  const discountRepo = new InMemoryDiscountRepository();
+  const reportRepo = new InMemoryReportRepository();
+  const disputeRepo = new InMemoryDisputeRepository();
 
   // 읽기 전용 보드(대행자/역경매요청/할인소식) — Epic 2.
   // 동일 agentRepo·requestRepo 주입 → GET /api/agents·/api/requests 에서 시드 + 등록분 병합.
   app.use(
     '/api',
     createListingsRouter(
-      new InMemoryListingsRepository(undefined, undefined, undefined, agentRepo, requestRepo),
+      new InMemoryListingsRepository(
+        undefined,
+        undefined,
+        undefined,
+        agentRepo,
+        requestRepo,
+        discountRepo,
+      ),
     ),
   );
 
@@ -73,9 +90,16 @@ export function createApp(): Express {
   app.use('/api', createRequestRouter(requestRepo, matchRepo, notificationRepo));
   app.use('/api', createNotificationRouter(notificationRepo));
 
-  // Epic 5 채팅(당사자 인가) + 거래방식/결제 안내(자금 미경유, 안내 모드).
-  app.use('/api', createChatRouter(matchRepo, messageRepo));
+  // Epic 5 채팅(당사자 인가, 블라인드 메시지 가림) + 거래방식/결제 안내(자금 미경유).
+  app.use('/api', createChatRouter(matchRepo, messageRepo, reportRepo));
   app.use('/api', createPaymentRouter(matchRepo, paymentRail));
+
+  // Epic 6 할인소식(UGC) 쓰기(소식알림자/대행자/운영자) — 목록 GET 은 보드 라우터가 담당.
+  app.use('/api', createDiscountRouter(discountRepo));
+
+  // Epic 7 신고→블라인드(notice-and-takedown) + 신원정보 제공(통신판매중개 최소 의무).
+  app.use('/api', createReportRouter(reportRepo, discountRepo, notificationRepo));
+  app.use('/api', createIdentityRouter(matchRepo, agentRepo, disputeRepo));
 
   // 보호 라우트 시연: 로그인 사용자 자신의 클레임.
   app.get('/auth/me', requireAuth, (req, res) => {
