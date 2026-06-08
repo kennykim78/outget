@@ -48,8 +48,7 @@ export default function NaverMapShell({ onMapReady }: NaverMapShellProps = {}) {
         mapRef.current = null;
       }
     };
-    // 좌표 갱신은 아래 별도 effect 에서 처리(인스턴스 재생성 방지).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 좌표 갱신은 아래 별도 effect 에서 처리(인스턴스 재생성 방지) — deps는 status만 의도.
   }, [status]);
 
   // 현위치 도착 등으로 중심이 갱신되면 기존 인스턴스 center 만 옮긴다.
