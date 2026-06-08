@@ -35,6 +35,17 @@ export default function AgentCard({ agent, distanceLabel, onMatch }: AgentCardPr
         )}
       </header>
 
+      {/* 평판 뱃지 칩(무금전 신뢰 시그널 — Epic8/9). 텍스트 라벨 병행(색각 고려). */}
+      {agent.badges && agent.badges.length > 0 && (
+        <ul className="card__badges" aria-label="평판 뱃지">
+          {agent.badges.map((b) => (
+            <li key={b} className="badge badge--earned">
+              <span aria-hidden="true">🏅</span> {b}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {pro && (agent.bizName || agent.bizNo) && (
         <dl className="card__biz">
           {agent.bizName && (

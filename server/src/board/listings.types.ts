@@ -15,6 +15,8 @@ export interface AgentProfile {
   activeRegion: string; // 활동 지역(동/지역 단위 텍스트).
   scheduleText: string; // 출동 일정(자유 텍스트).
   reputation: number;
+  // 무금전 뱃지 라벨(노출). 보유 뱃지 type 목록 — 금액·잔액 아님(불변식 ②).
+  badges?: string[];
   // 매장 앵커(선택). 등록 프로필이 좌표를 안 넣으면 생략 — 사용자 위치 아님.
   lat?: number;
   lng?: number;

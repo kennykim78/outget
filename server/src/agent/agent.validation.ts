@@ -112,10 +112,13 @@ export function validateAgentInput(input: unknown, role: Role): ValidationResult
 }
 
 // 저장 객체에서 응답용으로 ownerUserId 를 제거(노출 금지).
+//   무금전 뱃지(badges)는 노출용으로 채운다 — 비어있으면 생략. 금액·잔액 아님(불변식 ②).
 export function toPublicProfile(
   p: StoredAgentProfile,
-): Omit<StoredAgentProfile, 'ownerUserId'> {
+  badges: string[] = [],
+): Omit<StoredAgentProfile, 'ownerUserId'> & { badges?: string[] } {
   const { ownerUserId: _omit, ...pub } = p;
   void _omit;
+  if (badges.length > 0) return { ...pub, badges };
   return pub;
 }

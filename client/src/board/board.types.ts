@@ -26,6 +26,11 @@ export interface AgentProfile {
   activeRegion: string;
   scheduleText: string;
   reputation: number;
+  /**
+   * 평판 뱃지 목록(예: '확인러'). 무금전 신뢰 시그널(Epic8/9).
+   * 서버 권위 — 표시 전용. 금액 의미 없음(②).
+   */
+  badges?: string[];
   lat: number;
   lng: number;
 }

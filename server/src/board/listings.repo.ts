@@ -20,6 +20,7 @@ import type { StoredAgentProfile } from '../agent/agent.types.js';
 import type { RequestRepository } from '../request/request.repo.js';
 import type { StoredRequest } from '../request/request.types.js';
 import type { DiscountRepository } from './discount.repo.js';
+import type { BadgeRepository } from '../badge/badge.repo.js';
 
 // 등록 할인소식(StoredDiscountPost)을 보드 응답 shape(DiscountPost)로 매핑.
 //   authorId·status 는 제외(노출 금지). 좌표는 spread 로 있으면 그대로(UGC 는 보통 없음).
@@ -48,7 +49,7 @@ function toBoardRequest(s: StoredRequest): RequestItem {
 
 // 등록 프로필(StoredAgentProfile)을 보드 응답 shape(AgentProfile)로 매핑.
 // ownerUserId 는 제외(노출 금지). 좌표는 있으면 그대로, 없으면 생략.
-function toBoardAgent(s: StoredAgentProfile): AgentProfile {
+function toBoardAgent(s: StoredAgentProfile, badges: string[]): AgentProfile {
   const out: AgentProfile = {
     id: s.id,
     status: s.status,
@@ -59,6 +60,8 @@ function toBoardAgent(s: StoredAgentProfile): AgentProfile {
   if (s.bizName !== undefined) out.bizName = s.bizName;
   if (s.bizNo !== undefined) out.bizNo = s.bizNo;
   if (s.contact !== undefined) out.contact = s.contact;
+  // 무금전 뱃지 노출(있으면). ownerUserId 는 여기서 소비되고 응답엔 포함되지 않는다.
+  if (badges.length > 0) out.badges = badges;
   if (typeof s.lat === 'number') out.lat = s.lat;
   if (typeof s.lng === 'number') out.lng = s.lng;
   return out;
@@ -77,6 +80,7 @@ export class InMemoryListingsRepository implements ListingsRepository {
   private readonly agentRepo?: AgentProfileRepository;
   private readonly requestRepo?: RequestRepository;
   private readonly discountRepo?: DiscountRepository;
+  private readonly badgeRepo?: BadgeRepository;
 
   constructor(
     agents: readonly AgentProfile[] = AGENT_SEED,
@@ -85,6 +89,7 @@ export class InMemoryListingsRepository implements ListingsRepository {
     agentRepo?: AgentProfileRepository,
     requestRepo?: RequestRepository,
     discountRepo?: DiscountRepository,
+    badgeRepo?: BadgeRepository,
   ) {
     this.agents = agents;
     this.requests = requests;
@@ -92,13 +97,18 @@ export class InMemoryListingsRepository implements ListingsRepository {
     this.agentRepo = agentRepo;
     this.requestRepo = requestRepo;
     this.discountRepo = discountRepo;
+    this.badgeRepo = badgeRepo;
   }
 
   async listAgents(region?: string): Promise<AgentProfile[]> {
     // 시드 + 등록 프로필 병합(agentRepo 주입 시). 등록분은 보드 shape 로 매핑(ownerUserId 제외).
-    const registered = this.agentRepo
-      ? (await this.agentRepo.listAll()).map(toBoardAgent)
-      : [];
+    //   무금전 뱃지(badgeRepo 주입 시)는 ownerUserId 로 조회해 노출에 채운다.
+    const stored = this.agentRepo ? await this.agentRepo.listAll() : [];
+    const registered: AgentProfile[] = [];
+    for (const s of stored) {
+      const badges = this.badgeRepo ? await this.badgeRepo.listByUser(s.ownerUserId) : [];
+      registered.push(toBoardAgent(s, badges));
+    }
     const merged = [...this.agents, ...registered];
     if (region === undefined) return merged;
     return merged.filter((a) => a.activeRegion === region);

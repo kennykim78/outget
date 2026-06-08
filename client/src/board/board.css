@@ -315,6 +315,23 @@
   color: #8a5a00;
 }
 
+/* 획득 뱃지 칩(Epic8/9 무금전 신뢰 시그널). 아이콘+라벨 병행(색각 고려). */
+.card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.badge--earned {
+  gap: 4px;
+  background: #fff7e0;
+  color: #5a4a00;
+  border: 1px solid #f0dca0;
+}
+
 /* ── 가격 위계 ─────────────────────────────────────────────── */
 /* 현장 확인가(검증) — 초록 + ✅ + "확인가" 라벨(색 단독 아님). placeholder 단계. */
 .price-placeholder {

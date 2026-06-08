@@ -11,11 +11,13 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../auth/auth.middleware.js';
 import type { AgentProfileRepository } from './agent.repo.js';
 import type { MatchRepository } from './match.repo.js';
+import type { BadgeRepository } from '../badge/badge.repo.js';
 import { toPublicProfile, validateAgentInput } from './agent.validation.js';
 
 export function createAgentRouter(
   agentRepo: AgentProfileRepository,
   matchRepo: MatchRepository,
+  badgeRepo?: BadgeRepository,
 ): Router {
   const router = Router();
 
@@ -30,7 +32,8 @@ export function createAgentRouter(
         return;
       }
       const saved = await agentRepo.upsertByOwner(req.user!.sub, result.value);
-      res.status(200).json(toPublicProfile(saved));
+      const badges = badgeRepo ? await badgeRepo.listByUser(req.user!.sub) : [];
+      res.status(200).json(toPublicProfile(saved, badges));
     },
   ] as const;
 
@@ -43,7 +46,8 @@ export function createAgentRouter(
       res.status(404).json({ error: '프로필이 없습니다.' });
       return;
     }
-    res.status(200).json(toPublicProfile(found));
+    const badges = badgeRepo ? await badgeRepo.listByUser(req.user!.sub) : [];
+    res.status(200).json(toPublicProfile(found, badges));
   });
 
   // 매칭 진입 — 구매자만. 채팅 본체는 Epic 5(여기선 thread 식별자만 발급).

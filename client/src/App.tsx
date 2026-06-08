@@ -10,6 +10,10 @@ import RequestForm from './request/RequestForm';
 import MyRequestsView from './request/MyRequestsView';
 import ChatView from './chat/ChatView';
 import DiscountForm from './discount/DiscountForm';
+import BountyList from './bounty/BountyList';
+import BountyForm from './bounty/BountyForm';
+import GroupSlotList from './groupslot/GroupSlotList';
+import GroupSlotForm from './groupslot/GroupSlotForm';
 import AdminBlindView from './governance/AdminBlindView';
 import LoginView from './auth/LoginView';
 import { useAuth } from './auth/AuthContext';
@@ -22,6 +26,10 @@ type Screen =
   | 'requestForm'
   | 'myRequests'
   | 'discountForm'
+  | 'bounty'
+  | 'bountyForm'
+  | 'groupSlot'
+  | 'groupSlotForm'
   | 'adminReports'
   | 'chat';
 
@@ -42,6 +50,8 @@ const canPostDiscount = (role: Role) =>
   role === '전문대행자' ||
   role === '운영자';
 const isAdmin = (role: Role) => role === '운영자';
+// 바운티 작성 — 구매자/운영자(열람은 전원). 공동대행 개설 — 대행자, 참여 — 구매자.
+const canPostBounty = (role: Role) => role === '구매자' || role === '운영자';
 
 export default function App() {
   const { status, user, logout } = useAuth();
@@ -90,6 +100,22 @@ export default function App() {
             {/* 로그인 — 역할 게이팅 진입 + 로그아웃·역할 표시. */}
             {status === 'authed' && role && (
               <>
+                {/* 바운티 열람 — 전원(작성은 목록 화면에서 권한자에게만 노출). */}
+                <button
+                  type="button"
+                  className="app-header__action"
+                  onClick={() => setScreen('bounty')}
+                >
+                  바운티
+                </button>
+                {/* 공동대행 슬롯 열람 — 전원(개설/참여는 목록에서 역할별 노출). */}
+                <button
+                  type="button"
+                  className="app-header__action"
+                  onClick={() => setScreen('groupSlot')}
+                >
+                  공동대행
+                </button>
                 {isBuyer(role) && (
                   <>
                     <button
@@ -187,6 +213,37 @@ export default function App() {
           <DiscountForm
             onSaved={() => setScreen('board')}
             onCancel={() => setScreen('board')}
+          />
+        )}
+        {screen === 'bounty' && (
+          <BountyList
+            onWriteNew={
+              role && canPostBounty(role)
+                ? () => setScreen('bountyForm')
+                : undefined
+            }
+          />
+        )}
+        {screen === 'bountyForm' && role && canPostBounty(role) && (
+          <BountyForm
+            onSaved={() => setScreen('bounty')}
+            onCancel={() => setScreen('bounty')}
+          />
+        )}
+        {screen === 'groupSlot' && (
+          <GroupSlotList
+            onCreateNew={
+              role && isAgent(role)
+                ? () => setScreen('groupSlotForm')
+                : undefined
+            }
+            canJoin={!!role && isBuyer(role)}
+          />
+        )}
+        {screen === 'groupSlotForm' && role && isAgent(role) && (
+          <GroupSlotForm
+            onSaved={() => setScreen('groupSlot')}
+            onCancel={() => setScreen('groupSlot')}
           />
         )}
         {screen === 'adminReports' && role && isAdmin(role) && (
