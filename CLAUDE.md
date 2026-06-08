@@ -4,7 +4,7 @@
 
 > **코드네임 안내:** 프로젝트 코드네임/폴더는 `knockedu`(legacy, 교육포털 LECV에서 피벗) → 폴더 `outget`. 제품명은 **Outget**. 하네스 스킬은 아직 `knockedu-*` 이름을 유지(리네이밍은 미실행 — 아래 *하네스 재배선* 참조).
 
-**Stack:** 미정(greenfield). 스택 확정 시 하네스 도구 스킬(`knockedu-qa`/`-test`/`-run`/`-contract`/`-impact`)의 실제 명령을 배선하고 아래 변경 이력에 기록할 것.
+**Stack (Epic 1 확정):** 모노레포 **npm workspaces** — `client`(Vite+React+TS **PWA**) · `server`(**Express** thin, TS, ESM). DB는 **인메모리 stub**(Postgres는 후속·M1). 지도=**네이버 지도 JS v3**. 테스트=server **Vitest**(client 단위·E2E 미배선). CI=**GitHub Actions** + `scripts/compliance-scan.mjs`. 도구 스킬(`knockedu-qa`/`-run`/`-test`) 실명령 배선 완료(`-impact`/`-contract`는 grep 기반).
 
 ## 법적 불변식 (매 변경에서 지킨다)
 
@@ -35,4 +35,5 @@
 | 2026-06-08 | **피벗: 교육포털(LECV) → 아울렛 구매대행 마켓플레이스(Outget).** 법적 불변식을 포털 비적재 → 마켓플레이스 컴플라이언스(무크롤링·자금 미보유·통신판매중개·2층 가격)로 전면 교체. 폴더 `knockedu`→`outget`, 제품명 Outget 확정. 완전 무크롤링 결정. CLAUDE.md/KNOCKEDU.md 갱신 + 기획서·UX 작성 | 문서·불변식 | (카)목/저작권·DB권 리스크가 사업 생존을 가른다는 결론 → "거래가 데이터를 만드는" 구조로 전환. 하네스 코드 재배선은 미실행(pending) |
 | 2026-06-08 | **당근형 양면 매칭 보드로 수렴.** 불변식 갱신: 통합 에스크로 폐기→직접+외부 P2P 안전결제(자금 미보유·링크 보증 안 함), 2층 가격→UGC 할인소식(미검증 라벨)+현장확인가, UGC notice-and-takedown, 대행자 지위구분(개인/전문)·바운티 뱃지·통신판매중개 최소 의무 유지 추가. PRD/UX v0.2 작성, MVP_모델.md 갱신 | 문서·불변식 | 적대적 검증 3턴: 에스크로 폐기는 PG는 회피하나 통신판매중개 책임은 불변, 링크 검증기는 책임 인수 함정 → 사람 중심 당근형으로 수렴 |
 | 2026-06-08 | **문서 통합** — `doc/`·루트 `KNOCKEDU.md`·`docs/bmad/`를 `docs/` 한 곳으로(개요/MVP모델/planning-artifacts/legacy + README 색인). BMAD output_folder `docs/bmad`→`docs`(custom/config.toml 고정) | 문서·BMAD설정 | 3곳 분산 + `doc`/`docs` 혼란 해소 |
+| 2026-06-08 | **Epic 1(기반) 구현 + 스택 확정.** 모노레포(client PWA/server Express)·JWT 인증 골격·네이버 지도 셸·CI 컴플라이언스 게이트(`scripts/compliance-scan.mjs`). security-auditor가 스캐너 R1/R3 갭 발견→보강. 도구 스킬 `knockedu-qa`/`-run`/`-test` skeleton→실명령 배선 | skills/knockedu-qa·run·test, client/, server/, scripts/, .github/ | 스택 랜딩 → 게이트가 실제 빌드/테스트/스캔으로 작동. GitHub push 완료 |
 | 2026-06-08 | **하네스 재배선 완료(LECV→Outget).** `ml-engineer` 에이전트 + `knockedu-filter-eval` 스킬 폐기. security-auditor→Outget 컴플라이언스 불변식, qa-verifier→불변식 게이트(ML eval 제거), backend/frontend/architect/refactorer→당근형 양면 보드, 오케스트레이터·qa/test/contract/run/impact/screens 재배선 | agents/*, skills/knockedu-* | 교육 메타서치 잔재(ML·크롤러·포털)가 구현을 오도. 스킬 폴더명은 세션 호환 위해 `knockedu-*` 유지(내용만 Outget). `feature-audit`/`review` 워크플로우는 프로젝트에 파일 부재(미관리) |

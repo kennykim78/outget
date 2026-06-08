@@ -26,9 +26,12 @@ Add tests that FAIL if an invariant breaks: no crawler module imported, no platf
 - **E2E:** Playwright. First spec = the core flow: 요청 등록(S4) → 대행자 채택 → 채팅(S5) → 거래방식 선택. Use fixtured external-API responses (지도 SDK·네이버쇼핑·안전결제) so tests are deterministic.
 - **Server (likely Node):** runner matching the framework + Supertest for routes.
 
-## Running
+## Running (WIRED — Epic 1)
 
-Once wired, expose standard commands (`npm test`, `npx playwright test`) and document them here + in `knockedu-qa`.
+- **Server (Vitest + Supertest):** `npm test -w server` — 현재 `server/src/__tests__/auth.test.ts` 11 케이스(JWT/보호라우트 401/403/200). ✅ 배선됨.
+- **Client 단위(Vitest + @testing-library):** 아직 미배선 — Epic 2(보드/가격 표시) 진입 시 `client`에 vitest+jsdom 추가하고 `npm test -w client` 노출.
+- **E2E(Playwright):** 미배선 — 매칭/채팅(Epic 4~5) 들어오면 첫 spec = 요청(S4)→채택→채팅(S5)→거래방식. 외부 API(지도·네이버쇼핑·안전결제)는 fixtured.
+- 새 러너 배선 시 `knockedu-qa` 게이트와 CLAUDE.md에 반영.
 
 ## Rule
 
