@@ -24,7 +24,44 @@ declare global {
       constructor(element: string | HTMLElement, options: MapOptions);
       setCenter(center: LatLng): void;
       setZoom(zoom: number): void;
+      getZoom(): number;
+      getBounds(): LatLngBounds;
       destroy(): void;
+    }
+
+    // 마커 — 핀/클러스터 렌더에 사용. 필요 표면만 선언.
+    interface MarkerOptions {
+      position: LatLng;
+      map?: Map;
+      title?: string;
+      icon?: string | { content: string; [key: string]: unknown };
+      zIndex?: number;
+      [key: string]: unknown;
+    }
+
+    class Marker {
+      constructor(options: MarkerOptions);
+      setMap(map: Map | null): void;
+      getPosition(): LatLng;
+      setPosition(position: LatLng): void;
+    }
+
+    // 지도 가시 영역(클러스터 컬링 등에 사용).
+    class LatLngBounds {
+      hasLatLng(latlng: LatLng): boolean;
+      getMin(): LatLng;
+      getMax(): LatLng;
+    }
+
+    // 이벤트 구독/해제 — 마커 클릭 등. 반환 핸들로 removeListener.
+    type EventListener = unknown;
+    namespace Event {
+      function addListener(
+        target: unknown,
+        eventName: string,
+        listener: (...args: unknown[]) => void,
+      ): EventListener;
+      function removeListener(listener: EventListener): void;
     }
   }
 

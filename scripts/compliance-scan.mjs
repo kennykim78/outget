@@ -147,6 +147,9 @@ const SEC_PEM = /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/;
 // 라인 단위(line-local) 규칙. R3 멀티라인/근접 규칙은 checkFile 에서 별도 처리.
 function checkLine(line) {
   const hits = [];
+  // R4/R5는 변수·함수명 매칭이라 deny-list 주석(예: "// platformPrice 금지")이 false-positive.
+  // R3처럼 주석을 제거한 실제 코드에만 적용한다. (R1/R2/시크릿은 raw line 유지 — 주석 속 키/예시도 잡아야 하므로.)
+  const code = stripComments(line);
 
   // ── R1 무크롤링 ─────────────────────────────────────────────
   // (1) 스크래핑 키워드: 줄에 화이트 도메인이 "언급"만 돼도 면제하지 않는다(MED 수정).
@@ -185,11 +188,11 @@ function checkLine(line) {
     }
   }
 
-  // R4
-  if (R4_KEYWORDS.test(line) || R4_KO.test(line)) hits.push('R4-링크보증');
+  // R4 (주석 제거 코드에만)
+  if (R4_KEYWORDS.test(code) || R4_KO.test(code)) hits.push('R4-링크보증');
 
-  // R5
-  if (R5_KEYWORDS.test(line)) hits.push('R5-가격주장');
+  // R5 (주석 제거 코드에만)
+  if (R5_KEYWORDS.test(code)) hits.push('R5-가격주장');
 
   // 시크릿
   if (SEC_NAVER.test(line)) hits.push('SECRET-naver');

@@ -9,12 +9,20 @@ import {
 } from './useDefaultRegion';
 import './NaverMapShell.css';
 
-export default function NaverMapShell() {
+interface NaverMapShellProps {
+  /** 지도 인스턴스 준비 완료 시 호출(마커 부착 등에 사용). */
+  onMapReady?: (map: naver.maps.Map) => void;
+}
+
+export default function NaverMapShell({ onMapReady }: NaverMapShellProps = {}) {
   const status = useNaverMapLoader();
   const region = useDefaultRegion();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<naver.maps.Map | null>(null);
+  // 콜백을 ref 로 보관 — effect deps(=[status]) 불변 유지(인스턴스 재생성 방지).
+  const onMapReadyRef = useRef(onMapReady);
+  onMapReadyRef.current = onMapReady;
 
   // 지도 인스턴스 생성/정리.
   useEffect(() => {
@@ -30,6 +38,8 @@ export default function NaverMapShell() {
         center,
         zoom: DEFAULT_MAP_ZOOM,
       });
+      // ready 콜백 — 마커 부착 등 후속 보드 기능에 인스턴스 전달.
+      onMapReadyRef.current?.(mapRef.current);
     }
 
     return () => {
