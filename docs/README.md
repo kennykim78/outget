@@ -11,6 +11,7 @@
 | [planning-artifacts/PRD.md](planning-artifacts/PRD.md) | **제품 요구사항 정의서 v0.2** | 권위 문서. EPIC·FR/NFR·성공지표·마일스톤 |
 | [planning-artifacts/UX-기획.md](planning-artifacts/UX-기획.md) | **UX 기획 v0.2** | 화면·플로우·컴포넌트·카피 |
 | [planning-artifacts/architecture.md](planning-artifacts/architecture.md) | **아키텍처 v0.1** | 스택·불변식 제약·데이터모델·M1 게이트 |
+| [planning-artifacts/epics.md](planning-artifacts/epics.md) | **에픽·스토리 v0.1** | 10 에픽·24 스토리(AC에 5대 불변식) |
 | [MVP_모델.md](MVP_모델.md) | 사업모델 캐논 | 5턴 수렴 의사결정 이력(일부는 PRD가 갱신) |
 
 ## 폴더 구조
