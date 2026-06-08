@@ -1,0 +1,30 @@
+# Docker 빌드 컨텍스트 최소화 — 빌드 산출물/시크릿/개인 도구 제외.
+node_modules
+**/node_modules
+**/dist
+dist
+dev-dist
+**/dev-dist
+
+# SQLite 로컬 DB(절대 이미지에 넣지 않음).
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# 시크릿(.env.example 만 허용은 불필요 — 컨테이너는 런타임 주입).
+.env
+.env.*
+
+# 개인 기획/하네스 도구(repo 비포함 대상).
+_bmad
+docs/bmad
+_workspace
+_workspace*
+
+# VCS / CI / 메타.
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile

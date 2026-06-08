@@ -145,7 +145,8 @@ PostgreSQL 기준. 모든 데이터는 *내 소유*(시드/거래/UGC).
 ## 8. 배포 & 저장소
 
 - **저장소:** GitHub `kennykim78/outget` (확정). 모노레포 권장(`/client`, `/server`, `/docs`). BMAD 툴링(`_bmad/`)·개인 설정은 `.gitignore` 제외.
-- **배포(제안, M1에서 확정):** 클라=정적 호스팅(Vercel/CF Pages, PWA) · 서버=컨테이너(Fly/Render/Railway) · DB=관리형 PostgreSQL · 환경별 키 분리.
+- **베타 배포(확정):** **동일 오리진 단일 컨테이너** — 서버가 `/api`·`/auth` + 빌드된 SPA(`client/dist`)를 함께 서빙(apiFetch 상대경로 전제 충족, CORS 불필요). DB=SQLite + `/data` 볼륨(`file:/data/prod.db`), 기동 시 `prisma migrate deploy`. SPA 정적 서빙은 `NODE_ENV==='production'` 게이팅이라 test/dev 동작(404·CSP)은 불변. SPA HTML 응답 CSP 의 외부 출처는 네이버 지도뿐(불변식 ①).
+- **배포(이후 확장, M1에서 확정):** 클라=정적 호스팅(Vercel/CF Pages, PWA) · 서버=컨테이너(Fly/Render/Railway) · DB=관리형 PostgreSQL · 환경별 키 분리.
 - **브랜치/CI:** main 보호 + PR + Actions 게이트.
 
 ---

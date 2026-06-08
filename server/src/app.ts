@@ -18,6 +18,7 @@ import { createGroupSlotRouter } from './groupslot/groupslot.routes.js';
 import { makeInMemoryRepos, type Repos } from './db/repos.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { mountSpa } from './middleware/spa.js';
 import {
   authLimiter,
   writeLimiter,
@@ -134,6 +135,13 @@ export function createApp(repos: Repos = makeInMemoryRepos()): Express {
   app.get('/admin/ping', requireAuth, requireRole('운영자'), (_req, res) => {
     res.status(200).json({ ok: true });
   });
+
+  // 프로덕션 동일 오리진 배포: 모든 라우터 뒤·errorHandler 직전에 SPA 정적 서빙 마운트.
+  //   /api·/auth·/health 는 위에서 라우팅되어 SPA fallback 에 도달하지 않는다.
+  //   테스트(non-prod)는 미마운트 → /no-such-route 404·CSP default-src 'none' 동작 보존.
+  if (process.env.NODE_ENV === 'production') {
+    mountSpa(app);
+  }
 
   // 모든 라우터·미들웨어 뒤 맨 마지막: 4-arity 에러핸들러.
   //   CORS 거부 throw → 403 JSON, 그 외 → 500 JSON(스택 미노출).

@@ -20,8 +20,8 @@ export interface DefaultRegion {
   resolving: boolean;
 }
 
-// 앵커 동(지역) 기본 중심좌표 — placeholder.
-// 여주시 중심 부근(여주 종합운동장 인근) 좌표. 앵커 확정 시 수정.
+// 앵커 동(지역) 기본 중심좌표 — 여주 확정(베타 1차 앵커).
+// 여주시 중심 부근(여주 종합운동장 인근) 좌표.
 export const DEFAULT_REGION_CENTER: RegionCenter = {
   lat: 37.298,
   lng: 127.637,
