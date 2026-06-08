@@ -51,6 +51,11 @@ export function useDealMethod(matchId: string): UseDealMethodResult {
     async (method: DealMethod) => {
       setBusy(true);
       setError(null);
+      // 선택을 **즉시(낙관적)** 반영한다. 직접거래 선입금 사기 경고는 안전 핵심이라
+      // 서버 왕복 성공 여부와 무관하게 사용자가 직접거래를 고르는 순간 떠야 한다.
+      // 서버 POST는 선택을 기록(best-effort)하며, 실패해도 경고/선택은 유지한다.
+      setSelected(method);
+      if (method !== '안전결제') setGuidance(null);
       try {
         const res = await fetch(dealMethodPath(matchId), {
           method: 'POST',
@@ -59,12 +64,9 @@ export function useDealMethod(matchId: string): UseDealMethodResult {
           body: JSON.stringify({ dealMethod: method }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setSelected(method);
         // 안전결제는 안내 텍스트(mode:'안내')만 로드. 직접거래는 경고만(아래 UI).
         if (method === '안전결제') {
           await loadGuidance(matchId);
-        } else {
-          setGuidance(null);
         }
       } catch (e: unknown) {
         setError(
