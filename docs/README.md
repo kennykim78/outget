@@ -12,6 +12,7 @@
 | [planning-artifacts/UX-기획.md](planning-artifacts/UX-기획.md) | **UX 기획 v0.2** | 화면·플로우·컴포넌트·카피 |
 | [planning-artifacts/architecture.md](planning-artifacts/architecture.md) | **아키텍처 v0.1** | 스택·불변식 제약·데이터모델·M1 게이트 |
 | [planning-artifacts/epics.md](planning-artifacts/epics.md) | **에픽·스토리 v0.1** | 10 에픽·24 스토리(AC에 5대 불변식) |
+| [planning-artifacts/M1-게이트.md](planning-artifacts/M1-게이트.md) | **M1 게이트** | 안전결제 문의 메일·법률 질의서·DB/호스팅/앵커 권고 |
 | [MVP_모델.md](MVP_모델.md) | 사업모델 캐논 | 5턴 수렴 의사결정 이력(일부는 PRD가 갱신) |
 
 ## 폴더 구조
