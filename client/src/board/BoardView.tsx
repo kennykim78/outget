@@ -3,6 +3,7 @@
 // 데이터: useListings(자사 /api 상대경로). 거리: useDistance(클라 Haversine).
 // 좌표는 어떤 네트워크 호출에도 싣지 않는다(R3). 외부 절대 URL 0(R1).
 import { useMemo, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import NaverMapShell from '../map/NaverMapShell';
 import type {
   AgentProfile,
@@ -58,9 +59,8 @@ export default function BoardView({ onEnterChat }: BoardViewProps) {
   // 성공 시 응답 식별자({id, chatThreadId})를 받아 실제 채팅 화면으로 전환한다.
   const handleMatch = (agentId: string) => {
     setMatchNotice(null);
-    fetch('/api/matches', {
+    apiFetch('/api/matches', {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId }),
     })
       .then((res) => {

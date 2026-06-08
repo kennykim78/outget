@@ -6,15 +6,11 @@
 //   - ④/R5: unverifiedBase 는 서버가 강제한다 — 클라가 보내지 않는다.
 //     플랫폼 단정가(platform/our/official 류) 변수는 두지 않는다.
 import { useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { DiscountInput, MyDiscountPost } from './discount.types';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const DISCOUNTS_PATH = '/api/discounts';
-
-const JSON_HEADERS = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 export interface UseDiscountActionsResult {
   busy: boolean;
@@ -47,9 +43,8 @@ export function useDiscountActions(): UseDiscountActionsResult {
     };
 
     try {
-      const res = await fetch(DISCOUNTS_PATH, {
+      const res = await apiFetch(DISCOUNTS_PATH, {
         method: 'POST',
-        headers: JSON_HEADERS,
         body: JSON.stringify(body),
       });
       if (res.status === 401) {

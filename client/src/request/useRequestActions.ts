@@ -7,15 +7,11 @@
 //     hopePrice·확인 금액은 표시값일 뿐(자금 보유 아님).
 //   - ④: 확인가 제시 본문은 금액·메모만. 책임 주체(agentId)·시각은 서버가 부여한다.
 import { useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { RequestInput, StoredRequest } from './request.types';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const REQUESTS_PATH = '/api/requests';
-
-const JSON_HEADERS = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 /** 확인가 제시 입력 — 금액·메모만(책임 주체·시각은 서버 부여, 좌표 0). */
 export interface VerifiedPriceInput {
@@ -60,9 +56,8 @@ export function useRequestActions(): UseRequestActionsResult {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(path, {
+      const res = await apiFetch(path, {
         method: 'POST',
-        headers: JSON_HEADERS,
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

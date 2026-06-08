@@ -3,9 +3,10 @@
 //   - ①/R1: 자사 상대경로(`/api/requests/me`)만 호출한다. 외부 절대 URL 0.
 //   - ⑤/R3: 응답 항목에 좌표 필드가 없다(region 텍스트만). 좌표 전송 경로 없음.
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { StoredRequest } from './request.types';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const MY_REQUESTS_PATH = '/api/requests/me';
 
 export type MyRequestsStatus = 'loading' | 'error' | 'ready';
@@ -29,7 +30,7 @@ export function useMyRequests(): UseMyRequestsResult {
     setStatus('loading');
     setError(null);
 
-    fetch(MY_REQUESTS_PATH, { headers: { Accept: 'application/json' } })
+    apiFetch(MY_REQUESTS_PATH)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

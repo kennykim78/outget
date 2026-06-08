@@ -4,9 +4,10 @@
 //     setInterval 폴링이지만 대상은 자사 /api 뿐(외부 절대 URL 구성·호출 없음).
 //   - ⑤/R3: 알림 응답에 좌표 필드 없음. 좌표 전송 경로 없음.
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { Notification } from './request.types';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const NOTIFICATIONS_PATH = '/api/notifications';
 
 // 폴링 주기(ms). 채택/확인가/거절 알림 수신용.
@@ -26,16 +27,30 @@ export function useNotifications(): UseNotificationsResult {
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
-    // 자사 상대경로 단발 조회. 외부 URL 구성 없음(①).
+    const stopPolling = () => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    // 자사 상대경로 단발 조회(apiFetch 가 Bearer/refresh 처리). 외부 URL 구성 없음(①).
     const fetchOnce = () => {
-      fetch(NOTIFICATIONS_PATH, { headers: { Accept: 'application/json' } })
+      apiFetch(NOTIFICATIONS_PATH)
         .then((res) => {
+          // 401: apiFetch 가 refresh→재시도까지 마친 뒤의 최종 실패다. 폴링을 멈춰
+          // 인증 실패 상태에서의 요청 폭주를 막는다(폴링 가드).
+          if (res.status === 401) {
+            stopPolling();
+            return null;
+          }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json();
         })
         .then((json: unknown) => {
-          if (cancelled) return;
+          if (cancelled || json === null) return;
           const arr = Array.isArray(json) ? (json as Notification[]) : [];
           setItems(arr);
           setError(null);
@@ -49,11 +64,11 @@ export function useNotifications(): UseNotificationsResult {
     };
 
     fetchOnce();
-    const timer = setInterval(fetchOnce, POLL_MS);
+    timer = setInterval(fetchOnce, POLL_MS);
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      stopPolling();
     };
   }, [nonce]);
 

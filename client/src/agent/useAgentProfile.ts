@@ -6,21 +6,17 @@
 //     좌표 필드 자체가 없으므로 전송 경로에서 좌표가 발생하지 않는다.
 //   - ②: 매칭 호출은 채팅 진입 placeholder 일 뿐 금액·대금 본문이 없다.
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type {
   AgentProfileInput,
   MatchResult,
   StoredAgentProfile,
 } from './agent.types';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const PROFILE_PATH = '/api/agent-profile';
 const PROFILE_ME_PATH = '/api/agent-profile/me';
 const MATCHES_PATH = '/api/matches';
-
-const JSON_HEADERS = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 export interface UseAgentProfileResult {
   /** 편집 프리필용 내 프로필(GET /me). 없으면(신규) null. */
@@ -54,7 +50,7 @@ export function useAgentProfile(): UseAgentProfileResult {
     setLoading(true);
     setError(null);
 
-    fetch(PROFILE_ME_PATH, { headers: { Accept: 'application/json' } })
+    apiFetch(PROFILE_ME_PATH)
       .then((res) => {
         if (res.status === 404) return null; // 미작성 — 신규 작성 흐름.
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -87,9 +83,8 @@ export function useAgentProfile(): UseAgentProfileResult {
     try {
       // 기존 프로필 유무로 method 분기(PUT 수정 / POST 신규).
       const method = me ? 'PUT' : 'POST';
-      const res = await fetch(PROFILE_PATH, {
+      const res = await apiFetch(PROFILE_PATH, {
         method,
-        headers: JSON_HEADERS,
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -107,9 +102,8 @@ export function useAgentProfile(): UseAgentProfileResult {
 
   const requestMatch = async (agentId: string): Promise<MatchResult> => {
     // 채팅 진입 placeholder. 본문은 대상 식별자뿐 — 금액·대금·좌표 0.
-    const res = await fetch(MATCHES_PATH, {
+    const res = await apiFetch(MATCHES_PATH, {
       method: 'POST',
-      headers: JSON_HEADERS,
       body: JSON.stringify({ agentId }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

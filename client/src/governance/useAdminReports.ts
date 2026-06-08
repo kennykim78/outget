@@ -4,12 +4,11 @@
 //   - ⑤/R3: 본문/응답에 좌표 없음. ②: 자금 흐름 키 없음.
 //   - ③: 운영자 복구/삭제는 notice-and-takedown 의 사후 판단(완전 방치 금지).
 import { useCallback, useEffect, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { ReportReason, ReportTargetType } from './useReport';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const REPORTS_PATH = '/api/reports';
-
-const JSON_HEADERS = { Accept: 'application/json' };
 
 /** 운영자가 다루는 신고 항목(미러) — 상태·대상·사유. */
 export interface AdminReport {
@@ -53,7 +52,7 @@ export function useAdminReports(): UseAdminReportsResult {
     setError(null);
 
     const qs = filter ? `?status=${encodeURIComponent(filter)}` : '';
-    fetch(`${REPORTS_PATH}${qs}`, { headers: JSON_HEADERS })
+    apiFetch(`${REPORTS_PATH}${qs}`)
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
           throw new Error('운영자만 신고 큐를 볼 수 있어요.');
@@ -87,9 +86,9 @@ export function useAdminReports(): UseAdminReportsResult {
     async (id: string, verb: 'restore' | 'remove') => {
       setActionError(null);
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `${REPORTS_PATH}/${encodeURIComponent(id)}/${verb}`,
-          { method: 'POST', headers: JSON_HEADERS },
+          { method: 'POST' },
         );
         if (res.status === 401 || res.status === 403) {
           throw new Error('운영자만 처리할 수 있어요.');

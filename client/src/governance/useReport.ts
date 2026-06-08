@@ -4,14 +4,10 @@
 //   - ⑤/R3: 본문에 좌표 없음(대상 식별자·사유만).
 //   - ③: 신고는 notice-and-takedown 진입점 — 신고 시 서버가 즉시 블라인드 처리한다.
 import { useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 
-// 자사 API 상대 경로(절대 URL 금지).
+// 자사 API 상대 경로(절대 URL 금지). 인증 헤더는 apiFetch 가 부착한다.
 const REPORTS_PATH = '/api/reports';
-
-const JSON_HEADERS = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 /** 신고 대상 종류 — 서버 Report.targetType 미러. */
 export type ReportTargetType = 'discount' | 'message' | 'profile' | 'request';
@@ -51,9 +47,8 @@ export function useReport(): UseReportResult {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(REPORTS_PATH, {
+      const res = await apiFetch(REPORTS_PATH, {
         method: 'POST',
-        headers: JSON_HEADERS,
         body: JSON.stringify(input),
       });
       if (res.status === 401) {

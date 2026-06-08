@@ -6,12 +6,8 @@
 //     payment-guidance 는 안내 텍스트(mode:'안내')만 읽는다. 자금 경로 아님.
 //   - 링크 검증/보증 경로 없음(R4): 외부 링크 검증기를 호출하지 않는다.
 import { useCallback, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { DealMethod, PaymentGuidance } from './chat.types';
-
-const JSON_HEADERS = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 // 자사 API 상대 경로 빌더(절대 URL 금지).
 function dealMethodPath(matchId: string): string {
@@ -39,9 +35,7 @@ export function useDealMethod(matchId: string): UseDealMethodResult {
   const [guidance, setGuidance] = useState<PaymentGuidance | null>(null);
 
   const loadGuidance = useCallback(async (id: string) => {
-    const res = await fetch(guidancePath(id), {
-      headers: { Accept: 'application/json' },
-    });
+    const res = await apiFetch(guidancePath(id));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as PaymentGuidance;
     setGuidance(json);
@@ -57,9 +51,8 @@ export function useDealMethod(matchId: string): UseDealMethodResult {
       setSelected(method);
       if (method !== '안전결제') setGuidance(null);
       try {
-        const res = await fetch(dealMethodPath(matchId), {
+        const res = await apiFetch(dealMethodPath(matchId), {
           method: 'POST',
-          headers: JSON_HEADERS,
           // ② 라벨만 전송 — 금액·결제 필드 없음.
           body: JSON.stringify({ dealMethod: method }),
         });

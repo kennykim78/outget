@@ -5,6 +5,7 @@
 //   - ②: 전송 본문은 { body } 텍스트뿐 — 결제·금액·정산 필드 없음.
 //   - 본문 길이상한 2000(서버 미러) — 초과는 보내지 않는다.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../auth/apiFetch';
 import type { MessageInput, StoredMessage } from './chat.types';
 
 // 본문 길이상한(서버 validation 미러).
@@ -12,11 +13,6 @@ export const MESSAGE_MAX_LENGTH = 2000;
 
 // 폴링 주기(ms). 실시간 라이브러리 대신 단순 폴링.
 const POLL_INTERVAL_MS = 4000;
-
-const JSON_HEADERS = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 export type MessagesStatus = 'loading' | 'error' | 'ready';
 
@@ -42,12 +38,21 @@ export function useMessages(matchId: string): UseMessagesResult {
   // 폴링 중 latest matchId 참조용(매칭 전환 시 stale 호출 차단).
   const matchIdRef = useRef(matchId);
   matchIdRef.current = matchId;
+  // 인증 최종 실패(401) 시 폴링 정지 신호 — useEffect 가 interval 을 멈춘다.
+  const authFailedRef = useRef(false);
 
   const fetchOnce = useCallback(async (signalMatchId: string) => {
     try {
-      const res = await fetch(messagesPath(signalMatchId), {
-        headers: { Accept: 'application/json' },
-      });
+      const res = await apiFetch(messagesPath(signalMatchId));
+      // 401: apiFetch 가 refresh→재시도까지 마친 뒤의 최종 실패. 폴링 가드를 세워
+      // 인증 실패 상태의 요청 폭주를 막는다.
+      if (res.status === 401) {
+        authFailedRef.current = true;
+        if (matchIdRef.current !== signalMatchId) return;
+        setError('로그인이 필요합니다.');
+        setStatus((s) => (s === 'ready' ? s : 'error'));
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: unknown = await res.json();
       // 폴링 응답이 도착했는데 그 사이 matchId 가 바뀌었으면 무시.
@@ -65,13 +70,18 @@ export function useMessages(matchId: string): UseMessagesResult {
     }
   }, []);
 
-  // 최초 로드 + 폴링(setInterval). 매칭 전환 시 정리.
+  // 최초 로드 + 폴링(setInterval). 매칭 전환 시 정리. 인증 실패 시 폴링 정지.
   useEffect(() => {
+    authFailedRef.current = false;
     setStatus('loading');
     setData([]);
     setError(null);
     void fetchOnce(matchId);
     const timer = setInterval(() => {
+      if (authFailedRef.current) {
+        clearInterval(timer);
+        return;
+      }
       void fetchOnce(matchId);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
@@ -87,9 +97,8 @@ export function useMessages(matchId: string): UseMessagesResult {
         throw new Error('too long');
       }
       const payload: MessageInput = { body: trimmed };
-      const res = await fetch(messagesPath(matchId), {
+      const res = await apiFetch(messagesPath(matchId), {
         method: 'POST',
-        headers: JSON_HEADERS,
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
