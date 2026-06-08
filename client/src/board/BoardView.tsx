@@ -30,21 +30,29 @@ type Selected =
   | { layer: 'discounts'; items: DiscountPostData[] }
   | null;
 
-export default function BoardView() {
+interface BoardViewProps {
+  /** 매칭/채택 성공 시 채팅 화면 진입(App 이 화면 전환·컨텍스트 보존). */
+  onEnterChat: (ctx: { matchId: string; chatThreadId?: string }) => void;
+}
+
+export default function BoardView({ onEnterChat }: BoardViewProps) {
   const [layer, setLayer] = useState<LayerKind>('agents');
   const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
   const [mapInstance, setMapInstance] = useState<naver.maps.Map | null>(null);
   const [selected, setSelected] = useState<Selected>(null);
-  // 매칭 진입 결과 알림(placeholder 토스트). 채팅 본체는 Epic5.
+  // 매칭 진입 실패 알림(성공 시엔 채팅 화면으로 전환되므로 별도 토스트 없음).
   const [matchNotice, setMatchNotice] = useState<string | null>(null);
-  // 대행자 시점 토글 — true 면 요청 카드에 채택 액션 노출(역할 인증은 후속).
+  // 대행자 시점 토글 — UI 표시 토글일 뿐 "권한"이 아니다(LOW-d).
+  //   채택/확인가 등 실제 권한은 서버 requireRole(대행자) 이 권위로 강제한다.
+  //   이 체크박스를 켜도 서버가 역할을 검증하지 않는 한 어떤 보호 동작도 통과하지 않는다.
   const [viewAsAgent, setViewAsAgent] = useState(false);
-  // 채택 결과 알림(placeholder). 채팅 본체는 Epic5.
+  // 채택 결과 알림(실패 시). 성공 시엔 채팅 화면으로 전환.
   const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
 
   const distance = useDistance();
 
   // 채팅 매칭 진입 — 자사 상대경로 POST /api/matches(본문은 대상 식별자뿐, 좌표 0).
+  // 성공 시 응답 식별자({id, chatThreadId})를 받아 실제 채팅 화면으로 전환한다.
   const handleMatch = (agentId: string) => {
     setMatchNotice(null);
     fetch('/api/matches', {
@@ -54,7 +62,12 @@ export default function BoardView() {
     })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setMatchNotice('매칭이 생성되었습니다. 채팅은 곧 제공됩니다(Epic 5).');
+        return res.json();
+      })
+      .then((json: { id?: string; chatThreadId?: string }) => {
+        if (!json?.id) throw new Error('매칭 식별자를 받지 못했습니다.');
+        setSelected(null);
+        onEnterChat({ matchId: json.id, chatThreadId: json.chatThreadId });
       })
       .catch(() => {
         setMatchNotice('매칭 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.');
@@ -197,10 +210,19 @@ export default function BoardView() {
               request={r}
               onAdopt={
                 viewAsAgent
-                  ? () =>
-                      setAdoptNotice(
-                        '채택됨 · 채팅은 곧 제공됩니다(Epic 5).',
-                      )
+                  ? (ctx) => {
+                      // 채택 성공 → 매칭 식별자가 오면 채팅 화면으로 전환.
+                      if (ctx.matchId) {
+                        onEnterChat({
+                          matchId: ctx.matchId,
+                          chatThreadId: ctx.chatThreadId,
+                        });
+                      } else {
+                        setAdoptNotice(
+                          '채택되었으나 채팅 진입 정보를 받지 못했습니다.',
+                        );
+                      }
+                    }
                   : undefined
               }
             />

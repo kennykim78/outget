@@ -25,6 +25,17 @@ function toPublicRequest(r: StoredRequest): Omit<StoredRequest, 'ownerUserId'> {
   return pub;
 }
 
+// LOW-b: 이미 채택된 요청은 **채택한 대행자(adoptedBy)** 또는 **운영자** 만 손댈 수 있다.
+//   채택 전(대기) 요청은 일반 대행자 동선(거절/확인가)을 그대로 허용한다.
+//   제3의 대행자가 남이 채택한 요청을 조작하는 것을 막는다.
+function mayActOnAdopted(
+  found: StoredRequest,
+  user: { sub: string; role: string },
+): boolean {
+  if (found.adoptedBy === undefined) return true; // 미채택 — 기존 동선 유지.
+  return found.adoptedBy === user.sub || user.role === '운영자';
+}
+
 export function createRequestRouter(
   requestRepo: RequestRepository,
   matchRepo: MatchRepository,
@@ -103,6 +114,11 @@ export function createRequestRouter(
         res.status(404).json({ error: '요청을 찾을 수 없습니다.' });
         return;
       }
+      // LOW-b: 이미 채택된 요청이면 채택자/운영자만 확인가 입력 가능.
+      if (!mayActOnAdopted(found, req.user!)) {
+        res.status(403).json({ error: 'forbidden' });
+        return;
+      }
       const vp: VerifiedPrice = {
         ...result.value,
         agentId: req.user!.sub,
@@ -132,6 +148,11 @@ export function createRequestRouter(
       const found = await requestRepo.findById(req.params.id);
       if (!found) {
         res.status(404).json({ error: '요청을 찾을 수 없습니다.' });
+        return;
+      }
+      // LOW-b: 이미 채택된 요청이면 채택자/운영자만 거절 가능.
+      if (!mayActOnAdopted(found, req.user!)) {
+        res.status(403).json({ error: 'forbidden' });
         return;
       }
       await requestRepo.reject(found.id);

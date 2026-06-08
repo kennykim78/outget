@@ -258,6 +258,85 @@ describe('POST /api/requests/:id/reject (거절)', () => {
   });
 });
 
+describe('LOW-b: 채택된 요청은 채택자/운영자만 손댄다', () => {
+  async function createAndAdopt(suffix: string): Promise<{ id: string; agent1: string }> {
+    const ownerToken = await tokenFor(`lowb-owner-${suffix}@example.com`, '구매자');
+    const created = await request(app)
+      .post('/api/requests')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(validInput);
+    const agent1 = await tokenFor(`lowb-agent1-${suffix}@example.com`, '개인대행자');
+    await request(app)
+      .post(`/api/requests/${created.body.id}/adopt`)
+      .set('Authorization', `Bearer ${agent1}`)
+      .send({});
+    return { id: created.body.id, agent1 };
+  }
+
+  it('제3 대행자가 채택된 요청에 확인가 입력 → 403', async () => {
+    const { id } = await createAndAdopt('vp');
+    const agent2 = await tokenFor('lowb-agent2-vp@example.com', '전문대행자');
+    const res = await request(app)
+      .post(`/api/requests/${id}/verified-price`)
+      .set('Authorization', `Bearer ${agent2}`)
+      .send({ price: 70000 });
+    expect(res.status).toBe(403);
+  });
+
+  it('제3 대행자가 채택된 요청을 거절 시도 → 403', async () => {
+    const { id } = await createAndAdopt('rej');
+    const agent2 = await tokenFor('lowb-agent2-rej@example.com', '전문대행자');
+    const res = await request(app)
+      .post(`/api/requests/${id}/reject`)
+      .set('Authorization', `Bearer ${agent2}`)
+      .send({});
+    expect(res.status).toBe(403);
+  });
+
+  it('채택한 대행자 본인은 확인가 입력 가능 → 200', async () => {
+    const { id, agent1 } = await createAndAdopt('self');
+    const res = await request(app)
+      .post(`/api/requests/${id}/verified-price`)
+      .set('Authorization', `Bearer ${agent1}`)
+      .send({ price: 65000 });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('LOW-c: 입력 길이 상한', () => {
+  it('item 200자 초과 → 400', async () => {
+    const token = await tokenFor('lowc-item@example.com', '구매자');
+    const res = await request(app)
+      .post('/api/requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validInput, item: 'x'.repeat(201) });
+    expect(res.status).toBe(400);
+  });
+
+  it('region 100자 초과 → 400', async () => {
+    const token = await tokenFor('lowc-region@example.com', '구매자');
+    const res = await request(app)
+      .post('/api/requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validInput, region: 'x'.repeat(101) });
+    expect(res.status).toBe(400);
+  });
+
+  it('확인가 note 1000자 초과 → 400', async () => {
+    const ownerToken = await tokenFor('lowc-vp-owner@example.com', '구매자');
+    const created = await request(app)
+      .post('/api/requests')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send(validInput);
+    const agent = await tokenFor('lowc-vp-agent@example.com', '개인대행자');
+    const res = await request(app)
+      .post(`/api/requests/${created.body.id}/verified-price`)
+      .set('Authorization', `Bearer ${agent}`)
+      .send({ price: 60000, note: 'x'.repeat(1001) });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('GET /api/notifications', () => {
   it('비인가 → 401', async () => {
     const res = await request(app).get('/api/notifications');

@@ -9,8 +9,9 @@ import '../board.css';
 
 interface RequestCardProps {
   request: RequestItem;
-  /** 대행자 시점 채택 진입. 지정 시 채택 액션 노출(미지정 시 숨김). */
-  onAdopt?: (requestId: string) => void;
+  /** 대행자 시점 채택 진입. 지정 시 채택 액션 노출(미지정 시 숨김).
+   *  채택 성공 시 매칭 식별자(matchId·chatThreadId)를 상위로 전달한다. */
+  onAdopt?: (ctx: { matchId?: string; chatThreadId?: string }) => void;
 }
 
 // 알려진 상태 문자열만 뱃지로(그 외는 중립 텍스트로 안전 표시).
@@ -63,7 +64,7 @@ export default function RequestCard({ request, onAdopt }: RequestCardProps) {
       {onAdopt && (
         <AdoptRequestButton
           requestId={request.id}
-          onAdopted={() => onAdopt(request.id)}
+          onAdopted={(ctx) => onAdopt(ctx)}
         />
       )}
     </article>

@@ -23,13 +23,22 @@ export interface VerifiedPriceInput {
   note?: string;
 }
 
+/**
+ * 채택 응답 — 서버가 매칭 식별자(matchId)·채팅 스레드(chatThreadId)를 동반한다.
+ * 자금 흐름 필드 아님(②): 채팅 진입용 식별자뿐.
+ */
+export interface AdoptResult extends StoredRequest {
+  matchId?: string;
+  chatThreadId?: string;
+}
+
 export interface UseRequestActionsResult {
   busy: boolean;
   error: string | null;
   /** 구매자: 새 요청 등록(POST /api/requests). 본문은 폼 DTO 뿐 — 좌표 0. */
   create: (input: RequestInput) => Promise<StoredRequest>;
-  /** 대행자: 요청 채택(POST /api/requests/:id/adopt). 본문 없음. */
-  adopt: (requestId: string) => Promise<StoredRequest>;
+  /** 대행자: 요청 채택(POST /api/requests/:id/adopt). 본문 없음. 응답에 matchId·chatThreadId 동반. */
+  adopt: (requestId: string) => Promise<AdoptResult>;
   /** 대행자: 확인가 제시(POST /api/requests/:id/verified-price). 금액·메모만. */
   setVerifiedPrice: (
     requestId: string,
@@ -71,8 +80,11 @@ export function useRequestActions(): UseRequestActionsResult {
     busy,
     error,
     create: (input) => post(REQUESTS_PATH, input),
+    // 응답에 matchId·chatThreadId 가 포함된다(서버 채택 → 매칭 진입). AdoptResult 로 노출.
     adopt: (requestId) =>
-      post(`${REQUESTS_PATH}/${encodeURIComponent(requestId)}/adopt`),
+      post(
+        `${REQUESTS_PATH}/${encodeURIComponent(requestId)}/adopt`,
+      ) as Promise<AdoptResult>,
     setVerifiedPrice: (requestId, input) =>
       post(
         `${REQUESTS_PATH}/${encodeURIComponent(requestId)}/verified-price`,

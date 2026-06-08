@@ -30,12 +30,25 @@ const BANNED_COORD_KEYS: readonly string[] = [
   'userLng',
 ];
 
+// LOW-c: 입력 길이 상한(자원 남용·UI 깨짐 방지). 초과 시 400.
+export const FIELD_MAX = {
+  item: 200,
+  options: 500,
+  region: 100,
+  deadline: 100,
+  note: 1000,
+} as const;
+
 function err(message: string): ValidationErr {
   return { ok: false, error: message };
 }
 
 function nonEmptyText(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0;
+}
+
+function tooLong(v: unknown, max: number): boolean {
+  return typeof v === 'string' && v.length > max;
 }
 
 // 역경매 요청 입력 검증. 성공 시 정규화된 value 반환.
@@ -67,6 +80,19 @@ export function validateRequestInput(
   if (typeof raw.hopePrice !== 'number' || Number.isNaN(raw.hopePrice)) {
     return err('hopePrice(희망가)는 숫자여야 합니다.');
   }
+  // LOW-c: 길이 상한 검증.
+  if (tooLong(raw.item, FIELD_MAX.item)) {
+    return err(`item(품목)은 ${FIELD_MAX.item}자를 넘을 수 없습니다.`);
+  }
+  if (tooLong(raw.options, FIELD_MAX.options)) {
+    return err(`options(옵션)는 ${FIELD_MAX.options}자를 넘을 수 없습니다.`);
+  }
+  if (tooLong(raw.region, FIELD_MAX.region)) {
+    return err(`region(지역)은 ${FIELD_MAX.region}자를 넘을 수 없습니다.`);
+  }
+  if (tooLong(raw.deadline, FIELD_MAX.deadline)) {
+    return err(`deadline(마감)은 ${FIELD_MAX.deadline}자를 넘을 수 없습니다.`);
+  }
 
   const value: RequestInput = {
     item: raw.item.trim(),
@@ -91,6 +117,10 @@ export function validateVerifiedPrice(
 
   if (typeof raw.price !== 'number' || Number.isNaN(raw.price)) {
     return err('price(확인가)는 숫자여야 합니다.');
+  }
+  // LOW-c: note 길이 상한.
+  if (tooLong(raw.note, FIELD_MAX.note)) {
+    return err(`note(메모)는 ${FIELD_MAX.note}자를 넘을 수 없습니다.`);
   }
 
   const value: Omit<VerifiedPrice, 'agentId' | 'verifiedAt'> = { price: raw.price };

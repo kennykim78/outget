@@ -11,6 +11,10 @@ import { InMemoryRequestRepository } from './request/request.repo.js';
 import { createRequestRouter } from './request/request.routes.js';
 import { InMemoryNotificationRepository } from './notification/notification.repo.js';
 import { createNotificationRouter } from './notification/notification.routes.js';
+import { InMemoryMessageRepository } from './chat/message.repo.js';
+import { createChatRouter } from './chat/chat.routes.js';
+import { GuidancePaymentRail } from './payment/guidance.rail.js';
+import { createPaymentRouter } from './payment/payment.routes.js';
 
 // thin Express 앱. auth(역할 기반 JWT)는 Story 1.3, 결제 로직은 없음(Epic 5 외부 비수탁).
 export function createApp(): Express {
@@ -49,6 +53,9 @@ export function createApp(): Express {
   const matchRepo = new InMemoryMatchRepository();
   const requestRepo = new InMemoryRequestRepository();
   const notificationRepo = new InMemoryNotificationRepository();
+  // Epic 5 채팅 메시지(인메모리) + 결제 안내 레일(안내 모드, 자금 미경유).
+  const messageRepo = new InMemoryMessageRepository();
+  const paymentRail = new GuidancePaymentRail();
 
   // 읽기 전용 보드(대행자/역경매요청/할인소식) — Epic 2.
   // 동일 agentRepo·requestRepo 주입 → GET /api/agents·/api/requests 에서 시드 + 등록분 병합.
@@ -65,6 +72,10 @@ export function createApp(): Express {
   // Epic 4 역경매 요청 쓰기/채택/확인가/거절 + 알림(자금 미경유, 자사 폴링).
   app.use('/api', createRequestRouter(requestRepo, matchRepo, notificationRepo));
   app.use('/api', createNotificationRouter(notificationRepo));
+
+  // Epic 5 채팅(당사자 인가) + 거래방식/결제 안내(자금 미경유, 안내 모드).
+  app.use('/api', createChatRouter(matchRepo, messageRepo));
+  app.use('/api', createPaymentRouter(matchRepo, paymentRail));
 
   // 보호 라우트 시연: 로그인 사용자 자신의 클레임.
   app.get('/auth/me', requireAuth, (req, res) => {

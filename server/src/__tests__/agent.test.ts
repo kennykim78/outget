@@ -142,12 +142,23 @@ describe('GET /api/agent-profile/me', () => {
 });
 
 describe('POST /api/matches (매칭 진입)', () => {
+  // LOW-a: 존재하는 대행자 프로필 id 로만 매칭 생성. 먼저 프로필을 만들어 실제 id 를 얻는다.
+  async function createAgentId(email: string): Promise<string> {
+    const agentToken = await tokenFor(email, '개인대행자');
+    const prof = await request(app)
+      .post('/api/agent-profile')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ status: '개인', activeRegion: '여주', scheduleText: '주말' });
+    return prof.body.id as string;
+  }
+
   it('구매자가 매칭 생성 → 201 + chatThreadId + status 매칭, 결제 필드 0', async () => {
+    const agentId = await createAgentId('match-agent@example.com');
     const token = await tokenFor('matchbuyer@example.com', '구매자');
     const res = await request(app)
       .post('/api/matches')
       .set('Authorization', `Bearer ${token}`)
-      .send({ agentId: 'a1' });
+      .send({ agentId });
     expect(res.status).toBe(201);
     expect(res.body.id).toBeTypeOf('string');
     expect(res.body.chatThreadId).toBeTypeOf('string');
@@ -175,6 +186,15 @@ describe('POST /api/matches (매칭 진입)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({});
     expect(res.status).toBe(400);
+  });
+
+  it('LOW-a: 존재하지 않는 agentId 로 매칭 → 404', async () => {
+    const token = await tokenFor('matchbuyer3@example.com', '구매자');
+    const res = await request(app)
+      .post('/api/matches')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ agentId: 'no-such-agent' });
+    expect(res.status).toBe(404);
   });
 });
 

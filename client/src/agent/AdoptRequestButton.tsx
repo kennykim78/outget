@@ -10,8 +10,8 @@ import '../request/request.css';
 
 interface AdoptRequestButtonProps {
   requestId: string;
-  /** 채택 성공 후 콜백(상위 갱신·알림). */
-  onAdopted?: () => void;
+  /** 채택 성공 후 콜백(상위 갱신·채팅 진입). 매칭 식별자 동반. */
+  onAdopted?: (ctx: { matchId?: string; chatThreadId?: string }) => void;
 }
 
 export default function AdoptRequestButton({
@@ -29,9 +29,12 @@ export default function AdoptRequestButton({
   const handleAdopt = async () => {
     setLocalError(null);
     try {
-      await adopt(requestId);
+      const result = await adopt(requestId);
       setAdopted(true);
-      onAdopted?.();
+      onAdopted?.({
+        matchId: result.matchId,
+        chatThreadId: result.chatThreadId,
+      });
     } catch (e: unknown) {
       setLocalError(
         e instanceof Error ? e.message : '채택에 실패했습니다.',

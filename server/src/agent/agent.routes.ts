@@ -53,7 +53,19 @@ export function createAgentRouter(
       res.status(400).json({ error: 'agentId 가 필요합니다.' });
       return;
     }
-    const match = await matchRepo.createMatch(agentId.trim(), req.user!.sub);
+    // LOW-a: 존재하지 않는 대행자 프로필로 매칭을 만들지 않는다(고아 매칭 방지).
+    const agentProfile = await agentRepo.findById(agentId.trim());
+    if (!agentProfile) {
+      res.status(404).json({ error: '대행자를 찾을 수 없습니다.' });
+      return;
+    }
+    // LOW-c: match.agentId 는 **대행자 user id(sub)** 로 일관 저장한다.
+    //   채택 경로(request.routes adopt)는 req.user.sub 를 넘기는데, 직접매칭이
+    //   프로필 id(ag-N)를 넘기면 isParticipant(sub) 가 어긋나 대행자가 자기 채팅에서
+    //   차단된다. 프로필의 ownerUserId 를 넘겨 두 경로의 의미를 통일한다.
+    //   ownerUserId 는 응답에 노출하지 않는다(toPublicProfile 유지). Match.agentId 는
+    //   채팅 당사자 식별용 내부 식별자다.
+    const match = await matchRepo.createMatch(agentProfile.ownerUserId, req.user!.sub);
     res.status(201).json({
       id: match.id,
       chatThreadId: match.chatThreadId,
