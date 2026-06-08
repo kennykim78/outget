@@ -1,0 +1,183 @@
+// Outget 영속화 스키마 (SQLite). 13 도메인 엔티티 + RefreshToken.
+//
+// 설계 불변식(CLAUDE.md / PRD §8):
+//   ② 자금 미보유: 어떤 엔티티에도 금액/잔액/정산/예치/환불/PG 가맹점 컬럼이 없다.
+//      hopePrice / verifiedPrice 류는 도메인 표시값(앱 레이어)일 뿐 자금 흐름이 아니며,
+//      서버 자금 컬럼은 0개다.
+//   ⑤ 위치 비실시간: 사용자 위경도를 저장/추적하지 않는다. AgentProfile · DiscountPost
+//      두 곳만 옵셔널 매장/지역 앵커 좌표를 가진다(매장 핀 노출용 — 사용자 위치 아님).
+//      나머지 11 엔티티는 좌표 컬럼이 0개다.
+//
+// id 는 앱 레이어가 prefix 문자열로 부여한다(@default/autoincrement 미사용).
+// 상태(status) 값은 한국어 도메인 라벨이라 String 으로 저장한다(enum 미사용 — SQLite 한계 회피).
+// generator output 은 기본값(node_modules) — lint/tsc/스캔 경로 밖.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Auth — 사용자 계정(불변식 ②: 잔액 컬럼 0).
+model User {
+  id           String @id
+  email        String @unique
+  passwordHash String
+  role         String
+}
+
+// Auth — refresh 토큰 회전 추적(jti 단위 단건 활성/폐기).
+model RefreshToken {
+  jti       String   @id
+  sub       String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+}
+
+// 대행자 프로필. 좌표 2/2 — 매장 앵커(옵셔널). 자금 컬럼 0(reputation 은 무금전 평판 점수).
+model AgentProfile {
+  id           String  @id
+  ownerUserId  String  @unique
+  status       String
+  bizName      String?
+  bizNo        String?
+  contact      String?
+  bizDocRef    String?
+  activeRegion String
+  scheduleText String
+  reputation   Int
+  // 매장 앵커 좌표(옵셔널, 불변식 ⑤ 예외 — 사용자 위치 아님).
+  lat          Float?
+  lng          Float?
+}
+
+// 매칭(Request↔Agent). 자금 컬럼 0. dealMethod 는 단순 라벨.
+model Match {
+  id           String  @id
+  agentId      String
+  buyerId      String
+  requestId    String?
+  status       String
+  chatThreadId String
+  createdAt    String
+  dealMethod   String?
+}
+
+// 역경매 요청. region(텍스트)만 — 좌표 0(불변식 ⑤). hopePrice 는 표시값(자금 아님).
+model Request {
+  id          String  @id
+  ownerUserId String
+  item        String
+  options     String?
+  hopePrice   Int
+  deadline    String
+  region      String
+  status      String
+  adoptedBy   String?
+  matchId     String?
+  // 현장 확인가(옵셔널) — 대행자 책임 동반. 표시값일 뿐 자금 흐름 아님.
+  vpPrice      Int?
+  vpAgentId    String?
+  vpVerifiedAt String?
+  vpNote       String?
+}
+
+// 알림. 자금 컬럼 0 · 좌표 0.
+model Notification {
+  id        String  @id
+  userId    String
+  type      String
+  refId     String
+  message   String
+  createdAt String
+  read      Boolean @default(false)
+}
+
+// 채팅 메시지(append-only, 삭제 없음 — 증빙 보존). 좌표 0 · 자금 0.
+model Message {
+  id        String @id
+  threadId  String
+  senderId  String
+  body      String
+  createdAt String
+}
+
+// 할인소식(UGC). 좌표 2/2 — 매장 앵커(옵셔널). unverifiedBase 는 서버 스탬프.
+model DiscountPost {
+  id            String  @id
+  authorId      String
+  storeBrand    String
+  discountRate  Int?
+  discountPrice Int?
+  listPrice     Int?
+  unverifiedBase Boolean
+  source        String
+  photo         String?
+  createdAt     String
+  status        String
+  // 매장 앵커 좌표(옵셔널, 불변식 ⑤ 예외 — 사용자 위치 아님).
+  lat           Float?
+  lng           Float?
+}
+
+// 신고(notice-and-takedown). status 는 생성 즉시 '블라인드'. 삭제 없음 · 좌표 0 · 자금 0.
+model Report {
+  id         String @id
+  targetType String
+  targetId   String
+  reason     String
+  status     String
+  reporterId String
+  createdAt  String
+}
+
+// 분쟁 감사기록(append-only). 좌표 0 · 자금 0.
+model Dispute {
+  id        String @id
+  matchId   String
+  actorId   String
+  action    String
+  detail    String
+  createdAt String
+}
+
+// 무금전 뱃지. (userId, type) 자연키 멱등. 자금 0.
+model Badge {
+  userId    String
+  type      String
+  grantedAt String
+
+  @@id([userId, type])
+}
+
+// 무금전 바운티. 자금 컬럼 0(보상은 뱃지·평판뿐).
+model Bounty {
+  id          String @id
+  requesterId String
+  mission     String
+  status      String
+}
+
+// 바운티 제출(append-only). 자금 0. badgeAwarded 는 무금전 보상 여부.
+model BountySubmission {
+  id           String  @id
+  bountyId     String
+  solverId     String
+  photo        String?
+  createdAt    String
+  badgeAwarded Boolean
+}
+
+// 공동대행 슬롯. capacity/joinedCount 는 인원 카운트일 뿐 — 자금 0 · 좌표 0(region 텍스트).
+model GroupSlot {
+  id           String @id
+  agentId      String
+  scheduleText String
+  region       String
+  capacity     Int
+  joinedCount  Int
+  status       String
+}

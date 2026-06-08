@@ -20,6 +20,7 @@ export interface AccessClaims {
 
 export interface RefreshClaims {
   sub: string;
+  jti: string; // 토큰 고유 식별자 — 회전(rotation)·재사용 탐지의 키.
 }
 
 export function signAccess(claims: AccessClaims): string {
@@ -30,8 +31,10 @@ export function signAccess(claims: AccessClaims): string {
 }
 
 export function signRefresh(claims: RefreshClaims): string {
+  // jti(jwtid) 를 토큰에 박아 회전·재사용 탐지(store 가 단건 활성 여부 추적).
   return jwt.sign({}, requireSecret('JWT_REFRESH_SECRET'), {
     subject: claims.sub,
+    jwtid: claims.jti,
     expiresIn: REFRESH_TTL,
   });
 }
@@ -54,9 +57,9 @@ export function verifyRefresh(token: string): RefreshClaims {
   if (typeof decoded !== 'object' || decoded === null) {
     throw new Error('[auth] invalid refresh token payload');
   }
-  const { sub } = decoded as jwt.JwtPayload;
-  if (typeof sub !== 'string') {
+  const { sub, jti } = decoded as jwt.JwtPayload;
+  if (typeof sub !== 'string' || typeof jti !== 'string') {
     throw new Error('[auth] invalid refresh token claims');
   }
-  return { sub };
+  return { sub, jti };
 }

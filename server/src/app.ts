@@ -5,31 +5,35 @@ import { requireAuth, requireRole } from './auth/auth.middleware.js';
 import { createListingsRouter } from './board/listings.routes.js';
 import { InMemoryListingsRepository } from './board/listings.repo.js';
 import { createAgentRouter } from './agent/agent.routes.js';
-import { InMemoryAgentProfileRepository } from './agent/agent.repo.js';
-import { InMemoryMatchRepository } from './agent/match.repo.js';
-import { InMemoryRequestRepository } from './request/request.repo.js';
 import { createRequestRouter } from './request/request.routes.js';
-import { InMemoryNotificationRepository } from './notification/notification.repo.js';
 import { createNotificationRouter } from './notification/notification.routes.js';
-import { InMemoryMessageRepository } from './chat/message.repo.js';
 import { createChatRouter } from './chat/chat.routes.js';
 import { GuidancePaymentRail } from './payment/guidance.rail.js';
 import { createPaymentRouter } from './payment/payment.routes.js';
-import { InMemoryDiscountRepository } from './board/discount.repo.js';
 import { createDiscountRouter } from './board/discount.routes.js';
-import { InMemoryReportRepository } from './governance/report.repo.js';
 import { createReportRouter } from './governance/report.routes.js';
-import { InMemoryDisputeRepository } from './governance/dispute.repo.js';
 import { createIdentityRouter } from './governance/identity.routes.js';
-import { InMemoryBadgeRepository } from './badge/badge.repo.js';
-import { InMemoryBountyRepository } from './bounty/bounty.repo.js';
 import { createBountyRouter } from './bounty/bounty.routes.js';
-import { InMemoryGroupSlotRepository } from './groupslot/groupslot.repo.js';
 import { createGroupSlotRouter } from './groupslot/groupslot.routes.js';
+import { makeInMemoryRepos, type Repos } from './db/repos.js';
+import { securityHeaders } from './middleware/security-headers.js';
+import { errorHandler } from './middleware/error-handler.js';
+import {
+  authLimiter,
+  writeLimiter,
+  reportLimiter,
+  submitLimiter,
+} from './middleware/rate-limit.js';
 
-// thin Express 앱. auth(역할 기반 JWT)는 Story 1.3, 결제 로직은 없음(Epic 5 외부 비수탁).
-export function createApp(): Express {
+// thin Express 앱. 모든 영속 결정은 주입된 Repos 한 곳으로 모인다(DI 컴포지션 루트).
+//   기본 인자 makeInMemoryRepos() → 테스트가 createApp() 무인자로 인메모리에서 통과.
+//   index.ts 만 createApp(makePrismaRepos(prisma)) 로 SQLite 영속 경로를 켠다.
+// auth(역할 기반 JWT)는 Story 1.3, 결제 로직은 없음(Epic 5 외부 비수탁).
+export function createApp(repos: Repos = makeInMemoryRepos()): Express {
   const app = express();
+
+  // 보안 헤더는 라우터·CORS 이전 초반에 — 모든 응답(에러 포함)에 일관 적용.
+  app.use(securityHeaders);
 
   app.use(express.json());
 
@@ -56,28 +60,25 @@ export function createApp(): Express {
     res.status(200).json({ ok: true });
   });
 
-  // 인증 라우터(register/login/refresh).
-  app.use('/auth', createAuthRouter());
+  // 인증 라우터(register/login/refresh/logout). user repo + refresh 회전 store 주입.
+  //   로그인/회원가입에 authLimiter(자격증명 대입 완화). test env 에서는 no-op.
+  app.use(['/auth/login', '/auth/register'], authLimiter);
+  app.use('/auth', createAuthRouter(repos.user, repos.refreshStore));
 
-  // Epic 3·4 쓰기 리포지토리(인메모리). 보드 읽기와 같은 인스턴스를 공유해 병합한다.
-  const agentRepo = new InMemoryAgentProfileRepository();
-  const matchRepo = new InMemoryMatchRepository();
-  const requestRepo = new InMemoryRequestRepository();
-  const notificationRepo = new InMemoryNotificationRepository();
-  // Epic 5 채팅 메시지(인메모리) + 결제 안내 레일(안내 모드, 자금 미경유).
-  const messageRepo = new InMemoryMessageRepository();
-  const paymentRail = new GuidancePaymentRail();
-  // Epic 6·7 할인소식(UGC) 쓰기 + 거버넌스(신고/블라인드/분쟁) 인메모리 리포지토리.
-  const discountRepo = new InMemoryDiscountRepository();
-  const reportRepo = new InMemoryReportRepository();
-  const disputeRepo = new InMemoryDisputeRepository();
-  // Epic 8 무금전 바운티·뱃지(평판은 agentRepo 누계) + Epic 9 공동대행 슬롯 인메모리 리포지토리.
-  const badgeRepo = new InMemoryBadgeRepository();
-  const bountyRepo = new InMemoryBountyRepository();
-  const groupSlotRepo = new InMemoryGroupSlotRepository();
+  // 일반 쓰기 throttle: /api 의 변경 메서드(POST/PUT/PATCH/DELETE)에만 writeLimiter 적용.
+  //   읽기(GET/HEAD)는 영향 없음. 더 엄격한 reportLimiter/submitLimiter 는 위에서 선행 적용됨.
+  //   test env 에서는 writeLimiter 가 no-op 이라 통과.
+  app.use('/api', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      next();
+      return;
+    }
+    writeLimiter(req, res, next);
+  });
 
   // 읽기 전용 보드(대행자/역경매요청/할인소식) — Epic 2.
-  // 동일 agentRepo·requestRepo 주입 → GET /api/agents·/api/requests 에서 시드 + 등록분 병합.
+  //   동일 agent/request/discount/badge repo 주입 → GET /api/agents·/api/requests 에서
+  //   시드 + 등록분 병합(별도 Prisma listings 클래스 없음 — 어댑터 재사용).
   app.use(
     '/api',
     createListingsRouter(
@@ -85,38 +86,44 @@ export function createApp(): Express {
         undefined,
         undefined,
         undefined,
-        agentRepo,
-        requestRepo,
-        discountRepo,
-        badgeRepo,
+        repos.agent,
+        repos.request,
+        repos.discount,
+        repos.badge,
       ),
     ),
   );
 
   // Epic 3 대행자 프로필 쓰기 + 매칭 진입(자금 미경유, 채팅 본체 Epic 5). 뱃지 노출 포함.
-  app.use('/api', createAgentRouter(agentRepo, matchRepo, badgeRepo));
+  app.use('/api', createAgentRouter(repos.agent, repos.match, repos.badge));
 
   // Epic 4 역경매 요청 쓰기/채택/확인가/거절 + 알림(자금 미경유, 자사 폴링).
-  app.use('/api', createRequestRouter(requestRepo, matchRepo, notificationRepo));
-  app.use('/api', createNotificationRouter(notificationRepo));
+  app.use('/api', createRequestRouter(repos.request, repos.match, repos.notification));
+  app.use('/api', createNotificationRouter(repos.notification));
 
   // Epic 5 채팅(당사자 인가, 블라인드 메시지 가림) + 거래방식/결제 안내(자금 미경유).
-  app.use('/api', createChatRouter(matchRepo, messageRepo, reportRepo));
-  app.use('/api', createPaymentRouter(matchRepo, paymentRail));
+  //   결제 안내 레일(안내 모드)은 repo 가 아니므로 app 에서 직접 생성한다.
+  const paymentRail = new GuidancePaymentRail();
+  app.use('/api', createChatRouter(repos.match, repos.message, repos.report));
+  app.use('/api', createPaymentRouter(repos.match, paymentRail));
 
   // Epic 6 할인소식(UGC) 쓰기(소식알림자/대행자/운영자) — 목록 GET 은 보드 라우터가 담당.
-  app.use('/api', createDiscountRouter(discountRepo));
+  app.use('/api', createDiscountRouter(repos.discount));
 
   // Epic 7 신고→블라인드(notice-and-takedown) + 신원정보 제공(통신판매중개 최소 의무).
-  app.use('/api', createReportRouter(reportRepo, discountRepo, notificationRepo));
-  app.use('/api', createIdentityRouter(matchRepo, agentRepo, disputeRepo));
+  //   신고 생성에 reportLimiter(신고 폭주/괴롭힘 완화). test env 에서는 no-op.
+  app.post('/api/reports', reportLimiter);
+  app.use('/api', createReportRouter(repos.report, repos.discount, repos.notification));
+  app.use('/api', createIdentityRouter(repos.match, repos.agent, repos.dispute));
 
   // Epic 8 무금전 바운티(제출→뱃지·평판만, 결제 코드 호출 0) + Epic 9 공동대행 슬롯(금액 0).
+  //   바운티 제출에 submitLimiter(제출 도배 완화). test env 에서는 no-op.
+  app.post('/api/bounties/:id/submissions', submitLimiter);
   app.use(
     '/api',
-    createBountyRouter(bountyRepo, badgeRepo, agentRepo, notificationRepo),
+    createBountyRouter(repos.bounty, repos.badge, repos.agent, repos.notification),
   );
-  app.use('/api', createGroupSlotRouter(groupSlotRepo));
+  app.use('/api', createGroupSlotRouter(repos.groupSlot));
 
   // 보호 라우트 시연: 로그인 사용자 자신의 클레임.
   app.get('/auth/me', requireAuth, (req, res) => {
@@ -127,6 +134,10 @@ export function createApp(): Express {
   app.get('/admin/ping', requireAuth, requireRole('운영자'), (_req, res) => {
     res.status(200).json({ ok: true });
   });
+
+  // 모든 라우터·미들웨어 뒤 맨 마지막: 4-arity 에러핸들러.
+  //   CORS 거부 throw → 403 JSON, 그 외 → 500 JSON(스택 미노출).
+  app.use(errorHandler);
 
   return app;
 }

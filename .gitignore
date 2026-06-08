@@ -26,6 +26,11 @@ build/
 .env.*
 !.env.example
 
+# --- Prisma local SQLite (dev DB — never committed) ---
+server/prisma/*.db
+server/prisma/*.db-journal
+*.db-journal
+
 # --- OS / editor ---
 .DS_Store
 Thumbs.db
