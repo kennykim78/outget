@@ -4,6 +4,9 @@ import { createAuthRouter } from './auth/auth.routes.js';
 import { requireAuth, requireRole } from './auth/auth.middleware.js';
 import { createListingsRouter } from './board/listings.routes.js';
 import { InMemoryListingsRepository } from './board/listings.repo.js';
+import { createAgentRouter } from './agent/agent.routes.js';
+import { InMemoryAgentProfileRepository } from './agent/agent.repo.js';
+import { InMemoryMatchRepository } from './agent/match.repo.js';
 
 // thin Express 앱. auth(역할 기반 JWT)는 Story 1.3, 결제 로직은 없음(Epic 5 외부 비수탁).
 export function createApp(): Express {
@@ -37,8 +40,21 @@ export function createApp(): Express {
   // 인증 라우터(register/login/refresh).
   app.use('/auth', createAuthRouter());
 
+  // Epic 3 쓰기 리포지토리(인메모리). 보드 읽기와 같은 인스턴스를 공유해 병합한다.
+  const agentRepo = new InMemoryAgentProfileRepository();
+  const matchRepo = new InMemoryMatchRepository();
+
   // 읽기 전용 보드(대행자/역경매요청/할인소식) — Epic 2.
-  app.use('/api', createListingsRouter(new InMemoryListingsRepository()));
+  // 동일 agentRepo 주입 → GET /api/agents 에서 시드 + 등록 프로필 병합.
+  app.use(
+    '/api',
+    createListingsRouter(
+      new InMemoryListingsRepository(undefined, undefined, undefined, agentRepo),
+    ),
+  );
+
+  // Epic 3 대행자 프로필 쓰기 + 매칭 진입(자금 미경유, 채팅 본체 Epic 5).
+  app.use('/api', createAgentRouter(agentRepo, matchRepo));
 
   // 보호 라우트 시연: 로그인 사용자 자신의 클레임.
   app.get('/auth/me', requireAuth, (req, res) => {

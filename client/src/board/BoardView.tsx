@@ -35,8 +35,27 @@ export default function BoardView() {
   const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
   const [mapInstance, setMapInstance] = useState<naver.maps.Map | null>(null);
   const [selected, setSelected] = useState<Selected>(null);
+  // 매칭 진입 결과 알림(placeholder 토스트). 채팅 본체는 Epic5.
+  const [matchNotice, setMatchNotice] = useState<string | null>(null);
 
   const distance = useDistance();
+
+  // 채팅 매칭 진입 — 자사 상대경로 POST /api/matches(본문은 대상 식별자뿐, 좌표 0).
+  const handleMatch = (agentId: string) => {
+    setMatchNotice(null);
+    fetch('/api/matches', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setMatchNotice('매칭이 생성되었습니다. 채팅은 곧 제공됩니다(Epic 5).');
+      })
+      .catch(() => {
+        setMatchNotice('매칭 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      });
+  };
 
   // region 만 서버 필터로(쿼리). 나머지는 클라측.
   const agents = useListings('agents', filters.region);
@@ -171,8 +190,14 @@ export default function BoardView() {
               key={a.id}
               agent={a}
               distanceLabel={distance.labelTo(a.lat, a.lng)}
+              onMatch={handleMatch}
             />
           ))}
+        {matchNotice && (
+          <p className="board-view__match-notice" role="status">
+            {matchNotice}
+          </p>
+        )}
         {selected?.layer === 'discounts' &&
           selected.items.map((d) => <DiscountPost key={d.id} post={d} />)}
         <IntermediaryNotice compact />

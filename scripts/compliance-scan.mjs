@@ -121,8 +121,14 @@ const R3_PROXIMITY = 6; // 좌표↔전송 호출 근접 허용 줄 수.
 // (정밀 파서는 아니지만 주석 속 fetch/axios 오탐 차단엔 충분.)
 function stripComments(line) {
   let s = line.replace(/\/\*.*?\*\//g, ' '); // 한 줄 내 블록주석.
-  const idx = s.indexOf('//');
-  if (idx !== -1) s = s.slice(0, idx);
+  // 라인주석 `//` 를 자른다. 단 URL 스킴(`://`)의 `//` 는 주석이 아니므로 건너뛴다
+  // (이걸 안 하면 "https://..." 가 https: 로 잘려 R1 URL 추출이 깨진다).
+  for (let i = 0; i < s.length - 1; i++) {
+    if (s[i] === '/' && s[i + 1] === '/' && (i === 0 || s[i - 1] !== ':')) {
+      s = s.slice(0, i);
+      break;
+    }
+  }
   return s;
 }
 
@@ -147,54 +153,53 @@ const SEC_PEM = /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/;
 // 라인 단위(line-local) 규칙. R3 멀티라인/근접 규칙은 checkFile 에서 별도 처리.
 function checkLine(line) {
   const hits = [];
-  // R4/R5는 변수·함수명 매칭이라 deny-list 주석(예: "// platformPrice 금지")이 false-positive.
-  // R3처럼 주석을 제거한 실제 코드에만 적용한다. (R1/R2/시크릿은 raw line 유지 — 주석 속 키/예시도 잡아야 하므로.)
+  // 불변식 규칙(R1~R5)은 모두 **주석 제거 코드(code)** 에만 적용한다.
+  // 이유: deny-list 주석(예: "// 정산 로직 없음", "// platformPrice 금지")이 키워드 매칭으로
+  // false-positive 되는 클래스를 근절(매 에픽 재발). 실제 위반은 코드에 있으므로 탐지력 손실 없음.
+  // 단 **시크릿은 raw line 유지** — 주석에 붙여넣은 키도 실제 유출이므로 잡아야 한다.
   const code = stripComments(line);
 
   // ── R1 무크롤링 ─────────────────────────────────────────────
-  // (1) 스크래핑 키워드: 줄에 화이트 도메인이 "언급"만 돼도 면제하지 않는다(MED 수정).
-  //     스크래핑 라이브러리 키워드 자체가 위반.
-  if (R1_KEYWORDS.test(line)) hits.push('R1-무크롤링');
+  // (1) 스크래핑 라이브러리 키워드 자체가 위반.
+  if (R1_KEYWORDS.test(code)) hits.push('R1-무크롤링');
 
-  // (2) 외부 절대 http(s) URL 을 향한 네트워크 호출(HIGH 수정 — on-demand 본문수집).
-  //     줄에서 절대 URL 리터럴을 추출 → 화이트(네이버)/자사(localhost) 가 아닌
-  //     외부 URL 이 하나라도 있고, 같은 줄에 네트워크 호출 토큰이 있으면 위반.
-  //     SDK 로드(script.src=) 라인은 면제(지도 SDK 주입).
-  else if (R1_NET_CALL.test(line) && !R1_SDK_LOAD.test(line)) {
-    const externalUrls = extractUrls(line).filter(
+  // (2) 외부 절대 http(s) URL 을 향한 네트워크 호출(on-demand 본문수집).
+  //     화이트(네이버)/자사(localhost) 가 아닌 외부 URL + 네트워크 호출 토큰. SDK 로드는 면제.
+  else if (R1_NET_CALL.test(code) && !R1_SDK_LOAD.test(code)) {
+    const externalUrls = extractUrls(code).filter(
       (u) => !isWhitelistedUrl(u) && !R1_SELFHOST.test(u),
     );
     if (externalUrls.length > 0) hits.push('R1-무크롤링');
   }
-  // (3) cron/scheduled fetch (기존 휴리스틱 유지 — 외부 URL 추출에 안 걸리는 변형 보강용).
+  // (3) cron/scheduled fetch (외부 URL 추출에 안 걸리는 변형 보강용).
   if (
     !hits.includes('R1-무크롤링') &&
-    R1_CRON.test(line) &&
-    R1_FETCH_EXTERNAL.test(line) &&
-    extractUrls(line).some((u) => !isWhitelistedUrl(u) && !R1_SELFHOST.test(u))
+    R1_CRON.test(code) &&
+    R1_FETCH_EXTERNAL.test(code) &&
+    extractUrls(code).some((u) => !isWhitelistedUrl(u) && !R1_SELFHOST.test(u))
   ) {
     hits.push('R1-무크롤링');
   }
 
   // R2
-  if (R2_KEYWORDS.test(line)) hits.push('R2-자금미보유');
-  else if (R2_MERCHANT.test(line) && R2_PG_VERB.test(line)) hits.push('R2-자금미보유');
-  else if (R2_BALANCE.test(line)) hits.push('R2-자금미보유');
+  if (R2_KEYWORDS.test(code)) hits.push('R2-자금미보유');
+  else if (R2_MERCHANT.test(code) && R2_PG_VERB.test(code)) hits.push('R2-자금미보유');
+  else if (R2_BALANCE.test(code)) hits.push('R2-자금미보유');
 
-  // R3 (라인 단위 — 같은 줄 영속/전송)
-  if (R3_COORD.test(line)) {
-    if (R3_PERSIST.test(line) || R3_API_POST.test(line) || R3_SEND.test(line)) {
+  // R3 (라인 단위 — 같은 줄 영속/전송). 멀티라인 근접은 checkFileR3.
+  if (R3_COORD.test(code)) {
+    if (R3_PERSIST.test(code) || R3_API_POST.test(code) || R3_SEND.test(code)) {
       hits.push('R3-위치저장');
     }
   }
 
-  // R4 (주석 제거 코드에만)
+  // R4
   if (R4_KEYWORDS.test(code) || R4_KO.test(code)) hits.push('R4-링크보증');
 
-  // R5 (주석 제거 코드에만)
+  // R5
   if (R5_KEYWORDS.test(code)) hits.push('R5-가격주장');
 
-  // 시크릿
+  // 시크릿 (raw line — 주석 속 키도 유출)
   if (SEC_NAVER.test(line)) hits.push('SECRET-naver');
   if (SEC_APIKEY.test(line)) hits.push('SECRET-apikey');
   if (SEC_JWT.test(line)) hits.push('SECRET-jwt');

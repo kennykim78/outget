@@ -15,8 +15,9 @@ export interface AgentProfile {
   activeRegion: string; // 활동 지역(동/지역 단위 텍스트).
   scheduleText: string; // 출동 일정(자유 텍스트).
   reputation: number;
-  lat: number;
-  lng: number;
+  // 매장 앵커(선택). 등록 프로필이 좌표를 안 넣으면 생략 — 사용자 위치 아님.
+  lat?: number;
+  lng?: number;
 }
 
 // 구매자 역경매 요청. status 는 거래 상태머신의 라벨(대기/채택/매칭/진행/종료 등).

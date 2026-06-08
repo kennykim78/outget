@@ -30,6 +30,16 @@
   color: #555;
 }
 
+/* 매칭 진입 placeholder 알림(채팅 본체는 Epic5). */
+.board-view__match-notice {
+  font-size: 13px;
+  color: #1a4fb0;
+  background: #eef4ff;
+  border: 1px solid #cfe0ff;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 .board-view__list {
   padding: 12px;
   display: flex;

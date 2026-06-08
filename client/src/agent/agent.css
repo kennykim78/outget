@@ -1,0 +1,198 @@
+/* 대행자 프로필 폼/고지 스타일(S3 입력측). board.css 토큰 재사용.
+   모바일우선(<=480px). 색 단독 의존 금지 — 라벨/아이콘 텍스트 병행. */
+
+/* ── 폼 컨테이너 ───────────────────────────────────────────── */
+.agent-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.agent-form__heading {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+  color: #111;
+}
+
+.agent-form__status {
+  padding: 24px;
+  text-align: center;
+  color: #555;
+}
+
+.agent-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-form__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+.agent-form__input {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.agent-form__input:focus {
+  outline: 2px solid #3b6fd4;
+  outline-offset: 0;
+  border-color: #3b6fd4;
+}
+
+.agent-form__textarea {
+  resize: vertical;
+  min-height: 48px;
+}
+
+.agent-form__hint {
+  font-size: 11px;
+  color: #999;
+}
+
+/* 오류 — 색 + 텍스트(아이콘 의미는 카피로 명시) 병행. */
+.agent-form__error {
+  font-size: 12px;
+  color: #b3261e;
+  background: #fdecea;
+  border: 1px solid #f5c6c2;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.agent-form__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.agent-form__btn {
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.agent-form__btn--primary {
+  background: #3b6fd4;
+  color: #fff;
+}
+
+.agent-form__btn--primary:disabled {
+  background: #a9c0ea;
+  cursor: progress;
+}
+
+.agent-form__btn--ghost {
+  background: #fff;
+  color: #555;
+  border-color: #ddd;
+}
+
+/* ── 지위 세그먼트 ─────────────────────────────────────────── */
+.agent-status {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-status__seg {
+  display: flex;
+  gap: 6px;
+}
+
+.agent-status__btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* 선택 상태 — 색 + 굵은 보더 + 라벨이 1차 신호(색 단독 아님). */
+.agent-status__btn--active {
+  border-color: #3b6fd4;
+  border-width: 2px;
+  background: #eef4ff;
+  padding: 9px 11px; /* 보더 2px 보정 */
+}
+
+.agent-status__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+}
+
+.agent-status__hint {
+  font-size: 11px;
+  color: #777;
+}
+
+/* ── 전문 사업자 입력 그룹 ─────────────────────────────────── */
+.agent-biz {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #e7f0ff;
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+/* ── 개인 고지(③) — 주의 아이콘 텍스트 + 카피 병행 ─────────── */
+.personal-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #7a4a00;
+  background: #fff6e5;
+  border: 1px solid #f0d9a8;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.personal-notice__icon {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a5a00;
+  background: #ffe6b3;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.personal-notice--compact {
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+/* ── 카드 매칭 버튼(AgentCard) ─────────────────────────────── */
+.card__match-btn {
+  width: 100%;
+  margin-top: 4px;
+}
