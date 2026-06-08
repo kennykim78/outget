@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --yes bmad-method install --help)",
+      "Bash(npx --yes bmad-method install --directory \"C:\\\\kenny_work\\\\260607_outget\" --modules bmm --tools claude-code --output-folder docs --yes)",
+      "Edit(/.claude/skills/knockedu-impact/**)",
+      "Edit(/.claude/skills/knockedu-contract/**)",
+      "Edit(/.claude/skills/knockedu-qa/**)"
+    ]
+  }
+}

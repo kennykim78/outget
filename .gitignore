@@ -1,0 +1,30 @@
+# --- Personal tooling (keep out of repo per personal workflow) ---
+# BMAD planning tool — installed per-project, not committed
+_bmad/
+docs/bmad/
+.claude/skills/bmad-*/
+
+# Harness intermediate artifacts
+_workspace/
+_workspace_prev/
+
+# Personal local Claude settings (permission allowlist — not shared)
+.claude/settings.local.json
+
+# --- Node / build ---
+node_modules/
+dist/
+dev-dist/
+build/
+*.log
+
+# --- Env / secrets (API keys: 카카오 / 네이버 / 다음 / 공공데이터) ---
+.env
+.env.*
+!.env.example
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
