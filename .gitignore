@@ -13,12 +13,15 @@ _workspace_prev/
 
 # --- Node / build ---
 node_modules/
+*/node_modules/
 dist/
+*/dist/
 dev-dist/
+*/dev-dist/
 build/
 *.log
 
-# --- Env / secrets (API keys: 카카오 / 네이버 / 다음 / 공공데이터) ---
+# --- Env / secrets (API keys: 네이버 지도 / 네이버쇼핑 / 외부 안전결제) ---
 .env
 .env.*
 !.env.example

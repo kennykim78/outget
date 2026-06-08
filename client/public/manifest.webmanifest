@@ -1,0 +1,10 @@
+{
+  "name": "Outget",
+  "short_name": "Outget",
+  "description": "지도 기반 아울렛 구매대행 양면 매칭 보드",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "icons": []
+}

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    name: compliance -> lint -> typecheck -> build -> test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      # 컴플라이언스/시크릿 스캔 — 가장 먼저, 빠른 실패. 5 불변식 강제 장치.
+      - name: Compliance & secret scan
+        run: node scripts/compliance-scan.mjs
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck (client)
+        run: npm run typecheck --workspace client
+
+      - name: Typecheck (server)
+        run: npm run typecheck --workspace server
+
+      - name: Build
+        run: npm run build
+
+      - name: Test (server)
+        run: npm test --workspace server
