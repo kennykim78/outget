@@ -29,6 +29,13 @@ export interface RequestItem {
   deadline: string; // ISO 날짜 문자열.
   region: string; // 동/지역 단위 텍스트.
   status: string;
+  // 현장 확인가(선택) — 대행자 책임 동반(agentId·verifiedAt). 플랫폼 단정가 아님.
+  verifiedPrice?: {
+    price: number;
+    agentId: string;
+    verifiedAt: string;
+    note?: string;
+  };
 }
 
 // 할인소식(UGC, 미검증). 정가(listPrice) 미입력 시 서버가 unverifiedBase=true 스탬프.

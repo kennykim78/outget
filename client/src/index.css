@@ -46,6 +46,13 @@ body {
   gap: 8px;
 }
 
+.app-header__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .app-header__action {
   font-size: 13px;
   font-weight: 700;

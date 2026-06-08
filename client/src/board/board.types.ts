@@ -40,6 +40,16 @@ export interface RequestItem {
   deadline: string;
   region: string;
   status: string;
+  /**
+   * 대행자 제시 확인가(있을 때만, Epic4). agentId·verifiedAt 동반(대행자 책임).
+   * 플랫폼 단정가가 아니다(R5 — platform/our/official 류 변수 금지).
+   */
+  verifiedPrice?: {
+    price: number;
+    agentId: string;
+    verifiedAt: string;
+    note?: string;
+  };
 }
 
 /** 할인소식 UGC 제보(S6 표시). 미검증·기준가 미확인 강제. */

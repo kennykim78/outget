@@ -12,6 +12,24 @@ import type { AgentProfile, DiscountPost, RequestItem } from './listings.types.j
 import { AGENT_SEED, DISCOUNT_SEED, REQUEST_SEED } from './listings.seed.js';
 import type { AgentProfileRepository } from '../agent/agent.repo.js';
 import type { StoredAgentProfile } from '../agent/agent.types.js';
+import type { RequestRepository } from '../request/request.repo.js';
+import type { StoredRequest } from '../request/request.types.js';
+
+// 등록 요청(StoredRequest)을 보드 응답 shape(RequestItem)로 매핑.
+// ownerUserId 는 제외(노출 금지). verifiedPrice/options 는 있으면 그대로.
+function toBoardRequest(s: StoredRequest): RequestItem {
+  const out: RequestItem = {
+    id: s.id,
+    item: s.item,
+    hopePrice: s.hopePrice,
+    deadline: s.deadline,
+    region: s.region,
+    status: s.status,
+  };
+  if (s.options !== undefined) out.options = s.options;
+  if (s.verifiedPrice !== undefined) out.verifiedPrice = s.verifiedPrice;
+  return out;
+}
 
 // 등록 프로필(StoredAgentProfile)을 보드 응답 shape(AgentProfile)로 매핑.
 // ownerUserId 는 제외(노출 금지). 좌표는 있으면 그대로, 없으면 생략.
@@ -42,17 +60,20 @@ export class InMemoryListingsRepository implements ListingsRepository {
   private readonly requests: readonly RequestItem[];
   private readonly discounts: readonly DiscountPost[];
   private readonly agentRepo?: AgentProfileRepository;
+  private readonly requestRepo?: RequestRepository;
 
   constructor(
     agents: readonly AgentProfile[] = AGENT_SEED,
     requests: readonly RequestItem[] = REQUEST_SEED,
     discounts: readonly DiscountPost[] = DISCOUNT_SEED,
     agentRepo?: AgentProfileRepository,
+    requestRepo?: RequestRepository,
   ) {
     this.agents = agents;
     this.requests = requests;
     this.discounts = discounts;
     this.agentRepo = agentRepo;
+    this.requestRepo = requestRepo;
   }
 
   async listAgents(region?: string): Promise<AgentProfile[]> {
@@ -66,8 +87,13 @@ export class InMemoryListingsRepository implements ListingsRepository {
   }
 
   async listRequests(region?: string): Promise<RequestItem[]> {
-    if (region === undefined) return [...this.requests];
-    return this.requests.filter((r) => r.region === region);
+    // 시드 + 등록 요청 병합(requestRepo 주입 시). 등록분은 보드 shape 로 매핑(ownerUserId 제외).
+    const registered = this.requestRepo
+      ? (await this.requestRepo.listAll()).map(toBoardRequest)
+      : [];
+    const merged = [...this.requests, ...registered];
+    if (region === undefined) return merged;
+    return merged.filter((r) => r.region === region);
   }
 
   async listDiscounts(_region?: string): Promise<DiscountPost[]> {

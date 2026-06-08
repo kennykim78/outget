@@ -37,10 +37,11 @@ describe('불변식 ② — Match 에 자금 흐름 키 0', () => {
     for (const k of banned) {
       expect(keys).not.toContain(k);
     }
-    // 허용된 키만 존재한다.
-    expect(keys.sort()).toEqual(
-      ['agentId', 'buyerId', 'chatThreadId', 'createdAt', 'id', 'status'].sort(),
-    );
+    // 허용된 키만 존재한다(requestId 는 Epic 4 채택 진입 시에만 동반 — 자금 필드 아님).
+    const allowedKeys = ['agentId', 'buyerId', 'chatThreadId', 'createdAt', 'id', 'status', 'requestId'];
+    for (const k of keys) {
+      expect(allowedKeys).toContain(k);
+    }
     expect(match.status).toBe('매칭');
     expect(match.chatThreadId).toBeTypeOf('string');
   });

@@ -92,6 +92,38 @@ describe('?region= 필터', () => {
   });
 });
 
+describe('등록 요청이 GET /api/requests 에 병합 노출', () => {
+  async function tokenFor(email: string, role: string): Promise<string> {
+    const reg = await request(app).post('/auth/register').send({ email, password: 'pw-12345', role });
+    return reg.body.accessToken as string;
+  }
+
+  it('구매자 작성 요청이 보드 목록에 포함되며 ownerUserId 는 없다', async () => {
+    const token = await tokenFor('req-merge@example.com', '구매자');
+    const created = await request(app)
+      .post('/api/requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        item: '병합테스트 품목',
+        hopePrice: 12345,
+        deadline: '2026-07-01',
+        region: '병합요청지역',
+      });
+    expect(created.status).toBe(201);
+
+    const list = await request(app).get('/api/requests');
+    expect(list.status).toBe(200);
+    const found = list.body.find((r: { id: string }) => r.id === created.body.id);
+    expect(found).toBeTruthy();
+    expect(found.item).toBe('병합테스트 품목');
+    expect(found.ownerUserId).toBeUndefined();
+
+    // region 필터도 병합분에 적용된다.
+    const filtered = await request(app).get('/api/requests').query({ region: '병합요청지역' });
+    expect(filtered.body.some((r: { id: string }) => r.id === created.body.id)).toBe(true);
+  });
+});
+
 describe('할인소식 서버 스탬프 규칙', () => {
   it('정가(listPrice) 미입력 건은 unverifiedBase=true 로 스탬프된다', async () => {
     const res = await request(app).get('/api/discounts');

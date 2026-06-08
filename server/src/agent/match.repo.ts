@@ -9,13 +9,14 @@ export interface Match {
   id: string;
   agentId: string;
   buyerId: string; // 구매자(JWT sub).
+  requestId?: string; // 역경매 요청 식별자(Epic 4 채택 진입 시 동반). 자금 필드 아님.
   status: '매칭'; // 거래 상태머신 진입 라벨.
   chatThreadId: string; // 채팅 스레드 식별자(본체는 Epic 5).
   createdAt: string; // ISO 시각.
 }
 
 export interface MatchRepository {
-  createMatch(agentId: string, buyerId: string): Promise<Match>;
+  createMatch(agentId: string, buyerId: string, requestId?: string): Promise<Match>;
   findById(id: string): Promise<Match | undefined>;
 }
 
@@ -23,7 +24,11 @@ export class InMemoryMatchRepository implements MatchRepository {
   private readonly byId = new Map<string, Match>();
   private seq = 0;
 
-  async createMatch(agentId: string, buyerId: string): Promise<Match> {
+  async createMatch(
+    agentId: string,
+    buyerId: string,
+    requestId?: string,
+  ): Promise<Match> {
     const n = ++this.seq;
     const match: Match = {
       id: `m-${n}`,
@@ -33,6 +38,8 @@ export class InMemoryMatchRepository implements MatchRepository {
       chatThreadId: `thread-${n}`,
       createdAt: new Date().toISOString(),
     };
+    // requestId 는 채택 진입 시에만 동반(없으면 일반 매칭). 자금 흐름 필드 아님.
+    if (requestId !== undefined) match.requestId = requestId;
     this.byId.set(match.id, match);
     return match;
   }

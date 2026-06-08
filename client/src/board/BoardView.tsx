@@ -37,6 +37,10 @@ export default function BoardView() {
   const [selected, setSelected] = useState<Selected>(null);
   // 매칭 진입 결과 알림(placeholder 토스트). 채팅 본체는 Epic5.
   const [matchNotice, setMatchNotice] = useState<string | null>(null);
+  // 대행자 시점 토글 — true 면 요청 카드에 채택 액션 노출(역할 인증은 후속).
+  const [viewAsAgent, setViewAsAgent] = useState(false);
+  // 채택 결과 알림(placeholder). 채팅 본체는 Epic5.
+  const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
 
   const distance = useDistance();
 
@@ -171,8 +175,35 @@ export default function BoardView() {
       {/* requests 는 좌표가 없어 리스트로 표시(지도 핀 없음). */}
       {layer === 'requests' && current.status === 'ready' && !isEmpty && (
         <div className="board-view__list">
+          <label className="board-view__viewpoint">
+            <input
+              type="checkbox"
+              checked={viewAsAgent}
+              onChange={(e) => {
+                setViewAsAgent(e.target.checked);
+                setAdoptNotice(null);
+              }}
+            />
+            <span>대행자 시점 (요청 채택)</span>
+          </label>
+          {adoptNotice && (
+            <p className="board-view__match-notice" role="status">
+              {adoptNotice}
+            </p>
+          )}
           {filteredRequests.map((r) => (
-            <RequestCard key={r.id} request={r} />
+            <RequestCard
+              key={r.id}
+              request={r}
+              onAdopt={
+                viewAsAgent
+                  ? () =>
+                      setAdoptNotice(
+                        '채택됨 · 채팅은 곧 제공됩니다(Epic 5).',
+                      )
+                  : undefined
+              }
+            />
           ))}
           <IntermediaryNotice compact />
         </div>
