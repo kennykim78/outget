@@ -25,6 +25,14 @@ export interface DiscountInput {
   listPrice?: number;
   /** 출처(필수) — 미검증 제보 출처 표기. */
   source: string;
+  /**
+   * 네이버쇼핑 참고가 조회용 검색어 — 선택. 클라가 보내는 유일한 신규 입력.
+   *  - 클라는 검색어만 보내고, 서버가 네이버쇼핑을 조회해 referencePrice/Source/
+   *    FetchedAt 를 스탬프한다. 클라는 가격/출처/시각을 절대 보내지 않는다(④/R5).
+   *  - 클라는 외부(네이버) 호출 0 — 자사 /api/discounts 에 검색어만 실어 보낸다(①/R1).
+   *  - listPrice(사용자 UGC 정가)와 별개 — 섞지 않는다.
+   */
+  referenceQuery?: string;
   /** 직접 촬영분만 안내. MVP 에서 전송하지 않음(타입엔 두되 미사용). */
   photo?: string;
 }

@@ -32,6 +32,8 @@ export function useDiscountActions(): UseDiscountActionsResult {
 
     // 전송 본문 구성 — photo 는 MVP 에서 전송하지 않는다(외부 핫링크 차단 ①).
     // 좌표 키는 애초에 DTO 에 없다(⑤). unverifiedBase 는 서버 권위(④).
+    // referenceQuery(검색어)만 신규 전송 — 서버가 네이버쇼핑 조회 후 참고가를 스탬프한다.
+    // 클라는 referencePrice/Source/FetchedAt 를 절대 보내지 않고 외부 호출도 0(①/④).
     const body: DiscountInput = {
       storeBrand: input.storeBrand,
       source: input.source,
@@ -40,6 +42,7 @@ export function useDiscountActions(): UseDiscountActionsResult {
         ? { discountPrice: input.discountPrice }
         : {}),
       ...(input.listPrice != null ? { listPrice: input.listPrice } : {}),
+      ...(input.referenceQuery ? { referenceQuery: input.referenceQuery } : {}),
     };
 
     try {

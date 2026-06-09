@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import type { Express } from 'express';
+import express, { type Express } from 'express';
+import { createDiscountRouter } from '../board/discount.routes.js';
+import { InMemoryDiscountRepository } from '../board/discount.repo.js';
+import type { ShoppingPriceRail } from '../shopping/shopping.port.js';
+import type { ShoppingPriceResult } from '../shopping/shopping.types.js';
 
 // 앱 import 전 JWT 시크릿 주입(변수 경유 더미만 — 하드코딩 운영 시크릿 금지).
 const ACCESS_SECRET = 'test-access-secret-do-not-use-in-prod';
@@ -86,6 +90,90 @@ describe('POST /api/discounts (할인소식 작성)', () => {
       .send({ storeBrand: '아디다스', discountRate: 30, source: '제보', unverifiedBase: false });
     expect(res.status).toBe(201);
     expect(res.body.unverifiedBase).toBe(true);
+  });
+});
+
+// 참고가 스탬프 흐름은 mock ShoppingPriceRail 로 검증한다.
+//   createApp() 은 test env(키 없음)에서 Noop 을 쓰므로, 스탬프 성공 경로는 라우터를
+//   직접 마운트해 mock port 를 주입한다(실제 외부 호출 0 — naver 어댑터 미사용).
+function appWithPort(port: ShoppingPriceRail): Express {
+  const a = express();
+  a.use(express.json());
+  a.use('/api', createDiscountRouter(new InMemoryDiscountRepository(), port));
+  return a;
+}
+
+class StubPort implements ShoppingPriceRail {
+  constructor(private readonly result: ShoppingPriceResult | null) {}
+  async lookupLowest(query: string): Promise<ShoppingPriceResult | null> {
+    void query;
+    return this.result;
+  }
+}
+
+describe('네이버쇼핑 참고가(referenceQuery) 흐름', () => {
+  it('referenceQuery + port 성공 → 참고가 4필드 서버 스탬프(201)', async () => {
+    const fetchedAt = new Date().toISOString();
+    const a = appWithPort(new StubPort({ price: 99000, fetchedAt }));
+    const token = await tokenFor('disc-ref-ok@example.com', '소식알림자');
+    const res = await request(a)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeBrand: '나이키', source: '제보', referenceQuery: '나이키 운동화' });
+    expect(res.status).toBe(201);
+    expect(res.body.referencePrice).toBe(99000);
+    expect(res.body.referenceSource).toBe('네이버쇼핑');
+    expect(res.body.referenceQuery).toBe('나이키 운동화');
+    expect(res.body.referenceFetchedAt).toBe(fetchedAt);
+  });
+
+  it('referenceQuery + port null(폴백) → 참고가 4필드 전부 미스탬프(201)', async () => {
+    const a = appWithPort(new StubPort(null));
+    const token = await tokenFor('disc-ref-null@example.com', '소식알림자');
+    const res = await request(a)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeBrand: '아디다스', source: '제보', referenceQuery: '없는상품' });
+    expect(res.status).toBe(201);
+    expect(res.body.referencePrice).toBeUndefined();
+    expect(res.body.referenceSource).toBeUndefined();
+    expect(res.body.referenceQuery).toBeUndefined();
+    expect(res.body.referenceFetchedAt).toBeUndefined();
+  });
+
+  it('referenceQuery 미전송 → 참고가 미스탬프(201)', async () => {
+    const a = appWithPort(new StubPort({ price: 1, fetchedAt: new Date().toISOString() }));
+    const token = await tokenFor('disc-ref-absent@example.com', '소식알림자');
+    const res = await request(a)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeBrand: '브랜드', source: '제보' });
+    expect(res.status).toBe(201);
+    expect(res.body.referencePrice).toBeUndefined();
+    expect(res.body.referenceSource).toBeUndefined();
+  });
+
+  it('클라가 referencePrice 직접 주입 시도 → 400(서버 권위 위반)', async () => {
+    const token = await tokenFor('disc-ref-inject@example.com', '소식알림자');
+    const res = await request(app)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeBrand: '브랜드', source: '제보', referencePrice: 1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('클라가 referenceSource/FetchedAt 주입 시도 → 400', async () => {
+    const token = await tokenFor('disc-ref-inject2@example.com', '소식알림자');
+    const a = await request(app)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeBrand: '브랜드', source: '제보', referenceSource: '네이버쇼핑' });
+    expect(a.status).toBe(400);
+    const b = await request(app)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ storeBrand: '브랜드', source: '제보', referenceFetchedAt: '2026-01-01T00:00:00Z' });
+    expect(b.status).toBe(400);
   });
 });
 

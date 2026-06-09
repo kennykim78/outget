@@ -373,6 +373,60 @@
   align-self: flex-start;
 }
 
+/* ── 참고가(네이버쇼핑) 비교 — 외부 출처/중립 표기 ──────────────────
+   가격 위계: 현장 확인가(초록/✅)와 달리 참고가는 외부 출처 UGC 맥락이다.
+   플랫폼 단정가처럼 보이지 않도록 중립 회색 + 라벨 병행(색 단독 의존 금지). */
+.reference-price {
+  margin-top: 2px;
+  padding: 8px 10px;
+  background: #f5f6f8;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+}
+
+.reference-price__compare {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.reference-price__col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.reference-price__caption {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.reference-price__amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.reference-price__col--reported .reference-price__amount {
+  color: #1f2937;
+}
+
+.reference-price__vs {
+  align-self: center;
+  font-size: 11px;
+  color: #9aa0a6;
+}
+
+/* 면책 문구 — load-bearing(표시광고법 ④/R5). 항상 렌더. */
+.reference-price__disclaimer {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
 /* 미검증 제보 칩 — 회색 중립 + 아이콘(◌) + 텍스트(색 단독 의존 금지). */
 .chip {
   display: inline-flex;

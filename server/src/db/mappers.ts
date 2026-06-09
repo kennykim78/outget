@@ -191,6 +191,10 @@ interface DiscountRow {
   photo: string | null;
   createdAt: string;
   status: string;
+  referencePrice: number | null;
+  referenceSource: string | null;
+  referenceQuery: string | null;
+  referenceFetchedAt: string | null;
   lat: number | null;
   lng: number | null;
 }
@@ -209,6 +213,19 @@ export function rowToDiscount(r: DiscountRow): StoredDiscountPost {
   if (r.discountPrice !== null) out.discountPrice = r.discountPrice;
   if (r.listPrice !== null) out.listPrice = r.listPrice;
   if (r.photo !== null) out.photo = r.photo;
+  // 네이버쇼핑 참고가(외부 출처 스탬프, 불변식 ④) — all-or-nothing 복원.
+  //   referencePrice 가 non-null 일 때만 4필드를 함께 복원한다(부분 NULL 은 무시).
+  if (
+    r.referencePrice !== null &&
+    r.referenceSource !== null &&
+    r.referenceQuery !== null &&
+    r.referenceFetchedAt !== null
+  ) {
+    out.referencePrice = r.referencePrice;
+    out.referenceSource = r.referenceSource;
+    out.referenceQuery = r.referenceQuery;
+    out.referenceFetchedAt = r.referenceFetchedAt;
+  }
   // 매장 앵커 좌표(있을 때만) — 운영자 시드 전용, 사용자 위치 아님(불변식 ⑤ 예외).
   if (r.lat !== null) out.lat = r.lat;
   if (r.lng !== null) out.lng = r.lng;

@@ -33,7 +33,16 @@ export const DISCOUNT_FIELD_MAX = {
   storeBrand: 200,
   source: 500,
   photo: 500,
+  referenceQuery: 200,
 } as const;
+
+// 불변식 ④: 참고가 가격/출처/시각은 **서버 권위 스탬프** — 클라가 주입하면 거부(400).
+//   클라가 보낼 수 있는 신규 입력은 referenceQuery(검색어) 하나뿐.
+const BANNED_REFERENCE_KEYS: readonly string[] = [
+  'referencePrice',
+  'referenceSource',
+  'referenceFetchedAt',
+];
 
 function err(message: string): ValidationErr {
   return { ok: false, error: message };
@@ -71,6 +80,15 @@ export function validateDiscountInput(
   for (const key of BANNED_COORD_KEYS) {
     if (key in raw) {
       return err('좌표 필드는 허용되지 않습니다. 할인소식은 위경도를 받지 않습니다.');
+    }
+  }
+
+  // 참고가 서버 권위 키 거부(불변식 ④). 클라는 검색어(referenceQuery)만 보낼 수 있다.
+  for (const key of BANNED_REFERENCE_KEYS) {
+    if (key in raw) {
+      return err(
+        '참고가(가격/출처/조회시각)는 서버가 결정합니다. referenceQuery(검색어)만 보낼 수 있습니다.',
+      );
     }
   }
 
@@ -114,6 +132,16 @@ export function validateDiscountInput(
     }
   }
 
+  // referenceQuery(선택): 네이버쇼핑 검색어. 텍스트 + 길이상한만(외부 fetch 0 — 조회는 라우터/어댑터).
+  if (raw.referenceQuery !== undefined) {
+    if (typeof raw.referenceQuery !== 'string') {
+      return err('referenceQuery(검색어)는 텍스트여야 합니다.');
+    }
+    if (tooLong(raw.referenceQuery, DISCOUNT_FIELD_MAX.referenceQuery)) {
+      return err(`referenceQuery 는 ${DISCOUNT_FIELD_MAX.referenceQuery}자를 넘을 수 없습니다.`);
+    }
+  }
+
   const value: DiscountInput = {
     storeBrand: raw.storeBrand.trim(),
     source: raw.source.trim(),
@@ -122,6 +150,9 @@ export function validateDiscountInput(
   if (typeof raw.discountPrice === 'number') value.discountPrice = raw.discountPrice;
   if (typeof raw.listPrice === 'number') value.listPrice = raw.listPrice;
   if (nonEmptyText(raw.photo)) value.photo = (raw.photo as string).trim();
+  if (nonEmptyText(raw.referenceQuery)) {
+    value.referenceQuery = (raw.referenceQuery as string).trim();
+  }
 
   return { ok: true, value };
 }

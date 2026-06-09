@@ -65,10 +65,24 @@ export interface DiscountPost {
   discountRate?: number;
   /** 할인가 — Optional. 사용자 제보가이며 플랫폼 단정가 아님. */
   discountPrice?: number;
-  /** 정가 — Optional(네이버쇼핑 API 출처 한정, 클라에서 수집 안 함). */
+  /** 정가(listPrice) — Optional. 사용자가 폼에 입력한 UGC 정가다(referencePrice 와 별개). */
   listPrice?: number;
   /** 정가 미확인 여부. true면 `[기준가 미확인·사용자 제보가]` 라벨 강제. */
   unverifiedBase: boolean;
+  // ── 네이버쇼핑 참고가(referencePrice) 4필드 — 서버 listings.types.ts 미러 ──
+  //  - 외부 출처(네이버쇼핑) 참고가. 플랫폼이 매긴 단정가 아님(④/R5).
+  //  - all-or-nothing: 네 필드는 함께 존재하거나 함께 부재(폴백 시 전부 undefined).
+  //  - 전부 서버가 조회 후 스탬프한다 — 클라가 절대 주입하지 않는다(클라 입력은
+  //    DiscountInput.referenceQuery 검색어 하나뿐).
+  //  - listPrice(사용자 UGC 정가)와 별개 — 섞지 않는다.
+  /** 참고가(원) — 네이버쇼핑 검색 최저가 1건. 서버 스탬프. */
+  referencePrice?: number;
+  /** 참고가 출처 — 고정값 '네이버쇼핑'. 서버 스탬프. */
+  referenceSource?: string;
+  /** 참고가 조회에 사용한 검색어(사용자 입력). 서버 스탬프(에코). */
+  referenceQuery?: string;
+  /** 참고가 조회 시각(ISO). 서버 스탬프. */
+  referenceFetchedAt?: string;
   /** 출처 표기(미검증 제보). */
   source: string;
   /** 직접 촬영분만 안내 — 표시 전용 URL(외부 본문 수집 아님). */

@@ -101,6 +101,40 @@ describe('불변식 ⑤ — 좌표 키 거부 + 저장 객체에 좌표 0', () =
   });
 });
 
+describe('불변식 ④ — 참고가는 서버 권위 스탬프(클라 주입 불가) + 외부 출처', () => {
+  it('클라가 referencePrice/Source/FetchedAt 주입 시도 → 400(referenceQuery 만 허용)', async () => {
+    const token = await tokenFor('disc-ref-comp@example.com', '소식알림자');
+    for (const key of ['referencePrice', 'referenceSource', 'referenceFetchedAt']) {
+      const body: Record<string, unknown> = { storeBrand: '브랜드', source: '제보' };
+      body[key] = key === 'referencePrice' ? 1 : 'x';
+      const res = await request(app)
+        .post('/api/discounts')
+        .set('Authorization', `Bearer ${token}`)
+        .send(body);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('참고가 스탬프 객체에 플랫폼 단정가 류 키가 없다(외부 출처 네이밍만)', async () => {
+    const repo = new InMemoryDiscountRepository();
+    const stored = await repo.create(
+      'author-1',
+      { storeBrand: '브랜드', source: '제보', referenceQuery: '나이키' },
+      {
+        referencePrice: 50000,
+        referenceSource: '네이버쇼핑',
+        referenceQuery: '나이키',
+        referenceFetchedAt: new Date().toISOString(),
+      },
+    );
+    const keys = Object.keys(stored);
+    expect(keys).toContain('referencePrice');
+    for (const banned of ['platform' + 'Price', 'our' + 'Price', 'official' + 'Price']) {
+      expect(keys).not.toContain(banned);
+    }
+  });
+});
+
 describe('불변식 ④ — unverifiedBase 서버 강제 + 플랫폼 단정가 변수 0', () => {
   it('repo.create 는 정가 없으면 unverifiedBase=true 강제', async () => {
     const repo = new InMemoryDiscountRepository();

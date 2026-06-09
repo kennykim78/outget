@@ -11,6 +11,9 @@ import { createChatRouter } from './chat/chat.routes.js';
 import { GuidancePaymentRail } from './payment/guidance.rail.js';
 import { createPaymentRouter } from './payment/payment.routes.js';
 import { createDiscountRouter } from './board/discount.routes.js';
+import { NaverShoppingPriceAdapter } from './shopping/naver.shopping.adapter.js';
+import { NoopShoppingPriceAdapter } from './shopping/noop.shopping.adapter.js';
+import type { ShoppingPriceRail } from './shopping/shopping.port.js';
 import { createReportRouter } from './governance/report.routes.js';
 import { createIdentityRouter } from './governance/identity.routes.js';
 import { createBountyRouter } from './bounty/bounty.routes.js';
@@ -109,7 +112,17 @@ export function createApp(repos: Repos = makeInMemoryRepos()): Express {
   app.use('/api', createPaymentRouter(repos.match, paymentRail));
 
   // Epic 6 할인소식(UGC) 쓰기(소식알림자/대행자/운영자) — 목록 GET 은 보드 라우터가 담당.
-  app.use('/api', createDiscountRouter(repos.discount));
+  //   네이버쇼핑 참고가 조회 레일(불변식 ①·④): 두 env 키 존재 시 Naver 실어댑터(유일한 외부
+  //   fetch 지점), 없으면 Noop(항상 null → 기존 '기준가 미확인' 폴백). paymentRail 선례대로
+  //   app 에서 직접 생성한다(Repos 비포함 — 외부 호출 레일이지 영속 리포지토리가 아님).
+  //   키는 서버 전용 env(VITE_ 접두사 금지 — 브라우저 노출 방지).
+  const shoppingId = process.env.NAVER_SHOPPING_CLIENT_ID;
+  const shoppingSecret = process.env.NAVER_SHOPPING_CLIENT_SECRET;
+  const shoppingPort: ShoppingPriceRail =
+    shoppingId && shoppingSecret
+      ? new NaverShoppingPriceAdapter(shoppingId, shoppingSecret)
+      : new NoopShoppingPriceAdapter();
+  app.use('/api', createDiscountRouter(repos.discount, shoppingPort));
 
   // Epic 7 신고→블라인드(notice-and-takedown) + 신원정보 제공(통신판매중개 최소 의무).
   //   신고 생성에 reportLimiter(신고 폭주/괴롭힘 완화). test env 에서는 no-op.

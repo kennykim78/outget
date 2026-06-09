@@ -25,6 +25,7 @@ interface FormState {
   discountPrice: string;
   listPrice: string;
   source: string;
+  referenceQuery: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -33,6 +34,7 @@ const EMPTY_FORM: FormState = {
   discountPrice: '',
   listPrice: '',
   source: '',
+  referenceQuery: '',
 };
 
 export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
@@ -79,13 +81,17 @@ export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
       return;
     }
 
-    // 좌표·photo·unverifiedBase 없음 — DTO 에 키 자체가 없다(⑤/①/④).
+    // 참고가 검색어 — 클라가 보내는 유일한 신규 입력(선택). 가격/출처/시각은 보내지 않는다(④).
+    const refQuery = form.referenceQuery.trim();
+
+    // 좌표·photo·unverifiedBase·참고가값 없음 — DTO 에 키 자체가 없다(⑤/①/④).
     const payload: DiscountInput = {
       storeBrand: form.storeBrand.trim(),
       source: form.source.trim(),
       ...(rate != null ? { discountRate: rate } : {}),
       ...(price != null ? { discountPrice: price } : {}),
       ...(list != null ? { listPrice: list } : {}),
+      ...(refQuery ? { referenceQuery: refQuery } : {}),
     };
 
     try {
@@ -196,6 +202,25 @@ export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
         />
         <span className="agent-form__hint">
           미검증 제보로 표기됩니다. 어디서 본 소식인지 적어 주세요.
+        </span>
+      </label>
+
+      {/* 참고가 검색어(선택) — 클라는 검색어만 전송, 서버가 네이버쇼핑 조회(①/④).
+          참고가는 외부 출처이며 플랫폼 단정가가 아니다. */}
+      <label className="agent-form__field">
+        <span className="agent-form__label">
+          네이버쇼핑에서 비교할 상품 검색어 (선택)
+        </span>
+        <input
+          className="agent-form__input"
+          type="text"
+          value={form.referenceQuery}
+          onChange={(e) => patch({ referenceQuery: e.target.value })}
+          placeholder="예: 나이키 페가수스 41"
+        />
+        <span className="agent-form__hint">
+          입력하면 네이버쇼핑 최저가를 참고가로 함께 보여줍니다(선택). 동일 상품을
+          보증하지 않으며 시세는 변동될 수 있습니다.
         </span>
       </label>
 
