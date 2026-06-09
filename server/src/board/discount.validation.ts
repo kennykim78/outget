@@ -34,11 +34,15 @@ export const DISCOUNT_FIELD_MAX = {
   source: 500,
   photo: 500,
   referenceQuery: 200,
+  referenceProductId: 100,
 } as const;
 
-// 불변식 ④: 참고가 가격/출처/시각은 **서버 권위 스탬프** — 클라가 주입하면 거부(400).
-//   클라가 보낼 수 있는 신규 입력은 referenceQuery(검색어) 하나뿐.
+// 불변식 ④: 참고가 가격 3종/출처/시각은 **서버 권위 스탬프** — 클라가 주입하면 거부(400).
+//   클라가 보낼 수 있는 신규 입력은 referenceQuery(검색어) + referenceProductId(선택 상품) 둘뿐.
+//   가격은 base/lowest + legacy referencePrice 전부 금지(두 가격 모두 서버 confirm 으로만 확정).
 const BANNED_REFERENCE_KEYS: readonly string[] = [
+  'referenceBasePrice',
+  'referenceLowestPrice',
   'referencePrice',
   'referenceSource',
   'referenceFetchedAt',
@@ -83,11 +87,11 @@ export function validateDiscountInput(
     }
   }
 
-  // 참고가 서버 권위 키 거부(불변식 ④). 클라는 검색어(referenceQuery)만 보낼 수 있다.
+  // 참고가 서버 권위 키 거부(불변식 ④). 클라는 referenceQuery+referenceProductId 만 보낼 수 있다.
   for (const key of BANNED_REFERENCE_KEYS) {
     if (key in raw) {
       return err(
-        '참고가(가격/출처/조회시각)는 서버가 결정합니다. referenceQuery(검색어)만 보낼 수 있습니다.',
+        '참고가(가격/출처/조회시각)는 서버가 결정합니다. referenceQuery(검색어)와 referenceProductId(선택 상품)만 보낼 수 있습니다.',
       );
     }
   }
@@ -142,6 +146,19 @@ export function validateDiscountInput(
     }
   }
 
+  // referenceProductId(선택): 사용자가 고른 상품의 불투명 식별자. 텍스트 + 길이상한만.
+  //   서버가 referenceQuery 와 함께 confirm 재조회로 가격을 확정한다(가격은 클라가 못 보냄).
+  if (raw.referenceProductId !== undefined) {
+    if (typeof raw.referenceProductId !== 'string') {
+      return err('referenceProductId(선택 상품)는 텍스트여야 합니다.');
+    }
+    if (tooLong(raw.referenceProductId, DISCOUNT_FIELD_MAX.referenceProductId)) {
+      return err(
+        `referenceProductId 는 ${DISCOUNT_FIELD_MAX.referenceProductId}자를 넘을 수 없습니다.`,
+      );
+    }
+  }
+
   const value: DiscountInput = {
     storeBrand: raw.storeBrand.trim(),
     source: raw.source.trim(),
@@ -152,6 +169,9 @@ export function validateDiscountInput(
   if (nonEmptyText(raw.photo)) value.photo = (raw.photo as string).trim();
   if (nonEmptyText(raw.referenceQuery)) {
     value.referenceQuery = (raw.referenceQuery as string).trim();
+  }
+  if (nonEmptyText(raw.referenceProductId)) {
+    value.referenceProductId = (raw.referenceProductId as string).trim();
   }
 
   return { ok: true, value };

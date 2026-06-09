@@ -56,11 +56,14 @@ export interface DiscountPost {
   createdAt: string; // ISO 시각.
   // ── 네이버쇼핑 참고가(외부 출처 스탬프, 불변식 ④) ──────────────────────────
   //   listPrice(UGC 정가)와 **별개 필드군**(출처·책임 귀속이 다름). 절대 섞지 않는다.
-  //   네 필드는 all-or-nothing: 함께 존재하거나 함께 부재(폴백 시 전부 undefined →
-  //   기존 unverifiedBase/기준가 미확인 라벨 유지). 부분 존재 금지.
-  //   referencePrice/Source/FetchedAt 는 **서버 권위 스탬프** — 클라가 주입하지 못한다.
-  //   클라가 보내는 신규 입력은 referenceQuery(검색어) 하나뿐(아래 DiscountInput).
-  referencePrice?: number; // 네이버쇼핑 최저가(외부 출처, 플랫폼 단정가 아님).
+  //   여섯 필드는 all-or-nothing(기준: referenceBasePrice): 함께 존재하거나 함께 부재(폴백 시
+  //   전부 undefined → 기존 unverifiedBase/기준가 미확인 라벨 유지). 부분 존재 금지.
+  //   가격/식별자/출처/시각은 **서버 권위 스탬프** — 클라가 주입하지 못한다(검증 400).
+  //   클라가 보내는 신규 입력은 referenceQuery(검색어) + referenceProductId(선택 상품) 둘뿐.
+  //   두 가격 모두 외부 출처(네이버쇼핑) — 플랫폼 단정가(R5) 아님. "정가" 변수 0.
+  referenceBasePrice?: number; // 대표(기본)가 = 사용자가 선택한 상품의 lprice(외부 출처).
+  referenceLowestPrice?: number; // 온라인 최저가 = 잡템필터 후 결과 내 최저 lprice(외부 출처).
+  referenceProductId?: string; // 선택 상품의 불투명 식별자(네이버 productId — 본문 아님).
   referenceSource?: string; // 항상 '네이버쇼핑'(외부 출처 라벨).
   referenceQuery?: string; // 사용자가 입력한 검색어.
   referenceFetchedAt?: string; // ISO 조회시각.
@@ -78,8 +81,10 @@ export interface StoredDiscountPost extends DiscountPost {
 }
 
 // 작성 입력 — authorId/id/status/unverifiedBase/createdAt/좌표 는 서버가 결정(클라가 보내지 않는다).
-//   referenceQuery 만 신규 클라 입력(검색어). referencePrice/Source/FetchedAt 는
-//   서버 권위 스탬프라 입력에 없다(들어오면 검증에서 400 거부).
+//   referenceQuery(검색어) + referenceProductId(선택 상품) 둘만 신규 클라 입력이다.
+//   가격 3종(referenceBasePrice/referenceLowestPrice + legacy referencePrice)/출처/시각은
+//   서버 권위 스탬프라 입력에 없다(들어오면 검증에서 400 거부 — BANNED_REFERENCE_KEYS).
+//   서버가 referenceProductId+referenceQuery 로 confirm 재조회 후 6필드를 스탬프한다.
 export interface DiscountInput {
   storeBrand: string;
   discountRate?: number;
@@ -87,5 +92,6 @@ export interface DiscountInput {
   listPrice?: number; // UGC 정가(작성자 입력) — 네이버쇼핑 참고가와 별개.
   source: string;
   photo?: string;
-  referenceQuery?: string; // 네이버쇼핑 검색어(선택). 서버가 조회 후 참고가 4필드 스탬프.
+  referenceQuery?: string; // 네이버쇼핑 검색어(선택).
+  referenceProductId?: string; // 사용자가 고른 상품의 productId(선택). 서버가 confirm 으로 가격 확정.
 }

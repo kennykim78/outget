@@ -4,7 +4,10 @@ import express, { type Express } from 'express';
 import { createDiscountRouter } from '../board/discount.routes.js';
 import { InMemoryDiscountRepository } from '../board/discount.repo.js';
 import type { ShoppingPriceRail } from '../shopping/shopping.port.js';
-import type { ShoppingPriceResult } from '../shopping/shopping.types.js';
+import type {
+  ShoppingCandidate,
+  ShoppingPriceStamp,
+} from '../shopping/shopping.types.js';
 
 // 앱 import 전 JWT 시크릿 주입(변수 경유 더미만 — 하드코딩 운영 시크릿 금지).
 const ACCESS_SECRET = 'test-access-secret-do-not-use-in-prod';
@@ -104,62 +107,136 @@ function appWithPort(port: ShoppingPriceRail): Express {
 }
 
 class StubPort implements ShoppingPriceRail {
-  constructor(private readonly result: ShoppingPriceResult | null) {}
-  async lookupLowest(query: string): Promise<ShoppingPriceResult | null> {
+  constructor(
+    private readonly stamp: ShoppingPriceStamp | null,
+    private readonly candidates: ShoppingCandidate[] = [],
+  ) {}
+  async search(query: string): Promise<ShoppingCandidate[]> {
     void query;
-    return this.result;
+    return this.candidates;
+  }
+  async confirm(query: string, productId: string): Promise<ShoppingPriceStamp | null> {
+    void query;
+    void productId;
+    return this.stamp;
   }
 }
 
-describe('네이버쇼핑 참고가(referenceQuery) 흐름', () => {
-  it('referenceQuery + port 성공 → 참고가 4필드 서버 스탬프(201)', async () => {
-    const fetchedAt = new Date().toISOString();
-    const a = appWithPort(new StubPort({ price: 99000, fetchedAt }));
+describe('네이버쇼핑 검색(GET /api/shopping/search)', () => {
+  const candidates: ShoppingCandidate[] = [
+    { productId: 'p1', title: '나이키 운동화', lprice: 78000, mallName: 'A몰' },
+  ];
+
+  it('비인가 → 401', async () => {
+    const a = appWithPort(new StubPort(null, candidates));
+    const res = await request(a).get('/api/shopping/search?query=나이키');
+    expect(res.status).toBe(401);
+  });
+
+  it('구매자 토큰 → 403(역할 불일치)', async () => {
+    const a = appWithPort(new StubPort(null, candidates));
+    const token = await tokenFor('search-buyer@example.com', '구매자');
+    const res = await request(a)
+      .get('/api/shopping/search?query=나이키')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('소식알림자 → 200, 후보 목록(표시용 title/mallName 포함)', async () => {
+    const a = appWithPort(new StubPort(null, candidates));
+    const token = await tokenFor('search-news@example.com', '소식알림자');
+    const res = await request(a)
+      .get('/api/shopping/search?query=나이키 운동화')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].productId).toBe('p1');
+    expect(res.body[0].title).toBe('나이키 운동화');
+  });
+
+  it('빈 query → 400', async () => {
+    const a = appWithPort(new StubPort(null, candidates));
+    const token = await tokenFor('search-empty@example.com', '소식알림자');
+    const res = await request(a)
+      .get('/api/shopping/search?query=')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('네이버쇼핑 참고가(검색→선택→confirm) 흐름', () => {
+  const okStamp: ShoppingPriceStamp = {
+    basePrice: 99000,
+    lowestPrice: 92000,
+    productId: 'p1',
+    fetchedAt: new Date('2026-06-09T00:00:00.000Z').toISOString(),
+  };
+
+  it('referenceQuery + referenceProductId + confirm 성공 → 6필드 서버 스탬프(201)', async () => {
+    const a = appWithPort(new StubPort(okStamp));
     const token = await tokenFor('disc-ref-ok@example.com', '소식알림자');
     const res = await request(a)
       .post('/api/discounts')
       .set('Authorization', `Bearer ${token}`)
-      .send({ storeBrand: '나이키', source: '제보', referenceQuery: '나이키 운동화' });
+      .send({
+        storeBrand: '나이키',
+        source: '제보',
+        referenceQuery: '나이키 운동화',
+        referenceProductId: 'p1',
+      });
     expect(res.status).toBe(201);
-    expect(res.body.referencePrice).toBe(99000);
+    expect(res.body.referenceBasePrice).toBe(99000);
+    expect(res.body.referenceLowestPrice).toBe(92000);
+    expect(res.body.referenceProductId).toBe('p1');
     expect(res.body.referenceSource).toBe('네이버쇼핑');
     expect(res.body.referenceQuery).toBe('나이키 운동화');
-    expect(res.body.referenceFetchedAt).toBe(fetchedAt);
+    expect(res.body.referenceFetchedAt).toBe(okStamp.fetchedAt);
   });
 
-  it('referenceQuery + port null(폴백) → 참고가 4필드 전부 미스탬프(201)', async () => {
+  it('confirm null(매칭 실패) → 참고가 6필드 전부 미스탬프(201)', async () => {
     const a = appWithPort(new StubPort(null));
     const token = await tokenFor('disc-ref-null@example.com', '소식알림자');
     const res = await request(a)
       .post('/api/discounts')
       .set('Authorization', `Bearer ${token}`)
-      .send({ storeBrand: '아디다스', source: '제보', referenceQuery: '없는상품' });
+      .send({
+        storeBrand: '아디다스',
+        source: '제보',
+        referenceQuery: '없는상품',
+        referenceProductId: 'missing',
+      });
     expect(res.status).toBe(201);
-    expect(res.body.referencePrice).toBeUndefined();
+    expect(res.body.referenceBasePrice).toBeUndefined();
+    expect(res.body.referenceLowestPrice).toBeUndefined();
+    expect(res.body.referenceProductId).toBeUndefined();
     expect(res.body.referenceSource).toBeUndefined();
     expect(res.body.referenceQuery).toBeUndefined();
     expect(res.body.referenceFetchedAt).toBeUndefined();
   });
 
-  it('referenceQuery 미전송 → 참고가 미스탬프(201)', async () => {
-    const a = appWithPort(new StubPort({ price: 1, fetchedAt: new Date().toISOString() }));
+  it('productId 미전송(query만) → confirm 미호출·미스탬프(201)', async () => {
+    const a = appWithPort(new StubPort(okStamp));
     const token = await tokenFor('disc-ref-absent@example.com', '소식알림자');
     const res = await request(a)
       .post('/api/discounts')
       .set('Authorization', `Bearer ${token}`)
-      .send({ storeBrand: '브랜드', source: '제보' });
+      .send({ storeBrand: '브랜드', source: '제보', referenceQuery: '검색어만' });
     expect(res.status).toBe(201);
-    expect(res.body.referencePrice).toBeUndefined();
-    expect(res.body.referenceSource).toBeUndefined();
+    expect(res.body.referenceBasePrice).toBeUndefined();
+    expect(res.body.referenceProductId).toBeUndefined();
   });
 
-  it('클라가 referencePrice 직접 주입 시도 → 400(서버 권위 위반)', async () => {
+  it('클라가 가격 3종(base/lowest/legacy) 직접 주입 시도 → 각각 400(서버 권위 위반)', async () => {
     const token = await tokenFor('disc-ref-inject@example.com', '소식알림자');
-    const res = await request(app)
-      .post('/api/discounts')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ storeBrand: '브랜드', source: '제보', referencePrice: 1 });
-    expect(res.status).toBe(400);
+    for (const key of ['referenceBasePrice', 'referenceLowestPrice', 'referencePrice']) {
+      const body: Record<string, unknown> = { storeBrand: '브랜드', source: '제보' };
+      body[key] = 1;
+      const res = await request(app)
+        .post('/api/discounts')
+        .set('Authorization', `Bearer ${token}`)
+        .send(body);
+      expect(res.status).toBe(400);
+    }
   });
 
   it('클라가 referenceSource/FetchedAt 주입 시도 → 400', async () => {
@@ -174,6 +251,22 @@ describe('네이버쇼핑 참고가(referenceQuery) 흐름', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ storeBrand: '브랜드', source: '제보', referenceFetchedAt: '2026-01-01T00:00:00Z' });
     expect(b.status).toBe(400);
+  });
+
+  it('referenceProductId(텍스트) 는 허용 → confirm 호출됨(201 스탬프)', async () => {
+    const a = appWithPort(new StubPort(okStamp));
+    const token = await tokenFor('disc-ref-pid@example.com', '소식알림자');
+    const res = await request(a)
+      .post('/api/discounts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        storeBrand: '브랜드',
+        source: '제보',
+        referenceQuery: '나이키',
+        referenceProductId: 'opaque-pid-123',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.referenceBasePrice).toBe(99000);
   });
 });
 

@@ -26,15 +26,40 @@ export interface DiscountInput {
   /** 출처(필수) — 미검증 제보 출처 표기. */
   source: string;
   /**
-   * 네이버쇼핑 참고가 조회용 검색어 — 선택. 클라가 보내는 유일한 신규 입력.
-   *  - 클라는 검색어만 보내고, 서버가 네이버쇼핑을 조회해 referencePrice/Source/
-   *    FetchedAt 를 스탬프한다. 클라는 가격/출처/시각을 절대 보내지 않는다(④/R5).
+   * 네이버쇼핑 참고가 조회용 검색어 — 선택. 클라가 보내는 신규 입력 ①.
+   *  - 클라는 검색어 + 선택 productId 만 보내고, 서버가 네이버쇼핑을 재조회해
+   *    referenceBasePrice/LowestPrice/Source/FetchedAt 를 스탬프한다.
+   *    클라는 가격/출처/시각을 절대 보내지 않는다(서버 권위, ④/R5).
    *  - 클라는 외부(네이버) 호출 0 — 자사 /api/discounts 에 검색어만 실어 보낸다(①/R1).
    *  - listPrice(사용자 UGC 정가)와 별개 — 섞지 않는다.
    */
   referenceQuery?: string;
+  /**
+   * 사용자가 검색결과에서 고른 상품의 식별자 — 선택. 클라가 보내는 신규 입력 ②.
+   *  - 불투명 식별자(외부 본문 아님). productId + referenceQuery 둘 다 있을 때만
+   *    서버가 재조회로 가격을 확정한다. 가격은 절대 클라가 보내지 않는다(④).
+   */
+  referenceProductId?: string;
   /** 직접 촬영분만 안내. MVP 에서 전송하지 않음(타입엔 두되 미사용). */
   photo?: string;
+}
+
+/**
+ * 네이버쇼핑 검색결과 후보(표시 전용) — 서버 shopping.types.ts ShoppingCandidate 미러.
+ *  - GET /api/shopping/search 응답 요소. 폼 결과 목록 표시에만 쓴다.
+ *  - title/mallName 은 외부 출처 본문 — 화면 표시용일 뿐 DB 저장/등록 전송 대상 아님(①).
+ *    이미지(image)는 핫링크 회피로 미러에 두지 않고 표시하지 않는다.
+ *  - 등록 시 클라가 서버로 되돌려 보내는 것은 productId(+query) 뿐(가격 전송 0, ④).
+ */
+export interface ShoppingCandidate {
+  /** 불투명 상품 식별자. 등록 시 referenceProductId 로만 되돌려 보낸다. */
+  productId: string;
+  /** 상품명(외부 출처) — 목록 표시용. 저장/전송 안 함. */
+  title: string;
+  /** 최저가(원) — 목록 표시용. 가격은 등록 시 서버가 재조회로 재확정(클라 미전송). */
+  lprice: number;
+  /** 판매처명(외부 출처) — 목록 표시용. 저장/전송 안 함. */
+  mallName: string;
 }
 
 /**

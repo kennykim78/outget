@@ -34,11 +34,15 @@ export class PrismaDiscountRepository implements DiscountRepository {
         createdAt: new Date().toISOString(),
         status: '정상',
         // 네이버쇼핑 참고가 서버 스탬프(있을 때만, all-or-nothing) — 외부 출처(불변식 ④).
-        //   referenceQuery(입력 검색어)는 단독 저장하지 않는다(reference 4필드로만).
-        referencePrice: reference?.referencePrice ?? null,
+        //   referenceQuery/ProductId(입력)는 단독 저장하지 않는다(reference 6필드로만). 본문 0.
+        referenceBasePrice: reference?.referenceBasePrice ?? null,
+        referenceLowestPrice: reference?.referenceLowestPrice ?? null,
+        referenceProductId: reference?.referenceProductId ?? null,
         referenceSource: reference?.referenceSource ?? null,
         referenceQuery: reference?.referenceQuery ?? null,
         referenceFetchedAt: reference?.referenceFetchedAt ?? null,
+        // legacy referencePrice 는 항상 null(미사용 — O4 드롭 예정).
+        referencePrice: null,
       },
     });
     return rowToDiscount(row);

@@ -6,7 +6,7 @@
 //   - ①/R1: 저장은 useDiscountActions 의 자사 상대경로 호출만. 사진은 직접 촬영분 안내(MVP 미전송).
 //   - ③: 통신판매중개 고지(IntermediaryNotice) 상시.
 import { useState } from 'react';
-import type { DiscountInput } from './discount.types';
+import type { DiscountInput, ShoppingCandidate } from './discount.types';
 import { useDiscountActions } from './useDiscountActions';
 import IntermediaryNotice from '../board/cards/IntermediaryNotice';
 import '../agent/agent.css';
@@ -38,11 +38,40 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
-  const { busy, error, create } = useDiscountActions();
+  const { busy, error, searchProducts, create } = useDiscountActions();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // 네이버쇼핑 검색 상태 — 결과는 표시 전용(외부 본문). 저장은 productId+query 만.
+  const [candidates, setCandidates] = useState<ShoppingCandidate[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null,
+  );
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+
   const patch = (p: Partial<FormState>) => setForm((f) => ({ ...f, ...p }));
+
+  const KRW = (n: number) => `${n.toLocaleString('ko-KR')}원`;
+
+  // 검색 실행 — 자사 API 만 호출(외부 호출 0, ①). 검색어 바뀌면 선택 초기화.
+  const handleSearch = async () => {
+    const q = form.referenceQuery.trim();
+    if (!q) {
+      setCandidates([]);
+      setSearched(false);
+      return;
+    }
+    setSearching(true);
+    setSelectedProductId(null);
+    try {
+      const results = await searchProducts(q);
+      setCandidates(results);
+      setSearched(true);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   // 정가 미입력 → 미확인 라벨 안내(서버가 최종 강제).
   const baseWillBeUnverified = !form.listPrice.trim();
@@ -81,8 +110,13 @@ export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
       return;
     }
 
-    // 참고가 검색어 — 클라가 보내는 유일한 신규 입력(선택). 가격/출처/시각은 보내지 않는다(④).
+    // 참고가 입력 — 클라가 보내는 신규 입력은 검색어 + 선택 productId 둘뿐(선택).
+    // 가격/출처/시각은 절대 보내지 않는다 — 서버가 재조회로 스탬프한다(④).
+    // productId 는 검색결과에서 실제 선택했고 그 검색어로 검색했을 때만 함께 보낸다.
     const refQuery = form.referenceQuery.trim();
+    const selectedStillValid =
+      selectedProductId != null &&
+      candidates.some((c) => c.productId === selectedProductId);
 
     // 좌표·photo·unverifiedBase·참고가값 없음 — DTO 에 키 자체가 없다(⑤/①/④).
     const payload: DiscountInput = {
@@ -92,6 +126,9 @@ export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
       ...(price != null ? { discountPrice: price } : {}),
       ...(list != null ? { listPrice: list } : {}),
       ...(refQuery ? { referenceQuery: refQuery } : {}),
+      ...(refQuery && selectedStillValid
+        ? { referenceProductId: selectedProductId! }
+        : {}),
     };
 
     try {
@@ -205,24 +242,80 @@ export default function DiscountForm({ onSaved, onCancel }: DiscountFormProps) {
         </span>
       </label>
 
-      {/* 참고가 검색어(선택) — 클라는 검색어만 전송, 서버가 네이버쇼핑 조회(①/④).
-          참고가는 외부 출처이며 플랫폼 단정가가 아니다. */}
-      <label className="agent-form__field">
+      {/* 참고가 검색·선택(선택) — 클라는 검색어 + 선택 productId 만 전송, 서버가
+          네이버쇼핑을 재조회해 가격을 스탬프한다(①/④). 외부 직접 호출/이미지 0.
+          결과 이미지는 표시하지 않는다(핫링크 회피, ①). */}
+      <div className="agent-form__field">
         <span className="agent-form__label">
-          네이버쇼핑에서 비교할 상품 검색어 (선택)
+          상품 제목으로 네이버쇼핑 검색 (선택)
         </span>
-        <input
-          className="agent-form__input"
-          type="text"
-          value={form.referenceQuery}
-          onChange={(e) => patch({ referenceQuery: e.target.value })}
-          placeholder="예: 나이키 페가수스 41"
-        />
+        <div className="discount-form__search-row">
+          <input
+            className="agent-form__input"
+            type="text"
+            value={form.referenceQuery}
+            onChange={(e) => {
+              // 검색어가 바뀌면 이전 검색결과/선택을 무효화(엇갈린 productId 방지).
+              patch({ referenceQuery: e.target.value });
+              setCandidates([]);
+              setSelectedProductId(null);
+              setSearched(false);
+            }}
+            placeholder="예: 나이키 페가수스 41"
+            aria-label="네이버쇼핑 검색어"
+          />
+          <button
+            type="button"
+            className="agent-form__btn agent-form__btn--ghost discount-form__search-btn"
+            onClick={handleSearch}
+            disabled={searching || !form.referenceQuery.trim()}
+          >
+            {searching ? '검색 중…' : '검색'}
+          </button>
+        </div>
         <span className="agent-form__hint">
-          입력하면 네이버쇼핑 최저가를 참고가로 함께 보여줍니다(선택). 동일 상품을
-          보증하지 않으며 시세는 변동될 수 있습니다.
+          검색·선택은 선택사항입니다. 검색 후 비교할 상품을 직접 골라 주세요.
+          네이버쇼핑 출처이며 <b>동일 상품·시세를 보증하지 않습니다</b>.
+          선택하지 않으면 참고가 없이 등록되어 <b>[기준가 미확인]</b>으로
+          표시됩니다.
         </span>
-      </label>
+
+        {/* 검색결과 목록 — 표시 전용(상품명/가격/몰명만, 이미지 없음). 1건 선택. */}
+        {searched && candidates.length === 0 && !searching && (
+          <p className="discount-form__search-empty" role="note">
+            검색결과가 없습니다. 다른 검색어를 입력하거나, 참고가 없이 등록할 수
+            있어요.
+          </p>
+        )}
+        {candidates.length > 0 && (
+          <ul
+            className="discount-form__candidates"
+            aria-label="네이버쇼핑 검색결과 (1건 선택)"
+          >
+            {candidates.map((c) => (
+              <li key={c.productId} className="discount-form__candidate">
+                <label className="discount-form__candidate-label">
+                  <input
+                    type="radio"
+                    name="referenceProduct"
+                    className="discount-form__candidate-radio"
+                    checked={selectedProductId === c.productId}
+                    onChange={() => setSelectedProductId(c.productId)}
+                  />
+                  <span className="discount-form__candidate-body">
+                    <span className="discount-form__candidate-title">
+                      {c.title}
+                    </span>
+                    <span className="discount-form__candidate-meta">
+                      {KRW(c.lprice)} · {c.mallName}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* 사진 안내 — 직접 촬영분만, 불펌 금지(①). MVP 에서는 전송하지 않는다. */}
       <p className="discount-form__photo-note" role="note">

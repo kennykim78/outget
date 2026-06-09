@@ -37,3 +37,9 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+# --- Runtime / tooling artifacts (not source) ---
+.claude/scheduled_tasks.lock
+.playwright-mcp/
+*-smoke.png
+map-auth-ok.png

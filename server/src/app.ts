@@ -111,9 +111,11 @@ export function createApp(repos: Repos = makeInMemoryRepos()): Express {
   app.use('/api', createChatRouter(repos.match, repos.message, repos.report));
   app.use('/api', createPaymentRouter(repos.match, paymentRail));
 
-  // Epic 6 할인소식(UGC) 쓰기(소식알림자/대행자/운영자) — 목록 GET 은 보드 라우터가 담당.
-  //   네이버쇼핑 참고가 조회 레일(불변식 ①·④): 두 env 키 존재 시 Naver 실어댑터(유일한 외부
-  //   fetch 지점), 없으면 Noop(항상 null → 기존 '기준가 미확인' 폴백). paymentRail 선례대로
+  // Epic 6 할인소식(UGC) 쓰기(소식알림자/대행자/운영자) + 네이버쇼핑 검색(GET /api/shopping/search,
+  //   searchLimiter 는 라우터 내부에서 부착) — 목록 GET 은 보드 라우터가 담당.
+  //   네이버쇼핑 참고가 레일(불변식 ①·④): 두 env 키 존재 시 Naver 실어댑터(유일한 외부 fetch
+  //   지점, search+confirm), 없으면 Noop(search→[]·confirm→null → 기존 '기준가 미확인' 폴백).
+  //   대화형 검색→사용자 선택(productId)→서버 confirm 으로 두 가격 스탬프. paymentRail 선례대로
   //   app 에서 직접 생성한다(Repos 비포함 — 외부 호출 레일이지 영속 리포지토리가 아님).
   //   키는 서버 전용 env(VITE_ 접두사 금지 — 브라우저 노출 방지).
   const shoppingId = process.env.NAVER_SHOPPING_CLIENT_ID;

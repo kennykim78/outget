@@ -54,3 +54,83 @@
   flex: 0 0 auto;
   font-size: 14px;
 }
+
+/* ── 네이버쇼핑 검색·선택(선택) ──────────────────────────────
+   결과는 표시 전용(상품명/가격/몰명). 이미지 없음(핫링크 회피 ①).
+   참고가는 외부 출처 — 플랫폼 단정가가 아니다(④/R5). */
+.discount-form__search-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.discount-form__search-row .agent-form__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.discount-form__search-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.discount-form__search-empty {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b7280;
+  margin: 8px 0 0;
+}
+
+.discount-form__candidates {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.discount-form__candidate {
+  border-bottom: 1px solid #eef0f2;
+}
+
+.discount-form__candidate:last-child {
+  border-bottom: none;
+}
+
+.discount-form__candidate-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.discount-form__candidate-radio {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.discount-form__candidate-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.discount-form__candidate-title {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1f2937;
+  word-break: break-word;
+}
+
+.discount-form__candidate-meta {
+  font-size: 12px;
+  color: #6b7280;
+}

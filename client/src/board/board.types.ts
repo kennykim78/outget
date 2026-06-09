@@ -65,18 +65,22 @@ export interface DiscountPost {
   discountRate?: number;
   /** 할인가 — Optional. 사용자 제보가이며 플랫폼 단정가 아님. */
   discountPrice?: number;
-  /** 정가(listPrice) — Optional. 사용자가 폼에 입력한 UGC 정가다(referencePrice 와 별개). */
+  /** 정가(listPrice) — Optional. 사용자가 폼에 입력한 UGC 정가다(네이버쇼핑 참고가와 별개). */
   listPrice?: number;
   /** 정가 미확인 여부. true면 `[기준가 미확인·사용자 제보가]` 라벨 강제. */
   unverifiedBase: boolean;
-  // ── 네이버쇼핑 참고가(referencePrice) 4필드 — 서버 listings.types.ts 미러 ──
+  // ── 네이버쇼핑 참고가 6필드 — 서버 listings.types.ts 미러(권위는 서버) ──
   //  - 외부 출처(네이버쇼핑) 참고가. 플랫폼이 매긴 단정가 아님(④/R5).
-  //  - all-or-nothing: 네 필드는 함께 존재하거나 함께 부재(폴백 시 전부 undefined).
-  //  - 전부 서버가 조회 후 스탬프한다 — 클라가 절대 주입하지 않는다(클라 입력은
-  //    DiscountInput.referenceQuery 검색어 하나뿐).
-  //  - listPrice(사용자 UGC 정가)와 별개 — 섞지 않는다.
-  /** 참고가(원) — 네이버쇼핑 검색 최저가 1건. 서버 스탬프. */
-  referencePrice?: number;
+  //  - all-or-nothing 판정 기준은 referenceBasePrice 존재(있으면 6필드 함께 존재).
+  //  - 전부 서버가 조회(confirm 재조회) 후 스탬프한다 — 클라가 절대 주입하지 않는다.
+  //    클라가 보내는 입력은 DiscountInput.referenceQuery + referenceProductId 둘뿐.
+  //  - listPrice(사용자 UGC 정가)와 별개 — 섞지 않는다. "정가" 표현 금지.
+  /** 대표가(원) — 사용자가 검색결과에서 고른 상품의 최저가. 서버 스탬프. */
+  referenceBasePrice?: number;
+  /** 온라인 최저가(원) — 같은 검색결과 내 잡템 제외 최저가. 서버 스탬프. */
+  referenceLowestPrice?: number;
+  /** 선택 상품 식별자(불투명) — 외부 본문 아님. 서버 스탬프. */
+  referenceProductId?: string;
   /** 참고가 출처 — 고정값 '네이버쇼핑'. 서버 스탬프. */
   referenceSource?: string;
   /** 참고가 조회에 사용한 검색어(사용자 입력). 서버 스탬프(에코). */

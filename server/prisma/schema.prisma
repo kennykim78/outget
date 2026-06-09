@@ -119,12 +119,18 @@ model DiscountPost {
   createdAt     String
   status        String
   // 네이버쇼핑 참고가(외부 출처 스탬프, 불변식 ④). listPrice(UGC 정가)와 별개 필드군 —
-  //   플랫폼 단정가 아님. all-or-nothing(4필드 함께 NULL 이거나 함께 채워짐). 자금/좌표 아님.
+  //   두 가격 모두 외부 출처(네이버쇼핑) — 플랫폼 단정가 아님. all-or-nothing(기준:
+  //   referenceBasePrice, 함께 NULL 이거나 함께 채워짐). 자금/좌표 아님. 식별자는 불투명(본문 0).
   //   기존 행은 전부 NULL(하위호환) → 폴백(기준가 미확인 유지).
+  //   referenceBasePrice=대표가, referenceLowestPrice=온라인 최저가(잡템필터 후).
+  referenceBasePrice   Int?
+  referenceLowestPrice Int?
+  referenceProductId   String?
+  referenceSource      String?
+  referenceQuery       String?
+  referenceFetchedAt   String?
+  // legacy(미사용) — 단일 referencePrice. 매퍼가 무시한다. 드롭은 후속(O4) 마이그레이션.
   referencePrice     Int?
-  referenceSource    String?
-  referenceQuery     String?
-  referenceFetchedAt String?
   // 매장 앵커 좌표(옵셔널, 불변식 ⑤ 예외 — 사용자 위치 아님).
   lat           Float?
   lng           Float?

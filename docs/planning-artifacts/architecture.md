@@ -127,7 +127,7 @@ PostgreSQL 기준. 모든 데이터는 *내 소유*(시드/거래/UGC).
 
 ### 6-3. 외부 통합
 - **네이버 지도**: 클라 SDK, 키 도메인 제한. 지오코딩도 네이버 사용 가능.
-- **네이버쇼핑 API**: 정가 보조. rate-limit·에러 graceful. **크롤링 대체이지 크롤링 아님.** *(구현됨 2026-06-09 — `server/src/shopping/naver.shopping.adapter.ts` 서버측 단일 어댑터, 호스트 openapi.naver.com 하나, 키 없으면 noop 폴백. DiscountPost에 참고가 4필드 서버 스탬프, 카드에 면책 3요소 강제 렌더. 키 발급은 M1 사용자 작업.)*
+- **네이버쇼핑 API**: 참고가 보조. rate-limit·에러 graceful. **크롤링 대체이지 크롤링 아님.** *(구현됨 2026-06-09 — `server/src/shopping/naver.shopping.adapter.ts` 서버측 단일 어댑터, 호스트 openapi.naver.com 하나, 키 없으면 noop 폴백. **대화형 검색→사용자 선택** 흐름: `GET /api/shopping/search`(auth+role+searchLimiter)로 후보 목록 표시 → 사용자가 1건 선택 → 서버가 `confirm` 재조회로 **대표가+온라인 최저가** 두 가격을 서버 스탬프(클라는 query+productId만, 가격 주입 400). 외부 본문(title/image/link/mallName)은 **DB 미저장**(폼 임시표시만, 잡템필터 lprice≥기준가×0.1). 카드에 두 가격+면책+음수 할인율 가드. 키 발급은 M1 사용자 작업.)*
 - **외부 P2P 안전결제(M1)**: 어댑터 뒤로. 제공자 약관 서면확답 전까지 **'직접거래 + 안내'만으로도 MVP 가동 가능**하게 설계(결제 어댑터 no-op/안내 모드).
 
 ---

@@ -49,3 +49,10 @@ export const submitLimiter = makeLimiter({
   windowMs: MINUTE,
   limit: 20,
 });
+
+// 네이버쇼핑 검색 — 외부 오픈API 호출(서버 경유) 남용/쿼터 소진 완화. 분당 30회/ IP.
+//   test env 에서는 passthrough(no-op).
+export const searchLimiter = makeLimiter({
+  windowMs: MINUTE,
+  limit: 30,
+});
