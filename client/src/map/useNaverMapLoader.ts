@@ -7,9 +7,10 @@ import { useEffect, useState } from 'react';
 export type MapLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'no-key';
 
 // 네이버 클라우드 플랫폼(NCP) Maps v3 엔드포인트.
-// ncpClientId 쿼리에 발급 키를 붙여 동적 주입한다.
+// ncpKeyId 쿼리에 발급 키를 붙여 동적 주입한다.
+// (NCP 신버전 인증 — 구버전 ncpClientId 는 "인증 실패 200"으로 거부됨.)
 const NAVER_MAPS_SRC =
-  'https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=';
+  'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=';
 
 // 중복 주입 방지를 위한 스크립트 식별자.
 const SCRIPT_ID = 'naver-maps-sdk';
