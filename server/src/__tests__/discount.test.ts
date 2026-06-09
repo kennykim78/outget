@@ -226,9 +226,9 @@ describe('네이버쇼핑 참고가(검색→선택→confirm) 흐름', () => {
     expect(res.body.referenceProductId).toBeUndefined();
   });
 
-  it('클라가 가격 3종(base/lowest/legacy) 직접 주입 시도 → 각각 400(서버 권위 위반)', async () => {
+  it('클라가 가격(base/lowest) 직접 주입 시도 → 각각 400(서버 권위 위반)', async () => {
     const token = await tokenFor('disc-ref-inject@example.com', '소식알림자');
-    for (const key of ['referenceBasePrice', 'referenceLowestPrice', 'referencePrice']) {
+    for (const key of ['referenceBasePrice', 'referenceLowestPrice']) {
       const body: Record<string, unknown> = { storeBrand: '브랜드', source: '제보' };
       body[key] = 1;
       const res = await request(app)

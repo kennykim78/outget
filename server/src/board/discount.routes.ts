@@ -18,6 +18,7 @@ import type {
 } from './discount.repo.js';
 import type { DiscountPost, StoredDiscountPost } from './listings.types.js';
 import type { ShoppingPriceRail } from '../shopping/shopping.port.js';
+import { snapshot as shoppingMetricsSnapshot } from '../shopping/shopping.metrics.js';
 import { searchLimiter } from '../middleware/rate-limit.js';
 import { validateDiscountInput, DISCOUNT_FIELD_MAX } from './discount.validation.js';
 
@@ -65,6 +66,18 @@ export function createDiscountRouter(
       }
       const candidates = await shoppingPort.search(q.trim());
       res.status(200).json(candidates);
+    },
+  );
+
+  // 네이버쇼핑 외부 호출 메트릭(운영자 전용 읽기) — silent degradation 가시화.
+  //   shopping.metrics 인메모리 카운터 스냅샷(숫자뿐 — 시크릿/본문/검색어/URL 0). 외부 호출 0.
+  //   requireAuth + requireRole('운영자'). rate-limit 불필요(외부호출 0·읽기전용).
+  router.get(
+    '/shopping/metrics',
+    requireAuth,
+    requireRole('운영자'),
+    (_req, res) => {
+      res.status(200).json(shoppingMetricsSnapshot());
     },
   );
 

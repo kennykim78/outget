@@ -37,13 +37,12 @@ export const DISCOUNT_FIELD_MAX = {
   referenceProductId: 100,
 } as const;
 
-// 불변식 ④: 참고가 가격 3종/출처/시각은 **서버 권위 스탬프** — 클라가 주입하면 거부(400).
+// 불변식 ④: 참고가 가격/출처/시각은 **서버 권위 스탬프** — 클라가 주입하면 거부(400).
 //   클라가 보낼 수 있는 신규 입력은 referenceQuery(검색어) + referenceProductId(선택 상품) 둘뿐.
-//   가격은 base/lowest + legacy referencePrice 전부 금지(두 가격 모두 서버 confirm 으로만 확정).
+//   가격은 base/lowest 전부 금지(두 가격 모두 서버 confirm 으로만 확정).
 const BANNED_REFERENCE_KEYS: readonly string[] = [
   'referenceBasePrice',
   'referenceLowestPrice',
-  'referencePrice',
   'referenceSource',
   'referenceFetchedAt',
 ];

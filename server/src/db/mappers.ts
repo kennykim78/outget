@@ -197,7 +197,6 @@ interface DiscountRow {
   referenceSource: string | null;
   referenceQuery: string | null;
   referenceFetchedAt: string | null;
-  referencePrice: number | null; // legacy(미사용) — 읽되 매핑하지 않는다.
   lat: number | null;
   lng: number | null;
 }
@@ -217,8 +216,7 @@ export function rowToDiscount(r: DiscountRow): StoredDiscountPost {
   if (r.listPrice !== null) out.listPrice = r.listPrice;
   if (r.photo !== null) out.photo = r.photo;
   // 네이버쇼핑 참고가(외부 출처 스탬프, 불변식 ④) — all-or-nothing 복원(기준: referenceBasePrice).
-  //   여섯 필드 전부 non-null 일 때만 함께 복원한다(부분 NULL 은 무시). legacy referencePrice 는
-  //   읽되 매핑하지 않는다(O4 드롭 예정).
+  //   여섯 필드 전부 non-null 일 때만 함께 복원한다(부분 NULL 은 무시).
   if (
     r.referenceBasePrice !== null &&
     r.referenceLowestPrice !== null &&

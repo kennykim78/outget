@@ -42,6 +42,7 @@ const SPA_CSP = [
   "img-src 'self' data: blob: https://*.map.naver.com https://*.pstatic.net",
   "connect-src 'self' https://*.map.naver.com",
   "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'", // Pretendard self-host(번들 woff2, 같은 오리진) — 외부 폰트 호스트 0(불변식 ①).
 ].join('; ');
 
 // 정적 자산이 아닌, SPA 라우팅 대상이 되는 HTML GET 요청인지 판별.

@@ -8,14 +8,14 @@
    · 의미색(확인가 초록 / 미검증 회색 / 경고 앰버 / 위험 적)은 컴플라이언스
      위계 — 브랜드 톤과 무관하게 고정. 색 단독 의존 금지(아이콘+라벨 병행).
    · 다크모드: 후속. :root 토큰을 prefers-color-scheme 로 덮으면 대응 가능.
-   · 폰트: Pretendard 를 1순위로 두되 시스템 한글 폰트로 폴백한다. 원격 @import 는
-     프로덕션 CSP(style-src 'self')와 충돌하므로 두지 않는다 — Pretendard 정밀
-     적용이 필요하면 npm `pretendard` 패키지를 self-host 로 추가(외부 출처 0).
+   · 폰트: Pretendard Variable 을 self-host(번들 woff2)로 1순위, 시스템 한글 폰트 폴백.
+     @font-face 는 main.tsx 에서 'pretendard/dist/web/variable/pretendardvariable.css'
+     를 테마보다 먼저 import 해 로드한다(외부 출처 0 — 불변식 ①, CSP style/font 'self').
    ════════════════════════════════════════════════════════════════════ */
 
 :root {
   /* ── 타이포 ── */
-  --font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   --fs-2xs: 11px; --fs-xs: 12px; --fs-sm: 13px; --fs-md: 15px;
   --fs-lg: 17px; --fs-xl: 20px; --fs-2xl: 24px; --fs-3xl: 30px;
   --fw-reg: 400; --fw-med: 500; --fw-semi: 600; --fw-bold: 700; --fw-black: 800;

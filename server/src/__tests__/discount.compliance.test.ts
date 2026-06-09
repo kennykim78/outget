@@ -102,9 +102,9 @@ describe('불변식 ⑤ — 좌표 키 거부 + 저장 객체에 좌표 0', () =
 });
 
 describe('불변식 ④ — 참고가는 서버 권위 스탬프(클라 주입 불가) + 외부 출처', () => {
-  it('클라가 가격 3종/Source/FetchedAt 주입 시도 → 400(query+productId 만 허용)', async () => {
+  it('클라가 가격(base/lowest)/Source/FetchedAt 주입 시도 → 400(query+productId 만 허용)', async () => {
     const token = await tokenFor('disc-ref-comp@example.com', '소식알림자');
-    const numKeys = ['referenceBasePrice', 'referenceLowestPrice', 'referencePrice'];
+    const numKeys = ['referenceBasePrice', 'referenceLowestPrice'];
     for (const key of [...numKeys, 'referenceSource', 'referenceFetchedAt']) {
       const body: Record<string, unknown> = { storeBrand: '브랜드', source: '제보' };
       body[key] = numKeys.includes(key) ? 1 : 'x';
@@ -141,8 +141,6 @@ describe('불변식 ④ — 참고가는 서버 권위 스탬프(클라 주입 �
     for (const banned of ['title', 'image', 'link', 'mallName']) {
       expect(keys).not.toContain(banned);
     }
-    // legacy referencePrice 도 InMemory 저장 객체엔 없다(매퍼/리포가 미사용).
-    expect(keys).not.toContain('referencePrice');
   });
 });
 

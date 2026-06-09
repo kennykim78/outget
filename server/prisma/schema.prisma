@@ -129,8 +129,6 @@ model DiscountPost {
   referenceSource      String?
   referenceQuery       String?
   referenceFetchedAt   String?
-  // legacy(미사용) — 단일 referencePrice. 매퍼가 무시한다. 드롭은 후속(O4) 마이그레이션.
-  referencePrice     Int?
   // 매장 앵커 좌표(옵셔널, 불변식 ⑤ 예외 — 사용자 위치 아님).
   lat           Float?
   lng           Float?

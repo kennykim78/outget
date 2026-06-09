@@ -43,5 +43,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Test (client)
+        run: npm test --workspace client
+
       - name: Test (server)
         run: npm test --workspace server

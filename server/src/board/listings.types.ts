@@ -82,7 +82,7 @@ export interface StoredDiscountPost extends DiscountPost {
 
 // 작성 입력 — authorId/id/status/unverifiedBase/createdAt/좌표 는 서버가 결정(클라가 보내지 않는다).
 //   referenceQuery(검색어) + referenceProductId(선택 상품) 둘만 신규 클라 입력이다.
-//   가격 3종(referenceBasePrice/referenceLowestPrice + legacy referencePrice)/출처/시각은
+//   가격(referenceBasePrice/referenceLowestPrice)/출처/시각은
 //   서버 권위 스탬프라 입력에 없다(들어오면 검증에서 400 거부 — BANNED_REFERENCE_KEYS).
 //   서버가 referenceProductId+referenceQuery 로 confirm 재조회 후 6필드를 스탬프한다.
 export interface DiscountInput {

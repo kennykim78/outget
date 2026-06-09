@@ -41,8 +41,6 @@ export class PrismaDiscountRepository implements DiscountRepository {
         referenceSource: reference?.referenceSource ?? null,
         referenceQuery: reference?.referenceQuery ?? null,
         referenceFetchedAt: reference?.referenceFetchedAt ?? null,
-        // legacy referencePrice 는 항상 null(미사용 — O4 드롭 예정).
-        referencePrice: null,
       },
     });
     return rowToDiscount(row);
