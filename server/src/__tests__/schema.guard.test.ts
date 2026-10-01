@@ -41,6 +41,15 @@ describe('schema guard', () => {
     expect(banned.test(`${adopt}Post`)).toBe(true);
     const hits = [...models.keys()].filter((n) => banned.test(n));
     expect(hits).toEqual([]);
+    // 이름 패턴(모델명에만 적용 — 필드명 orderHint 등은 대상 아님). 토큰 분할 유지.
+    const nameBanned = new RegExp(
+      ['pay', 'es' + 'crow', 'settle', 'order', 'transaction', 'ad' + 'opt', 'match'].join('|'),
+      'i',
+    );
+    expect(nameBanned.test('Payment')).toBe(true);
+    expect(nameBanned.test('AdoptionMatch')).toBe(true);
+    expect(nameBanned.test('orderHint')).toBe(true); // 패턴 점검용 — 필드에는 적용하지 않는다
+    expect([...models.keys()].filter((n) => nameBanned.test(n))).toEqual([]);
   });
 
   it('(b) 금액·결제성 필드가 없다(불변식 4)', () => {
@@ -53,10 +62,24 @@ describe('schema guard', () => {
       for (const f of fields) if (banned.test(f)) hits.push(`${model}.${f}`);
     }
     expect(hits).toEqual([]);
+    // 단어 경계(camelCase 분해) 기준 금전어 — orderHint 등 오탐 없음.
+    const moneyWords = new Set(['total', 'fee', 'cost', 'deposit', 'settlement']);
+    const words = (f: string) =>
+      f
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .toLowerCase()
+        .split(/[\s_]+/);
+    expect(words('orderHint').some((w) => moneyWords.has(w))).toBe(false);
+    expect(words('totalCount').some((w) => moneyWords.has(w))).toBe(true);
+    const wordHits: string[] = [];
+    for (const [model, fields] of models) {
+      for (const f of fields) if (words(f).some((w) => moneyWords.has(w))) wordHits.push(`${model}.${f}`);
+    }
+    expect(wordHits).toEqual([]);
   });
 
   it('(c) 좌표(lat/lng) 필드는 VetClinic 에만 있다(불변식 8)', () => {
-    const coord = /^(lat|lng|latitude|longitude|coords)$/i;
+    const coord = /lat(itude)?$|lng$|longitude$|coord/i;
     const hits: string[] = [];
     for (const [model, fields] of models) {
       if (model === 'VetClinic') continue;
