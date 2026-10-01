@@ -5,7 +5,24 @@
       "Bash(npx --yes bmad-method install --directory \"C:\\\\kenny_work\\\\260607_outget\" --modules bmm --tools claude-code --output-folder docs --yes)",
       "Edit(/.claude/skills/knockedu-impact/**)",
       "Edit(/.claude/skills/knockedu-contract/**)",
-      "Edit(/.claude/skills/knockedu-qa/**)"
+      "Edit(/.claude/skills/knockedu-qa/**)",
+      "Bash",
+      "Edit",
+      "Write",
+      "Read",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_close"
     ]
-  }
+  },
+  "model": "opus"
 }

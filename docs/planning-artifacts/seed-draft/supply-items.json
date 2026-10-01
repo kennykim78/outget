@@ -1,0 +1,594 @@
+[
+  {
+    "id": "cage",
+    "name": "케이지",
+    "category": "HOUSING",
+    "glyph": "🏠",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "type",
+          "label": "형태",
+          "type": "enum",
+          "options": [
+            "LIVING_BOX",
+            "WIRE",
+            "ACRYLIC",
+            "OTHER"
+          ]
+        },
+        {
+          "key": "floorWcm",
+          "label": "바닥 가로(cm)",
+          "type": "number",
+          "min": 20,
+          "max": 200
+        },
+        {
+          "key": "floorDcm",
+          "label": "바닥 세로(cm)",
+          "type": "number",
+          "min": 20,
+          "max": 120
+        },
+        {
+          "key": "heightCm",
+          "label": "높이(cm)",
+          "type": "number",
+          "min": 15,
+          "max": 100
+        },
+        {
+          "key": "barGapMm",
+          "label": "철망 간격(mm)",
+          "type": "number",
+          "min": 3,
+          "max": 30,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "바닥 면적이 곧 활동량. 층수보다 바닥 넓이.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "wheel",
+    "name": "쳇바퀴",
+    "category": "EXERCISE",
+    "glyph": "🎡",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "diameterCm",
+          "label": "지름(cm)",
+          "type": "number",
+          "min": 5,
+          "max": 60
+        },
+        {
+          "key": "surface",
+          "label": "바닥면",
+          "type": "enum",
+          "options": [
+            "SOLID",
+            "MESH",
+            "BAR"
+          ]
+        },
+        {
+          "key": "mount",
+          "label": "설치",
+          "type": "enum",
+          "options": [
+            "STAND",
+            "HANG"
+          ]
+        },
+        {
+          "key": "silent",
+          "label": "무소음(베어링)",
+          "type": "boolean",
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [
+      "saucer"
+    ],
+    "description": "밤새 달리는 용품. 지름이 작으면 등이 꺾인다.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "saucer",
+    "name": "플라잉 소서",
+    "category": "EXERCISE",
+    "glyph": "🥏",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "diameterCm",
+          "label": "지름(cm)",
+          "type": "number",
+          "min": 10,
+          "max": 40
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "쳇바퀴 대안. 케이지 높이가 낮을 때.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "bedding",
+    "name": "베딩",
+    "category": "SUBSTRATE",
+    "glyph": "🌾",
+    "lifecycle": "CONSUMABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "material",
+          "label": "재질",
+          "type": "enum",
+          "options": [
+            "PAPER",
+            "ASPEN",
+            "HEMP",
+            "CEDAR_PINE",
+            "OTHER"
+          ]
+        },
+        {
+          "key": "scented",
+          "label": "향 첨가",
+          "type": "boolean"
+        },
+        {
+          "key": "volumeL",
+          "label": "용량(L)",
+          "type": "number",
+          "min": 1,
+          "max": 100,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "굴을 팔 수 있는 깊이가 핵심.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "water",
+    "name": "급수기",
+    "category": "FEEDING",
+    "glyph": "💧",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "kind",
+          "label": "종류",
+          "type": "enum",
+          "options": [
+            "BOTTLE",
+            "BOWL"
+          ]
+        },
+        {
+          "key": "mount",
+          "label": "설치",
+          "type": "enum",
+          "options": [
+            "STAND",
+            "HANG",
+            "SUCTION"
+          ]
+        },
+        {
+          "key": "capacityMl",
+          "label": "용량(ml)",
+          "type": "number",
+          "min": 30,
+          "max": 1000,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "물병·물그릇 모두 가능. 리빙박스는 걸이형이 어렵다.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "food-bowl",
+    "name": "사료 그릇",
+    "category": "FEEDING",
+    "glyph": "🥣",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "material",
+          "label": "재질",
+          "type": "enum",
+          "options": [
+            "CERAMIC",
+            "PLASTIC",
+            "METAL"
+          ]
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "무거운 도기가 뒤집히지 않는다.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "food",
+    "name": "사료",
+    "category": "FEEDING",
+    "glyph": "🌰",
+    "lifecycle": "CONSUMABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "form",
+          "label": "형태",
+          "type": "enum",
+          "options": [
+            "MIX",
+            "PELLET",
+            "MIXED"
+          ]
+        },
+        {
+          "key": "proteinPct",
+          "label": "조단백(%)",
+          "type": "number",
+          "min": 5,
+          "max": 40,
+          "optional": true
+        },
+        {
+          "key": "fatPct",
+          "label": "조지방(%)",
+          "type": "number",
+          "min": 1,
+          "max": 20,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "주식. 씨앗 위주 간식과 구분.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "hideout",
+    "name": "은신처",
+    "category": "ENRICHMENT",
+    "glyph": "🕳",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "material",
+          "label": "재질",
+          "type": "enum",
+          "options": [
+            "WOOD",
+            "CERAMIC",
+            "PLASTIC",
+            "CARDBOARD"
+          ]
+        },
+        {
+          "key": "multiChamber",
+          "label": "다중 방",
+          "type": "boolean",
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "숨을 곳이 없으면 스트레스. 2개 이상.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "sand-bath",
+    "name": "모래 목욕통",
+    "category": "HYGIENE",
+    "glyph": "🏖",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "sandType",
+          "label": "모래 종류",
+          "type": "enum",
+          "options": [
+            "CHINCHILLA_SAND",
+            "DUST",
+            "REPTILE_SAND",
+            "OTHER"
+          ]
+        },
+        {
+          "key": "widthCm",
+          "label": "가로(cm)",
+          "type": "number",
+          "min": 8,
+          "max": 40,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "물 목욕 대신. 가루형(더스트)은 호흡기에 나쁘다.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "chew",
+    "name": "갉기용 나무",
+    "category": "ENRICHMENT",
+    "glyph": "🪵",
+    "lifecycle": "CONSUMABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "material",
+          "label": "재질",
+          "type": "enum",
+          "options": [
+            "UNTREATED_WOOD",
+            "MINERAL",
+            "OTHER"
+          ]
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "앞니는 평생 자란다.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "carrier",
+    "name": "이동장",
+    "category": "TRAVEL",
+    "glyph": "🧺",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "ventilated",
+          "label": "통풍",
+          "type": "boolean"
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "병원 갈 때. 미리 준비.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "thermo",
+    "name": "온습도계",
+    "category": "ENVIRONMENT",
+    "glyph": "🌡",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "digital",
+          "label": "디지털",
+          "type": "boolean",
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "18~26℃ 유지 확인용.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "scale",
+    "name": "저울",
+    "category": "HEALTH",
+    "glyph": "⚖",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "resolutionG",
+          "label": "눈금(g)",
+          "type": "number",
+          "min": 0.1,
+          "max": 10,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "체중 변화가 첫 이상 신호.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "tubes",
+    "name": "터널·놀이기구",
+    "category": "ENRICHMENT",
+    "glyph": "🧩",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "innerDiameterCm",
+          "label": "내경(cm)",
+          "type": "number",
+          "min": 3,
+          "max": 15,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "성체 골든은 내경 6cm 이상이어야 끼지 않는다.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  }
+]

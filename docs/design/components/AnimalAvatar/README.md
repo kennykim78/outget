@@ -1,0 +1,2 @@
+# AnimalAvatar
+The mascot on its disc, at one of three sizes. Provide the mascot asset and a size (`lg` 96 on selectors and hub header, `md` 40 as a row avatar, `sm` 24 as a chip glyph) and a disc tone (`brand-soft` default, `peach-soft` for the hub header). Use it only where the README allows (entry, hub header, empty state, completion). Don't put it on VerdictCard, spec tables, hospital detail or legal text. The `<img>` carries `alt` = the animal's display name.

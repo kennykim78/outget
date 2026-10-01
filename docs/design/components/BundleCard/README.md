@@ -1,0 +1,2 @@
+# BundleCard
+One setup composition (실속 · 균형 · 기존 물품 활용): a tier glyph, the tier name, its purpose in one line, item count and the operator's range text. Never "세트", never "최저가", never a product image. Provide `tier`, `purpose`, `itemCount`, `rangeText` (optional), `remainingCount` when the user has owned items (rendered as "새로 준비할 것 N개"). On the home the three cards sit in a horizontal rail (220px each on mobile, 352px on desktop); on the setup page they stack vertically with `space-3` gaps; the tier glyph uses `brand-text` (실속 🌿 · 균형 ☁ · 기존 활용 ♻ as text glyphs).

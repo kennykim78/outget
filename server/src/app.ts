@@ -18,6 +18,10 @@ import { createReportRouter } from './governance/report.routes.js';
 import { createIdentityRouter } from './governance/identity.routes.js';
 import { createBountyRouter } from './bounty/bounty.routes.js';
 import { createGroupSlotRouter } from './groupslot/groupslot.routes.js';
+import { makeAdoptionRoutes } from './adoption/adoption.routes.js';
+import { makeApplicationRoutes } from './application/application.routes.js';
+import { makeSupplyRoutes } from './supply/supply.routes.js';
+import { makeVetRoutes } from './vet/vet.routes.js';
 import { makeInMemoryRepos, type Repos } from './db/repos.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -140,6 +144,12 @@ export function createApp(repos: Repos = makeInMemoryRepos()): Express {
     createBountyRouter(repos.bounty, repos.badge, repos.agent, repos.notification),
   );
   app.use('/api', createGroupSlotRouter(repos.groupSlot));
+
+  // WithSmall (소동물·앵무새 안심 분양/나눔/용품/특수동물병원) 라우트
+  app.use('/api/adoptions', makeAdoptionRoutes(repos.adoption, requireAuth));
+  app.use('/api/applications', makeApplicationRoutes(repos.application, repos.adoption, requireAuth));
+  app.use('/api/supplies', makeSupplyRoutes(repos.supply, requireAuth));
+  app.use('/api/vets', makeVetRoutes(repos.vet));
 
   // 보호 라우트 시연: 로그인 사용자 자신의 클레임.
   app.get('/auth/me', requireAuth, (req, res) => {

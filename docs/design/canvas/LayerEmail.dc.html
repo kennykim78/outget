@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>L8 이메일 저장 시트</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;background:#ffffff;color:#2f2b27}
+a{color:inherit;text-decoration:none}
+.page>*{flex:none}.page{box-sizing:border-box;background:#fff;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.hdr{height:56px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #e9e3da;background:#fff;flex:none}
+.logo{font-size:15px;font-weight:800;letter-spacing:.06em;color:#2c7a66}
+.chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px 0 6px;border:1px solid #cfc6ba;border-radius:999px;font-size:14px;font-weight:600;background:#fff}
+.chip .av{width:26px;height:26px;border-radius:999px;background:#fdeee4;display:flex;align-items:center;justify-content:center}
+.chip .av img{width:22px;height:22px}
+.menu{display:flex;gap:28px;font-size:15px;font-weight:600}
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:28px 24px 8px}
+.hero .mas{width:112px;height:112px;border-radius:999px;background:#fdeee4;display:flex;align-items:center;justify-content:center}
+.hero .mas img{width:92px;height:92px}
+.hero h1{margin:0;font-size:26px;line-height:32px;font-weight:800;letter-spacing:-.02em}
+.hero p{margin:0;font-size:14px;line-height:20px;color:#6e675f}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:14px;font-size:16px;font-weight:600;box-sizing:border-box}
+.btn.p{background:#7cc8b1;color:#1d2a26}
+.btn.o{border:1px solid #cfc6ba;background:#fff;color:#2f2b27}
+.sec{display:flex;flex-direction:column;gap:12px;padding:20px 0 4px}
+.sec .h{display:flex;align-items:baseline;justify-content:space-between;padding:0 20px}
+.sec .h .t{font-size:18px;line-height:24px;font-weight:700}
+.sec .h .s{font-size:14px;color:#6e675f;margin-left:8px;font-weight:400}
+.sec .h .more{font-size:13px;font-weight:600;color:#2c7a66}
+.rail{display:flex;gap:12px;padding:0 20px;overflow:hidden}
+.need{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px 0 10px;border:1px solid #e9e3da;border-radius:999px;background:#fff;font-size:14px;font-weight:600;white-space:nowrap;flex:none}
+.need b{font-weight:800;font-size:15px;width:14px;text-align:center}
+.need .sp{font-weight:700;font-variant-numeric:tabular-nums;color:#2f2b27}
+.need.r b{color:#c94a2f}.need.r{border-color:#f0c7bd;background:#fbe6e0}
+.need.d b{color:#227a4a}.need.d{color:#6e675f}
+.card{box-sizing:border-box;border:1px solid #e9e3da;border-radius:14px;background:#fff;flex:none;display:flex;flex-direction:column}
+.bun{width:220px;padding:16px;gap:6px}
+.bun .g{font-size:22px;line-height:24px}
+.bun .n{font-size:17px;font-weight:700;margin-top:4px}
+.bun .d{font-size:13px;line-height:18px;color:#6e675f}
+.bun .m{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:6px}
+.prod{width:140px;padding:8px 8px 10px;gap:6px}
+.prod .img{width:124px;height:124px;border-radius:10px;background:#f7f4ef;border:1px dashed #cfc6ba;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:14px;color:#8a8279;box-sizing:border-box}
+.prod .n{font-size:14px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod .sp{font-size:13px;color:#6e675f;font-variant-numeric:tabular-nums}
+.prod .f{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.ok{font-size:12px;font-weight:700;color:#227a4a;background:#e3f3e9;border-radius:999px;padding:2px 8px}
+.heart{font-size:14px;color:#8a8279}
+.vet{width:240px;padding:14px 16px;gap:6px}
+.vet .n{font-size:16px;font-weight:700}
+.vet .v{font-size:12px;font-weight:600;color:#227a4a}
+.vet .v.g{color:#8a8279}
+.vet .d{font-size:13px;color:#6e675f}
+.vet .a{display:flex;gap:8px;margin-top:8px}
+.vet .a span{flex:1;text-align:center;height:36px;line-height:34px;border:1px solid #cfc6ba;border-radius:14px;font-size:13px;font-weight:600;box-sizing:border-box}
+.cat{width:120px;height:120px;padding:12px;justify-content:space-between;background:#f7f4ef;border-color:#f7f4ef}
+.cat .i{font-size:26px}.cat .n{font-size:15px;font-weight:700}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:64px;border-top:1px solid #e9e3da;display:flex;background:#fff}
+.tabs div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:#6e675f}
+.tabs div.on{color:#2c7a66}
+.dim{position:absolute;inset:0;background:rgba(47,43,39,.42)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(47,43,39,.18);display:flex;flex-direction:column;overflow:hidden}
+.sheet>*,.drawer>*{flex:none}.sheet .grab{width:40px;height:4px;border-radius:999px;background:#cfc6ba;margin:10px auto 0}
+.shead{background:#f7f4ef;padding:16px 20px;display:flex;flex-direction:column;gap:8px}
+.shead .k{font-size:13px;color:#6e675f}.shead .t{font-size:22px;line-height:28px;font-weight:700}
+.bar{height:8px;border-radius:999px;background:#e6f4ef;overflow:hidden}.bar i{display:block;height:8px;width:60%;background:#7cc8b1}
+.grp{font-size:15px;font-weight:700;padding:16px 20px 2px}
+.row{display:flex;align-items:center;gap:8px;padding:11px 20px;border-bottom:1px solid #e9e3da;min-height:44px;box-sizing:border-box;font-size:15px}
+.row b{width:20px;text-align:center;font-weight:800}
+.row .n{flex:1}.row .sp{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px}
+.row .own{font-size:12px;color:#6e675f;border:1px solid #e9e3da;border-radius:999px;padding:2px 8px}
+.row .cb{width:22px;height:22px;border-radius:6px;border:2px solid #cfc6ba;box-sizing:border-box}
+.row .cb.on{background:#227a4a;border-color:#227a4a}
+.row.r b{color:#c94a2f}.row.d b{color:#227a4a}.row.o b{color:#8a8279}
+.sfoot{padding:12px 20px 20px;display:flex;flex-direction:column;gap:8px}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:480px;background:#fff;box-shadow:-8px 0 32px rgba(47,43,39,.18);display:flex;flex-direction:column;overflow:hidden}
+.dh{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px}
+.dh .t{font-size:24px;font-weight:700}.dh .x{font-size:20px;color:#6e675f}
+.dbody{padding:0 24px;display:flex;flex-direction:column;gap:18px;overflow:hidden;flex:1}
+.blk .k{font-size:13px;font-weight:600;color:#6e675f;margin-bottom:6px}
+.blk p{margin:0;font-size:15px;line-height:22px}
+.spec{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e9e3da;border-radius:14px;overflow:hidden}
+.spec div{padding:12px 14px}.spec .l{font-size:13px;color:#6e675f}.spec .v{font-size:28px;line-height:32px;font-weight:800;font-variant-numeric:tabular-nums}
+.spec div:first-child{border-right:1px solid #e9e3da}
+.sub{border:1px solid #e9e3da;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:14px}
+.sub b{color:#227a4a}
+.dfoot{padding:14px 24px 20px;border-top:1px solid #e9e3da;display:flex;gap:10px}
+.dfoot .btn{flex:1}
+.meta{font-size:12px;color:#6e675f}
+
+.mq{overflow:hidden;position:relative}
+.mq .tr{display:flex;gap:12px;width:max-content;animation:mqL 40s linear infinite}
+.mq:hover .tr{animation-play-state:paused}
+.mq.rev .tr{animation:mqR 46s linear infinite}
+@keyframes mqL{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes mqR{from{transform:translateX(-50%)}to{transform:translateX(0)}}
+.mq:before,.mq:after{content:"";position:absolute;top:0;bottom:0;width:40px;z-index:1;pointer-events:none}
+.mq:before{left:0;background:linear-gradient(90deg,#fff,rgba(255,255,255,0))}.mq:after{right:0;background:linear-gradient(270deg,#fff,rgba(255,255,255,0))}
+.sc{width:150px;padding:12px;gap:4px;background:#fff}
+.sc .k{font-size:11px;font-weight:700;color:#2c7a66;letter-spacing:.04em}
+.sc .n{font-size:14px;font-weight:700;line-height:18px}
+.sc .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:24px}
+.sc .d{font-size:12px;color:#6e675f;line-height:16px}
+.sc .st{font-size:12px;font-weight:700}
+.sc.ok .st{color:#227a4a}.sc.no .st{color:#c94a2f}.sc.chk .st{color:#a86300}
+.ex{display:flex;flex-direction:column;gap:12px;padding:32px 20px 8px}
+.ex .t{font-size:22px;line-height:28px;font-weight:800;letter-spacing:-.02em}
+.ex .p{font-size:15px;line-height:22px;color:#6e675f}
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;gap:12px;align-items:flex-start;border:1px solid #e9e3da;border-radius:14px;padding:14px 16px;background:#fff}
+.step .no{width:28px;height:28px;border-radius:999px;background:#e6f4ef;color:#2c7a66;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none}
+.step .n{font-size:16px;font-weight:700;line-height:22px}.step .d{font-size:14px;line-height:20px;color:#6e675f}
+.feat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fe{border-radius:14px;background:#f7f4ef;padding:14px;display:flex;flex-direction:column;gap:6px}
+.fe .pht{width:100%!important}.fe .i{font-size:22px}.fe .n{font-size:15px;font-weight:700}.fe .d{font-size:13px;line-height:18px;color:#6e675f}
+.band{background:#f7f4ef;padding:28px 20px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+.band .t{font-size:20px;font-weight:800;line-height:26px}.band .p{font-size:14px;color:#6e675f;line-height:20px}
+.trust{display:flex;flex-direction:column;gap:8px}
+.tr1{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:20px}.tr1 b{color:#227a4a;flex:none}
+.foot{padding:20px;font-size:12px;line-height:18px;color:#8a8279;border-top:1px solid #e9e3da}
+.pht{display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:14px;color:#8a8279;background:linear-gradient(135deg,#eae4da,#d9d1c4);box-sizing:border-box;flex:none}
+
+.intro{display:flex;flex-direction:column}
+.slide{display:flex;flex-direction:column;gap:14px;padding:36px 20px;min-height:560px;box-sizing:border-box;justify-content:center;border-top:1px solid #e9e3da}
+.slide .eb{font-size:13px;font-weight:700;color:#2c7a66}
+.slide .t{font-size:26px;line-height:32px;font-weight:800;letter-spacing:-.02em}
+.slide .d{font-size:15px;line-height:22px;color:#6e675f}
+.slide .pht{width:100%!important;height:220px}
+.dslide{display:grid;grid-template-columns:520px 1fr;gap:80px;align-items:center;width:1120px;margin:0 auto;padding:120px 0}
+.dslide .pht{width:520px!important;height:380px;border-radius:20px}
+.tabs2{display:flex;flex-direction:column;border-left:2px solid #e9e3da}
+.tabs2 .it{padding:12px 24px;font-size:20px;font-weight:700;color:#8a8279;position:relative}
+.tabs2 .it.on{color:#2f2b27;padding-top:16px;padding-bottom:20px}
+.tabs2 .it.on:before{content:"";position:absolute;left:-2px;top:16px;bottom:20px;width:3px;background:#7cc8b1;border-radius:2px}
+.tabs2 .it .d{font-size:15px;line-height:22px;color:#6e675f;font-weight:400;margin-top:8px}
+.tabs2 .it .cta{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:10px;background:#7cc8b1;color:#1d2a26;font-size:13px;font-weight:700;margin-top:14px}
+.fcard{border:1px solid #e9e3da;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:14px;background:#fff}
+.fcard .tile{background:#f4f1ec;border-radius:14px;height:180px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#8a8279;line-height:16px}
+.fcard .eb{font-size:13px;color:#8a8279}.fcard .t{font-size:20px;font-weight:800;line-height:26px;letter-spacing:-.01em}.fcard .d{font-size:14px;line-height:21px;color:#6e675f}
+.dfcard{display:grid;grid-template-columns:560px 1fr;gap:40px;padding:24px;align-items:center}
+.dfcard .tile{height:320px}
+.dfcard .t{font-size:26px;line-height:32px}.dfcard .d{font-size:16px;line-height:24px}
+.sech{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:48px 20px 20px}
+.sech .eb{font-size:14px;font-weight:700;color:#2c7a66}.sech .t{font-size:24px;line-height:30px;font-weight:800;letter-spacing:-.02em}
+
+.rv{width:300px;padding:18px;gap:10px;background:#fff}
+.rv .q{font-size:16px;line-height:24px;font-weight:600;letter-spacing:-.01em}
+.rv .q:before{content:"“";color:#7cc8b1;font-size:22px;margin-right:2px}
+.rv .who{font-size:13px;color:#6e675f;display:flex;gap:8px;align-items:center}
+.rv .vf{font-size:11px;font-weight:700;color:#2c7a66;background:#e6f4ef;border-radius:999px;padding:2px 8px}
+.rv .av{width:40px;height:40px;border-radius:999px;flex:none;font-size:9px;line-height:11px}
+.rv .lk{font-size:13px;font-weight:600;color:#2c7a66;margin-top:2px}
+.ph{background:#f7f4ef;border:1px dashed #cfc6ba;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#8a8279;box-sizing:border-box;border-radius:14px}
+</style>
+</helmet>
+
+<div class="page" style="width:390px;height:844px"><div class="hdr"><div style="display:flex;align-items:center;gap:40px"><span class="logo">WITHSMALL</span></div><a class="chip" href="TypeSelect.dc.html"><span class="av"><img src="../mascots/hamster-golden.svg" alt=""></span>골든햄스터 <span style="color:#6e675f">▾</span></a></div><div class="hero"><span class="mas" style="width:112px;height:112px"><img src="../mascots/hamster-golden.svg" alt="" style="width:91px;height:91px"></span>
+<h1>골든햄스터를 처음부터<br>제대로 준비해요</h1><p>단독 사육 · 오늘 기준 필수 2개 남았어요</p>
+<a class="btn o" href="TypeSelect.dc.html" style="min-height:40px;font-size:14px;padding:0 16px">친구 바꾸기</a></div><div class="sec"><div class="h"><span><span class="t">지금 필요한 것</span><span class=s>필수 2개 남았어요</span></span><span class="more">전체 ›</span></div><div class="rail" style="padding:0 20px"><a class="need r" href="LayerChecklist.dc.html"><b>!</b>케이지 <span class=sp>60×40cm↑</span></a><a class="need r" href="LayerChecklist.dc.html"><b>!</b>쳇바퀴 <span class=sp>28cm↑</span></a><a class="need d" href="LayerChecklist.dc.html"><b>✓</b>베딩</a><a class="need d" href="LayerChecklist.dc.html"><b>✓</b>급수</a><a class="need d" href="LayerChecklist.dc.html"><b>✓</b>사료</a></div></div><div class="sec"><div class="h"><span><span class="t">처음 준비한다면</span></span><span class="more">구성안 보기 ›</span></div><div class="rail" style="padding:0 20px"><a class="card bun" href="LayerChecklist.dc.html" style="width:220px"><span class="g">🌿</span><span class="n">실속</span><span class="d">꼭 필요한 것만</span><span class="m">6개 · 7만 원대</span></a><a class="card bun" href="LayerChecklist.dc.html" style="width:220px"><span class="g">☁</span><span class="n">균형</span><span class="d">기본 + 편의</span><span class="m">8개 · 12만 원대</span></a><a class="card bun" href="LayerChecklist.dc.html" style="width:220px"><span class="g">♻</span><span class="n">기존 활용</span><span class="d">가진 물품을 쓰고 새로 4개</span><span class="m">새로 4개 · 4만 원대</span></a></div></div><div class="sec"><div class="h"><span><span class="t">기준에 맞는 준비물</span></span><span class="more">전체 ›</span></div><div class="rail" style="padding:0 20px"><a class="card prod" href="LayerProduct.dc.html" style="width:140px"><span class="img" style="width:124px;height:124px">상품 이미지<br>(운영자 제공)</span><span class="n">○○ 쳇바퀴 30cm</span><span class="sp">30cm · 무소음</span><span class="f"><span class="ok">✓ 기준 충족</span><span class="heart">♡</span></span></a><a class="card prod" href="LayerProduct.dc.html" style="width:140px"><span class="img" style="width:124px;height:124px">상품 이미지<br>(운영자 제공)</span><span class="n">△△ 케이지 60×40</span><span class="sp">60×40cm · 철망</span><span class="f"><span class="ok">✓ 기준 충족</span><span class="heart">♡</span></span></a><a class="card prod" href="LayerProduct.dc.html" style="width:140px"><span class="img" style="width:124px;height:124px">상품 이미지<br>(운영자 제공)</span><span class="n">□□ 종이 베딩</span><span class="sp">10L · 무향</span><span class="f"><span class="ok">✓ 기준 충족</span><span class="heart">♡</span></span></a></div></div><div class="sec"><div class="h"><span><span class="t">우리 동네 병원</span><span class=s>마포구 ▾</span></span><span class="more">전체 ›</span></div><div class="rail" style="padding:0 20px"><div class="card vet" style="width:240px"><span class="n">○○동물병원</span><span class="v">✔ 병원 확인 2026.09</span><span class="d">햄스터 · 야간 · 1.2km</span><span class="a"><span>전화</span><span>길찾기</span></span></div><div class="card vet" style="width:240px"><span class="n">△△동물병원</span><span class="v g">제보됨 · 확인 전</span><span class="d">햄스터 · 2.8km</span><span class="a"><span>전화</span><span>길찾기</span></span></div></div></div><div class="band" style="background:#e6f4ef"><span class="t">골든햄스터 준비, 이어서 할까요?</span><span class="p">필수 2개가 남았어요. 이 기기에만 저장돼요.</span><a class="btn p" href="LayerChecklist.dc.html">지금 필요한 것 보기</a><a href="LayerEmail.dc.html" style="font-size:13px;color:#2c7a66;font-weight:600">다른 기기에서도 이어서 — 이메일로 저장</a></div><div class="foot">WithSmall · 소동물·앵무새 사육 준비 안내 · 의료 판단을 대신하지 않아요 · 동물 거래·분양 없음</div><div style="flex:1"></div><div class="tabs"><div class="on"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>홈</div><div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>용품</div><div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>병원</div></div><div class="dim"></div>
+<div class="sheet" style="height:420px"><div class="grab"></div>
+<div style="padding:16px 20px 0;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:20px;font-weight:700;line-height:26px">이메일로 저장해 둘까요?</div>
+<div style="font-size:14px;line-height:20px;color:#6e675f">선택한 동물과 준비 상태만 저장해요. 비밀번호 없이 메일의 링크로 확인해요.</div>
+<div style="border:1px solid #cfc6ba;border-radius:8px;height:48px;display:flex;align-items:center;padding:0 14px;font-size:16px;color:#8a8279">이메일 주소</div>
+<div style="display:flex;gap:8px;align-items:center;font-size:13px;color:#6e675f"><span style="width:26px;height:26px;border-radius:999px;background:#fdeee4;display:inline-flex;align-items:center;justify-content:center"><img src="../mascots/hamster-golden.svg" alt="" style="width:20px;height:20px"></span>골든햄스터 · 필수 2개 남음 · 내 케이지 60×40×35</div>
+</div>
+<div style="flex:1"></div>
+<div class="sfoot"><a class="btn p" href="Home390.dc.html">인증 메일 보내기</a><a class="btn o" href="Home390.dc.html" style="min-height:40px">나중에 할게요</a><span class="meta" style="text-align:center">광고 메일은 보내지 않아요</span></div></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

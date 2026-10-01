@@ -1,0 +1,27 @@
+<!-- @dsCard group="Checklist" height=300 subtitle="네 상태 + 보유 + NOT_NOW" -->
+<style>
+body{margin:0;background:var(--bg-000);font-family:var(--font-sans);color:var(--ink)}
+.list{width:360px;margin:var(--space-4)}
+h4{font-size:18px;line-height:24px;font-weight:700;margin:0 0 var(--space-1)}
+.row{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) 0;border-bottom:1px solid var(--line);min-height:44px}
+.g{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:16px;flex:none}
+.ready .g{color:var(--status-ready)}.first .g{color:var(--status-first)}.check .g{color:var(--status-check)}.later .g{color:var(--status-later)}
+.txt{flex:1;min-width:0}
+.name{font-size:16px;line-height:22px}
+.later .name{color:var(--status-later)}
+.reason{font-size:13px;line-height:18px;color:var(--status-later)}
+.spec{font-size:16px;line-height:22px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.owned{font-size:13px;color:var(--ink-muted);border:1px solid var(--line);border-radius:var(--radius-pill);padding:2px 8px}
+.chk{width:24px;height:24px;border:2px solid var(--line-strong);border-radius:6px;flex:none}
+.ready .chk{background:var(--status-ready);border-color:var(--status-ready);position:relative}
+.ready .chk::after{content:"";position:absolute;left:7px;top:3px;width:6px;height:11px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.chev{color:var(--ink-muted);font-size:18px;flex:none;width:24px;text-align:center}
+</style>
+<div class="list">
+  <h4>먼저 준비</h4>
+  <div class="row first"><span class="g">!</span><div class="txt"><div class="name">케이지</div></div><span class="spec">60×40cm 이상</span><span class="chk"></span><span class="chev">›</span></div>
+  <div class="row check"><span class="g">△</span><div class="txt"><div class="name">쳇바퀴</div></div><span class="spec">28cm 이상</span><span class="chk"></span><span class="chev">›</span></div>
+  <div class="row ready"><span class="g">✓</span><div class="txt"><div class="name">베딩</div></div><span class="owned">보유</span><span class="chk"></span><span class="chev">›</span></div>
+  <div class="row ready"><span class="g">✓</span><div class="txt"><div class="name">사료</div></div><span class="chk"></span><span class="chev">›</span></div>
+  <div class="row later"><span class="g">○</span><div class="txt"><div class="name">장식품</div><div class="reason">기본 환경에 적응한 뒤 준비해도 돼요</div></div><span class="chev">›</span></div>
+</div>

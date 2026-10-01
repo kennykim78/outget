@@ -75,6 +75,30 @@ import {
 } from '../groupslot/groupslot.repo.js';
 import { PrismaGroupSlotRepository } from '../groupslot/groupslot.prisma.repo.js';
 
+import {
+  InMemoryAdoptionRepository,
+  type AdoptionRepository,
+} from '../adoption/adoption.repo.js';
+import { PrismaAdoptionRepository } from '../adoption/adoption.prisma.repo.js';
+
+import {
+  InMemoryApplicationRepository,
+  type ApplicationRepository,
+} from '../application/application.repo.js';
+import { PrismaApplicationRepository } from '../application/application.prisma.repo.js';
+
+import {
+  InMemorySupplyRepository,
+  type SupplyRepository,
+} from '../supply/supply.repo.js';
+import { PrismaSupplyRepository } from '../supply/supply.prisma.repo.js';
+
+import {
+  InMemoryVetClinicRepository,
+  type VetClinicRepository,
+} from '../vet/vet.repo.js';
+import { PrismaVetClinicRepository } from '../vet/vet.prisma.repo.js';
+
 // 앱이 의존하는 전체 리포지토리 집합.
 export interface Repos {
   user: UserRepository;
@@ -90,6 +114,10 @@ export interface Repos {
   badge: BadgeRepository;
   bounty: BountyRepository;
   groupSlot: GroupSlotRepository;
+  adoption: AdoptionRepository;
+  application: ApplicationRepository;
+  supply: SupplyRepository;
+  vet: VetClinicRepository;
 }
 
 // 인메모리 구성(테스트 기본 + dev 폴백). 프로세스 메모리에만 존재.
@@ -108,6 +136,10 @@ export function makeInMemoryRepos(): Repos {
     badge: new InMemoryBadgeRepository(),
     bounty: new InMemoryBountyRepository(),
     groupSlot: new InMemoryGroupSlotRepository(),
+    adoption: new InMemoryAdoptionRepository(),
+    application: new InMemoryApplicationRepository(),
+    supply: new InMemorySupplyRepository(),
+    vet: new InMemoryVetClinicRepository(),
   };
 }
 
@@ -127,5 +159,9 @@ export function makePrismaRepos(prisma: PrismaClient): Repos {
     badge: new PrismaBadgeRepository(prisma),
     bounty: new PrismaBountyRepository(prisma),
     groupSlot: new PrismaGroupSlotRepository(prisma),
+    adoption: new PrismaAdoptionRepository(prisma),
+    application: new PrismaApplicationRepository(prisma),
+    supply: new PrismaSupplyRepository(prisma),
+    vet: new PrismaVetClinicRepository(prisma),
   };
 }

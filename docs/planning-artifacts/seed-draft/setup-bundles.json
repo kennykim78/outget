@@ -1,0 +1,81 @@
+[
+  {
+    "id": "sb-syrian-budget",
+    "careProfileId": "cp-hamster-syrian",
+    "tier": "BUDGET",
+    "name": "실속",
+    "glyph": "🌿",
+    "purpose": "꼭 필요한 것만, 기준은 지키고.",
+    "itemIds": [
+      "cage",
+      "wheel",
+      "bedding",
+      "water",
+      "food-bowl",
+      "food",
+      "hideout"
+    ],
+    "estimatedRangeText": "7만 원대",
+    "note": "리빙박스 개조 케이지 기준. 은신처는 나무 1개 + 종이 상자.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "sb-syrian-balanced",
+    "careProfileId": "cp-hamster-syrian",
+    "tier": "BALANCED",
+    "name": "균형",
+    "glyph": "☁",
+    "purpose": "기본에 첫 주 편의를 더해서.",
+    "itemIds": [
+      "cage",
+      "wheel",
+      "bedding",
+      "water",
+      "food-bowl",
+      "food",
+      "hideout",
+      "sand-bath",
+      "chew",
+      "carrier",
+      "thermo"
+    ],
+    "estimatedRangeText": "12만 원대",
+    "note": "80×50 케이지 기준.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "sb-syrian-reuse",
+    "careProfileId": "cp-hamster-syrian",
+    "tier": "USED_MIX",
+    "name": "기존 물품 활용",
+    "glyph": "♻",
+    "purpose": "가진 것을 쓰고, 기준에 안 맞는 것만 바꿔요.",
+    "itemIds": [
+      "cage",
+      "wheel",
+      "bedding",
+      "water",
+      "food-bowl",
+      "food",
+      "hideout"
+    ],
+    "estimatedRangeText": "보유품에 따라 달라요",
+    "note": "2질문 보유 항목을 제외한 나머지만 표시. 보유 케이지·쳇바퀴는 규격 확인 유도.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  }
+]

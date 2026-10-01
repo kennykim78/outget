@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>홈 390 미선택</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;background:#ffffff;color:#2f2b27}
+a{color:inherit;text-decoration:none}
+.page>*{flex:none}.page{box-sizing:border-box;background:#fff;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.hdr{height:56px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #e9e3da;background:#fff;flex:none}
+.logo{font-size:15px;font-weight:800;letter-spacing:.06em;color:#2c7a66}
+.chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px 0 6px;border:1px solid #cfc6ba;border-radius:999px;font-size:14px;font-weight:600;background:#fff}
+.chip .av{width:26px;height:26px;border-radius:999px;background:#fdeee4;display:flex;align-items:center;justify-content:center}
+.chip .av img{width:22px;height:22px}
+.menu{display:flex;gap:28px;font-size:15px;font-weight:600}
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:28px 24px 8px}
+.hero .mas{width:112px;height:112px;border-radius:999px;background:#fdeee4;display:flex;align-items:center;justify-content:center}
+.hero .mas img{width:92px;height:92px}
+.hero h1{margin:0;font-size:26px;line-height:32px;font-weight:800;letter-spacing:-.02em}
+.hero p{margin:0;font-size:14px;line-height:20px;color:#6e675f}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:14px;font-size:16px;font-weight:600;box-sizing:border-box}
+.btn.p{background:#7cc8b1;color:#1d2a26}
+.btn.o{border:1px solid #cfc6ba;background:#fff;color:#2f2b27}
+.sec{display:flex;flex-direction:column;gap:12px;padding:20px 0 4px}
+.sec .h{display:flex;align-items:baseline;justify-content:space-between;padding:0 20px}
+.sec .h .t{font-size:18px;line-height:24px;font-weight:700}
+.sec .h .s{font-size:14px;color:#6e675f;margin-left:8px;font-weight:400}
+.sec .h .more{font-size:13px;font-weight:600;color:#2c7a66}
+.rail{display:flex;gap:12px;padding:0 20px;overflow:hidden}
+.need{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px 0 10px;border:1px solid #e9e3da;border-radius:999px;background:#fff;font-size:14px;font-weight:600;white-space:nowrap;flex:none}
+.need b{font-weight:800;font-size:15px;width:14px;text-align:center}
+.need .sp{font-weight:700;font-variant-numeric:tabular-nums;color:#2f2b27}
+.need.r b{color:#c94a2f}.need.r{border-color:#f0c7bd;background:#fbe6e0}
+.need.d b{color:#227a4a}.need.d{color:#6e675f}
+.card{box-sizing:border-box;border:1px solid #e9e3da;border-radius:14px;background:#fff;flex:none;display:flex;flex-direction:column}
+.bun{width:220px;padding:16px;gap:6px}
+.bun .g{font-size:22px;line-height:24px}
+.bun .n{font-size:17px;font-weight:700;margin-top:4px}
+.bun .d{font-size:13px;line-height:18px;color:#6e675f}
+.bun .m{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:6px}
+.prod{width:140px;padding:8px 8px 10px;gap:6px}
+.prod .img{width:124px;height:124px;border-radius:10px;background:#f7f4ef;border:1px dashed #cfc6ba;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:14px;color:#8a8279;box-sizing:border-box}
+.prod .n{font-size:14px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod .sp{font-size:13px;color:#6e675f;font-variant-numeric:tabular-nums}
+.prod .f{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.ok{font-size:12px;font-weight:700;color:#227a4a;background:#e3f3e9;border-radius:999px;padding:2px 8px}
+.heart{font-size:14px;color:#8a8279}
+.vet{width:240px;padding:14px 16px;gap:6px}
+.vet .n{font-size:16px;font-weight:700}
+.vet .v{font-size:12px;font-weight:600;color:#227a4a}
+.vet .v.g{color:#8a8279}
+.vet .d{font-size:13px;color:#6e675f}
+.vet .a{display:flex;gap:8px;margin-top:8px}
+.vet .a span{flex:1;text-align:center;height:36px;line-height:34px;border:1px solid #cfc6ba;border-radius:14px;font-size:13px;font-weight:600;box-sizing:border-box}
+.cat{width:120px;height:120px;padding:12px;justify-content:space-between;background:#f7f4ef;border-color:#f7f4ef}
+.cat .i{font-size:26px}.cat .n{font-size:15px;font-weight:700}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:64px;border-top:1px solid #e9e3da;display:flex;background:#fff}
+.tabs div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:#6e675f}
+.tabs div.on{color:#2c7a66}
+.dim{position:absolute;inset:0;background:rgba(47,43,39,.42)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(47,43,39,.18);display:flex;flex-direction:column;overflow:hidden}
+.sheet>*,.drawer>*{flex:none}.sheet .grab{width:40px;height:4px;border-radius:999px;background:#cfc6ba;margin:10px auto 0}
+.shead{background:#f7f4ef;padding:16px 20px;display:flex;flex-direction:column;gap:8px}
+.shead .k{font-size:13px;color:#6e675f}.shead .t{font-size:22px;line-height:28px;font-weight:700}
+.bar{height:8px;border-radius:999px;background:#e6f4ef;overflow:hidden}.bar i{display:block;height:8px;width:60%;background:#7cc8b1}
+.grp{font-size:15px;font-weight:700;padding:16px 20px 2px}
+.row{display:flex;align-items:center;gap:8px;padding:11px 20px;border-bottom:1px solid #e9e3da;min-height:44px;box-sizing:border-box;font-size:15px}
+.row b{width:20px;text-align:center;font-weight:800}
+.row .n{flex:1}.row .sp{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px}
+.row .own{font-size:12px;color:#6e675f;border:1px solid #e9e3da;border-radius:999px;padding:2px 8px}
+.row .cb{width:22px;height:22px;border-radius:6px;border:2px solid #cfc6ba;box-sizing:border-box}
+.row .cb.on{background:#227a4a;border-color:#227a4a}
+.row.r b{color:#c94a2f}.row.d b{color:#227a4a}.row.o b{color:#8a8279}
+.sfoot{padding:12px 20px 20px;display:flex;flex-direction:column;gap:8px}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:480px;background:#fff;box-shadow:-8px 0 32px rgba(47,43,39,.18);display:flex;flex-direction:column;overflow:hidden}
+.dh{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px}
+.dh .t{font-size:24px;font-weight:700}.dh .x{font-size:20px;color:#6e675f}
+.dbody{padding:0 24px;display:flex;flex-direction:column;gap:18px;overflow:hidden;flex:1}
+.blk .k{font-size:13px;font-weight:600;color:#6e675f;margin-bottom:6px}
+.blk p{margin:0;font-size:15px;line-height:22px}
+.spec{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e9e3da;border-radius:14px;overflow:hidden}
+.spec div{padding:12px 14px}.spec .l{font-size:13px;color:#6e675f}.spec .v{font-size:28px;line-height:32px;font-weight:800;font-variant-numeric:tabular-nums}
+.spec div:first-child{border-right:1px solid #e9e3da}
+.sub{border:1px solid #e9e3da;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:14px}
+.sub b{color:#227a4a}
+.dfoot{padding:14px 24px 20px;border-top:1px solid #e9e3da;display:flex;gap:10px}
+.dfoot .btn{flex:1}
+.meta{font-size:12px;color:#6e675f}
+
+.mq{overflow:hidden;position:relative}
+.mq .tr{display:flex;gap:12px;width:max-content;animation:mqL 40s linear infinite}
+.mq:hover .tr{animation-play-state:paused}
+.mq.rev .tr{animation:mqR 46s linear infinite}
+@keyframes mqL{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes mqR{from{transform:translateX(-50%)}to{transform:translateX(0)}}
+.mq:before,.mq:after{content:"";position:absolute;top:0;bottom:0;width:40px;z-index:1;pointer-events:none}
+.mq:before{left:0;background:linear-gradient(90deg,#fff,rgba(255,255,255,0))}.mq:after{right:0;background:linear-gradient(270deg,#fff,rgba(255,255,255,0))}
+.sc{width:150px;padding:12px;gap:4px;background:#fff}
+.sc .k{font-size:11px;font-weight:700;color:#2c7a66;letter-spacing:.04em}
+.sc .n{font-size:14px;font-weight:700;line-height:18px}
+.sc .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:24px}
+.sc .d{font-size:12px;color:#6e675f;line-height:16px}
+.sc .st{font-size:12px;font-weight:700}
+.sc.ok .st{color:#227a4a}.sc.no .st{color:#c94a2f}.sc.chk .st{color:#a86300}
+.ex{display:flex;flex-direction:column;gap:12px;padding:32px 20px 8px}
+.ex .t{font-size:22px;line-height:28px;font-weight:800;letter-spacing:-.02em}
+.ex .p{font-size:15px;line-height:22px;color:#6e675f}
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;gap:12px;align-items:flex-start;border:1px solid #e9e3da;border-radius:14px;padding:14px 16px;background:#fff}
+.step .no{width:28px;height:28px;border-radius:999px;background:#e6f4ef;color:#2c7a66;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none}
+.step .n{font-size:16px;font-weight:700;line-height:22px}.step .d{font-size:14px;line-height:20px;color:#6e675f}
+.feat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fe{border-radius:14px;background:#f7f4ef;padding:14px;display:flex;flex-direction:column;gap:6px}
+.fe .pht{width:100%!important}.fe .i{font-size:22px}.fe .n{font-size:15px;font-weight:700}.fe .d{font-size:13px;line-height:18px;color:#6e675f}
+.band{background:#f7f4ef;padding:28px 20px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+.band .t{font-size:20px;font-weight:800;line-height:26px}.band .p{font-size:14px;color:#6e675f;line-height:20px}
+.trust{display:flex;flex-direction:column;gap:8px}
+.tr1{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:20px}.tr1 b{color:#227a4a;flex:none}
+.foot{padding:20px;font-size:12px;line-height:18px;color:#8a8279;border-top:1px solid #e9e3da}
+.pht{display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:14px;color:#8a8279;background:linear-gradient(135deg,#eae4da,#d9d1c4);box-sizing:border-box;flex:none}
+
+.intro{display:flex;flex-direction:column}
+.slide{display:flex;flex-direction:column;gap:14px;padding:36px 20px;min-height:560px;box-sizing:border-box;justify-content:center;border-top:1px solid #e9e3da}
+.slide .eb{font-size:13px;font-weight:700;color:#2c7a66}
+.slide .t{font-size:26px;line-height:32px;font-weight:800;letter-spacing:-.02em}
+.slide .d{font-size:15px;line-height:22px;color:#6e675f}
+.slide .pht{width:100%!important;height:220px}
+.dslide{display:grid;grid-template-columns:520px 1fr;gap:80px;align-items:center;width:1120px;margin:0 auto;padding:120px 0}
+.dslide .pht{width:520px!important;height:380px;border-radius:20px}
+.tabs2{display:flex;flex-direction:column;border-left:2px solid #e9e3da}
+.tabs2 .it{padding:12px 24px;font-size:20px;font-weight:700;color:#8a8279;position:relative}
+.tabs2 .it.on{color:#2f2b27;padding-top:16px;padding-bottom:20px}
+.tabs2 .it.on:before{content:"";position:absolute;left:-2px;top:16px;bottom:20px;width:3px;background:#7cc8b1;border-radius:2px}
+.tabs2 .it .d{font-size:15px;line-height:22px;color:#6e675f;font-weight:400;margin-top:8px}
+.tabs2 .it .cta{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:10px;background:#7cc8b1;color:#1d2a26;font-size:13px;font-weight:700;margin-top:14px}
+.fcard{border:1px solid #e9e3da;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:14px;background:#fff}
+.fcard .tile{background:#f4f1ec;border-radius:14px;height:180px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#8a8279;line-height:16px}
+.fcard .eb{font-size:13px;color:#8a8279}.fcard .t{font-size:20px;font-weight:800;line-height:26px;letter-spacing:-.01em}.fcard .d{font-size:14px;line-height:21px;color:#6e675f}
+.dfcard{display:grid;grid-template-columns:560px 1fr;gap:40px;padding:24px;align-items:center}
+.dfcard .tile{height:320px}
+.dfcard .t{font-size:26px;line-height:32px}.dfcard .d{font-size:16px;line-height:24px}
+.sech{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:48px 20px 20px}
+.sech .eb{font-size:14px;font-weight:700;color:#2c7a66}.sech .t{font-size:24px;line-height:30px;font-weight:800;letter-spacing:-.02em}
+
+.rv{width:300px;padding:18px;gap:10px;background:#fff}
+.rv .q{font-size:16px;line-height:24px;font-weight:600;letter-spacing:-.01em}
+.rv .q:before{content:"“";color:#7cc8b1;font-size:22px;margin-right:2px}
+.rv .who{font-size:13px;color:#6e675f;display:flex;gap:8px;align-items:center}
+.rv .vf{font-size:11px;font-weight:700;color:#2c7a66;background:#e6f4ef;border-radius:999px;padding:2px 8px}
+.rv .av{width:40px;height:40px;border-radius:999px;flex:none;font-size:9px;line-height:11px}
+.rv .lk{font-size:13px;font-weight:600;color:#2c7a66;margin-top:2px}
+.ph{background:#f7f4ef;border:1px dashed #cfc6ba;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#8a8279;box-sizing:border-box;border-radius:14px}
+</style>
+</helmet>
+<div class="page" style="width:390px;height:3560px"><div class="hdr"><div style="display:flex;align-items:center;gap:40px"><span class="logo">WITHSMALL</span></div><a class="chip" href="TypeSelect.dc.html" style="padding-left:12px">친구 선택 <span style="color:#6e675f">▾</span></a></div><div class="hero"><span class="mas" style="width:112px;height:112px;background:#e6f4ef"><img src="../mascots/group-small-mammal.svg" alt="" style="width:91px;height:91px"></span>
+<h1>작은 친구를 처음부터<br>제대로 준비해요</h1><p>햄스터·기니피그·저빌·앵무새의 준비물을 종별 기준으로 안내해요</p>
+<a class="btn p" href="TypeSelect.dc.html">어떤 친구인가요?</a>
+<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px"><a class="need" href="Home390Empty.dc.html" style="height:34px;font-size:13px;padding:0 12px;color:#6e675f">지금 필요한 것</a><a class="need" href="Home390Empty.dc.html" style="height:34px;font-size:13px;padding:0 12px;color:#6e675f">규격 판정</a><a class="need" href="Home390Empty.dc.html" style="height:34px;font-size:13px;padding:0 12px;color:#6e675f">구성안</a><a class="need" href="Home390Empty.dc.html" style="height:34px;font-size:13px;padding:0 12px;color:#6e675f">동네 병원</a></div></div><div class="sec" style="padding-bottom:4px"><div class="h"><span><span class="t">실제 이용 후기</span><span class="s">이용이 확인된 분들만</span></span></div></div><div class="mq" style="padding:4px 0 6px"><div class="tr"><div class="card rv" style="width:280px;flex:none"><span class="q">이미 가지고 있는 물품을 체크하니까 새로 사야 할 것만 남아서 편했어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">쳇바퀴를 그냥 큰 걸 사는 게 아니라 제 케이지에 맞는 규격을 확인할 수 있었어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 이미 키움<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">규격 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">검색을 정말 많이 했는데 케이지 크기부터 준비물을 한 번에 볼 수 있어서 좋았어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>드워프햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">처음 준비 구성안 보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">나중에 사도 되는 것을 따로 알려줘서 첫 달 지출을 줄였어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>기니피그 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">리빙박스 높이를 넣으니 30cm 쳇바퀴가 들어가는지 바로 나왔어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">규격 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">이미 가지고 있는 물품을 체크하니까 새로 사야 할 것만 남아서 편했어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">쳇바퀴를 그냥 큰 걸 사는 게 아니라 제 케이지에 맞는 규격을 확인할 수 있었어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 이미 키움<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">규격 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">검색을 정말 많이 했는데 케이지 크기부터 준비물을 한 번에 볼 수 있어서 좋았어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>드워프햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">처음 준비 구성안 보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">나중에 사도 되는 것을 따로 알려줘서 첫 달 지출을 줄였어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>기니피그 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">리빙박스 높이를 넣으니 30cm 쳇바퀴가 들어가는지 바로 나왔어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">규격 확인해보기 ›</a></div></div></div><div class="mq rev" style="padding:6px 0 4px"><div class="tr"><div class="card rv" style="width:280px;flex:none"><span class="q">베딩을 얼마나 깊게 깔아야 하는지 숫자로 알려줘서 헷갈리지 않았어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">햄스터를 봐주는 병원이 어딘지 몰랐는데 확인일까지 나와서 믿고 갔어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 이미 키움<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">동네 병원 보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">가진 케이지가 기준에 안 맞는다는 걸 알고 바꿨어요. 억지로 사라고 하지 않아서 좋았어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 이미 키움<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">규격 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">모래 목욕이 필요한지 몰랐는데 권장 항목에서 알게 됐어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>드워프햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">사막다람쥐라고 검색했는데 몽골리안저빌을 찾아줬어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>몽골리안저빌 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">친구 선택하기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">베딩을 얼마나 깊게 깔아야 하는지 숫자로 알려줘서 헷갈리지 않았어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">햄스터를 봐주는 병원이 어딘지 몰랐는데 확인일까지 나와서 믿고 갔어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 이미 키움<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">동네 병원 보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">가진 케이지가 기준에 안 맞는다는 걸 알고 바꿨어요. 억지로 사라고 하지 않아서 좋았어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>골든햄스터 · 이미 키움<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">규격 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">모래 목욕이 필요한지 몰랐는데 권장 항목에서 알게 됐어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>드워프햄스터 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">내 준비 확인해보기 ›</a></div><div class="card rv" style="width:280px;flex:none"><span class="q">사막다람쥐라고 검색했는데 몽골리안저빌을 찾아줬어요.</span><span class="who"><span class="av pht" style="border-radius:999px">리뷰어<br>사진</span><span>몽골리안저빌 · 처음 준비<br><span class="vf">이용 확인</span></span></span><a class="lk" href="TypeSelect.dc.html">친구 선택하기 ›</a></div></div></div><div class="sech"><span class="eb">WithSmall 소개</span><span class="t">작은 친구의 첫 준비를<br>이렇게 도와요</span></div><div class="intro"><div class="slide"><span class="pht" style="width:350px;height:220px;border-radius:14px">실사 사진<br>체크리스트 레이어 캡처</span><span class="eb">지금 필요한 것</span><span class="t">무엇을 사야 할지가 아니라,<br>우리 아이에게 무엇이 필요한지부터</span><span class="d">동물을 고르면 필수·권장·나중에가 나뉘어요. 이미 가진 건 빼고, 남은 것만 보여줘요.</span></div><div class="slide"><span class="pht" style="width:350px;height:220px;border-radius:14px">실사 사진<br>자로 재는 쳇바퀴</span><span class="eb">규격 판정</span><span class="t">'괜찮아요'가 아니라<br>28cm, 60×40cm로 말해요</span><span class="d">쳇바퀴 지름, 케이지 바닥 치수를 넣으면 최소·권장 기준과 내 케이지 호환을 판정하고, 그 조건으로 바로 찾아요.</span></div><div class="slide"><span class="pht" style="width:350px;height:220px;border-radius:14px">실사 사진<br>준비물 한 상</span><span class="eb">구성안</span><span class="t">처음이라면 실속·균형·기존 활용<br>세 가지 중에 골라요</span><span class="d">항목 수와 참고 범위만 보여드려요. 상품을 팔지 않고, 최저가 보장도 세트 판매도 없어요.</span></div><div class="slide"><span class="pht" style="width:350px;height:220px;border-radius:14px">실사 사진<br>병원 리스트|지도 캡처</span><span class="eb">동네 병원</span><span class="t">이 동물을 실제로 진료하는<br>병원만 보여줘요</span><span class="d">햄스터·앵무새를 진료하는 병원만, 확인일과 야간·응급 여부와 함께.</span></div></div><div class="band" style="background:#e6f4ef"><span class="t">어떤 친구와 함께하시나요?</span><span class="p">가입 없이 바로 시작해요. 선택은 이 기기에만 저장돼요.</span><a class="btn p" href="TypeSelect.dc.html">친구 선택하기</a></div><div class="foot">WithSmall · 소동물·앵무새 사육 준비 안내 · 의료 판단을 대신하지 않아요 · 동물 거래·분양 없음</div><div style="flex:1"></div><div class="tabs"><div class="on"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>홈</div><div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>용품</div><div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>병원</div></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3560}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

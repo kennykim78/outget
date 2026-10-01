@@ -1,0 +1,2 @@
+# GlobalHeader
+The one navigation surface, at every width: logo, `AnimalChip` (current animal context; tap opens the animal selector layer), and on ≥768 the text menu (용품 찾기 · 병원). Height `header-h`, `bg-000`, 1px `line` bottom border, no shadow, no search box, no icons row. ≤767 pairs with the bottom tab bar (홈 · 용품 · 병원). `AnimalChip` empty state reads "친구 선택 ▾"; selected state shows the 24px mascot + type name. Never a left nav rail.

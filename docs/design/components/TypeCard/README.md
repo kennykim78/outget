@@ -1,0 +1,2 @@
+# TypeCard
+An animal entry card: mascot, display name, one meta line (scientific name or alias), and a status. Provide `name`, `meta`, the mascot asset, and `status` (`active` | `planned` | `selected`). `planned` renders muted with a "준비 중" chip and is not tappable. `selected` adds a `brand-soft` fill and `line-strong` border. Cards sit two per row at 360px with `space-3` gaps. Don't put a price, a count or a badge cluster on it.

@@ -1,0 +1,39 @@
+<!-- @dsCard height=288 -->
+<style>
+body{margin:0;background:var(--bg-000);font-family:var(--font-sans);color:var(--ink)}
+.cover{position:relative;width:960px;height:288px;overflow:hidden}
+.name{position:absolute;left:48px;bottom:56px;font-size:72px;line-height:.92;font-weight:800;letter-spacing:-.03em;color:var(--ink);margin:0}
+.tag{position:absolute;left:50px;bottom:30px;font-size:14px;line-height:18px;color:var(--ink-muted);max-width:440px;margin:0}
+.brand{fill:var(--brand)}.peach{fill:var(--peach)}.butter{fill:var(--butter)}.ink{fill:var(--ink)}.tint{fill:var(--brand-soft)}.ground{fill:var(--bg-000)}
+.pill{rx:24px}.slab{rx:20px}
+</style>
+<div class="cover">
+<!--
+blocks: brand 232×184 (space-8 multiples, radius-lg 20) · peach 152×88 · butter 88×88 · ink 88×152 · brand-soft tint 232×56 — together ~40% of the cover
+arrangement: one tall brand slab with satellites stacked to its right, all bleeding off the top and right edge
+pattern: discs and pills from the radius scale (radius-pill), in ground and peach, over the brand slab — the README says soft, friendly, large radii, and the mascots are built from circles
+scales: sides are 8/16/24-step multiples (space-2/4/6), gaps 16 (space-4), slab corners radius-lg 20, pill ends 24 (half the 48 short side)
+-->
+<svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+  <rect class="brand slab" x="504" y="-24" width="232" height="184"/>
+  <rect class="tint slab" x="504" y="176" width="232" height="56"/>
+  <rect class="peach slab" x="752" y="-24" width="152" height="88"/>
+  <rect class="butter slab" x="920" y="-24" width="88" height="88"/>
+  <rect class="ink slab" x="752" y="80" width="88" height="152"/>
+  <rect class="peach slab" x="856" y="80" width="152" height="152"/>
+  <!-- pattern: discs + pills on the brand slab, in ground and peach -->
+  <circle class="ground" cx="560" cy="40" r="20"/>
+  <circle class="ground" cx="616" cy="40" r="20"/>
+  <circle class="peach" cx="672" cy="40" r="20"/>
+  <rect class="ground pill" x="540" y="84" width="112" height="48"/>
+  <circle class="peach" cx="700" cy="108" r="20"/>
+  <rect class="peach pill" x="540" y="140" width="48" height="48" rx="24"/>
+  <circle class="ground" cx="644" cy="164" r="20"/>
+  <circle class="ground" cx="700" cy="164" r="20"/>
+  <!-- ink slab: two ground discs = the eyes of the mascot grid, nothing more -->
+  <circle class="ground" cx="782" cy="140" r="8"/>
+  <circle class="ground" cx="810" cy="140" r="8"/>
+</svg>
+<h1 class="name">WithSmall</h1>
+<p class="tag">작은 친구를 처음부터 제대로 준비하는 곳</p>
+</div>

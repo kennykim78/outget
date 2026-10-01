@@ -1,0 +1,16 @@
+<!-- @dsCard group="Composition" height=260 subtitle="이미지 있음 · 이미지 없음 · 데스크톱 폭" -->
+<style>body{margin:0;background:var(--bg-000);font-family:var(--font-sans);color:var(--ink)}
+.row{display:flex;gap:12px;padding:var(--space-4);align-items:flex-start}
+.card{box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);display:flex;flex-direction:column;gap:6px;padding:8px 8px 10px;flex:none}
+.img{border-radius:10px;background:var(--bg-100);border:1px dashed var(--line-strong);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:14px;color:var(--status-later);box-sizing:border-box}
+.n{font-size:14px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp{font-size:13px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.f{display:flex;align-items:center;justify-content:space-between}
+.ok{font-size:12px;font-weight:700;color:var(--status-ready);background:var(--status-ready-soft);border-radius:var(--radius-pill);padding:2px 8px}
+.h{font-size:14px;color:var(--status-later)}
+</style>
+<div class="row">
+<div class="card" style="width:140px"><span class="img" style="width:124px;height:124px">상품 이미지<br>(운영자 제공)</span><span class="n">○○ 쳇바퀴 30cm</span><span class="sp">30cm · 무소음</span><span class="f"><span class="ok">✓ 기준 충족</span><span class="h">♡</span></span></div>
+<div class="card" style="width:140px"><span class="img" style="width:124px;height:124px"><span style="font-size:26px">🎡</span>이미지 준비 중</span><span class="n">△△ 쳇바퀴 32cm</span><span class="sp">32cm · 스탠드</span><span class="f"><span class="ok">✓ 기준 충족</span><span class="h">♥ 128</span></span></div>
+<div class="card" style="width:176px"><span class="img" style="width:160px;height:160px">상품 이미지<br>(운영자 제공)</span><span class="n">□□ 케이지 60×40</span><span class="sp">60×40cm · 철망</span><span class="f"><span class="ok">✓ 기준 충족</span><span class="h">♡</span></span></div>
+</div>

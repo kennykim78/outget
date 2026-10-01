@@ -1,0 +1,102 @@
+[
+  {
+    "id": "vc-mapo-01",
+    "name": "",
+    "region": "서울 마포구",
+    "treats": [
+      "hamster-golden"
+    ],
+    "night": null,
+    "emergency": null,
+    "phone": "",
+    "address": "",
+    "lat": null,
+    "lng": null,
+    "verification": {
+      "status": "SLOT",
+      "method": "PHONE_CALL",
+      "verifiedAt": null,
+      "note": "전화로 '햄스터 진료 가능 여부·야간·응급' 확인 후 기록. 홈페이지 문구만으로 확인 처리 금지."
+    }
+  },
+  {
+    "id": "vc-mapo-02",
+    "name": "",
+    "region": "서울 마포구",
+    "treats": [
+      "hamster-golden"
+    ],
+    "night": null,
+    "emergency": null,
+    "phone": "",
+    "address": "",
+    "lat": null,
+    "lng": null,
+    "verification": {
+      "status": "SLOT",
+      "method": "PHONE_CALL",
+      "verifiedAt": null,
+      "note": "전화로 '햄스터 진료 가능 여부·야간·응급' 확인 후 기록. 홈페이지 문구만으로 확인 처리 금지."
+    }
+  },
+  {
+    "id": "vc-mapo-03",
+    "name": "",
+    "region": "서울 마포구",
+    "treats": [
+      "hamster-golden"
+    ],
+    "night": null,
+    "emergency": null,
+    "phone": "",
+    "address": "",
+    "lat": null,
+    "lng": null,
+    "verification": {
+      "status": "SLOT",
+      "method": "PHONE_CALL",
+      "verifiedAt": null,
+      "note": "전화로 '햄스터 진료 가능 여부·야간·응급' 확인 후 기록. 홈페이지 문구만으로 확인 처리 금지."
+    }
+  },
+  {
+    "id": "vc-mapo-04",
+    "name": "",
+    "region": "서울 마포구",
+    "treats": [
+      "hamster-golden"
+    ],
+    "night": null,
+    "emergency": null,
+    "phone": "",
+    "address": "",
+    "lat": null,
+    "lng": null,
+    "verification": {
+      "status": "SLOT",
+      "method": "PHONE_CALL",
+      "verifiedAt": null,
+      "note": "전화로 '햄스터 진료 가능 여부·야간·응급' 확인 후 기록. 홈페이지 문구만으로 확인 처리 금지."
+    }
+  },
+  {
+    "id": "vc-mapo-05",
+    "name": "",
+    "region": "서울 마포구",
+    "treats": [
+      "hamster-golden"
+    ],
+    "night": null,
+    "emergency": null,
+    "phone": "",
+    "address": "",
+    "lat": null,
+    "lng": null,
+    "verification": {
+      "status": "SLOT",
+      "method": "PHONE_CALL",
+      "verifiedAt": null,
+      "note": "전화로 '햄스터 진료 가능 여부·야간·응급' 확인 후 기록. 홈페이지 문구만으로 확인 처리 금지."
+    }
+  }
+]

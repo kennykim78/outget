@@ -1,0 +1,19 @@
+<!-- @dsCard group="Entry" height=230 subtitle="active · selected · planned" -->
+<style>
+body{margin:0;background:var(--bg-000);font-family:var(--font-sans);color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(3,164px);gap:var(--space-3);padding:var(--space-4)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);text-align:center;min-height:150px;justify-content:center}
+.card.selected{background:var(--brand-soft);border-color:var(--line-strong)}
+.card.planned{opacity:.55}
+.av{width:72px;height:72px;border-radius:var(--radius-pill);background:var(--brand-soft);display:flex;align-items:center;justify-content:center}
+.card.selected .av{background:var(--surface)}
+.av img{width:56px;height:56px}
+.name{font-size:16px;line-height:20px;font-weight:700}
+.meta{font-size:13px;line-height:18px;color:var(--ink-muted)}
+.chip{font-size:12px;line-height:16px;font-weight:600;letter-spacing:.04em;color:var(--ink-muted);border:1px solid var(--line-strong);border-radius:var(--radius-pill);padding:2px 8px}
+</style>
+<div class="grid">
+  <div class="card"><div class="av"><img src="/_blob/510fe13890f6735f6c692eb7ed529ca7" alt=""></div><div class="name">골든햄스터</div><div class="meta">Mesocricetus auratus</div></div>
+  <div class="card selected"><div class="av"><img src="/_blob/828377651d89e9d1e396e3b4f89bae54" alt=""></div><div class="name">몽골리안저빌</div><div class="meta">사막다람쥐라고도 불러요</div></div>
+  <div class="card planned"><div class="av"><img src="/_blob/5934a727982b98dd855412df4ed16596" alt=""></div><div class="name">기니피그</div><span class="chip">준비 중</span></div>
+</div>

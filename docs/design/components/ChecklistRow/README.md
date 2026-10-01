@@ -1,0 +1,2 @@
+# ChecklistRow
+One item of the setup checklist: state glyph, name, the one key spec, a check toggle and a detail chevron. Provide `state` (`ready` ✓ · `first` ! · `check` △ · `later` ○), `name`, `spec` (short, number first), `owned` (renders "보유" instead of the spec), `notNowReason` (for NOT_NOW rows, one line under the name in `status-later`). The whole left area (glyph + text) toggles the check; the chevron opens detail. Rows are divided by `line`, never boxed. Group them under `section` headers 먼저 준비 / 권장 / 선택 / 지금은 필요 없어요; NOT_NOW rows stay visible, collapsed by default.

@@ -1,0 +1,135 @@
+[
+  {
+    "id": "hamster-golden",
+    "group": "SMALL_MAMMAL",
+    "displayName": "골든햄스터",
+    "status": "ACTIVE",
+    "aliases": [
+      "시리안햄스터",
+      "골햄",
+      "테디베어햄스터",
+      "장모골든",
+      "syrian hamster",
+      "Mesocricetus auratus"
+    ],
+    "taxonId": "mesocricetus-auratus",
+    "careProfileId": "cp-hamster-syrian",
+    "careOverrides": {},
+    "mascot": "hamster-golden",
+    "oneLiner": "단독 사육 · 야행성 · 성체 15~18cm",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "hamster-dwarf",
+    "group": "SMALL_MAMMAL",
+    "displayName": "드워프햄스터",
+    "status": "PLANNED",
+    "aliases": [
+      "정글리안",
+      "윈터화이트",
+      "캠벨",
+      "드햄"
+    ],
+    "taxonId": null,
+    "careProfileId": null,
+    "careOverrides": {},
+    "mascot": "hamster-dwarf",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "gerbil-mongolian",
+    "group": "SMALL_MAMMAL",
+    "displayName": "몽골리안저빌",
+    "status": "PLANNED",
+    "aliases": [
+      "사막다람쥐",
+      "저빌",
+      "gerbil"
+    ],
+    "taxonId": null,
+    "careProfileId": null,
+    "careOverrides": {},
+    "mascot": "gerbil-mongolian",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "guinea-pig",
+    "group": "SMALL_MAMMAL",
+    "displayName": "기니피그",
+    "status": "PLANNED",
+    "aliases": [
+      "기니",
+      "모르모트"
+    ],
+    "taxonId": null,
+    "careProfileId": null,
+    "careOverrides": {},
+    "mascot": "guinea-pig",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "budgie",
+    "group": "PARROT",
+    "displayName": "사랑앵무",
+    "status": "PLANNED",
+    "aliases": [
+      "잉꼬",
+      "버지"
+    ],
+    "taxonId": null,
+    "careProfileId": null,
+    "careOverrides": {},
+    "mascot": "budgie",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "cockatiel",
+    "group": "PARROT",
+    "displayName": "왕관앵무",
+    "status": "PLANNED",
+    "aliases": [
+      "코카티엘"
+    ],
+    "taxonId": null,
+    "careProfileId": null,
+    "careOverrides": {},
+    "mascot": "cockatiel",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
+  }
+]

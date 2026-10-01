@@ -1,0 +1,18 @@
+<!-- @dsCard group="Composition" height=340 subtitle="바텀시트 · 우측 드로어 (축소)" -->
+<style>body{margin:0;background:var(--bg-000);font-family:var(--font-sans);color:var(--ink)}
+.row{display:flex;gap:var(--space-6);padding:var(--space-4);align-items:flex-start}
+.ph{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--bg-000)}
+.dim{position:absolute;inset:0;background:rgba(47,43,39,.42)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:var(--shadow-sheet);display:flex;flex-direction:column}
+.grab{width:32px;height:4px;border-radius:var(--radius-pill);background:var(--line-strong);margin:8px auto 0}
+.band{background:var(--bg-100);padding:10px 14px;font-size:13px}.band b{display:block;font-size:16px}
+.bar{height:6px;border-radius:var(--radius-pill);background:var(--brand-soft);margin-top:6px}.bar i{display:block;height:6px;width:60%;background:var(--brand)}
+.line{height:1px;background:var(--line);margin:10px 14px}
+.cta{margin:auto 14px 12px;height:36px;border-radius:var(--radius-md);background:var(--brand);color:var(--on-brand);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:120px;background:var(--surface);box-shadow:-8px 0 24px rgba(47,43,39,.12);padding:12px;box-sizing:border-box;font-size:12px;display:flex;flex-direction:column}
+.cap{font-size:13px;color:var(--ink-muted);margin-top:6px;text-align:center}
+</style>
+<div class="row">
+<div><div class="ph" style="width:195px;height:280px;border-radius:24px"><div class="dim"></div><div class="sheet" style="height:210px"><div class="grab"></div><div class="band" style="margin-top:6px">오늘 바로 데려와도 되는 준비<b>필수 2개 미완료</b><div class="bar"><i></i></div></div><div class="line"></div><div class="line"></div><div class="line"></div><div class="cta">내 상황 다시 설정</div></div></div><div class="cap">≤767 바텀시트</div></div>
+<div><div class="ph" style="width:320px;height:200px;border-radius:8px"><div class="dim"></div><div class="drawer"><b style="font-size:14px">쳇바퀴</b><div class="line" style="margin:8px 0"></div><div class="line" style="margin:8px 0"></div><div class="cta" style="margin:auto 0 0;height:30px">규격 확인</div></div></div><div class="cap">≥1024 우측 드로어 480</div></div>
+</div>
