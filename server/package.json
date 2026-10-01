@@ -13,7 +13,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "start:prod": "prisma migrate deploy && node dist/index.js"
+    "start:prod": "prisma migrate deploy && node dist/index.js",
+    "seed": "tsx --env-file-if-exists=.env src/seed/cli-load.ts",
+    "seed:validate": "tsx src/seed/cli-validate.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

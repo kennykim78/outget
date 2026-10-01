@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cp-hamster-syrian",
+    "name": "골든햄스터 기본",
+    "taxonIds": [
+      "mesocricetus-auratus"
+    ],
+    "facts": {
+      "social": "SOLITARY",
+      "activity": "NOCTURNAL",
+      "adultLengthCm": [
+        15,
+        18
+      ],
+      "tempC": [
+        18,
+        26
+      ],
+      "humidityPct": [
+        40,
+        60
+      ],
+      "lifespanYears": [
+        2,
+        3
+      ]
+    },
+    "careNotes": [
+      "반드시 1마리 단독 사육 — 성체 합사는 싸움으로 이어진다.",
+      "야행성이라 밤에 수 km를 달린다. 낮 소음·진동을 피한다.",
+      "굴을 파는 습성 — 베딩을 얕게 깔면 행동 문제가 생긴다."
+    ],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  }
+]

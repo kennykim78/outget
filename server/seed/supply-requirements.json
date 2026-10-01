@@ -1,0 +1,643 @@
+[
+  {
+    "id": "req-syrian-cage",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "cage",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "바닥을 넓게 쓰는 동물이에요. 좁으면 철망을 물거나 같은 자리를 도는 행동이 생겨요.",
+    "caution": "철망 간격 1cm 이하, 바닥은 철망이 아닌 단단한 면. 층을 쌓는 것보다 바닥 면적이 우선.",
+    "avoid": "바닥 60×40cm 미만 · 철망 바닥 · 플라스틱 튜브형 소형 케이지",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "floorWcm",
+          "op": "gte",
+          "value": 60,
+          "reason": "성체 활동·베딩 깊이 확보"
+        },
+        {
+          "key": "floorDcm",
+          "op": "gte",
+          "value": 40,
+          "reason": "성체 활동 최소 바닥"
+        },
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 30,
+          "reason": "베딩 15cm + 쳇바퀴 설치"
+        },
+        {
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 10,
+          "reason": "탈출·끼임 방지"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "floorWcm",
+          "op": "gte",
+          "value": 80,
+          "reason": "굴 파기·구역 분리"
+        },
+        {
+          "key": "floorDcm",
+          "op": "gte",
+          "value": 50,
+          "reason": "굴 파기·구역 분리"
+        },
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 40,
+          "reason": "베딩 20cm + 30cm 쳇바퀴"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 리빙박스 대형 케이지 80x50",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/",
+        "title": "TVT(독일 수의사 동물보호협회) — Heimtiere: Hamster 권고",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-wheel",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "wheel",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "밤에 수 km를 달려요. 지름이 작으면 등이 뒤로 꺾인 채 달려 척추에 무리가 가요.",
+    "caution": "달릴 때 등이 수평인지 확인. 발이 빠지지 않는 통면.",
+    "avoid": "지름 20cm 이하 · 살대형·격자형 바닥 · 볼형 런닝볼",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "diameterCm",
+          "op": "gte",
+          "value": 28,
+          "reason": "성체 골든햄스터 등 수평 기준"
+        },
+        {
+          "key": "surface",
+          "op": "eq",
+          "value": "SOLID",
+          "reason": "발가락 끼임 방지"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "diameterCm",
+          "op": "gte",
+          "value": 30,
+          "reason": "대형 성체 여유"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 쳇바퀴 30cm 무소음",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/",
+        "title": "TVT(독일 수의사 동물보호협회) — Heimtiere: Hamster 권고",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-bedding",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "bedding",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "굴을 파는 동물이에요. 얕게 깔면 굴을 못 파서 스트레스가 쌓여요.",
+    "caution": "최소 15cm, 가능하면 20cm 이상 깊이. 무향.",
+    "avoid": "삼나무(cedar)·소나무(pine) 향 베딩 · 향 첨가 · 솜(코튼) 베딩",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "not_in",
+          "value": [
+            "CEDAR_PINE"
+          ],
+          "reason": "페놀 성분 호흡기 자극"
+        },
+        {
+          "key": "scented",
+          "op": "eq",
+          "value": false,
+          "reason": "후각 자극"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "in",
+          "value": [
+            "PAPER",
+            "ASPEN",
+            "HEMP"
+          ],
+          "reason": "굴 유지력·안전"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 종이 베딩 무향 대용량",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-water",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "water",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "항상 신선한 물이 있어야 해요.",
+    "caution": "물병은 매일 흐르는지 확인, 물그릇은 얕고 무거운 것으로.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 급수기 스탠드형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-food-bowl",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "food-bowl",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "사료를 흩뿌려 주는 방법도 있지만 첫 준비에는 그릇이 편해요.",
+    "caution": "무거운 도기. 뒤집히는 플라스틱은 피해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 도자기 사료 그릇",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-food",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "food",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "전용 주식이 필요해요. 사람 간식·씨앗만 주는 건 안 돼요.",
+    "caution": "조단백 15~20%, 조지방 4~7% 범위의 골든햄스터용. 성분표는 검수 필요.",
+    "avoid": "해바라기씨 위주 믹스 · 당분 첨가 간식 위주",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "proteinPct",
+          "op": "gte",
+          "value": 15,
+          "reason": "성장·유지"
+        },
+        {
+          "key": "proteinPct",
+          "op": "lte",
+          "value": 20,
+          "reason": "과잉 단백 회피"
+        },
+        {
+          "key": "fatPct",
+          "op": "lte",
+          "value": 7,
+          "reason": "비만 예방"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 사료 주식",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters",
+        "title": "PDSA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-hideout",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "hideout",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "숨을 곳이 없으면 늘 긴장해요. 잠자리·저장 공간을 나눠 2개 이상.",
+    "caution": "입구가 몸보다 넉넉한 것. 다중 방 은신처면 하나로도 가능.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "multiChamber",
+          "op": "eq",
+          "value": true,
+          "reason": "방 분리"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 다중 은신처 나무",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-sand-bath",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "sand-bath",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "물 목욕은 안 돼요. 모래로 털 기름기를 정리해요.",
+    "caution": "친칠라용 '모래(sand)'. 가루형 '더스트(dust)'는 호흡기에 나빠요.",
+    "avoid": "더스트(가루형) · 착색 모래",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "sandType",
+          "op": "not_in",
+          "value": [
+            "DUST"
+          ],
+          "reason": "미세 분진 호흡기 자극"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "sandType",
+          "op": "eq",
+          "value": "CHINCHILLA_SAND",
+          "reason": "안전·세척 용이"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 목욕 모래 친칠라 샌드",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-chew",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "chew",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "앞니가 계속 자라요. 갉을 것이 없으면 철망을 물어요.",
+    "caution": "무처리 원목·미네랄 스톤.",
+    "avoid": "도색·접착제 처리 목재",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 갉기 나무 무처리",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-carrier",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "carrier",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "병원 갈 때 필요해요. 급할 때 찾으면 늦어요.",
+    "caution": "통풍 구멍, 바닥에 베딩 조금.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "소동물 이동장 소형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-thermo",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "thermo",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "18~26℃를 벗어나면 위험해요. 특히 여름·겨울.",
+    "caution": "케이지 옆 같은 높이에 설치.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "디지털 온습도계 소형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-scale",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "scale",
+    "priority": "OPTIONAL",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "체중 변화가 가장 빠른 이상 신호예요. 주 1회 재요.",
+    "caution": "1g 단위면 충분.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "주방저울 1g",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-tubes",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "tubes",
+    "priority": "OPTIONAL",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "환경을 풍부하게 해요. 필수는 아니에요.",
+    "caution": "성체 골든은 내경 6cm 이상.",
+    "avoid": "내경 5cm 이하 튜브",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "innerDiameterCm",
+          "op": "gte",
+          "value": 6,
+          "reason": "성체 끼임 방지"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 터널 대형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "req-syrian-saucer",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "saucer",
+    "priority": "NOT_NOW",
+    "orderHint": "AS_NEEDED",
+    "why": "쳇바퀴가 있으면 지금은 필요 없어요.",
+    "caution": null,
+    "avoid": null,
+    "minSpec": {
+      "rules": [
+        {
+          "key": "diameterCm",
+          "op": "gte",
+          "value": 20,
+          "reason": "성체 활동"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": "쳇바퀴(28cm↑)가 있으면 대체품이에요. 케이지 높이가 낮아 쳇바퀴를 못 놓을 때만.",
+    "searchKeyword": "플라잉 소서 대형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
+        "title": "Blue Cross — Caring for your hamster",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  }
+]

@@ -1,0 +1,281 @@
+[
+  {
+    "id": "cp-001",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 30,
+      "surface": "SOLID",
+      "mount": "STAND"
+    },
+    "targetSpecLabel": "쳇바퀴 30cm 스탠드 통면",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-002",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 28,
+      "surface": "SOLID",
+      "mount": "STAND",
+      "silent": true
+    },
+    "targetSpecLabel": "쳇바퀴 28cm 무소음",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-003",
+    "supplyItemId": "cage",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "type": "LIVING_BOX",
+      "floorWcm": 80,
+      "floorDcm": 50,
+      "heightCm": 40
+    },
+    "targetSpecLabel": "리빙박스 80×50×40",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-004",
+    "supplyItemId": "cage",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "type": "WIRE",
+      "floorWcm": 60,
+      "floorDcm": 40,
+      "heightCm": 35,
+      "barGapMm": 9
+    },
+    "targetSpecLabel": "철망 케이지 60×40 간격 9mm",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-005",
+    "supplyItemId": "bedding",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "material": "PAPER",
+      "scented": false,
+      "volumeL": 40
+    },
+    "targetSpecLabel": "종이 베딩 무향 40L",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-006",
+    "supplyItemId": "bedding",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "material": "ASPEN",
+      "scented": false
+    },
+    "targetSpecLabel": "아스펜 베딩 무향",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-007",
+    "supplyItemId": "water",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "kind": "BOTTLE",
+      "mount": "STAND"
+    },
+    "targetSpecLabel": "스탠드형 물병",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-008",
+    "supplyItemId": "food",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "form": "MIXED",
+      "proteinPct": 17,
+      "fatPct": 6
+    },
+    "targetSpecLabel": "골든햄스터 주식 조단백 17%",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-009",
+    "supplyItemId": "hideout",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "material": "WOOD",
+      "multiChamber": true
+    },
+    "targetSpecLabel": "다중 방 나무 은신처",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cp-010",
+    "supplyItemId": "sand-bath",
+    "careProfileIds": [
+      "cp-hamster-syrian"
+    ],
+    "title": "",
+    "imageAsset": null,
+    "specValues": {
+      "sandType": "CHINCHILLA_SAND"
+    },
+    "targetSpecLabel": "친칠라 샌드 + 목욕통",
+    "meetsMinSpec": null,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "SLOT",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "운영자가 실제 상품명·규격·이미지(허가분)를 채운다. specValues는 목표 규격이며 실제 상품 값으로 교체.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "SPEC",
+    "source": []
+  }
+]

@@ -1,0 +1,29 @@
+// 엔진 배럴 — 서버·프리렌더·클라이언트 공용(PRD US-021). 상대 './x.js' import 만.
+export * from './domain.js';
+export type * from './types.js';
+export { createCatalog } from './catalog.js';
+export type { CatalogInput } from './catalog.js';
+export { ExprSyntaxError, evalExpr, exprComparedLiterals, exprRefs, parseExpr } from './expr.js';
+export type { BinaryOp, ExprNode } from './expr.js';
+export {
+  VERDICT_SEVERITY,
+  evaluateProductStage,
+  evaluateRuleSet,
+  findField,
+  readSpecValue,
+  sanitizeSpecValues,
+  splitLabel,
+  worstVerdict,
+} from './rules.js';
+export type { RuleKind, SpecRead } from './rules.js';
+export { listResolvedRequirements, resolveRequirement } from './resolve.js';
+export { EngineLookupError, checkProfileMinSpec, createEngine, specCheck } from './spec-check.js';
+export type { Engine } from './spec-check.js';
+export { buildSearchKeyword } from './search-keyword.js';
+export {
+  isProductExposable,
+  isRequirementExposable,
+  isTestimonialExposable,
+  isVerified,
+  isVetListed,
+} from './exposure.js';

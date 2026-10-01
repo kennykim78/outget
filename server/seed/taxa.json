@@ -1,0 +1,26 @@
+[
+  {
+    "id": "mesocricetus-auratus",
+    "scientificName": "Mesocricetus auratus",
+    "koreanName": "골든햄스터(시리안햄스터)",
+    "legal": {
+      "animalProtectionAct6": true,
+      "cites": false,
+      "designatedWildlifeWhitelist": null,
+      "note": "동물보호법 반려동물 6종(햄스터) 포함 → 유상 사적 분양은 동물판매업 허가 대상. CITES 해당 없음."
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "LEGAL",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "RSPCA — Hamster care",
+        "accessedAt": "2026-09-30"
+      }
+    ]
+  }
+]

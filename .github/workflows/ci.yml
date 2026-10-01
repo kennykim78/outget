@@ -31,6 +31,9 @@ jobs:
       - name: Compliance & secret scan
         run: node scripts/compliance-scan.mjs
 
+      - name: Seed validate
+        run: npm run seed:validate
+
       - name: Lint
         run: npm run lint
 
