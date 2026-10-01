@@ -8,13 +8,23 @@ process.env.JWT_ACCESS_SECRET = ACCESS_SECRET;
 process.env.JWT_REFRESH_SECRET = REFRESH_SECRET;
 
 let app: Express;
+let repos: ReturnType<typeof import('../db/repos.js').makeInMemoryRepos>;
 
 beforeAll(async () => {
   const { createApp } = await import('../app.js');
-  app = createApp();
+  const { makeInMemoryRepos } = await import('../db/repos.js');
+  repos = makeInMemoryRepos();
+  app = createApp(repos);
 });
 
 async function tokenFor(email: string, role: string): Promise<string> {
+  if (role === '운영자') {
+    // register 는 role 을 무시(구매자 고정) — 운영자는 repo 로 직접 생성 후 로그인.
+    const { hashPassword } = await import('../auth/user.repo.js');
+    await repos.user.create(email, await hashPassword('pw-12345'), '운영자');
+    const login = await request(app).post('/auth/login').send({ email, password: 'pw-12345' });
+    return login.body.accessToken as string;
+  }
   const reg = await request(app)
     .post('/auth/register')
     .send({ email, password: 'pw-12345', role });

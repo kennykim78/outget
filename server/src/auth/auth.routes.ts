@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { signAccess, signRefresh, verifyRefresh } from './jwt.js';
-import { isRole } from './roles.js';
+import type { Role } from './roles.js';
 import {
   InMemoryUserRepository,
   hashPassword,
@@ -22,6 +22,10 @@ const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 function refreshExpiry(): Date {
   return new Date(Date.now() + REFRESH_TTL_MS);
 }
+
+// 보안(H1): 공개 register 는 body.role 을 무시하고 항상 최저 권한으로 생성한다.
+//   운영자 등 상위 역할은 repo 직접 생성/운영 절차로만 부여(역할 체계 개편은 R5).
+const SELF_REGISTER_ROLE: Role = '구매자';
 
 function isNonEmptyString(x: unknown): x is string {
   return typeof x === 'string' && x.length > 0;
@@ -50,7 +54,7 @@ export function createAuthRouter(
 
   // POST /auth/register
   router.post('/register', async (req, res) => {
-    const { email, password, role } = (req.body ?? {}) as Record<string, unknown>;
+    const { email, password } = (req.body ?? {}) as Record<string, unknown>;
 
     if (!isNonEmptyString(email) || !EMAIL_RE.test(email)) {
       res.status(400).json({ error: 'invalid_email' });
@@ -60,11 +64,6 @@ export function createAuthRouter(
       res.status(400).json({ error: 'invalid_password' });
       return;
     }
-    if (!isRole(role)) {
-      res.status(400).json({ error: 'invalid_role' });
-      return;
-    }
-
     const existing = await repo.findByEmail(email);
     if (existing) {
       res.status(409).json({ error: 'email_taken' });
@@ -72,7 +71,7 @@ export function createAuthRouter(
     }
 
     const passwordHash = await hashPassword(password);
-    const user = await repo.create(email, passwordHash, role);
+    const user = await repo.create(email, passwordHash, SELF_REGISTER_ROLE);
     const tokens = await issueTokens(user, refreshStore);
 
     res.status(201).json({ ...tokens, role: user.role });

@@ -58,9 +58,10 @@ describe('auth flow', () => {
     expect((await registerUser(email, 'pw-12345', '개인대행자')).status).toBe(409);
   });
 
-  it('유효하지 않은 role register → 400', async () => {
+  it('유효하지 않은 role 은 무시되고 구매자로 가입 → 201', async () => {
     const res = await registerUser('badrole@example.com', 'pw-12345', '해커');
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    expect(res.body.role).toBe('구매자');
   });
 
   it('잘못된 이메일 형식 register → 400', async () => {
@@ -92,11 +93,37 @@ describe('auth guards', () => {
     expect(res.status).toBe(403);
   });
 
-  it('운영자 토큰으로 /admin/ping → 200', async () => {
-    const reg = await registerUser('admin@example.com', 'pw-12345', '운영자');
-    const res = await request(app)
+  it('register 는 role 을 무시 — role 운영자로 가입해도 구매자, /admin/ping·/api/reports 목록 403', async () => {
+    const reg = await registerUser('escalate@example.com', 'pw-12345', '운영자');
+    expect(reg.status).toBe(201);
+    expect(reg.body.role).not.toBe('운영자');
+    const me = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`);
+    expect(me.body.role).not.toBe('운영자');
+    const ping = await request(app)
       .get('/admin/ping')
       .set('Authorization', `Bearer ${reg.body.accessToken}`);
+    expect(ping.status).toBe(403);
+    const list = await request(app)
+      .get('/api/reports')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`);
+    expect(list.status).toBe(403);
+  });
+
+  it('운영자 토큰으로 /admin/ping → 200 (repo 로 직접 생성한 운영자)', async () => {
+    const { makeInMemoryRepos } = await import('../db/repos.js');
+    const { createApp } = await import('../app.js');
+    const { hashPassword } = await import('../auth/user.repo.js');
+    const repos = makeInMemoryRepos();
+    await repos.user.create('admin@example.com', await hashPassword('pw-12345'), '운영자');
+    const opApp = createApp(repos);
+    const login = await request(opApp)
+      .post('/auth/login')
+      .send({ email: 'admin@example.com', password: 'pw-12345' });
+    const res = await request(opApp)
+      .get('/admin/ping')
+      .set('Authorization', `Bearer ${login.body.accessToken}`);
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
   });
