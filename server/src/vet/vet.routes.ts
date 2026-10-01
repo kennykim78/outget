@@ -1,30 +1,40 @@
+// 특수동물 진료 병원 — 읽기 전용 API. VERIFIED 만 노출(불변식 7).
+//   GET /api/vets?region=&q=   — 목록(시군구 텍스트 필터, 이름·주소 검색)
+//   GET /api/vets/:id          — 상세
+//   진료 가능 여부 판단은 하지 않는다(불변식 5) — 전화 확인된 사실만 전달.
 import { Router } from 'express';
 import type { VetClinicRepository } from './vet.repo.js';
+import type { VetQuery } from './vet.types.js';
 
 export function makeVetRoutes(vetRepo: VetClinicRepository): Router {
   const router = Router();
 
-  // 전국 특수동물 전문병원 목록 조회 및 검색
   router.get('/', async (req, res) => {
     try {
-      const { q } = req.query;
-      const clinics = await vetRepo.list(typeof q === 'string' ? q : undefined);
-      res.json({ clinics });
-    } catch (err: any) {
-      res.status(500).json({ error: '특수동물 전문병원 목록을 불러오는 중 오류가 발생했습니다.' });
+      const query: VetQuery = {};
+      if (typeof req.query.region === 'string' && req.query.region.trim()) {
+        query.region = req.query.region.trim();
+      }
+      if (typeof req.query.q === 'string' && req.query.q.trim()) {
+        query.q = req.query.q.trim();
+      }
+      const clinics = await vetRepo.list(query);
+      res.status(200).json({ clinics });
+    } catch {
+      res.status(500).json({ error: '병원 목록을 불러오지 못했습니다.' });
     }
   });
 
-  // 상세 조회
   router.get('/:id', async (req, res) => {
     try {
       const clinic = await vetRepo.findById(req.params.id);
       if (!clinic) {
-        return res.status(404).json({ error: '병원 정보를 찾을 수 없습니다.' });
+        res.status(404).json({ error: '병원 정보를 찾을 수 없습니다.' });
+        return;
       }
-      res.json({ clinic });
-    } catch (err: any) {
-      res.status(500).json({ error: '병원 조회 중 오류가 발생했습니다.' });
+      res.status(200).json({ clinic });
+    } catch {
+      res.status(500).json({ error: '병원 정보를 불러오지 못했습니다.' });
     }
   });
 

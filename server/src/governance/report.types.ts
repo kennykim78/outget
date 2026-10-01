@@ -5,7 +5,7 @@
 // 불변식 ⑤: 신고에 좌표(위경도) 필드를 두지 않는다 — 위치 토큰 0.
 // 증거 보존: 신고/블라인드 레코드는 삭제 메서드를 제공하지 않는다(분쟁 동선 보전).
 
-export type ReportTargetType = 'discount' | 'message' | 'profile' | 'request';
+export type ReportTargetType = 'message' | 'profile';
 
 export type ReportStatus = '정상' | '블라인드' | '이의' | '복구' | '삭제';
 

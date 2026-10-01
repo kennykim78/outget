@@ -1,8 +1,8 @@
 {
-  "name": "outget",
+  "name": "withsmall",
   "version": "0.1.0",
   "private": true,
-  "description": "Outget (아웃겟) — 지도 기반 아울렛 구매대행 당근형 양면 매칭 보드. 모노레포(client + server).",
+  "description": "WithSmall (위드스몰) — 소동물·앵무새 사육 준비·구매·관리 오케스트레이션. 모노레포(client + server).",
   "workspaces": [
     "client",
     "server"

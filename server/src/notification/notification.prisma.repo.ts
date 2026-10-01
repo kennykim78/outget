@@ -3,7 +3,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import type { NotificationRepository } from './notification.repo.js';
-import type { StoredNotification } from '../request/request.types.js';
+import type { StoredNotification } from './notification.types.js';
 import { rowToNotification } from '../db/mappers.js';
 
 export class PrismaNotificationRepository implements NotificationRepository {

@@ -31,14 +31,10 @@ function statusClass(status: string): string {
 // 대상 종류 표시 카피.
 function targetLabel(t: AdminReport['targetType']): string {
   switch (t) {
-    case 'discount':
-      return '할인소식';
     case 'message':
       return '채팅 메시지';
     case 'profile':
-      return '대행자 프로필';
-    case 'request':
-      return '역경매 요청';
+      return '프로필';
     default:
       return t;
   }

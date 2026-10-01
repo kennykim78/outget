@@ -3,7 +3,7 @@
 //
 // 불변식 ②: 알림에 결제·자금 흐름 필드를 두지 않는다(채택/확인가/거절 통지일 뿐).
 // 외부 fetch 0: 알림은 자사 GET /api/notifications 폴링으로만 노출된다.
-import type { StoredNotification } from '../request/request.types.js';
+import type { StoredNotification } from './notification.types.js';
 
 export interface NotificationRepository {
   append(

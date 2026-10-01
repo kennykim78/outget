@@ -1,4 +1,4 @@
-// Epic 7 신고(Report) 리포지토리 — request.repo.ts 포트 패턴 복제.
+// 신고(Report) 리포지토리 — 인메모리 포트 패턴.
 // 인메모리 보관: 프로세스 재시작 시 소실된다. 영속성(Postgres)은 후속 에픽.
 //   ReportRepository 포트 뒤로 교체한다.
 //

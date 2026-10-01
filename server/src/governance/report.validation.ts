@@ -13,12 +13,7 @@ export interface ValidationErr {
   error: string;
 }
 
-const TARGET_TYPES: readonly ReportTargetType[] = [
-  'discount',
-  'message',
-  'profile',
-  'request',
-];
+const TARGET_TYPES: readonly ReportTargetType[] = ['message', 'profile'];
 
 // 좌표 추적 키는 입력으로 절대 허용하지 않는다(불변식 ⑤). 들어오면 400.
 const BANNED_COORD_KEYS: readonly string[] = [
@@ -70,7 +65,7 @@ export function validateReportInput(
   }
 
   if (!isTargetType(raw.targetType)) {
-    return err('targetType 은 discount/message/profile/request 중 하나여야 합니다.');
+    return err('targetType 은 message/profile 중 하나여야 합니다.');
   }
   if (!nonEmptyText(raw.targetId)) {
     return err('targetId 는 비어있지 않은 텍스트여야 합니다.');

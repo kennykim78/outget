@@ -1,71 +1,63 @@
-import type { PrismaClient } from '@prisma/client';
-import type { VetClinic } from './vet.types.js';
+// 병원 영속 리포지토리(Prisma) — 읽기 전용, 쓰기 없음. VERIFIED 만 반환(불변식 7).
+//   적재는 시드 로더(R2)가 담당한다.
+import type { PrismaClient, VetClinic as VetClinicRow } from '@prisma/client';
+import type { StoredVetClinic, VetClinic, VetQuery } from './vet.types.js';
+import { toPublicVet } from './vet.types.js';
 import type { VetClinicRepository } from './vet.repo.js';
-import { SEED_VET_CLINICS } from './vet.seed.js';
+import { matchesQuery } from './vet.repo.js';
+import { isVetSource, isVetStatus } from '../engine/domain.js';
+
+function parseTreats(raw: string): string[] {
+  try {
+    const v: unknown = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function rowToStored(r: VetClinicRow): StoredVetClinic | null {
+  if (!isVetStatus(r.status) || !isVetSource(r.source)) return null;
+  const out: StoredVetClinic = {
+    id: r.id,
+    name: r.name,
+    region: r.region,
+    address: r.address,
+    phone: r.phone,
+    treats: parseTreats(r.treats),
+    source: r.source,
+    status: r.status,
+  };
+  if (r.lat !== null) out.lat = r.lat;
+  if (r.lng !== null) out.lng = r.lng;
+  if (r.hours !== null) out.hours = r.hours;
+  if (r.night !== null) out.night = r.night;
+  if (r.emergency !== null) out.emergency = r.emergency;
+  if (r.verificationMethod !== null) out.verificationMethod = r.verificationMethod;
+  if (r.verifiedAt !== null) out.verifiedAt = r.verifiedAt;
+  return out;
+}
 
 export class PrismaVetClinicRepository implements VetClinicRepository {
-  private seeded = false;
+  constructor(private readonly prisma: PrismaClient) {}
 
-  constructor(private prisma: PrismaClient) {}
-
-  private async ensureSeed() {
-    if (this.seeded) return;
-    const count = await this.prisma.vetClinic.count();
-    if (count === 0) {
-      for (const clinic of SEED_VET_CLINICS) {
-        await this.prisma.vetClinic.create({
-          data: {
-            id: clinic.id,
-            name: clinic.name,
-            targetPets: clinic.targetPets,
-            address: clinic.address,
-            phone: clinic.phone,
-            lat: clinic.lat,
-            lng: clinic.lng,
-            operatingHours: clinic.operatingHours,
-          },
-        });
-      }
+  async list(query?: VetQuery): Promise<VetClinic[]> {
+    const rows = await this.prisma.vetClinic.findMany({
+      where: { status: 'VERIFIED', ...(query?.region ? { region: query.region } : {}) },
+      orderBy: { id: 'asc' },
+    });
+    const out: VetClinic[] = [];
+    for (const r of rows) {
+      const c = rowToStored(r);
+      if (c && c.status === 'VERIFIED' && matchesQuery(c, query)) out.push(toPublicVet(c));
     }
-    this.seeded = true;
-  }
-
-  async list(query?: string): Promise<VetClinic[]> {
-    await this.ensureSeed();
-    const where: any = {};
-    if (query) {
-      where.OR = [
-        { name: { contains: query } },
-        { address: { contains: query } },
-        { targetPets: { contains: query } },
-      ];
-    }
-    const rows = await this.prisma.vetClinic.findMany({ where });
-    return rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      targetPets: r.targetPets,
-      address: r.address,
-      phone: r.phone,
-      lat: r.lat,
-      lng: r.lng,
-      operatingHours: r.operatingHours ?? undefined,
-    }));
+    return out;
   }
 
   async findById(id: string): Promise<VetClinic | null> {
-    await this.ensureSeed();
-    const r = await this.prisma.vetClinic.findUnique({ where: { id } });
+    const r = await this.prisma.vetClinic.findFirst({ where: { id, status: 'VERIFIED' } });
     if (!r) return null;
-    return {
-      id: r.id,
-      name: r.name,
-      targetPets: r.targetPets,
-      address: r.address,
-      phone: r.phone,
-      lat: r.lat,
-      lng: r.lng,
-      operatingHours: r.operatingHours ?? undefined,
-    };
+    const c = rowToStored(r);
+    return c && c.status === 'VERIFIED' ? toPublicVet(c) : null;
   }
 }

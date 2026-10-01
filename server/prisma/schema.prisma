@@ -1,12 +1,19 @@
-// WithSmall (위드스몰) 영속화 스키마 (SQLite).
-// 소동물(햄스터, 기니피그 등) 및 앵무새 개인 안심분양·나눔·용품 플랫폼.
+// WithSmall (위드스몰) 영속화 스키마 (SQLite, M2 Postgres).
+// 소동물·앵무새 사육 준비 오케스트레이션 — 제품기획 v0.2.3 §5 + PRD v1.3 부록 A/B.
 //
-// 핵심 불변식:
-//   1. 자금 미보유(Platform holds no funds): 플랫폼 에스크로/잔액/PG 컬럼 0개.
-//      AdoptionPost/SupplyPost 의 price 는 당사자 간 대면 직거래 표시값일 뿐 플랫폼 자금 유입이 아님.
-//   2. 위치 비실시간: 사용자 실시간 좌표를 추적/저장하지 않음.
-//      게시글(AdoptionPost, SupplyPost) 및 병원(VetClinic)의 핀 좌표(lat/lng)만 옵셔널 저장.
-//   3. 동물보호법 & CITES 컴플라이언스 준수 필드 내장.
+// 구조 불변식(제품기획 §2) 중 스키마 수준에서 지키는 것:
+//   2. 동물 거래·분양·신청서·매칭 모델 없음.
+//   3. 최소 규격 미달 제품은 추천 영역 금지 — CuratedProduct.meetsMinSpec 기본 false(빌드 시 재계산).
+//      반응 집계는 ReactionSignal 쿼리로만 계산(행 단위 카운터 컬럼 없음), 제품별 자유 추천 문구 컬럼 없음.
+//   4. 플랫폼 자금 미보유 — 결제·정산·금액 컬럼 0개.
+//   6. AnimalType(사용자 언어) → Taxon(법) → CareProfile(사육) → SupplyRequirement → SupplyItem 분리.
+//      SupplyItem 에는 우선순위·최소 규격이 없다(프로필×용품 = SupplyRequirement 가 결정).
+//   7. 콘텐츠 모델은 공통 검수 필드(reviewStatus, reviewerType, verifiedBy, verifiedAt, contentKind, source)를 갖는다.
+//      VERIFIED 만 노출. AI_DRAFT 는 VERIFIED 불가(seed:validate 에서 강제).
+//   8. 사용자 실시간 위치 저장 없음 — 좌표 컬럼은 병원(VetClinic) 핀에만, 옵셔널.
+//
+// 규칙: enum 은 String + server/src/engine/domain.ts 유니온. 배열·객체는 JSON 문자열.
+//   날짜는 ISO 문자열(RefreshToken.expiresAt 만 DateTime). id 는 시드가 부여하는 문자열.
 
 generator client {
   provider = "prisma-client-js"
@@ -17,14 +24,316 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 사용자 계정 (불변식: 잔액 컬럼 0)
+// ─────────────────────────────────────────────────────────────
+// 마스터 데이터(콘텐츠) — 시드 로더가 적재, API 는 읽기 전용
+// ─────────────────────────────────────────────────────────────
+
+// 사용자 접근 레이어(친숙한 이름). 데이터의 축이 아님.
+model AnimalType {
+  id             String        @id
+  slug           String?       @unique
+  group          String // AnimalGroup
+  displayName    String
+  aliases        String        @default("[]") // JSON string[]
+  parentTypeId   String?
+  taxonId        String?
+  careProfileId  String?
+  careOverrides  String        @default("{}") // JSON — 종별 예외(규격·주의)만
+  mascot         String?
+  oneLiner       String?
+  seoTitle       String?
+  seoDescription String?
+  status         String        @default("PLANNED") // AnimalTypeStatus
+  // 공통 검수 필드(부록 B)
+  reviewStatus   String        @default("DRAFT")
+  reviewerType   String
+  verifiedBy     String?
+  verifiedAt     String?
+  contentKind    String
+  source         String        @default("[]") // JSON [{url,title,accessedAt}]
+
+  taxon       Taxon?       @relation(fields: [taxonId], references: [id], onDelete: Restrict)
+  careProfile CareProfile? @relation(fields: [careProfileId], references: [id], onDelete: Restrict)
+
+  @@index([reviewStatus])
+}
+
+// 실제 종. 법적 판정 단위.
+model Taxon {
+  id             String @id
+  scientificName String
+  koreanName     String
+  rank           String @default("SPECIES") // TaxonRank
+  legal          String @default("{}") // JSON — 법적 분류 키 집합은 seed:validate 가 고정
+  revisionOf     String?
+  // 공통 검수 필드(부록 B)
+  reviewStatus   String  @default("DRAFT")
+  reviewerType   String
+  verifiedBy     String?
+  verifiedAt     String?
+  contentKind    String
+  source         String  @default("[]")
+
+  animalTypes AnimalType[]
+  revisions   TaxonLegalRevision[]
+
+  @@index([reviewStatus])
+}
+
+// 백색목록 연 갱신·CITES 개정 이력. 재입양 단계 전까지 비어 있어도 됨.
+model TaxonLegalRevision {
+  id              String   @id
+  taxonId         String
+  legalGroup      String?
+  citesAppendix   String?
+  whitelistListed Boolean?
+  sourceUrl       String
+  sourceTitle     String
+  verifiedAt      String
+  effectiveFrom   String
+  effectiveTo     String?
+
+  taxon Taxon @relation(fields: [taxonId], references: [id], onDelete: Restrict)
+
+  @@index([taxonId])
+}
+
+// 사육 요구사항이 같은 묶음(분류가 아님).
+model CareProfile {
+  id           String  @id
+  name         String
+  taxonIds     String  @default("[]") // JSON string[]
+  axes         String? // JSON {bodySize, burrowing, social, flight, diet}
+  facts        String  @default("{}") // JSON — 사육 수치(출처는 source)
+  careNotes    String  @default("[]") // JSON string[]
+  seasonal     String? // JSON (Phase 2)
+  // 공통 검수 필드(부록 B)
+  reviewStatus String  @default("DRAFT")
+  reviewerType String
+  verifiedBy   String?
+  verifiedAt   String?
+  contentKind  String
+  source       String  @default("[]")
+
+  animalTypes  AnimalType[]
+  requirements SupplyRequirement[]
+  bundles      SetupBundle[]
+
+  @@index([reviewStatus])
+}
+
+// 용품 자체. 동물 무관. 우선순위·최소 규격 컬럼 없음(불변식 6).
+model SupplyItem {
+  id                       String  @id
+  name                     String
+  category                 String // SupplyCategory
+  glyph                    String?
+  description              String?
+  lifecycle                String // Lifecycle
+  replaceCycleDays         Int?
+  inspectCycleDays         Int?
+  compatibleAlternativeIds String  @default("[]") // JSON string[] — 기능 단위 대체안
+  specSchema               String // JSON — 판정 입력 필드 정의(부록 A)
+  // 공통 검수 필드(부록 B)
+  reviewStatus             String  @default("DRAFT")
+  reviewerType             String
+  verifiedBy               String?
+  verifiedAt               String?
+  contentKind              String
+  source                   String  @default("[]")
+
+  requirements SupplyRequirement[]
+  bundleItems  SetupBundleItem[]
+  products     CuratedProduct[]
+
+  @@index([reviewStatus])
+}
+
+// 핵심 객체 = CareProfile × SupplyItem.
+model SupplyRequirement {
+  id              String  @id
+  careProfileId   String
+  supplyItemId    String
+  priority        String // Priority
+  notNowReason    String?
+  orderHint       String // OrderHint
+  minSpec         String // JSON {rules:[{key,op,value,reason}]}
+  recommendedSpec String? // JSON {rules:[...]}
+  why             String
+  caution         String?
+  avoid           String?
+  searchKeyword   String?
+  // 공통 검수 필드(부록 B)
+  reviewStatus    String  @default("DRAFT")
+  reviewerType    String
+  verifiedBy      String?
+  verifiedAt      String?
+  contentKind     String
+  source          String  @default("[]")
+
+  careProfile CareProfile @relation(fields: [careProfileId], references: [id], onDelete: Restrict)
+  supplyItem  SupplyItem  @relation(fields: [supplyItemId], references: [id], onDelete: Restrict)
+
+  @@unique([careProfileId, supplyItemId])
+  @@index([reviewStatus])
+}
+
+// 용품 간 호환(부록 A: a/b + rules[{expr,onFail,message}]). expr 은 화이트리스트 파서로만 평가.
+model CompatibilityRule {
+  id            String  @id
+  careProfileId String?
+  a             String // SupplyItem id
+  b             String // SupplyItem id
+  rules         String // JSON [{expr,onFail,message}]
+  // 공통 검수 필드(부록 B)
+  reviewStatus  String  @default("DRAFT")
+  reviewerType  String
+  verifiedBy    String?
+  verifiedAt    String?
+  contentKind   String
+  source        String  @default("[]")
+
+  @@index([reviewStatus])
+}
+
+// 준비 구성(3단). CareProfile 단위. 금액은 운영자 관리 범위 문구만(estimatedRangeText).
+model SetupBundle {
+  id                 String  @id
+  careProfileId      String
+  tier               String // BundleTier
+  name               String
+  glyph              String?
+  purpose            String?
+  note               String?
+  estimatedRangeText String?
+  // 공통 검수 필드(부록 B)
+  reviewStatus       String  @default("DRAFT")
+  reviewerType       String
+  verifiedBy         String?
+  verifiedAt         String?
+  contentKind        String
+  source             String  @default("[]")
+
+  careProfile CareProfile       @relation(fields: [careProfileId], references: [id], onDelete: Restrict)
+  items       SetupBundleItem[]
+
+  @@unique([careProfileId, tier])
+  @@index([reviewStatus])
+}
+
+// 구성 항목. position = 준비 순서.
+model SetupBundleItem {
+  bundleId     String
+  supplyItemId String
+  position     Int
+  note         String?
+
+  bundle     SetupBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  supplyItem SupplyItem  @relation(fields: [supplyItemId], references: [id], onDelete: Restrict)
+
+  @@id([bundleId, position])
+  @@unique([bundleId, supplyItemId])
+}
+
+// 큐레이션 제품(Phase 1 채움, 모델만 지금). 노출 순서: 규격 → 검수 → 선호.
+//   meetsMinSpec 은 specCheck 재계산값, false 면 추천 영역 노출 불가.
+//   판매처·링크·금액 컬럼은 Phase 1 마이그레이션에서 추가(D-5).
+model CuratedProduct {
+  id             String  @id
+  supplyItemId   String
+  careProfileIds String  @default("[]") // JSON string[]
+  title          String
+  imageAsset     String?
+  imageLicense   String  @default("NONE") // ImageLicense — 사용권 기록(불변식 1)
+  specValues     String  @default("{}") // JSON — specSchema 필드 값
+  meetsMinSpec   Boolean @default(false)
+  eligibility    String? // JSON — 판정 근거(자동 조립)
+  specVerifiedBy String?
+  specVerifiedAt String?
+  status         String  @default("REVIEW") // ProductStatus
+  sponsored      Boolean @default(false)
+  disclosure     Boolean @default(false)
+  // 공통 검수 필드(부록 B)
+  reviewStatus   String  @default("DRAFT")
+  reviewerType   String
+  verifiedBy     String?
+  verifiedAt     String?
+  contentKind    String
+  source         String  @default("[]")
+
+  supplyItem SupplyItem @relation(fields: [supplyItemId], references: [id], onDelete: Restrict)
+
+  @@index([reviewStatus])
+  @@index([supplyItemId])
+}
+
+// 특수동물 진료 병원. 핀 좌표는 병원 주소 기준(사용자 위치 아님), 옵셔널.
+//   VERIFIED(전화 확인) 만 노출(불변식 7).
+model VetClinic {
+  id                 String   @id
+  name               String
+  region             String // 시군구 텍스트
+  address            String
+  phone              String
+  lat                Float?
+  lng                Float?
+  treats             String   @default("[]") // JSON AnimalType id[]
+  hours              String?
+  night              Boolean?
+  emergency          Boolean?
+  source             String   @default("SEED") // VetSource
+  status             String   @default("REPORTED") // VetStatus
+  verificationMethod String?
+  verifiedAt         String?
+  verificationNote   String?
+
+  @@index([status])
+  @@index([region])
+}
+
+// 베타 후기(PRD US-026). 노출은 APPROVED ∧ verifiedUsage 만. 평점 컬럼 없음.
+model Testimonial {
+  id                   String  @id
+  quote                String
+  animalTypeId         String
+  situation            String // Situation
+  linkedAction         String // LinkedAction
+  verifiedUsage        Boolean @default(false)
+  source               String // 수집 회차 라벨(예: BETA_2026_10)
+  consentAt            String?
+  status               String  @default("SUBMITTED") // TestimonialStatus
+  reviewerImage        String?
+  reviewerImageConsent Boolean @default(false)
+  createdAt            String  @default("")
+
+  @@index([status, verifiedUsage])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 런타임 데이터
+// ─────────────────────────────────────────────────────────────
+
+// 익명 반응 신호(커뮤니티 아님). 키·대상·종류당 1건.
+model ReactionSignal {
+  id         String @id
+  targetType String // ReactionTarget
+  targetId   String
+  kind       String // ReactionKind
+  anonKey    String // 해시
+  createdAt  String
+
+  @@unique([anonKey, targetType, targetId, kind])
+  @@index([targetType, targetId, kind])
+}
+
+// 사용자 계정
 model User {
-  id           String   @id
-  email        String   @unique
-  nickname     String   @default("집사")
+  id           String @id
+  email        String @unique
+  nickname     String @default("집사")
   passwordHash String
-  role         String   @default("USER") // USER, ADMIN
-  createdAt    String   @default("")
+  role         String @default("USER")
+  createdAt    String @default("")
 }
 
 // Auth — refresh 토큰 회전 추적(jti 단위 단건 활성/폐기).
@@ -33,91 +342,6 @@ model RefreshToken {
   sub       String
   expiresAt DateTime
   revoked   Boolean  @default(false)
-}
-
-// 분양자/보호자 프로필
-model GuardianProfile {
-  id           String  @id
-  userId       String  @unique
-  bio          String?
-  activeRegion String  @default("") // 활동 동네 (예: "마포구 연남동")
-  experience   String? // 사육 경력
-  badgeCount   Int     @default(0)
-  lat          Float?  // 대표 활동 지역 앵커 좌표 (옵셔널, 사용자 실시간 위치 아님)
-  lng          Float?
-}
-
-// 소동물·앵무새 분양/나눔 게시글
-model AdoptionPost {
-  id                 String  @id
-  authorId           String
-  category           String  // HAMSTER, PARROT, GUINEA_PIG, RABBIT, OTHER
-  speciesDetail      String  // 세부 품종 (예: "골든햄스터", "그린칙 코뉴어")
-  petName            String?
-  gender             String  // MALE, FEMALE, UNKNOWN
-  ageText            String  // 예: "생후 2개월", "1살 추정"
-  healthStatus       String  // 접종/건강 상태 설명
-  
-  // 거래 유형 및 금액 필드 (표시값일 뿐 플랫폼 자금 유입 아님)
-  dealType           String  // FREE(무료분양), DEPOSIT(책임비), PAID(개인유료분양)
-  price              Int     @default(0) // FREE: 0, DEPOSIT/PAID: 해당 금액
-  depositRefundTerms String? // 책임비 반환 조건 (예: "3개월 후 잘 지내는 사진 공유 시 전액 환급")
-  
-  // 법적 컴플라이언스
-  citesSpecies       Boolean @default(false) // CITES 규제 대상 여부 (앵무새)
-  citesDocReady      Boolean @default(false) // CITES 양도서류 구비 완료 여부
-  
-  requiredCageSpec   String? // 분양자가 요구하는 최소 환경 (예: "120L 이상 케이지 필수")
-  story              String  // 소개 및 사연
-  photos             String  // JSON array of photo URLs
-  region             String  // 직거래 가능 동네
-  lat                Float?  // 지도 마커 핀 좌표
-  lng                Float?
-  status             String  // AVAILABLE(분양중), RESERVED(예약중), COMPLETED(분양완료), BLINDED(블라인드)
-  createdAt          String
-}
-
-// 입양 신청서 (사육환경 인증 필수)
-model AdoptionApplication {
-  id           String  @id
-  postId       String
-  applicantId  String
-  cagePhotoUrl String  // 사육환경 사진 (필수 증빙)
-  experience   String  // 반려동물 양육 경험 서술
-  familyAgreed Boolean // 동거인 동의 여부
-  commitment   String  // 책임 서약 및 각오
-  status       String  // PENDING(검토중), ACCEPTED(승인/채팅열림), REJECTED(거절)
-  chatThreadId String? // 승인 시 생성되는 채팅방 ID
-  createdAt    String
-}
-
-// 용품 나눔 및 중고 직거래 게시글
-model SupplyPost {
-  id          String  @id
-  authorId    String
-  title       String
-  itemType    String  // CAGE, FEED, TOY, BEDDING, ETC
-  dealType    String  // FREE(0원 나눔), USED_DEAL(중고 직거래)
-  price       Int     @default(0) // FREE일 경우 0
-  description String
-  photos      String
-  region      String
-  lat         Float?
-  lng         Float?
-  status      String  // AVAILABLE, COMPLETED, BLINDED
-  createdAt   String
-}
-
-// 특수동물 전문병원 DB (시드 데이터)
-model VetClinic {
-  id             String  @id
-  name           String
-  targetPets     String  // "소동물, 조류, 파충류"
-  address        String
-  phone          String
-  lat            Float
-  lng            Float
-  operatingHours String?
 }
 
 // 알림
@@ -131,7 +355,7 @@ model Notification {
   read      Boolean @default(false)
 }
 
-// 채팅 메시지(append-only, 삭제 없음 — 증빙 보존)
+// 메시지(append-only, 저장소 계층만 — 라우트 미등록)
 model Message {
   id        String @id
   threadId  String
@@ -140,28 +364,18 @@ model Message {
   createdAt String
 }
 
-// 신고(notice-and-takedown) — 유상판매 업자/학대 의심/CITES 미비 즉시 블라인드
+// 신고(notice-and-takedown). targetType: message | profile
 model Report {
   id         String @id
-  targetType String // POST, APPLICATION, USER, SUPPLY
+  targetType String
   targetId   String
-  reason     String // ILLEGAL_COMMERCIAL_SALE, ABUSE_SUSPECTED, CITES_VIOLATION, FRAUD
-  status     String // BLINDED, RESOLVED, DISMISSED
+  reason     String
+  status     String // 정상 | 블라인드 | 이의 | 복구 | 삭제
   reporterId String
   createdAt  String
 }
 
-// 분쟁 감사기록(append-only)
-model Dispute {
-  id        String @id
-  matchId   String
-  actorId   String
-  action    String
-  detail    String
-  createdAt String
-}
-
-// 무금전 뱃지 (환경 인증, CITES 준수 등)
+// 무금전 뱃지
 model Badge {
   userId    String
   type      String

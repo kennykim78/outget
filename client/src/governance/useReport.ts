@@ -10,7 +10,7 @@ import { apiFetch } from '../auth/apiFetch';
 const REPORTS_PATH = '/api/reports';
 
 /** 신고 대상 종류 — 서버 Report.targetType 미러. */
-export type ReportTargetType = 'discount' | 'message' | 'profile' | 'request';
+export type ReportTargetType = 'message' | 'profile';
 
 /** 신고 사유(미러). 표시 카피는 ReportFlow 가 매핑한다. */
 export type ReportReason = '허위정보' | '불펌' | '사기' | '기타';

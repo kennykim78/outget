@@ -1,11 +1,9 @@
 // 컴포지션 루트 — Repos 인터페이스 + 두 팩토리(InMemory / Prisma).
 //   createApp(repos) 가 단일 진입점으로 주입받는다. 기본 인자는 makeInMemoryRepos()
-//   → 테스트(190개)가 createApp() 무인자로 인메모리에서 그대로 통과한다.
+//   → 테스트가 createApp() 무인자로 인메모리에서 그대로 통과한다.
 //   index.ts 만 makePrismaRepos(prisma) 로 영속 경로를 켠다(전환 지점 1곳).
-//
-// listings 는 Repos 멤버가 아니다 — InMemoryListingsRepository 어댑터가 agent/request/
-//   discount/badge repo 를 주입받아 시드+등록분을 병합한다(Prisma 전용 클래스 없음).
-//   paymentRail 도 repo 가 아니다(app.ts 가 직접 생성).
+//   (R1: Outget 리포지토리 agent/match/request/discount/dispute/bounty/groupslot,
+//    v0.1 분양·신청서·용품거래 모듈 제거.)
 import type { PrismaClient } from '@prisma/client';
 
 import { InMemoryUserRepository, type UserRepository } from '../auth/user.repo.js';
@@ -15,20 +13,6 @@ import {
   PrismaRefreshTokenStore,
   type RefreshTokenStore,
 } from '../auth/refresh.store.js';
-
-import {
-  InMemoryAgentProfileRepository,
-  type AgentProfileRepository,
-} from '../agent/agent.repo.js';
-import { PrismaAgentProfileRepository } from '../agent/agent.prisma.repo.js';
-import { InMemoryMatchRepository, type MatchRepository } from '../agent/match.repo.js';
-import { PrismaMatchRepository } from '../agent/match.prisma.repo.js';
-
-import {
-  InMemoryRequestRepository,
-  type RequestRepository,
-} from '../request/request.repo.js';
-import { PrismaRequestRepository } from '../request/request.prisma.repo.js';
 
 import {
   InMemoryNotificationRepository,
@@ -43,55 +27,13 @@ import {
 import { PrismaMessageRepository } from '../chat/message.prisma.repo.js';
 
 import {
-  InMemoryDiscountRepository,
-  type DiscountRepository,
-} from '../board/discount.repo.js';
-import { PrismaDiscountRepository } from '../board/discount.prisma.repo.js';
-
-import {
   InMemoryReportRepository,
   type ReportRepository,
 } from '../governance/report.repo.js';
 import { PrismaReportRepository } from '../governance/report.prisma.repo.js';
 
-import {
-  InMemoryDisputeRepository,
-  type DisputeRepository,
-} from '../governance/dispute.repo.js';
-import { PrismaDisputeRepository } from '../governance/dispute.prisma.repo.js';
-
 import { InMemoryBadgeRepository, type BadgeRepository } from '../badge/badge.repo.js';
 import { PrismaBadgeRepository } from '../badge/badge.prisma.repo.js';
-
-import {
-  InMemoryBountyRepository,
-  type BountyRepository,
-} from '../bounty/bounty.repo.js';
-import { PrismaBountyRepository } from '../bounty/bounty.prisma.repo.js';
-
-import {
-  InMemoryGroupSlotRepository,
-  type GroupSlotRepository,
-} from '../groupslot/groupslot.repo.js';
-import { PrismaGroupSlotRepository } from '../groupslot/groupslot.prisma.repo.js';
-
-import {
-  InMemoryAdoptionRepository,
-  type AdoptionRepository,
-} from '../adoption/adoption.repo.js';
-import { PrismaAdoptionRepository } from '../adoption/adoption.prisma.repo.js';
-
-import {
-  InMemoryApplicationRepository,
-  type ApplicationRepository,
-} from '../application/application.repo.js';
-import { PrismaApplicationRepository } from '../application/application.prisma.repo.js';
-
-import {
-  InMemorySupplyRepository,
-  type SupplyRepository,
-} from '../supply/supply.repo.js';
-import { PrismaSupplyRepository } from '../supply/supply.prisma.repo.js';
 
 import {
   InMemoryVetClinicRepository,
@@ -103,20 +45,10 @@ import { PrismaVetClinicRepository } from '../vet/vet.prisma.repo.js';
 export interface Repos {
   user: UserRepository;
   refreshStore: RefreshTokenStore;
-  agent: AgentProfileRepository;
-  match: MatchRepository;
-  request: RequestRepository;
   notification: NotificationRepository;
   message: MessageRepository;
-  discount: DiscountRepository;
   report: ReportRepository;
-  dispute: DisputeRepository;
   badge: BadgeRepository;
-  bounty: BountyRepository;
-  groupSlot: GroupSlotRepository;
-  adoption: AdoptionRepository;
-  application: ApplicationRepository;
-  supply: SupplyRepository;
   vet: VetClinicRepository;
 }
 
@@ -125,20 +57,10 @@ export function makeInMemoryRepos(): Repos {
   return {
     user: new InMemoryUserRepository(),
     refreshStore: new InMemoryRefreshTokenStore(),
-    agent: new InMemoryAgentProfileRepository(),
-    match: new InMemoryMatchRepository(),
-    request: new InMemoryRequestRepository(),
     notification: new InMemoryNotificationRepository(),
     message: new InMemoryMessageRepository(),
-    discount: new InMemoryDiscountRepository(),
     report: new InMemoryReportRepository(),
-    dispute: new InMemoryDisputeRepository(),
     badge: new InMemoryBadgeRepository(),
-    bounty: new InMemoryBountyRepository(),
-    groupSlot: new InMemoryGroupSlotRepository(),
-    adoption: new InMemoryAdoptionRepository(),
-    application: new InMemoryApplicationRepository(),
-    supply: new InMemorySupplyRepository(),
     vet: new InMemoryVetClinicRepository(),
   };
 }
@@ -148,20 +70,10 @@ export function makePrismaRepos(prisma: PrismaClient): Repos {
   return {
     user: new PrismaUserRepository(prisma),
     refreshStore: new PrismaRefreshTokenStore(prisma),
-    agent: new PrismaAgentProfileRepository(prisma),
-    match: new PrismaMatchRepository(prisma),
-    request: new PrismaRequestRepository(prisma),
     notification: new PrismaNotificationRepository(prisma),
     message: new PrismaMessageRepository(prisma),
-    discount: new PrismaDiscountRepository(prisma),
     report: new PrismaReportRepository(prisma),
-    dispute: new PrismaDisputeRepository(prisma),
     badge: new PrismaBadgeRepository(prisma),
-    bounty: new PrismaBountyRepository(prisma),
-    groupSlot: new PrismaGroupSlotRepository(prisma),
-    adoption: new PrismaAdoptionRepository(prisma),
-    application: new PrismaApplicationRepository(prisma),
-    supply: new PrismaSupplyRepository(prisma),
     vet: new PrismaVetClinicRepository(prisma),
   };
 }
