@@ -14,7 +14,7 @@ browser_resize width=1280 height=900
 ```
 
 ## Seed state
-Set localStorage `ws.animalType='hamster-golden'`, `ws.setup.hamster-golden` (2질문 완료, 베딩·급수 보유), `ws.context.hamster-golden.cage={type:'LIVING_BOX',floorWcm:60,floorDcm:40,heightCm:35}` for the selected-state shots; clear it for cold-start shots. Use fixtured vets (마포구).
+Set localStorage (C-1) `ws.animalType='hamster-golden'` (raw typeId, not slug) and `ws.setup.hamster-golden={"v":1,"firstTime":true,"owned":[<베딩·급수 supplyItemId>],"answeredAt":"<ISO>","startedAt":"<ISO>","checks":{},"reached100At":null}` (2질문 완료) for the selected-state shots; for `home-pre-l3` use `answeredAt:null` or delete the key. `ws.context.{typeId}.cage` is reserved and not written in R4 — do not seed it. Clear all `ws.*` keys for cold-start shots. Use fixtured vets (마포구).
 
 ## Capture list
 | Screen | route / action | file |
@@ -30,7 +30,7 @@ Set localStorage `ws.animalType='hamster-golden'`, `ws.setup.hamster-golden` (2�
 | L8 이메일 저장 | 배너 링크 | `l8` |
 | 구성안 페이지 | `/hamster/golden/setup` | `setup` |
 | 병원 (list / list|map at 1280) | `/vet/서울-마포구` | `vet` |
-| 404 / PLANNED 타입 | `/gerbil/mongolian` | `planned` |
+| 404 / PLANNED 타입 | `/gerbil` | `planned` |
 
 ## Review handoff
 Return the file list to `design-liaison`, which applies the 10-point checklist from 디자인-브리프 (token drift, side nav, product weight, product card contents, mascot placement, status color-only, tool-as-page, banned words, icons-where-photos, save nudge count) plus review stars, section count/order, L3-before counts.

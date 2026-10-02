@@ -1,6 +1,6 @@
 // 공개 투영(계획 §6-3, D4·D6) — 시드 묶음 → 노출 행만 담은 사이트 모델. 순수(입력 불변, 시각·난수 없음).
 //   노출 판단은 전부 engine 노출 API(isAnimalTypeExposable · isRequirementExposable · orderExposableProducts ·
-//   isBundleExposable · isCompatRuleExposable · isVetListed · isTestimonialExposable · isPhotoUsable).
+//   isBundleExposable · isCompatRuleExposable · isVetListed · isTestimonialPublic · isPhotoUsable).
 //   요구사항 값은 resolveRequirement 결과만 쓴다(불변식 6). verifiedBy·운영 메모·출처 접근일은 싣지 않는다.
 import {
   buildSearchKeyword,
@@ -10,8 +10,9 @@ import {
   isBundleExposable,
   isCompatRuleExposable,
   isPhotoUsable,
+  parseCcLicenseUrl,
   isRequirementExposable,
-  isTestimonialExposable,
+  isTestimonialPublic,
   isVetListed,
   listResolvedRequirements,
   orderExposableProducts,
@@ -71,6 +72,12 @@ export interface CreditModel {
   scene: string;
   author: string | null;
   license: string;
+  /** 표시명 "CC BY 4.0"(licenseUrl 에서, engine parseCcLicenseUrl). */
+  licenseName: string;
+  /** creativecommons.org 증서 URL(허용목록 통과분만 — isPhotoUsable). */
+  licenseUrl: string;
+  /** 원본 수정 여부(CC BY 표기 의무, S1 M-3). */
+  modified: boolean;
   source: string;
   sourceUrl: string;
 }
@@ -155,6 +162,7 @@ function projectRequirement(
       id: r.item.id,
       name: r.item.name,
       category: r.item.category,
+      glyph: r.item.glyph,
       specSchema: r.item.specSchema,
       alternativeIds: r.item.compatibleAlternativeIds.filter((id) => id !== r.item.id && exposedItemIds.has(id)),
     },
@@ -177,16 +185,17 @@ function projectType(at: AnimalTypeRec, slug: string, careProfileId: string): Pu
   };
 }
 
-export function projectSite(seed: SeedBundle): SiteModel {
+/** asOf = 노출 기준일(YYYY-MM-DD, 필수) — 모든 노출 판정에 같은 값(M-1). 모델·산출물에는 넣지 않는다. */
+export function projectSite(seed: SeedBundle, asOf: string): SiteModel {
   const cat = createCatalog(seed);
   const types: TypeModel[] = [];
   const reqRowById = new Map<string, SupplyRequirementRec>();
   for (const r of seed.supplyRequirements) if (!reqRowById.has(r.id)) reqRowById.set(r.id, r);
 
   for (const at of cat.animalTypes.values()) {
-    if (!isAnimalTypeExposable(cat, at.id)) continue;
+    if (!isAnimalTypeExposable(cat, at.id, asOf)) continue;
     if (typeof at.slug !== 'string' || !at.careProfileId) continue; // validate SL00 가 막는다 — fail-closed
-    const exposed = listResolvedRequirements(cat, at.id).filter((r) => isRequirementExposable(cat, r));
+    const exposed = listResolvedRequirements(cat, at.id).filter((r) => isRequirementExposable(cat, r, asOf));
     const exposedItemIds = new Set(exposed.map((r) => r.supplyItemId));
     const profile = cat.careProfiles.get(at.careProfileId) as CareProfileRec;
 
@@ -196,6 +205,7 @@ export function projectSite(seed: SeedBundle): SiteModel {
         cat,
         at.id,
         seed.curatedProducts.filter((p) => p.supplyItemId === r.supplyItemId),
+        asOf,
       );
       const products: PublicProduct[] = ordered.map(({ product: p, verdict }) => ({
         id: p.id,
@@ -222,7 +232,7 @@ export function projectSite(seed: SeedBundle): SiteModel {
       };
     });
 
-    const bundleRows = seed.setupBundles.filter((b) => isBundleExposable(cat, at.id, b));
+    const bundleRows = seed.setupBundles.filter((b) => isBundleExposable(cat, at.id, b, asOf));
     const bundles: PublicBundle[] = bundleRows.map((b) => ({
       id: b.id,
       tier: b.tier,
@@ -287,7 +297,8 @@ export function projectSite(seed: SeedBundle): SiteModel {
     verifiedAt: dateOf(v.verification.verifiedAt),
   }));
 
-  const testimonials: PublicTestimonial[] = seed.testimonials.filter(isTestimonialExposable).map((t) => ({
+  // F5: APPROVED ∧ verifiedUsage ∧ 노출 타입의 후기만(fail-closed).
+  const testimonials: PublicTestimonial[] = seed.testimonials.filter((t) => isTestimonialPublic(cat, t, asOf)).map((t) => ({
     id: t.id,
     quote: t.quote,
     animalTypeId: t.animalTypeId,
@@ -303,15 +314,18 @@ export function projectSite(seed: SeedBundle): SiteModel {
       scene: p.scene,
       author: p.author,
       license: p.license as string,
+      licenseName: (parseCcLicenseUrl(p.licenseUrl) as NonNullable<ReturnType<typeof parseCcLicenseUrl>>).name,
+      licenseUrl: p.licenseUrl as string,
+      modified: p.modified === true,
       source: p.source as string,
       sourceUrl: p.sourceUrl as string,
     }));
 
-  return { cat, types, items, vets, testimonials, credits, catalog: projectCatalog(cat, seed, types) };
+  return { cat, types, items, vets, testimonials, credits, catalog: projectCatalog(cat, seed, types, asOf) };
 }
 
 /** 공개 카탈로그(D6): createCatalog 입력 형태, 노출 행만, 검수자 이름 제거, override·대안은 노출 항목으로 한정. */
-function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly TypeModel[]): CatalogInput {
+function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly TypeModel[], asOf: string): CatalogInput {
   const itemsByType = new Map(types.map((t) => [t.id, new Set(t.requirements.map((r) => r.item.id))]));
   const exposedItems = new Set(types.flatMap((t) => t.requirements.map((r) => r.item.id)));
   const exposedReqIds = new Set(types.flatMap((t) => t.requirements.map((r) => r.requirementId)));
@@ -374,7 +388,7 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
       searchKeyword: r.searchKeyword,
     }));
   const compatibilityRules: CompatibilityRuleRec[] = cat.compatibilityRules
-    .filter((c) => isCompatRuleExposable(c) && exposedItems.has(c.a) && exposedItems.has(c.b))
+    .filter((c) => isCompatRuleExposable(c, asOf) && exposedItems.has(c.a) && exposedItems.has(c.b))
     .map((c) => ({
       ...publicMeta(c),
       id: c.id,

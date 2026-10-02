@@ -8,7 +8,7 @@ import { planRoutes, type RoutePlan } from './routes.js';
 import { buildRobots } from './robots.js';
 import { buildSitemap, normalizeOrigin } from './sitemap.js';
 import { injectTemplate } from './template.js';
-import type { PageContext, RenderedPage } from './pages/common.js';
+import { COLOR_SCHEME_META, type PageContext, type RenderedPage } from './pages/common.js';
 import { renderCredits, renderFamily, renderHome, renderNotFound, renderSupplies, renderSupplyItem, renderVet } from './pages/misc.js';
 import { renderSetupPage, renderTypePage } from './pages/type.js';
 
@@ -21,6 +21,10 @@ export interface BuildSiteOptions {
   indexable?: boolean;
   /** server/seed/*.json digest(lane E seedDigest 알고리즘). */
   seedDigest: string;
+  /** 노출 기준일 YYYY-MM-DD(필수, M-1 검수 나이). CLI --now. 산출물에는 쓰지 않는다. */
+  asOf: string;
+  /** 자산 이름 → 정제된 인라인 SVG(mascot.ts loadMascots). 없으면 마스코트 없이 렌더. */
+  mascots?: ReadonlyMap<string, string>;
 }
 
 export interface ManifestRoute {
@@ -108,7 +112,7 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   if (!/^[0-9a-f]{64}$/.test(opts.seedDigest)) throw new Error('site: seedDigest 는 sha256 hex 64자');
   const origin = normalizeOrigin(opts.origin);
   const siteIndexable = opts.indexable === true;
-  const model = projectSite(seed);
+  const model = projectSite(seed, opts.asOf);
   const routes = planRoutes(model);
 
   const catalog: PublicCatalog = { v: 1, seedDigest: opts.seedDigest, ...model.catalog };
@@ -116,14 +120,15 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   const sha8 = createHash('sha256').update(catalogJson, 'utf8').digest('hex').slice(0, 8);
   const catalogFile = `data/catalog.v1.${sha8}.json`;
   const catalogUrl = `/${catalogFile}`;
-  const hasCredits = routes.some((r) => r.kind === 'CREDITS');
+  const mascots: ReadonlyMap<string, string> = opts.mascots ?? new Map();
+  const templateHasColorScheme = /<meta\s+name="color-scheme"/i.test(opts.template);
 
   const files = new Map<string, string>();
   const pages: BuiltPage[] = routes.map((route) => {
-    const p = render(model, { origin, route, hasCredits, catalogUrl });
+    const p = render(model, { origin, route, catalogUrl, mascots });
     const json = jsonForScript(p.data);
     const html = injectTemplate(opts.template, {
-      head: p.head,
+      head: templateHasColorScheme ? p.head.replace(`${COLOR_SCHEME_META}\n`, '') : p.head,
       body: p.body,
       rootAttrs: { 'data-ws-prerendered': '1' },
       afterRoot: `<script id="ws-data" type="application/json">${json}</script>`,

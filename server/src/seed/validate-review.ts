@@ -1,6 +1,6 @@
 // 검수 규칙 V01~V05 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
-import { isVerified, reviewerRank } from '../engine/index.js';
+import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
 import { CONTENT_KEYS, daysBetween, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
 import { registrableDomainOfUrl } from './hostname.js';
 import type { Ctx } from './context.js';
@@ -17,9 +17,6 @@ export const MIN_GRADE: Record<string, { min: string; exact?: boolean; minSource
 /** engine isVerified 에 위임(VERIFIED ∧ ≠AI_DRAFT). */
 const verified = (r: Rec): boolean =>
   isVerified({ reviewStatus: r.reviewStatus, reviewerType: r.reviewerType } as Parameters<typeof isVerified>[0]);
-
-/** W-STALE 기준일 수(US-020). */
-export const STALE_DAYS = 180;
 
 function sourceUrls(r: Rec): string[] {
   return Array.isArray(r.source) ? r.source.map((s) => asRec(s)?.url).filter((u): u is string => typeof u === 'string') : [];
@@ -63,9 +60,9 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
     }
   }
 
-  // W-STALE
+  // W-STALE — 경계는 engine isFresh 와 동일(days > STALE_DAYS → 경고 + 노출 판정에서 비노출, M-1).
   if (isIsoDate(r.verifiedAt) && daysBetween(r.verifiedAt, ctx.now) > STALE_DAYS) {
-    out.warn('W-STALE', key, id, 'verifiedAt', `검수 ${daysBetween(r.verifiedAt, ctx.now)}일 경과(>${STALE_DAYS}) — 재검수 필요`);
+    out.warn('W-STALE', key, id, 'verifiedAt', `검수 ${daysBetween(r.verifiedAt, ctx.now)}일 경과(>${STALE_DAYS}) — 재검수 필요, 노출 판정에서 빠진다`);
   }
 }
 

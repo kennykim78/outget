@@ -86,7 +86,8 @@ const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
   },
   photos: {
     id: 'string', scene: 'string', slot: 'string', query: 'string', source: 'string|null', license: 'string|null',
-    author: 'string|null', sourceUrl: 'string|null', downloadedAt: 'string|null', modified: 'boolean', status: 'string',
+    author: 'string|null', sourceUrl: 'string|null', licenseUrl: 'string|null?', downloadedAt: 'string|null', modified: 'boolean',
+    status: 'string',
   },
 };
 

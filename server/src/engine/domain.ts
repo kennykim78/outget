@@ -130,3 +130,25 @@ export const isVerdict = guard(VERDICTS);
 export const SPEC_OPS = ['gte', 'lte', 'eq', 'in', 'not_in'] as const;
 export type SpecOp = (typeof SPEC_OPS)[number];
 export const isSpecOp = guard(SPEC_OPS);
+
+// ── 검수 유효 기간(US-020, S1 M-1, R4 D5) ─────────────────────
+/** 검수 후 이 일수를 넘기면(days > STALE_DAYS) 노출하지 않는다(exposure.isFresh) · seed:validate W-STALE 도 같은 값. 단일 소스. */
+export const STALE_DAYS = 180;
+
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+
+/** YYYY-MM-DD(달력상 존재) → 1970-01-01 기준 UTC 일 번호. 형식·달력 오류는 null. 시계를 읽지 않는다. */
+export function isoDayNumber(v: unknown): number | null {
+  if (typeof v !== 'string') return null;
+  const m = ISO_DAY.exec(v);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (y < 1000 || mo < 1 || mo > 12 || d < 1) return null;
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const max = mo === 2 && leap ? 29 : MONTH_DAYS[mo - 1];
+  if (d > max) return null;
+  return Math.round(Date.UTC(y, mo - 1, d) / 86_400_000);
+}

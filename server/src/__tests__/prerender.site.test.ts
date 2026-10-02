@@ -9,7 +9,10 @@ import type { SeedBundle } from '../engine/index.js';
 import { WS_DATA_KEYS } from '../engine/index.js';
 import { SEED_FILES } from '../seed/common.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
-import { V, patch, promoted, realSeed, type Row } from './fixtures/prerender-seed.js';
+import { loadMascots, sanitizeMascotSvg } from '../prerender/mascot.js';
+import { COPY } from '../prerender/copy.js';
+import { PHOTO_SOURCES } from '../seed/validate-structure.js';
+import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, V, patch, promoted, realSeed, type Row } from './fixtures/prerender-seed.js';
 import { lintText } from '../seed/lint.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -24,11 +27,11 @@ type Exposure = {
   productTypes: Set<string>;
 };
 const exposureMod = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'seed-exposure.mjs')).href)) as {
-  computeExposure: (seed: Record<string, unknown[]>) => Exposure;
+  computeExposure: (seed: Record<string, unknown[]>, asOf: string) => Exposure;
 };
 
-const build = (seed: SeedBundle, indexable = false): SiteBuild =>
-  buildSite(seed, { template: TEMPLATE, origin: ORIGIN, seedDigest: DIGEST, indexable });
+const build = (seed: SeedBundle, indexable = false, asOf = FIXTURE_AS_OF): SiteBuild =>
+  buildSite(seed, { template: TEMPLATE, origin: ORIGIN, seedDigest: DIGEST, indexable, asOf });
 
 const paths = (b: SiteBuild): string[] => b.routes.map((r) => r.path);
 
@@ -43,8 +46,8 @@ const rawOf = (seed: SeedBundle): Record<string, unknown[]> =>
   Object.fromEntries(Object.keys(SEED_FILES).map((k) => [k, seed[k as keyof SeedBundle] as unknown[]]));
 
 /** 산출물의 모든 id 가 독립 재구현 노출 집합 안에 있는지(C3-OUT-ID 와 같은 기준). 위반 목록 반환. */
-function leaks(b: SiteBuild, seed: SeedBundle): string[] {
-  const ex = exposureMod.computeExposure(rawOf(seed));
+function leaks(b: SiteBuild, seed: SeedBundle, asOf = FIXTURE_AS_OF): string[] {
+  const ex = exposureMod.computeExposure(rawOf(seed), asOf);
   const bad: string[] = [];
   const COLL: Record<string, string> = {
     types: 'animalTypes',
@@ -95,9 +98,10 @@ const visibleText = (html: string): string =>
 describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
   const b = build(realSeed());
 
-  it('라우트가 정확히 4개', () => {
-    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/404']);
-    expect(b.routes.map((r) => r.kind)).toEqual(['HOME', 'SUPPLIES', 'VET', 'NOT_FOUND']);
+  it('라우트가 정확히 5개(R4 D6: /credits 항상, noindex)', () => {
+    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/credits', '/404']);
+    expect(b.routes.map((r) => r.kind)).toEqual(['HOME', 'SUPPLIES', 'VET', 'CREDITS', 'NOT_FOUND']);
+    expect(b.routes.find((r) => r.kind === 'CREDITS')?.indexable).toBe(false);
     expect(b.routes.find((r) => r.kind === 'NOT_FOUND')?.file).toBe('404.html');
   });
 
@@ -341,9 +345,282 @@ describe('(d) 비노출 id 가 어떤 ws-data·data-ws-id·카탈로그에도 �
   });
 });
 
+// R4 A2 — 프리렌더 보강: ws-data types 전체, /credits 항상 + CC BY 표기(M-3), Q1 갭(✓·이미지 대체·enum 라벨·선택), G4·G5.
+describe('R4 A2 프리렌더 보강', () => {
+  const MASCOTS = loadMascots(join(ROOT, 'docs', 'design', 'mascots'));
+  const buildM = (s: SeedBundle): SiteBuild =>
+    buildSite(s, { template: TEMPLATE, origin: ORIGIN, seedDigest: DIGEST, asOf: FIXTURE_AS_OF, mascots: MASCOTS });
+  const pageOf = (b: SiteBuild, p: string): string => b.pages.find((x) => x.route.path === p)?.html as string;
+  const dataOf = (html: string) => wsDataOf(html) as { data: { types: Row[]; requirements: Row[] } };
+
+  it('(a) 모든 페이지 ws-data data.types = 노출 타입 전체(같은 길이·같은 id)', () => {
+    const b = buildM(promoted());
+    const ids = b.model.types.map((t) => t.id);
+    expect(ids.length).toBeGreaterThanOrEqual(1);
+    for (const p of b.pages) expect(dataOf(p.html).data.types.map((t) => t.id), p.route.path).toEqual(ids);
+  });
+
+  it('(b) /credits 항상(실시드 포함): noindex·sitemap 제외, 모든 페이지 푸터 링크, 0건이면 빈 상태', () => {
+    const b = buildM(realSeed());
+    const r = b.routes.find((x) => x.path === '/credits');
+    expect(r).toMatchObject({ kind: 'CREDITS', indexable: false });
+    expect(b.files.get('sitemap.xml')).not.toContain('/credits');
+    const html = pageOf(b, '/credits');
+    expect(html).toContain('<meta name="robots" content="noindex">');
+    expect(html).toContain(COPY.credits.empty);
+    for (const p of b.pages) expect(p.html, p.route.path).toContain('<a href="/credits">');
+  });
+
+  it('(c) CC BY → /credits 에 저작자·라이선스명+증서 링크·수정 여부·원본 링크', () => {
+    const s = promoted();
+    patch(s, 'photos', 'ph-01', { modified: true });
+    const html = pageOf(buildM(s), '/credits');
+    const li = /<li class="ws-credit" data-ws-id="photos#ph-01">([\s\S]*?)<\/li>/.exec(html)?.[1] as string;
+    expect(li).toBeTruthy();
+    expect(li).toContain('<span class="ws-credit-author">Fixture Author</span>');
+    expect(li).toContain('<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer nofollow">CC BY 4.0</a>');
+    expect(li).toContain(`${COPY.credits.modified}: ${COPY.credits.modifiedYes}`);
+    expect(li).toContain('href="https://commons.wikimedia.org/wiki/File:Fixture.jpg"');
+    patch(s, 'photos', 'ph-01', { modified: false });
+    expect(pageOf(buildM(s), '/credits')).toContain(`${COPY.credits.modified}: ${COPY.credits.modifiedNo}`);
+  });
+
+  it('(c) /credits 출처는 표시명(copy credits.sourceName) — 보이는 텍스트에 원시 코드 0, 이름 없는 코드는 생략', () => {
+    const visible = (html: string): string =>
+      html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<head>[\s\S]*?<\/head>/, ' ').replace(/<[^>]+>/g, ' ');
+    const s = promoted();
+    const html = pageOf(buildM(s), '/credits');
+    expect(html).toContain(`${COPY.credits.source}: ${COPY.credits.sourceName.WIKIMEDIA} · <a href="https://commons.wikimedia.org/wiki/File:Fixture.jpg"`);
+    expect(visible(html)).not.toMatch(/\b[A-Z][A-Z_]{2,}\b/);
+    patch(s, 'photos', 'ph-01', { source: 'NEW_SITE' });
+    const html2 = pageOf(buildM(s), '/credits');
+    expect(html2).toContain(`${COPY.credits.source}: <a href="https://commons.wikimedia.org/wiki/File:Fixture.jpg"`);
+    expect(visible(html2)).not.toMatch(/\b[A-Z][A-Z_]{2,}\b/);
+    // 시드 허용 source 값(validate PHOTO_SOURCES) 전부 표시명이 있다.
+    for (const code of PHOTO_SOURCES) expect(COPY.credits.sourceName[code], code).toMatch(/\S/);
+  });
+
+  it('(c) CC BY 인데 licenseUrl 없음·종류 불일치·허용목록 밖 → /credits 에 없음(isPhotoUsable=false)', () => {
+    for (const licenseUrl of [null, 'https://creativecommons.org/licenses/by-sa/4.0/', 'https://evil.example/licenses/by/4.0/']) {
+      const s = promoted();
+      patch(s, 'photos', 'ph-01', { licenseUrl });
+      const b = buildM(s);
+      expect([...b.files.values()].join('\n')).not.toContain('photos#ph-01');
+      expect(pageOf(b, '/credits')).toContain(COPY.credits.empty);
+      expect(leaks(b, s)).toEqual([]);
+    }
+  });
+
+  it('(d) 상품 카드·L7: ✓ 글리프 span + "기준 충족", 이미지 없으면 item.glyph + "이미지 준비 중" 타일', () => {
+    const b = buildM(promoted());
+    const badge = '<span class="ws-badge"><span class="ws-glyph" data-ws-glyph="ready" aria-hidden="true">✓</span>' + COPY.product.badge + '</span>';
+    const tile = '<span class="ws-tile" aria-hidden="true"><span class="ws-tile-glyph">🎡</span><span class="ws-tile-label">' + COPY.product.imagePending + '</span></span>';
+    for (const p of ['/hamster/golden', '/hamster/golden/supplies/wheel', '/hamster/golden/products/cp-001']) {
+      const html = pageOf(b, p);
+      const cards = html.match(/<li class="ws-product"[\s\S]*?<\/li>/g) ?? [];
+      for (const c of cards) {
+        expect(c).toContain(badge);
+        expect(c).toContain(tile);
+        expect(c).not.toMatch(/₩|원\b|구매|가격/);
+      }
+    }
+    expect(pageOf(b, '/hamster/golden').match(/<li class="ws-product"/g)).toHaveLength(1);
+    const l7 = pageOf(b, '/hamster/golden/products/cp-001');
+    expect(l7).toContain(badge);
+    expect(l7).toContain(tile);
+  });
+
+  it('(d) enum 라벨: 규격 한 줄은 라벨 없는 enum 생략, L4 조건 행 숨김, L5 는 라벨 불완전 enum 필드 미렌더 + 선택 표기', () => {
+    const labeled = buildM(promoted());
+    expect(pageOf(labeled, '/hamster/golden')).toContain('<span class="ws-spec">지름 30cm · 바닥면 픽스처 라벨 1 · 설치 픽스처 라벨 1</span>');
+    expect(pageOf(labeled, '/hamster/golden/supplies/wheel')).toContain('바닥면 픽스처 라벨 1');
+    const s = promoted();
+    const wheel = s.supplyItems.find((x) => x.id === 'wheel') as SeedBundle['supplyItems'][number];
+    for (const f of wheel.specSchema.fields) if (f.type === 'enum') delete f.optionLabels;
+    const b = buildM(s);
+    const home = pageOf(b, '/hamster/golden');
+    expect(home).toContain('<span class="ws-spec">지름 30cm</span>');
+    for (const code of ['SOLID', 'STAND', 'MESH', 'HANG']) {
+      for (const p of b.pages) expect(p.html.replace(/<script[\s\S]*?<\/script>/g, ''), `${p.route.path} ${code}`).not.toContain(code);
+    }
+    const l4 = pageOf(b, '/hamster/golden/supplies/wheel');
+    const cond = /<section data-ws-part="conditions">[\s\S]*?<\/section>/.exec(l4)?.[0] as string;
+    expect(cond).toContain('지름 28cm 이상');
+    expect(cond).not.toContain('바닥면');
+    const l5 = pageOf(b, '/hamster/golden/check/wheel');
+    expect(l5).toContain('name="diameterCm"');
+    expect(l5).not.toContain('name="surface"');
+    expect(l5).not.toContain('name="mount"');
+    expect(l5).toContain('<label for="ws-f-silent">무소음(베어링)<span class="ws-optional"> · 선택</span></label>');
+    const l5cage = pageOf(b, '/hamster/golden/check/cage');
+    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격(mm)<span class="ws-optional"> · 선택</span></label>');
+    expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로(cm)</label>');
+  });
+
+  it('G4: color-scheme meta, 탭바(현재 aria-current), 레이어 딥링크 스크림, 히어로·컨텍스트 인라인 마스코트(정제)', () => {
+    const b = buildM(promoted());
+    for (const p of b.pages) {
+      expect(p.html.match(/<meta name="color-scheme" content="light"/g), p.route.path).toHaveLength(1);
+      expect(p.html, p.route.path).toContain('<nav class="ws-tabbar">');
+      expect(p.html).not.toContain('<metadata');
+      expect(p.html).not.toContain('c2pa');
+    }
+    expect(pageOf(b, '/vet')).toMatch(/<a class="ws-tab" href="\/vet" aria-current="page">/);
+    expect(pageOf(b, '/hamster/golden')).toMatch(/<a class="ws-tab" href="\/hamster\/golden" aria-current="page">/);
+    expect(pageOf(b, '/supplies')).toMatch(/<a href="\/supplies" aria-current="page">/);
+    for (const p of ['/hamster/golden/supplies/cage', '/hamster/golden/check/cage', '/hamster/golden/products/cp-001', '/supplies/cage/hamster-golden']) {
+      expect(pageOf(b, p), p).toMatch(/<div class="ws-scrim" aria-hidden="true"><\/div>\n<aside class="ws-layer"/);
+    }
+    expect(pageOf(b, '/hamster/golden')).not.toContain('ws-scrim');
+    const hero = /<section data-ws-section="hero">\n(<span class="ws-avatar[^"]*" aria-hidden="true"><svg [^>]*>)/.exec(pageOf(b, '/'));
+    expect(hero?.[1]).toContain('ws-avatar--brand-soft');
+    expect(hero?.[1]).toContain('aria-hidden="true" focusable="false"');
+    const ctx = /<section class="ws-context"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><svg [^>]*>)/.exec(pageOf(b, '/hamster/golden'));
+    expect(ctx?.[1]).toContain('ws-avatar--peach-soft');
+    expect(pageOf(b, '/hamster/golden')).not.toMatch(/role="img"|aria-label="골든/);
+  });
+
+  it('G4: 템플릿에 color-scheme 이 없으면 head 에 직접 넣는다(정확히 1개)', () => {
+    const bare = TEMPLATE.replace(/\s*<meta name="color-scheme"[^>]*>/, '');
+    expect(bare).not.toContain('color-scheme');
+    const b = buildSite(promoted(), { template: bare, origin: ORIGIN, seedDigest: DIGEST, asOf: FIXTURE_AS_OF });
+    for (const p of b.pages) expect(p.html.match(/<meta name="color-scheme" content="light"/g), p.route.path).toHaveLength(1);
+  });
+
+  it('G5: PublicRequirement.item.glyph(ws-data·카탈로그 아님)', () => {
+    const b = buildM(promoted());
+    const reqs = dataOf(pageOf(b, '/hamster/golden')).data.requirements as Array<{ item: { id: string; glyph: string } }>;
+    expect(Object.fromEntries(reqs.map((r) => [r.item.id, r.item.glyph]))).toEqual({ cage: '🏠', wheel: '🎡' });
+  });
+
+  it('HOME ws-data vets = 목록 노출 병원(/vet 과 같은 투영), 실시드는 [], 상한 20·결정적 순서', () => {
+    const b = buildM(promoted());
+    const home = wsDataOf(pageOf(b, '/')) as { data: { vets: Row[] } };
+    const vet = wsDataOf(pageOf(b, '/vet')) as { data: { vets: Row[] } };
+    expect(home.data.vets.length).toBeGreaterThanOrEqual(1);
+    expect(home.data.vets).toEqual(vet.data.vets);
+    expect(home.data.vets.map((v) => v.id)).toEqual(['vc-mapo-01']);
+    expect((wsDataOf(pageOf(buildM(realSeed()), '/')) as { data: { vets: Row[] } }).data.vets).toEqual([]);
+    // 상한·순서: 병원 25곳(지역 역순 입력) → 20곳, 지역 → 이름 → id 순.
+    const s = promoted();
+    const tpl = s.vetClinics.find((v) => v.id === 'vc-mapo-01') as SeedBundle['vetClinics'][number];
+    for (let i = 24; i >= 0; i--) {
+      s.vetClinics.push({ ...tpl, id: `vc-x-${String(i).padStart(2, '0')}`, name: `픽스처 병원 ${String(i).padStart(2, '0')}`, region: i % 2 ? '서울 마포구' : '서울 강남구' });
+    }
+    const vs = (wsDataOf(pageOf(buildM(s), '/')) as { data: { vets: Array<{ id: string; region: string; name: string }> } }).data.vets;
+    expect(vs).toHaveLength(20);
+    const sorted = [...vs].sort((a, c) => (a.region + a.name + a.id < c.region + c.name + c.id ? -1 : 1));
+    expect(vs.map((v) => v.id)).toEqual(sorted.map((v) => v.id));
+    expect(vs[0].region).toBe('서울 강남구');
+  });
+
+  it('F7: 탭바 아이콘 = 보드 SVG(viewBox 0 0 24 24, stroke-width 2, 22px)', () => {
+    const html = pageOf(buildM(promoted()), '/');
+    const svgs = html.match(/<svg class="ws-tab-icon"[^>]*>[\s\S]*?<\/svg>/g) ?? [];
+    expect(svgs).toHaveLength(3);
+    for (const s of svgs) expect(s).toMatch(/viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"/);
+    expect(svgs[0]).toContain('<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>');
+    expect(svgs[1]).toContain('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>');
+    expect(svgs[2]).toContain('<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>');
+  });
+
+  it('F5: 비노출 동물(hamster-dwarf·guinea-pig)의 승인 후기는 어떤 산출물에도 없다, 노출 타입 후기는 홈에', () => {
+    const s = promoted();
+    patch(s, 'testimonials', 't-007', { status: 'APPROVED', verifiedUsage: true, quote: '드워프 후기 누출 표식이에요', consentAt: '2026-09-26' });
+    patch(s, 'testimonials', 't-008', { status: 'APPROVED', verifiedUsage: true, quote: '기니피그 후기 누출 표식이에요', consentAt: '2026-09-26' });
+    const b = buildM(s);
+    const all = [...b.files.values()].join('\n');
+    for (const leak of ['t-007', 't-008', '드워프 후기 누출 표식', '기니피그 후기 누출 표식']) expect(all, leak).not.toContain(leak);
+    const home = wsDataOf(pageOf(b, '/')) as { data: { testimonials: Row[] } };
+    expect(home.data.testimonials.map((t) => t.id)).toEqual(['t-001']);
+    expect(pageOf(b, '/')).toContain('data-ws-id="testimonials#t-001"');
+    expect(leaks(b, s)).toEqual([]);
+    // 독립 구현(compliance)도 같은 판정 — 비노출 타입 후기는 노출 집합 밖.
+    const ex = exposureMod.computeExposure(rawOf(s), FIXTURE_AS_OF);
+    expect([...ex.ids.testimonials].sort()).toEqual(['t-001']);
+  });
+
+  it('ws-data ≤ 32KB (모든 페이지)', () => {
+    for (const p of buildM(promoted()).pages) expect(p.wsDataBytes, p.route.path).toBeLessThanOrEqual(32 * 1024);
+  });
+
+  it('마스코트 정제기: 허용 밖 요소·속성·텍스트는 throw, metadata 제거', () => {
+    const ok = sanitizeMascotSvg('<svg viewBox="0 0 96 96" role="img" aria-label="x"><metadata>m</metadata><circle cx="1" cy="2" r="3" fill="#fff"/></svg>', 't');
+    expect(ok).toBe('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" aria-hidden="true" focusable="false" class="ws-mascot-svg"><circle cx="1" cy="2" r="3" fill="#fff"/></svg>');
+    for (const bad of [
+      '<svg viewBox="0 0 9 9"><script>x</script></svg>',
+      '<svg viewBox="0 0 9 9"><circle onload="x" r="1"/></svg>',
+      '<svg viewBox="0 0 9 9"><image href="https://e.x/a.png"/></svg>',
+      '<svg viewBox="0 0 9 9"><path d="M0" fill="url(https://e.x)"/></svg>',
+      '<svg viewBox="0 0 9 9"><foreignObject/></svg>',
+      '<svg viewBox="0 0 9 9">text</svg>',
+      '<svg><circle r="1"/></svg>',
+    ]) expect(() => sanitizeMascotSvg(bad, 't'), bad).toThrow();
+    expect(MASCOTS.size).toBeGreaterThanOrEqual(8);
+  });
+});
+
+// M-1(S1) 6개월 자동 강등 — 노출 기준일 asOf(R4 A1, D5). 엔진(buildSite)과 독립 재구현(computeExposure)이 같은 답.
+describe('검수 나이 강등(asOf, M-1)', () => {
+  const productsOf = (b: SiteBuild): number => b.model.types.reduce((n, t) => n + t.requirements.reduce((m, r) => m + r.products.length, 0), 0);
+  const exposureOf = (s: SeedBundle, asOf: string): Exposure => exposureMod.computeExposure(rawOf(s), asOf);
+
+  it('verifiedAt+180 → types ≥ 1·products ≥ 1, +181 → types 0·products 0 (엔진·독립 구현 동일)', () => {
+    const s = promoted();
+    const fresh = build(s, false, FIXTURE_LAST_FRESH);
+    expect(fresh.model.types.length).toBeGreaterThanOrEqual(1);
+    expect(productsOf(fresh)).toBeGreaterThanOrEqual(1);
+    expect(exposureOf(s, FIXTURE_LAST_FRESH).ids.animalTypes.size).toBe(fresh.model.types.length);
+    expect(exposureOf(s, FIXTURE_LAST_FRESH).ids.curatedProducts.size).toBe(productsOf(fresh));
+
+    const stale = build(s, false, FIXTURE_FIRST_STALE);
+    expect(stale.model.types).toEqual([]);
+    expect(productsOf(stale)).toBe(0);
+    expect(stale.catalog.animalTypes).toEqual([]);
+    expect(stale.catalog.compatibilityRules).toEqual([]);
+    expect(exposureOf(s, FIXTURE_FIRST_STALE).ids.animalTypes.size).toBe(0);
+    expect(exposureOf(s, FIXTURE_FIRST_STALE).ids.curatedProducts.size).toBe(0);
+    expect(leaks(stale, s, FIXTURE_FIRST_STALE)).toEqual([]);
+    expect([...stale.files.values()].join('\n')).not.toContain('픽스처 쳇바퀴 A');
+  });
+
+  it('CareProfile 하나만 오래돼도 types 0·products 0', () => {
+    const s = promoted();
+    patch(s, 'careProfiles', 'cp-hamster-syrian', { verifiedAt: '2026-03-31' }); // FIXTURE_AS_OF 기준 184일
+    const b = build(s);
+    expect(b.model.types).toEqual([]);
+    expect(productsOf(b)).toBe(0);
+    expect(exposureOf(s, FIXTURE_AS_OF).ids.animalTypes.size).toBe(0);
+    expect(leaks(b, s)).toEqual([]);
+  });
+
+  it('상품 하나만 오래되면 그 상품만 빠진다', () => {
+    const s = promoted();
+    expect(productsOf(build(s))).toBe(1);
+    patch(s, 'curatedProducts', 'cp-001', { verifiedAt: '2026-04-03' }); // 181일
+    const b = build(s);
+    expect(b.model.types.length).toBe(1);
+    expect(productsOf(b)).toBe(0);
+    expect(exposureOf(s, FIXTURE_AS_OF).ids.curatedProducts.size).toBe(0);
+    expect(leaks(b, s)).toEqual([]);
+  });
+
+  it('asOf 누락·형식 오류 → throw(fail-open 기본값 없음)', () => {
+    expect(() => buildSite(promoted(), { template: TEMPLATE, origin: ORIGIN, seedDigest: DIGEST } as never)).toThrow(RangeError);
+    expect(() => build(promoted(), false, '2026-1-1')).toThrow(RangeError);
+    expect(() => exposureOf(promoted(), '')).toThrow(RangeError);
+  });
+
+  it('asOf 는 산출물(HTML·ws-data·카탈로그·manifest·sitemap)에 쓰이지 않는다', () => {
+    const asOf = '2026-12-25';
+    const all = [...build(promoted(), true, asOf).files.values()].join('\n');
+    expect(all).not.toContain(asOf);
+  });
+});
+
 describe('입력 검증', () => {
   it('seedDigest 형식이 아니면 throw', () => {
-    expect(() => buildSite(realSeed(), { template: TEMPLATE, origin: ORIGIN, seedDigest: 'x' })).toThrow();
+    expect(() => buildSite(realSeed(), { template: TEMPLATE, origin: ORIGIN, seedDigest: 'x', asOf: FIXTURE_AS_OF })).toThrow();
   });
   it('slug 가 예약 세그먼트면 throw(검증 우회 방지)', () => {
     const s = promoted();

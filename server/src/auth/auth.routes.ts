@@ -23,9 +23,9 @@ function refreshExpiry(): Date {
   return new Date(Date.now() + REFRESH_TTL_MS);
 }
 
-// 보안(H1): 공개 register 는 body.role 을 무시하고 항상 최저 권한으로 생성한다.
-//   운영자 등 상위 역할은 repo 직접 생성/운영 절차로만 부여(역할 체계 개편은 R5).
-const SELF_REGISTER_ROLE: Role = '구매자';
+// 보안(H1): 공개 register 는 body.role 을 무시하고 항상 최저 권한(USER)으로 생성한다.
+//   OPERATOR 는 repo 직접 생성/운영 절차로만 부여(R4 D7 역할 USER|OPERATOR, refresh 키 정리는 R5).
+const SELF_REGISTER_ROLE: Role = 'USER';
 
 function isNonEmptyString(x: unknown): x is string {
   return typeof x === 'string' && x.length > 0;

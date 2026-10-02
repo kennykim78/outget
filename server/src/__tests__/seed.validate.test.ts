@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
+import { isPhotoUsable } from '../engine/index.js';
 import { lintText, numbersWithoutUnit, sentenceCount } from '../seed/lint.js';
 import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
@@ -23,6 +24,19 @@ function row(s: RawSeed, key: SeedKey, id: string): Rec {
   const r = (s[key] ?? []).find((x) => (x as Rec).id === id);
   if (!r) throw new Error(`fixture: ${key}#${id} 없음`);
   return r as Rec;
+}
+
+/** enum 라벨 자리표시(메모리, 표기일 뿐 사실 아님) — W-OPTLABEL 게이트 통과용. */
+function labelEnums(item: Rec): void {
+  const fields = (item.specSchema as { fields: Array<Record<string, unknown>> }).fields;
+  for (const f of fields) {
+    if (f.type === 'enum') f.optionLabels = Object.fromEntries((f.options as string[]).map((o, i) => [o, `픽스처 라벨 ${i + 1}`]));
+  }
+}
+
+/** enum 라벨 제거(메모리) — 라벨 누락 게이트 검증용. */
+function unlabelEnums(item: Rec): void {
+  for (const f of (item.specSchema as { fields: Array<Record<string, unknown>> }).fields) delete f.optionLabels;
 }
 
 function verify(r: Rec, reviewerType = 'EXPERIENCED_KEEPER'): void {
@@ -70,7 +84,7 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 16 = W-EXPOSURE-ZERO 1 · L03 9(caution 7 + 번들 note 단위 2) · L02 2 · L05 4 (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 16 = W-EXPOSURE-ZERO 1 · L03 9(caution 7 + 번들 note 단위 2) · L02 2 · L05 4 · W-OPTLABEL 0(CU 라벨 입력 후) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
@@ -326,14 +340,95 @@ const CASES: Case[] = [
         license: 'CC_BY',
         author: null,
         sourceUrl: 'https://commons.wikimedia.org/wiki/File:x.jpg',
+        licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
         downloadedAt: '2026-09-30',
       });
     },
   },
+  ...([
+    ['sourceUrl http', { sourceUrl: 'http://commons.wikimedia.org/wiki/File:x.jpg' }],
+    ['sourceUrl 점 없는 호스트', { sourceUrl: 'https://localhost/x.jpg' }],
+    ['sourceUrl 호스트만 한 단어', { sourceUrl: 'https://x' }],
+    ['downloadedAt 2026-02-30', { downloadedAt: '2026-02-30' }],
+    ['downloadedAt 0999-01-01', { downloadedAt: '0999-01-01' }],
+  ] as const).map(([what, p]) => ({
+    name: `I01 ${what} — engine isPhotoUsable 과 같은 엄격도`,
+    rule: 'I01',
+    // 달력상 없는 날짜는 S07(날짜 형식)도 함께 보고된다(문서화된 동반 규칙).
+    ...(what === 'downloadedAt 2026-02-30' ? { also: ['S07'] } : {}),
+    inject: (s: Required<RawSeed>) => {
+      Object.assign(row(s, 'photos', 'ph-01'), {
+        status: 'READY',
+        source: 'WIKIMEDIA',
+        license: 'CC0',
+        author: null,
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:x.jpg',
+        downloadedAt: '2026-09-30',
+        ...p,
+      });
+    },
+  })),
+  ...(['ACTIVE', 'ready', ''] as const).map((status) => ({
+    name: `I01 사진 status 허용목록 밖(${JSON.stringify(status)}) — S-R4 L-E`,
+    rule: 'I01',
+    inject: (s: Required<RawSeed>) => {
+      Object.assign(row(s, 'photos', 'ph-01'), {
+        status,
+        source: 'WIKIMEDIA',
+        license: 'CC0',
+        author: null,
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:x.jpg',
+        downloadedAt: '2026-09-30',
+      });
+    },
+  })),
+  ...([
+    ['CC_BY licenseUrl 없음', 'CC_BY', undefined],
+    ['CC_BY licenseUrl null', 'CC_BY', null],
+    ['CC_BY 에 by-sa 증서', 'CC_BY', 'https://creativecommons.org/licenses/by-sa/4.0/'],
+    ['CC_BY_SA 허용목록 밖 호스트', 'CC_BY_SA', 'https://creativecommons.org.evil.example/licenses/by-sa/4.0/'],
+    ['SITE_LICENSE 에 허용목록 밖 licenseUrl', 'SITE_LICENSE', 'https://unsplash.com/license'],
+  ] as const).map(([what, license, licenseUrl]) => ({
+    name: `I02 ${what}`,
+    rule: 'I02',
+    inject: (s: Required<RawSeed>) => {
+      const p = Object.assign(row(s, 'photos', 'ph-01'), {
+        status: 'READY',
+        source: 'WIKIMEDIA',
+        license,
+        author: 'Fixture Author',
+        sourceUrl: 'https://commons.wikimedia.org/wiki/File:x.jpg',
+        downloadedAt: '2026-09-30',
+      });
+      if (licenseUrl !== undefined) p.licenseUrl = licenseUrl;
+    },
+  })),
   { name: 'L01 why 금지어', rule: 'L01', inject: (s) => { row(s, 'supplyRequirements', 'req-syrian-cage').why = '최저가로 고르면 돼요.'; } },
   { name: 'L01 전문가 N명', rule: 'L01', inject: (s) => { row(s, 'supplyItems', 'cage').description = '전문가 4명이 검토한 기준.'; } },
   { name: 'L04 avoid 자리표시자', rule: 'L04', inject: (s) => { row(s, 'supplyRequirements', 'req-syrian-water').avoid = '—'; } },
 ];
+
+// 검증 통과 ⇔ 노출 가능(사진): non-SLOT 사진이 I01·I02 오류 0 이면 engine isPhotoUsable 도 true, 오류가 있으면 false.
+describe('seed:validate I01·I02 ↔ engine isPhotoUsable 일치(사진이 통과하고 조용히 안 보이는 일 없음)', () => {
+  const base = {
+    status: 'READY', source: 'WIKIMEDIA', license: 'CC_BY', author: 'A',
+    sourceUrl: 'https://commons.wikimedia.org/wiki/File:x.jpg', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/', downloadedAt: '2026-09-30',
+  };
+  const variants: Array<Record<string, unknown>> = [
+    {}, { sourceUrl: 'http://e.org/x' }, { sourceUrl: 'https://localhost/x' }, { sourceUrl: 'https://x' }, { sourceUrl: 'https://e.org' },
+    { sourceUrl: 'https://e.org/a b' }, { sourceUrl: 'HTTPS://e.org/x' }, { sourceUrl: null },
+    { downloadedAt: '2026-02-30' }, { downloadedAt: '2026-9-30' }, { downloadedAt: '0999-01-01' }, { downloadedAt: null },
+    { status: 'ACTIVE' }, { license: 'CC0', author: null, licenseUrl: null }, { licenseUrl: null }, { licenseUrl: 'https://creativecommons.org/licenses/by/9.9/' },
+    { author: null }, { source: '' }, { license: 'SITE_LICENSE', licenseUrl: null },
+  ];
+  it.each(variants.map((v) => [JSON.stringify(v), v] as const))('%s', (_n, v) => {
+    const s = fresh();
+    const p = Object.assign(row(s, 'photos', 'ph-01'), base, v);
+    const res = validateSeed(s, { now: NOW });
+    const photoErrs = res.errors.filter((i) => i.file === 'photos.json' && (i.rule === 'I01' || i.rule === 'I02' || i.rule === 'S03'));
+    expect(photoErrs.length === 0, JSON.stringify(photoErrs.map((i) => `${i.rule} ${i.path}`))).toBe(isPhotoUsable(p as never));
+  });
+});
 
 describe('seed:validate — 규칙별 주입', () => {
   for (const c of CASES) {
@@ -368,9 +463,11 @@ describe('seed:validate — 규칙별 주입', () => {
   });
 
   /** golden 체인(요구사항·용품·프로필[·동물]) VERIFIED + cp-004(철망 60×40, 간격 9mm) ACTIVE·VERIFIED 승격. 메모리 복사본만. */
-  function promoteGoldenChain(s: Required<RawSeed>, opts: { animalType: boolean }): void {
+  function promoteGoldenChain(s: Required<RawSeed>, opts: { animalType: boolean; labels?: boolean }): void {
     verify(row(s, 'supplyRequirements', 'req-syrian-cage'));
     verify(row(s, 'supplyItems', 'cage'));
+    if (opts.labels !== false) labelEnums(row(s, 'supplyItems', 'cage'));
+    else unlabelEnums(row(s, 'supplyItems', 'cage'));
     verify(row(s, 'careProfiles', 'cp-hamster-syrian'));
     if (opts.animalType) verify(row(s, 'animalTypes', 'hamster-golden'));
     const p = row(s, 'curatedProducts', 'cp-004');
@@ -395,6 +492,32 @@ describe('seed:validate — 규칙별 주입', () => {
     expect(res.summary.products).toBe(1);
     expect(warnRules(res)).not.toContain('W-EXPOSURE-ZERO');
     expect(warnRules(res)).not.toContain('W-COHERENCE');
+  });
+
+  // G7(스펙22 §4-3): 노출 요구사항이 조건으로 쓰는 enum 필드에 라벨이 없으면 ERROR, 비노출이면 WARN.
+  it('W-OPTLABEL: 승격 체인의 enum 라벨 누락 → ERROR(노출 조건 필드), 노출 전이면 WARN', () => {
+    const s = fresh();
+    promoteGoldenChain(s, { animalType: true, labels: false });
+    const res = validateSeed(s, { now: NOW });
+    const errs = res.errors.filter((i) => i.rule === 'W-OPTLABEL');
+    expect(errs.map((i) => `${i.id} ${i.path}`)).toContain('cage specSchema.type.optionLabels');
+    const draft = fresh();
+    promoteGoldenChain(draft, { animalType: false, labels: false });
+    const res2 = validateSeed(draft, { now: NOW });
+    expect(res2.errors).toEqual([]);
+    expect(res2.warnings.filter((i) => i.rule === 'W-OPTLABEL' && i.id === 'cage').length).toBeGreaterThan(0);
+  });
+
+  it('W-OPTLABEL: 라벨을 다 달면 통과, 노출 조건 필드의 라벨이 하나라도 빠지면 ERROR', () => {
+    const s = fresh();
+    promoteGoldenChain(s, { animalType: true });
+    const res = validateSeed(s, { now: NOW });
+    expect(res.errors).toEqual([]);
+    const cage = row(s, 'supplyItems', 'cage') as { specSchema: { fields: Array<Record<string, unknown>> } };
+    const typeField = cage.specSchema.fields.find((f) => f.key === 'type') as { optionLabels: Record<string, string> };
+    delete typeField.optionLabels.WIRE;
+    const res2 = validateSeed(s, { now: NOW });
+    expect(res2.errors.map((i) => i.rule)).toContain('W-OPTLABEL');
   });
 
   it('같은 승격이지만 hamster-golden DRAFT → 타입 0·상품 0 (M1: 동물 미검수면 상품도 비노출, A6 회귀)', () => {

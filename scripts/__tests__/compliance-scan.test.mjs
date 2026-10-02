@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCANNER = resolve(HERE, '..', 'compliance-scan.mjs');
 const j = (...parts) => parts.join('');
+/** 노출 기준일 — 고정(실시계 결합 0, F14). meta().verifiedAt + 1일. */
+const FIXED_NOW = '2026-10-01';
 
 // ── 조립 문자열(소스에 위반 리터럴 0) ─────────────────────────
 const HTTPS = j('htt', 'ps://');
@@ -260,8 +262,10 @@ async function makeRoot({ source, seed, output, manifest } = {}) {
   return root;
 }
 
+/** --now 를 주지 않으면 FIXED_NOW. */
 function scan(root, ...flags) {
-  const r = spawnSync(process.execPath, [SCANNER, '--root', root, '--json', ...flags], { encoding: 'utf8' });
+  const now = flags.includes('--now') ? [] : ['--now', FIXED_NOW];
+  const r = spawnSync(process.execPath, [SCANNER, '--root', root, '--json', ...now, ...flags], { encoding: 'utf8' });
   let json = null;
   try {
     json = JSON.parse(r.stdout);
@@ -326,7 +330,7 @@ test('설정 오류: banned-words.json 형식 오류 → exit 2', async () => {
 
 test('사람용 출력: 위반 시 FAIL 요약 + 파일:라인', async () => {
   const root = await makeRoot({ source: (s) => { s['client/src/x.ts'] = j('const a = 1;\n', FETCH, '("', HTTPS, 'shop.ex/p");\n'); } });
-  const r = spawnSync(process.execPath, [SCANNER, '--root', root], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [SCANNER, '--root', root, '--now', FIXED_NOW], { encoding: 'utf8' });
   assert.equal(r.status, 1);
   assert.match(r.stdout, /FAIL C1-FETCH client\/src\/x\.ts:2/);
 });
@@ -516,6 +520,60 @@ test('C3-OUT-ID: AI_DRAFT 를 VERIFIED 로 표시한 타입은 비노출', async
   expectFail(res, 'C3-OUT-ROUTE');
 });
 
+// M-1(R4 A1): --now = 노출 기준일. meta().verifiedAt 2026-09-30 + 180 = 2027-03-29(노출), + 181 = 2027-03-30(강등).
+test('C3-OUT-ID: --now 기준 180일 이내 노출, 181일째 산출물에 남은 타입·상품은 FAIL', async () => {
+  const root = await makeRoot({ output: noop });
+  const fresh = scan(root, '--now', '2027-03-29');
+  expectClean(fresh);
+  assert.equal(fresh.json.asOf, '2027-03-29');
+  assert.equal(fresh.json.exposed.animalTypes, 1);
+  const stale = scan(root, '--now', '2027-03-30');
+  expectFail(stale, 'C3-OUT-ID');
+  expectFail(stale, 'C3-OUT-ROUTE');
+  assert.equal(stale.json.exposed.animalTypes, 0);
+  assert.equal(stale.json.exposed.curatedProducts, 0);
+});
+
+test('C3-OUT-ID: 체인의 CareProfile 하나만 오래돼도 비노출(fail-closed)', async () => {
+  const res = scan(await makeRoot({ seed: (d) => { d['care-profiles.json'][0].verifiedAt = '2026-03-31'; }, output: noop }));
+  expectFail(res, 'C3-OUT-ID');
+  assert.equal(res.json.exposed.animalTypes, 0);
+});
+
+test('C3-OUT-ID: verifiedAt 누락·미래 날짜는 비노출', async () => {
+  for (const v of [null, '2026-10-02', '2026-02-30']) {
+    const res = scan(await makeRoot({ seed: (d) => { d['curated-products.json'][0].verifiedAt = v; }, output: noop }));
+    expectFail(res, 'C3-OUT-ID');
+  }
+});
+
+test('--now 형식 오류 → exit 2, 생략 시 로컬 오늘(YYYY-MM-DD)', async () => {
+  const root = await makeRoot();
+  for (const bad of ['2026-1-1', '2026-02-30', 'today']) assert.equal(scan(root, '--now', bad).code, 2, bad);
+  const r = spawnSync(process.execPath, [SCANNER, '--root', root, '--json'], { encoding: 'utf8' });
+  assert.match(JSON.parse(r.stdout).asOf, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('--now 기본값 = 오늘(Asia/Seoul), 러너 TZ 무관(S-R4 L-A)', async () => {
+  const { seoulToday } = await import('../lib/dates.mjs');
+  assert.equal(seoulToday(new Date('2026-10-01T14:59:59Z')), '2026-10-01');
+  assert.equal(seoulToday(new Date('2026-10-01T15:00:00Z')), '2026-10-02');
+  const root = await makeRoot();
+  for (const tz of ['UTC', 'America/Los_Angeles', 'Pacific/Kiritimati']) {
+    const before = seoulToday();
+    const r = spawnSync(process.execPath, [SCANNER, '--root', root, '--json'], { encoding: 'utf8', env: { ...process.env, TZ: tz } });
+    const after = seoulToday();
+    assert.ok([before, after].includes(JSON.parse(r.stdout).asOf), `${tz}: ${JSON.parse(r.stdout).asOf} ≠ ${before}`);
+  }
+});
+
+test('STALE_DAYS(mjs) = 180, computeExposure 는 asOf 필수', async () => {
+  const mod = await import('../lib/seed-exposure.mjs');
+  assert.equal(mod.STALE_DAYS, 180);
+  assert.throws(() => mod.computeExposure({}, undefined), RangeError);
+  assert.throws(() => mod.computeExposure({}, '2026-1-1'), RangeError);
+});
+
 test('C3-OUT-ID: 알 수 없는 reviewerType(블록리스트 아님, rank ≥ OPERATOR 허용목록)', async () => {
   for (const bad of ['HUMAN', '', null]) {
     const res = scan(await makeRoot({ seed: (d) => { d['curated-products.json'][0].reviewerType = bad; }, output: noop }));
@@ -611,11 +669,29 @@ test('C4-BANNED: 제외 필드(id·url·source.title·verifiedBy·photos.query)�
   expectClean(res);
 });
 
-test('C4-CODE: 코드 리터럴 금지어는 WARN(R3, exit 0)', async () => {
+test('C4-CODE: client tsx 코드 리터럴 금지어는 FAIL(R4, exit 1)', async () => {
   const src = j('export const Login = () => <button>', KO.signup, "</button>;\nexport const t = '", KO.purchase, "';\n");
   const res = scan(await makeRoot({ source: (s) => { s['client/src/auth/LoginView.tsx'] = src; } }));
+  expectFail(res, 'C4-CODE');
+  assert.ok(rulesOf(res, 'FAIL').filter((r) => r === 'C4-CODE').length >= 2);
+});
+
+test('C4-CODE: server ts 문자열 리터럴 금지어는 FAIL(R4, exit 1)', async () => {
+  const src = j("export const msg = '", KO.best, "';\n");
+  expectFail(scan(await makeRoot({ source: (s) => { s['server/src/msg.ts'] = src; } })), 'C4-CODE');
+});
+
+test('C4-CODE: *.test.* · seed/lint.ts · banned-words.json 안의 금지어는 제외', async () => {
+  const src = j("export const msg = '", KO.best, "';\n");
+  const res = scan(await makeRoot({
+    source: (s) => {
+      s['client/src/a.test.tsx'] = src;
+      s['server/src/__tests__/b.test.ts'] = src;
+      s['server/src/seed/lint.ts'] = src;
+    },
+  }));
   expectClean(res);
-  assert.ok(rulesOf(res, 'WARN').filter((r) => r === 'C4-CODE').length >= 2);
+  assert.ok(!rulesOf(res).includes('C4-CODE'));
 });
 
 // ── C5 위치 ─────────────────────────────────────────────────
@@ -644,13 +720,24 @@ test('C5-GEO: 클라 메모리 사용(전송·영속 없음)은 통과', async (
 });
 
 // ── C6 이미지 ───────────────────────────────────────────────
+const CC_BY_URL = j(HTTPS, 'creativecommons.org/licenses/by/4.0/');
 const ccByPhoto = (over = {}) => ({
   id: 'ph-02', scene: 'x', slot: 'intro-2', query: 'q', source: 'Wikimedia Commons', license: 'CC_BY', author: 'Jane',
-  sourceUrl: j(HTTPS, 'commons.example.org/p.jpg'), downloadedAt: '2026-09-30', modified: false, status: 'READY', ...over,
+  sourceUrl: j(HTTPS, 'commons.example.org/p.jpg'), licenseUrl: CC_BY_URL, downloadedAt: '2026-09-30', modified: false, status: 'READY', ...over,
 });
+/** S1 M-3 — /credits 항목(저작자·증서 링크). */
+const CREDIT_ITEM = j('<ul class="ws-credits"><li class="ws-credit" data-ws-id="photos#ph-02"><p>x</p><p>저작자: Jane</p><p>라이선스: <a href="', CC_BY_URL, '" target="_blank" rel="noopener noreferrer nofollow">CC BY 4.0</a></p></li></ul>');
+const creditsPage = (o) => o['index.html'].replace('</main>', `${CREDIT_ITEM}</main>`);
 
 test('C6-IMG: CC_BY 사진 author 없음', async () => {
   expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ author: null })); } })), 'C6-IMG');
+});
+
+test('C6-IMG·C1-SEEDURL: CC_BY licenseUrl 없음·종류 불일치 → C6, 허용목록 밖 licenseUrl → C1-SEEDURL', async () => {
+  expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ licenseUrl: null })); } })), 'C6-IMG');
+  expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ licenseUrl: j(HTTPS, 'creativecommons.org/licenses/by-sa/4.0/') })); } })), 'C6-IMG');
+  expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ licenseUrl: j(HTTPS, 'evil.example/licenses/by/4.0/') })); } })), 'C1-SEEDURL');
+  expectClean(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto()); } })));
 });
 
 test('C6-IMG: 라이선스 허용 외 값·http sourceUrl', async () => {
@@ -675,7 +762,7 @@ test('C6-IMG: CC_BY 사진 + /credits 페이지 + 모든 페이지 링크 → �
     seed: (d) => { d['photos.json'].push(ccByPhoto()); },
     output: (o) => {
       for (const k of Object.keys(o)) if (k.endsWith('.html')) o[k] = o[k].replace('</footer>', '<a href="/credits">사진 출처</a></footer>');
-      o['credits/index.html'] = o['index.html'];
+      o['credits/index.html'] = creditsPage(o);
     },
     manifest: (dg) => {
       const m = manifestFor(dg);
@@ -686,13 +773,46 @@ test('C6-IMG: CC_BY 사진 + /credits 페이지 + 모든 페이지 링크 → �
   expectClean(res);
 });
 
+// S1 M-3(R4 A2): /credits 항목에 같은 종류의 증서 링크, CC BY 인데 licenseUrl 없으면 사용 불가.
+test('C6-IMG: /credits 에 CC BY 항목·증서 링크 없음 → 실패', async () => {
+  const f = creditsFixture();
+  const out = f.output;
+  f.output = (o) => { out(o); o['credits/index.html'] = o['index.html']; };
+  expectFail(scan(await makeRoot(f)), 'C6-IMG');
+  const g = creditsFixture();
+  const out2 = g.output;
+  g.output = (o) => { out2(o); o['credits/index.html'] = o['credits/index.html'].replace(CC_BY_URL, j(HTTPS, 'creativecommons.org/licenses/by-sa/4.0/')); };
+  expectFail(scan(await makeRoot(g)), 'C6-IMG');
+});
+
+test('C3-OUT-ID: CC_BY 사진에 licenseUrl 없거나 허용목록 밖이면 비노출 — /credits 에 남으면 실패', async () => {
+  for (const licenseUrl of [null, j(HTTPS, 'creativecommons.org.evil.example/licenses/by/4.0/'), j(HTTPS, 'creativecommons.org/licenses/by-sa/4.0/')]) {
+    const f = creditsFixture();
+    f.seed = (d) => { d['photos.json'].push(ccByPhoto({ licenseUrl })); };
+    expectFail(scan(await makeRoot(f)), 'C3-OUT-ID');
+  }
+});
+
+test('C3-OUT-ROUTE: /credits 는 사진 0이어도 존재 가능(R4 D6), 단 indexable 이면 실패', async () => {
+  const mk = (indexable) => makeRoot({
+    output: (o) => { o['credits/index.html'] = o['index.html']; },
+    manifest: (dg) => {
+      const m = manifestFor(dg);
+      m.routes.push({ path: '/credits', file: 'credits/index.html', kind: 'CREDITS', indexable });
+      return m;
+    },
+  });
+  expectClean(scan(await mk(false)));
+  expectFail(scan(await mk(true)), 'C3-OUT-ROUTE');
+});
+
 // D1(Q1): credits 링크 규칙은 manifest 라우트 파일에만 — SPA 셸·비라우트 HTML 제외.
 function creditsFixture({ dropLinkFrom = null } = {}) {
   return {
     seed: (d) => { d['photos.json'].push(ccByPhoto()); },
     output: (o) => {
       for (const k of Object.keys(o)) if (k.endsWith('.html') && k !== dropLinkFrom) o[k] = o[k].replace('</footer>', '<a href="/credits">사진 출처</a></footer>');
-      o['credits/index.html'] = o['index.html'];
+      o['credits/index.html'] = creditsPage(o);
       o['404.html'] = o['index.html'];
       o['shell.html'] = '<!doctype html><html lang="ko"><head><title>WithSmall</title></head><body><div id="root"></div><script type="module" src="/assets/index-abc.js"></script></body></html>';
     },

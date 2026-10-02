@@ -10,6 +10,8 @@ export {
   evaluateProductStage,
   evaluateRuleSet,
   findField,
+  hasCompleteOptionLabels,
+  optionLabel,
   readSpecValue,
   sanitizeSpecValues,
   splitLabel,
@@ -25,15 +27,19 @@ export {
   isAnimalTypeExposable,
   isBundleExposable,
   isCompatRuleExposable,
+  isFresh,
+  PHOTO_USABLE_STATUSES,
   isPhotoUsable,
+  parseCcLicenseUrl,
   isProductExposable,
   isRequirementExposable,
   isTestimonialExposable,
+  isTestimonialPublic,
   isVerified,
   isVetListed,
   isVetStatusListed,
   orderExposableProducts,
 } from './exposure.js';
-export type { ExposableProduct, ProductForExposure } from './exposure.js';
+export type { CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
 export { buildSearchLinks, type SearchLink, type SearchProvider } from './search-links.js';
 export * from './public.js';

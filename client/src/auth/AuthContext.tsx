@@ -16,7 +16,7 @@ export interface AuthState {
 export interface AuthContextValue extends AuthState {
   /** 로그인 → 토큰 저장 → /auth/me 로 사용자 확정. */
   login: (email: string, password: string) => Promise<void>;
-  /** 회원가입 → 토큰 저장 → /auth/me 로 사용자 확정. */
+  /** 가입 → 토큰 저장 → /auth/me 로 사용자 확정. */
   register: (email: string, password: string, role: Role) => Promise<void>;
   /** 로그아웃 — 토큰 제거 + 상태 anon. */
   logout: () => void;

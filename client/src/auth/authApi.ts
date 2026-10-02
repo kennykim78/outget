@@ -5,13 +5,8 @@
 //   - 토큰 리터럴 하드코딩 0 — 인자/응답 값만 다룬다.
 //   - 좌표·결제·정산 필드 없음(인증 본문은 자격증명·역할뿐).
 
-// 서버 역할 5종(미러). 서버 권위 — 클라는 표시·게이팅에만 사용.
-export type Role =
-  | '구매자'
-  | '개인대행자'
-  | '전문대행자'
-  | '소식알림자'
-  | '운영자';
+// 서버 역할(미러, D7). 서버 권위 — 클라는 표시·게이팅에만 사용.
+export type Role = 'USER' | 'OPERATOR';
 
 // 자사 인증 상대 경로(절대 URL 금지).
 const LOGIN_PATH = '/auth/login';
@@ -24,7 +19,7 @@ const JSON_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-/** 로그인/회원가입 응답 — 토큰 + 역할. */
+/** 로그인/가입 응답 — 토큰 + 역할. */
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -42,7 +37,7 @@ export interface AuthMe {
   role: Role;
 }
 
-// HTTP 상태를 보존하는 에러 — 호출부(LoginView)가 401/409/400 을 매핑한다.
+// HTTP 상태를 보존하는 에러 — 호출부가 401/409/400 을 매핑한다.
 export class AuthError extends Error {
   status: number;
   constructor(status: number, message?: string) {
@@ -67,7 +62,7 @@ export function login(email: string, password: string): Promise<AuthTokens> {
   return postJson<AuthTokens>(LOGIN_PATH, { email, password });
 }
 
-/** 회원가입(POST /auth/register). 자격증명 + 역할. */
+/** 가입(POST /auth/register). 자격증명 + 역할. */
 export function register(
   email: string,
   password: string,

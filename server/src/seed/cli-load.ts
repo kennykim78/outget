@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import type { PrismaClient } from '@prisma/client';
 import { checkProfileMinSpec, createCatalog } from '../engine/index.js';
 import type { SpecValues } from '../engine/index.js';
+import { seoulToday } from '../prerender/cli.js';
 import { asSeedBundle, formatIssue, isIsoDate } from './common.js';
 import { DEFAULT_SEED_DIR } from './cli-validate.js';
 import { applyWrites, readback } from './load.js';
@@ -100,12 +101,6 @@ export async function runLoadCli(argv: readonly string[], io: LoadCliIo): Promis
   return 0;
 }
 
-function localToday(): string {
-  const d = new Date();
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
 /** 직접 실행될 때만(테스트 import 시 실행 안 됨). */
 function isMain(): boolean {
   const entry = process.argv[1];
@@ -120,7 +115,7 @@ if (isMain()) {
     process.exitCode = await runLoadCli(process.argv.slice(2), {
       stdout: (l) => process.stdout.write(`${l}\n`),
       stderr: (l) => process.stderr.write(`${l}\n`),
-      today: localToday,
+      today: () => seoulToday(),
       prisma: async () => {
         const { PrismaClient: Ctor } = await import('@prisma/client');
         client = new Ctor();

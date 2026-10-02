@@ -16,6 +16,15 @@ const FIXTURE_SOURCE = [{ url: 'https://example.org/fixture-source', title: 'fix
 
 export const V = { reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', verifiedBy: 'keeper-hidden-name', verifiedAt: '2026-09-30' } as const;
 
+/**
+ * 노출 기준일(asOf) — 승격 픽스처를 쓰는 모든 테스트는 이 고정값을 프리렌더 --now·buildSite asOf·computeExposure 에 넣는다.
+ *   실시계(io.today·localToday)와 결합 금지(F14 시한폭탄: V.verifiedAt + 180일 = 2027-03-29 이후 강등).
+ */
+export const FIXTURE_AS_OF = '2026-10-01';
+/** V.verifiedAt + 180일(마지막 노출일) / + 181일(강등 첫날). */
+export const FIXTURE_LAST_FRESH = '2027-03-29';
+export const FIXTURE_FIRST_STALE = '2027-03-30';
+
 export type Row = Record<string, unknown>;
 export function patch(seed: SeedBundle, key: keyof SeedBundle, id: string, p: Row): void {
   const row = (seed[key] as unknown as Row[]).find((r) => r.id === id);
@@ -29,7 +38,10 @@ export function promoted(opts: { typeDraft?: boolean } = {}): SeedBundle {
   patch(s, 'animalTypes', 'hamster-golden', opts.typeDraft ? {} : { ...V });
   patch(s, 'careProfiles', 'cp-hamster-syrian', { ...V });
   for (const id of ['req-syrian-cage', 'req-syrian-wheel']) patch(s, 'supplyRequirements', id, { ...V });
-  for (const id of ['cage', 'wheel']) patch(s, 'supplyItems', id, { ...V });
+  for (const id of ['cage', 'wheel']) {
+    patch(s, 'supplyItems', id, { ...V });
+    labelEnums(s, id);
+  }
   patch(s, 'curatedProducts', 'cp-001', {
     ...V,
     status: 'ACTIVE',
@@ -51,6 +63,7 @@ export function promoted(opts: { typeDraft?: boolean } = {}): SeedBundle {
     license: 'CC_BY',
     author: 'Fixture Author',
     sourceUrl: 'https://commons.wikimedia.org/wiki/File:Fixture.jpg',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
     downloadedAt: '2026-09-27',
     status: 'READY',
   });
@@ -58,6 +71,17 @@ export function promoted(opts: { typeDraft?: boolean } = {}): SeedBundle {
   return s;
 }
 
+
+/**
+ * enum 표시 라벨(메모리, W-OPTLABEL 게이트 통과용) — 자리표시 "픽스처 라벨 N". 표기일 뿐 규격 사실이 아니다.
+ */
+export function labelEnums(seed: SeedBundle, itemId: string): void {
+  const item = seed.supplyItems.find((x) => x.id === itemId);
+  if (!item) throw new Error(`fixture: supplyItems#${itemId} 없음`);
+  for (const f of item.specSchema.fields) {
+    if (f.type === 'enum') f.optionLabels = Object.fromEntries(f.options.map((o, i) => [o, `픽스처 라벨 ${i + 1}`]));
+  }
+}
 
 /** 시드 묶음을 디렉터리에 JSON 으로 쓴다(CLI·spa 테스트용 임시 시드). */
 export function writeSeedDir(dir: string, seed: SeedBundle): void {

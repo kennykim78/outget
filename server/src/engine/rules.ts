@@ -65,9 +65,27 @@ export function splitLabel(label: string): { base: string; unit: string } {
   return m ? { base: m[1], unit: m[2] } : { base: label, unit: '' };
 }
 
+/**
+ * enum 값의 표시 라벨(단일 헬퍼 — 프리렌더 specLine·ruleText·L5 폼, 클라이언트 공용, 스펙22 §4-3).
+ *   enum 필드 ∧ options 에 있는 값 ∧ optionLabels 에 비어 있지 않은 자기 속성 라벨일 때만 라벨, 아니면 null.
+ *   null 이면 호출부는 원시 코드를 보여 주지 않는다(규격 한 줄 생략·조건 행 숨김·폼 필드 미렌더).
+ */
+export function optionLabel(field: SpecField | undefined, value: unknown): string | null {
+  if (!field || field.type !== 'enum' || typeof value !== 'string' || !field.options.includes(value)) return null;
+  const labels = field.optionLabels;
+  if (!labels || typeof labels !== 'object' || !Object.prototype.hasOwnProperty.call(labels, value)) return null;
+  const l = labels[value];
+  return typeof l === 'string' && l.trim() !== '' ? l : null;
+}
+
+/** enum 필드의 모든 option 에 라벨이 있는가(L5 폼 렌더 조건 · seed:validate W-OPTLABEL). enum 이 아니면 true. */
+export function hasCompleteOptionLabels(field: SpecField): boolean {
+  return field.type !== 'enum' || field.options.every((o) => optionLabel(field, o) !== null);
+}
+
 function showValue(field: SpecField | undefined, v: SpecValue): string {
   if (field?.type === 'number' && typeof v === 'number') return `${v}${splitLabel(field.label).unit}`;
-  if (field?.type === 'enum' && typeof v === 'string') return field.optionLabels?.[v] ?? v;
+  if (field?.type === 'enum' && typeof v === 'string') return optionLabel(field, v) ?? v;
   if (typeof v === 'boolean') return v ? '있음' : '없음';
   return String(v);
 }

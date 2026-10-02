@@ -34,7 +34,7 @@ jobs:
 
       # 컴플라이언스/시크릿 스캔 — 가장 먼저, 빠른 실패. 5 불변식 강제 장치.
       - name: Compliance & secret scan
-        run: node scripts/compliance-scan.mjs
+        run: node scripts/compliance-scan.mjs --now "$(TZ=Asia/Seoul date +%F)"
 
       - name: Seed review transition guard (M4)
         if: github.event_name == 'pull_request'
@@ -46,6 +46,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Design tokens in sync
+        run: node scripts/gen-tokens.mjs --check
+
       - name: Typecheck (client)
         run: npm run typecheck --workspace client
 
@@ -56,7 +59,7 @@ jobs:
         run: npm run build
 
       - name: Compliance (prerender output)
-        run: npm run compliance:out
+        run: node scripts/compliance-scan.mjs --require-output --now "$(TZ=Asia/Seoul date +%F)"
 
       - name: Test (client)
         run: npm test --workspace client

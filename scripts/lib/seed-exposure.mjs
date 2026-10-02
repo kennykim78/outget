@@ -3,6 +3,8 @@
 //   애매하면 비노출(fail-closed) — 엔진보다 넓게 허용하는 쪽으로 틀리면 안 된다.
 //
 //   verified(r)        = reviewStatus === 'VERIFIED' ∧ rank(reviewerType) ≥ rank(OPERATOR)   (AI_DRAFT·미지값 제외)
+//                        ∧ fresh(r, asOf): verifiedAt 달력 날짜 ∧ 0 ≤ (asOf − verifiedAt) ≤ STALE_DAYS(180)   (M-1, R4 D5)
+//                        computeExposure(seed, asOf) — asOf 필수(YYYY-MM-DD 아니면 RangeError). 아래 "verified" 는 전부 이 뜻.
 //   careProfile        = verified
 //   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified
 //   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ verified(r) ∧ item verified
@@ -15,8 +17,9 @@
 //   compatibilityRule  = verified ∧ a·b 둘 다 노출 item
 //   taxon              = verified ∧ 노출 type 이 참조
 //   vetClinic          = verification.status === 'VERIFIED'
-//   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true
-//   photo              = status ≠ SLOT ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
+//   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
+//   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
+//                        ∧ (CC_BY·CC_BY_SA → licenseUrl 이 같은 종류의 creativecommons.org 증서, M-3)
 //   같은 id 가 여러 행이면 전부 노출일 때만 노출.
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -48,11 +51,62 @@ export function isVerifiedRow(r) {
   return isObj(r) && r.reviewStatus === 'VERIFIED' && REVIEWER_RANK.indexOf(r.reviewerType) >= REVIEWER_RANK.indexOf('OPERATOR');
 }
 
+/** 검수 유효 일수 — server/src/engine/domain.ts STALE_DAYS 와 같아야 한다(패리티 테스트 engine.exposure.parity). */
+export const STALE_DAYS = 180;
+
+/** YYYY-MM-DD(달력상 존재) → 정수 일 번호, 아니면 null. 엔진과 독립 구현(Date 왕복 검사). */
+export function dayNumber(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const [y, m, d] = v.split('-').map(Number);
+  if (y < 1000) return null;
+  const t = Date.UTC(y, m - 1, d);
+  const back = new Date(t);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== m - 1 || back.getUTCDate() !== d) return null;
+  return t / 86_400_000;
+}
+
+/** verifiedAt 이 asOfDay 기준 0~STALE_DAYS 일 전. 누락·형식 오류·미래는 false(fail-closed). */
+export function isFreshRow(r, asOfDay) {
+  if (!isObj(r)) return false;
+  const v = dayNumber(r.verifiedAt);
+  if (v === null) return false;
+  const age = asOfDay - v;
+  return age >= 0 && age <= STALE_DAYS;
+}
+
+/**
+ * CC 증서 URL(독립 구현, S1 M-3): https://creativecommons.org/licenses/(by|by-sa)/(2.0|2.5|3.0|4.0)/[deed.xx] → 'CC_BY'|'CC_BY_SA',
+ *   /publicdomain/zero/1.0/ → 'CC0', 그 밖(다른 호스트·http·쿼리·userinfo·NC 등) → null.
+ */
+export function ccLicenseOfUrl(url) {
+  if (typeof url !== 'string') return null;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' || u.hostname !== 'creativecommons.org' || u.port !== '' || u.username !== '' || u.password !== '') return null;
+  if (u.search !== '' || u.hash !== '' || url !== u.href) return null;
+  const m = /^\/(?:licenses\/(by|by-sa)\/(?:2\.0|2\.5|3\.0|4\.0)|publicdomain\/zero\/1\.0)\/(?:deed\.[a-z]{2}(?:-[a-z]{2,4})?)?$/.exec(u.pathname);
+  if (!m) return null;
+  return m[1] === undefined ? 'CC0' : m[1] === 'by' ? 'CC_BY' : 'CC_BY_SA';
+}
+
+/** 사용 가능 사진 상태(S-R4 L-E) — engine PHOTO_USABLE_STATUSES 와 같다(패리티 테스트). SLOT·미지값 불가. */
+export const PHOTO_USABLE_STATUSES = new Set(['READY']);
+
+/** https + 점 있는 호스트(engine HTTPS_URL 과 같은 엄격도, S-R4 L-D). */
+const HTTPS_DOTTED_URL = /^https:\/\/[^\s/?#]+\.[^\s/?#]+(?:[/?#]\S*)?$/;
+
+/** engine isPhotoUsable 과 정확히 같은 판정(S-R4 L-D, 패리티 테스트) — 이보다 넓으면 안 된다. */
 export function isPhotoUsableRow(p) {
-  if (!isObj(p) || p.status === 'SLOT') return false;
+  if (!isObj(p) || !PHOTO_USABLE_STATUSES.has(p.status)) return false;
+  if ((p.license === 'CC_BY' || p.license === 'CC_BY_SA') && ccLicenseOfUrl(p.licenseUrl) !== p.license) return false;
   if (!PHOTO_LICENSES.has(p.license)) return false;
-  if (!nonEmpty(p.source) || !nonEmpty(p.downloadedAt)) return false;
-  if (typeof p.sourceUrl !== 'string' || !/^https:\/\/[^\s/]+/i.test(p.sourceUrl)) return false;
+  if (!nonEmpty(p.source)) return false;
+  if (dayNumber(p.downloadedAt) === null) return false;
+  if (typeof p.sourceUrl !== 'string' || !HTTPS_DOTTED_URL.test(p.sourceUrl)) return false;
   return p.license === 'CC0' || nonEmpty(p.author);
 }
 
@@ -180,22 +234,28 @@ function idsWhere(rows, pred) {
  *   productTypes: Set<string>,             // `${typeId}|${productId}`
  *   vetRegions: Set<string>,
  *   ccByPhotos: string[],                  // 사용 가능 CC_BY·CC_BY_SA 사진 id
+ *   licenseUrls: Map<string, string>,      // ccByPhotos id → licenseUrl(C6 /credits 링크 대조)
  * }}
+ * @param {Record<string, unknown[]>} seed
+ * @param {string} asOf 노출 기준일 YYYY-MM-DD(필수, M-1)
  */
-export function computeExposure(seed) {
+export function computeExposure(seed, asOf) {
+  const asOfDay = dayNumber(asOf);
+  if (asOfDay === null) throw new RangeError(`computeExposure: asOf 는 YYYY-MM-DD 여야 한다 (${String(asOf)})`);
+  const ok = (r) => isVerifiedRow(r) && isFreshRow(r, asOfDay);
   const rows = (k) => (Array.isArray(seed[k]) ? seed[k] : []);
   const profiles = groupById(rows('careProfiles'));
   const items = groupById(rows('supplyItems'));
-  const verifiedProfile = (id) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every(isVerifiedRow);
-  const verifiedItem = (id) => typeof id === 'string' && items.has(id) && items.get(id).every(isVerifiedRow);
+  const verifiedProfile = (id) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every(ok);
+  const verifiedItem = (id) => typeof id === 'string' && items.has(id) && items.get(id).every(ok);
 
   const typeRows = groupById(rows('animalTypes'));
-  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && isVerifiedRow(t) && verifiedProfile(t.careProfileId);
+  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId);
 
   const reqs = rows('supplyRequirements').filter(isObj);
   const reqIdGroups = groupById(reqs);
   const reqExposedForType = (t, r) =>
-    baseType(t) && r.careProfileId === t.careProfileId && isVerifiedRow(r) && verifiedItem(r.supplyItemId) && reqIdGroups.get(r.id)?.every(isVerifiedRow) !== false;
+    baseType(t) && r.careProfileId === t.careProfileId && ok(r) && verifiedItem(r.supplyItemId) && reqIdGroups.get(r.id)?.every(ok) !== false;
 
   const pairs = new Set();
   const pairReq = new Map(); // typeId|itemId → req rows (같은 프로필·아이템 중복이면 전부 노출일 때만)
@@ -226,7 +286,7 @@ export function computeExposure(seed) {
 
   const productTypes = new Set();
   const productIds = idsWhere(rows('curatedProducts'), (p) => {
-    if (!(p.status === 'ACTIVE' && isVerifiedRow(p) && p.meetsMinSpec === true && Array.isArray(p.careProfileIds))) return false;
+    if (!(p.status === 'ACTIVE' && ok(p) && p.meetsMinSpec === true && Array.isArray(p.careProfileIds))) return false;
     let any = false;
     for (const [tid, t] of types) {
       if (!p.careProfileIds.includes(t.careProfileId)) continue;
@@ -242,7 +302,7 @@ export function computeExposure(seed) {
   });
 
   const bundleIds = idsWhere(rows('setupBundles'), (b) => {
-    if (!isVerifiedRow(b) || !Array.isArray(b.itemIds) || b.itemIds.length === 0) return false;
+    if (!ok(b) || !Array.isArray(b.itemIds) || b.itemIds.length === 0) return false;
     for (const [tid, t] of types) {
       if (b.careProfileId === t.careProfileId && b.itemIds.every((i) => pairs.has(`${tid}|${i}`))) return true;
     }
@@ -263,16 +323,19 @@ export function computeExposure(seed) {
 
   const ids = {
     animalTypes: new Set(types.keys()),
-    taxa: idsWhere(rows('taxa'), (x) => isVerifiedRow(x) && typeTaxa.has(x.id)),
-    careProfiles: idsWhere(rows('careProfiles'), (x) => isVerifiedRow(x) && typeProfiles.has(x.id)),
-    supplyItems: idsWhere(rows('supplyItems'), (x) => isVerifiedRow(x) && exposedItemIds.has(x.id)),
+    taxa: idsWhere(rows('taxa'), (x) => ok(x) && typeTaxa.has(x.id)),
+    careProfiles: idsWhere(rows('careProfiles'), (x) => ok(x) && typeProfiles.has(x.id)),
+    supplyItems: idsWhere(rows('supplyItems'), (x) => ok(x) && exposedItemIds.has(x.id)),
     supplyRequirements: exposedReqIds,
-    compatibilityRules: idsWhere(rows('compatibilityRules'), (x) => isVerifiedRow(x) && exposedItemIds.has(x.a) && exposedItemIds.has(x.b)),
+    compatibilityRules: idsWhere(rows('compatibilityRules'), (x) => ok(x) && exposedItemIds.has(x.a) && exposedItemIds.has(x.b)),
     setupBundles: bundleIds,
     curatedProducts: productIds,
-    testimonials: idsWhere(rows('testimonials'), (x) => x.status === 'APPROVED' && x.verifiedUsage === true),
+    // F5: 노출 타입(types)의 후기만 — 비노출 동물 후기는 산출물에 있으면 C3-OUT-ID.
+    testimonials: idsWhere(rows('testimonials'), (x) => x.status === 'APPROVED' && x.verifiedUsage === true && typeof x.animalTypeId === 'string' && types.has(x.animalTypeId)),
     vetClinics: vetIds,
     photos: photoIds,
   };
-  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos };
+  const licenseUrls = new Map();
+  for (const p of rows('photos')) if (isObj(p) && ccByPhotos.includes(p.id)) licenseUrls.set(p.id, p.licenseUrl);
+  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls };
 }

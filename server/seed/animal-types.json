@@ -68,7 +68,7 @@
     "taxonId": null,
     "careProfileId": null,
     "careOverrides": {},
-    "mascot": "gerbil-mongolian",
+    "mascot": "gerbil",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,

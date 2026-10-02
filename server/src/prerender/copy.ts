@@ -71,7 +71,22 @@ export const COPY = deepFreeze({
     startCta: '어떤 친구인가요?',
     startNote: sent('가입 없이 바로 시작해요'),
     popularTitle: '요즘 많이 찾는 준비',
+    /** R4 C1 — 클라이언트 전용(프리렌더 미사용). */
+    continueLink: '이어서: {animal}',
+    reviewPause: '멈추기',
+    reviewResume: '다시 흐르게 하기',
+    reviewAction: {
+      CHECKLIST: '내 준비 확인해보기',
+      SPEC_CHECK: '규격 확인해보기',
+      SETUP: '처음 준비 구성안 보기',
+      VET: '동네 병원 보기',
+    },
+    introTry: '지금 해보기',
   },
+  /** R4 C1 — 가로 레일 이전/다음 버튼. */
+  rail: { prev: '이전 보기', next: '다음 보기' },
+  /** R4 C1 — 구성안 카드 개수. */
+  bundle: { itemCount: '{n}개', newCount: '새로 {n}개' },
   /** UX §3.1 B — 동물 선택: 컨텍스트 헤더 + 5섹션. 숫자는 L3 이후(D18) — 프리렌더는 nowBeforeSetup 만. */
   homeB: {
     nowTitle: '지금 필요한 것',
@@ -86,6 +101,52 @@ export const COPY = deepFreeze({
     nowEmpty: sent('검수를 마친 준비 목록을 정리하고 있어요'),
     bundlesEmpty: sent('검수를 마친 구성안을 준비하고 있어요'),
     productsEmpty: sent('기준을 확인한 준비물을 정리하고 있어요'),
+    /** R4 C1 — 클라이언트 전용(L3 이후 숫자). */
+    aliasLine: sent('{alias}라고도 불러요'),
+    nowRemaining: sent('필수 {n}개 남았어요'),
+    nowDone: '필수 준비 끝',
+    deviceOnly: sent('이 기기에만 저장돼요'),
+    doneTitle: sent('필수 준비가 끝났어요 — 권장 항목도 볼까요?'),
+    doneCta: '권장 항목 보기',
+  },
+  /** R4 C1 — L1 친구 선택(스펙22 §7.3). 후보 안내일 뿐 종을 확정하지 않는다(브리프 고정 문구). */
+  picker: {
+    unsure: '잘 모르겠어요',
+    searchHint: sent('이름이나 별명으로 찾아 드려요'),
+    candidateNote: sent('후보 안내일 뿐, 종을 확정하지 않아요'),
+    confirm: sent('이 친구가 맞아요'),
+    backToGroups: '‹ 그룹 선택',
+  },
+  /** R4 C1 — L3 두 질문(처음 키워요 / 이미 키우고 있어요). */
+  setupQ: {
+    q1Title: sent('처음 키우나요?'),
+    q2Title: sent('이미 가진 게 있나요?'),
+    firstTime: '처음 키워요',
+    already: '이미 키우고 있어요',
+    owned: '이미 가진 것',
+    skip: '건너뛰기',
+    next: '다음',
+  },
+  /** R4 C1 — L2 체크리스트(PRD US-005). 권장 안내·저장 불가 안내는 PRD 원문이 없어 작성. */
+  checklist: {
+    requiredLeft: '필수 {n}개 미완료',
+    summaryTitle: '오늘 바로 데려와도 되는 준비',
+    requiredDone: '필수 준비 끝',
+    recommendedNote: sent('권장 항목도 살펴보세요'),
+    resetSetup: '내 상황 다시 설정',
+    saveAsk: sent('지금 준비 상태를 저장해 둘까요?'),
+    storageUnavailable: sent('이 기기에 저장할 수 없어요. 지금 화면에서만 유지돼요'),
+    itemDetailAria: '{name} 자세히',
+    owned: '보유',
+  },
+  /** 상태 글리프 라벨(문장 아님). 글리프 문자는 GLYPH. */
+  glyphLabel: {
+    ready: '준비완료',
+    first: '먼저 준비',
+    check: '확인 필요',
+    later: '나중에',
+    fail: '기준 미달',
+    unknown: '확인 전',
   },
   /** UX §4 L4 — 섹션 순서 고정: 왜 → 조건 → 주의 → 피할 것 → 대안. */
   supplyLayer: {
@@ -114,10 +175,14 @@ export const COPY = deepFreeze({
     intro: sent('제품 치수를 넣으면 제품 규격과 내 환경 호환을 나눠서 알려 드려요'),
     noScript: sent('판정은 자바스크립트를 켜면 할 수 있어요'),
     submit: '판정하기',
+    /** 스펙22 §4-4 — specSchema optional 필드 라벨 뒤 " · 선택". */
+    optional: '선택',
   },
   /** UX §4 L7 · §5 — 가격·판매처 없음, "구매" 단어 없음. */
   product: {
     badge: '기준 충족',
+    /** 스펙22 §4-2 — imageAsset 없을 때 대체 타일 라벨(브리프). */
+    imagePending: '이미지 준비 중',
     reasonsTitle: 'WithSmall 추천 이유',
     reasonSpecMet: '규격 충족',
     reasonProfileMatch: '프로필 일치',
@@ -181,6 +246,23 @@ export const COPY = deepFreeze({
     source: '출처',
     intro: sent('사용 조건을 확인한 사진만 써요. 원작자와 라이선스를 함께 밝혀요.'),
     footerLink: '사진 출처',
+    /** R4 D6 — /credits 항상 생성, 표기할 사진 0이면 빈 상태. */
+    empty: sent('지금은 출처를 밝혀야 하는 사진이 없어요'),
+    /** S1 M-3 — CC BY 표기: 저작자·라이선스(증서 링크)·수정 여부·원본. */
+    modified: '수정 여부',
+    modifiedYes: '수정함',
+    modifiedNo: '수정 없음',
+    original: '원본 보기',
+    /** 사진 source 코드 → 표시명(이미지-소싱.md 기록 필드, validate-structure PHOTO_SOURCES). 없는 코드는 이름 없이 원본 링크만. */
+    sourceName: {
+      WIKIMEDIA: 'Wikimedia Commons',
+      UNSPLASH: 'Unsplash',
+      PEXELS: 'Pexels',
+      PIXABAY: 'Pixabay',
+      OWN: '직접 촬영',
+      SELLER: '제조사 제공',
+      AFFILIATE: '제휴 이미지',
+    },
   },
   /** PRD US-001 그룹, US-008 카테고리 그리드(SupplyCategory 순서). */
   groups: { SMALL_MAMMAL: '소동물', PARROT: '앵무새' },
@@ -215,6 +297,12 @@ export const COPY = deepFreeze({
 
 export type Copy = typeof COPY;
 
+/**
+ * 상태 글리프(스펙22 §2.0·§4-1) — 텍스트 문자, 색만으로 상태를 말하지 않는다. 프리렌더·클라이언트 공용 단일 소스.
+ *   ready ✓ 준비됨·기준 충족 · first ! 먼저 준비 · check △ 확인 필요 · later ○ 나중에 · fail ✕ 미달 · unknown ? 알 수 없음.
+ */
+export const GLYPH = deepFreeze({ ready: '✓', first: '!', check: '△', later: '○', fail: '✕', unknown: '?' });
+
 function collect(v: unknown, out: string[]): void {
   if (typeof v === 'string') out.push(v);
   else if (v && typeof v === 'object') for (const x of Object.values(v)) collect(x, out);
@@ -229,13 +317,17 @@ export function allCopyStrings(opts: { sentencesOnly?: boolean } = {}): string[]
 }
 
 const TOKEN_RE = /\{([a-zA-Z]+)\}/g;
-const ALLOWED_TOKENS = new Set(['animal']);
+const ALLOWED_TOKENS = new Set(['animal', 'n', 'alias', 'name']);
 
-/** `{animal}` 토큰만 채운다. 미지 토큰·값 누락은 throw. 결과는 호출부가 escapeHtml. */
-export function formatCopy(template: string, vars: { animal?: string }): string {
+/** `{animal}`·`{n}`(숫자)·`{alias}`·`{name}` 토큰을 채운다. 미지 토큰·값 누락은 throw. 결과는 호출부가 escapeHtml. */
+export function formatCopy(
+  template: string,
+  vars: { animal?: string; n?: number; alias?: string; name?: string },
+): string {
   return template.replace(TOKEN_RE, (_m, name: string) => {
     if (!ALLOWED_TOKENS.has(name)) throw new Error(`copy: 알 수 없는 토큰 {${name}}`);
-    const v = (vars as Record<string, string | undefined>)[name];
+    const v = (vars as Record<string, string | number | undefined>)[name];
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
     if (typeof v !== 'string') throw new Error(`copy: {${name}} 값이 없다`);
     return v;
   });

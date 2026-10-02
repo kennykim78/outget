@@ -16,7 +16,13 @@
             "WIRE",
             "ACRYLIC",
             "OTHER"
-          ]
+          ],
+          "optionLabels": {
+            "LIVING_BOX": "리빙박스",
+            "WIRE": "철망",
+            "ACRYLIC": "아크릴 케이지",
+            "OTHER": "기타"
+          }
         },
         {
           "key": "floorWcm",
@@ -87,7 +93,12 @@
             "SOLID",
             "MESH",
             "BAR"
-          ]
+          ],
+          "optionLabels": {
+            "SOLID": "막힌 판",
+            "MESH": "망형",
+            "BAR": "봉형"
+          }
         },
         {
           "key": "mount",
@@ -96,7 +107,11 @@
           "options": [
             "STAND",
             "HANG"
-          ]
+          ],
+          "optionLabels": {
+            "STAND": "스탠드형",
+            "HANG": "거는형"
+          }
         },
         {
           "key": "silent",
@@ -173,7 +188,14 @@
             "HEMP",
             "CEDAR_PINE",
             "OTHER"
-          ]
+          ],
+          "optionLabels": {
+            "PAPER": "종이",
+            "ASPEN": "아스펜",
+            "HEMP": "헴프",
+            "CEDAR_PINE": "삼나무·소나무",
+            "OTHER": "기타"
+          }
         },
         {
           "key": "scented",
@@ -220,7 +242,11 @@
           "options": [
             "BOTTLE",
             "BOWL"
-          ]
+          ],
+          "optionLabels": {
+            "BOTTLE": "물병",
+            "BOWL": "그릇"
+          }
         },
         {
           "key": "mount",
@@ -230,7 +256,12 @@
             "STAND",
             "HANG",
             "SUCTION"
-          ]
+          ],
+          "optionLabels": {
+            "STAND": "스탠드형",
+            "HANG": "거는형",
+            "SUCTION": "흡착형"
+          }
         },
         {
           "key": "capacityMl",
@@ -273,7 +304,12 @@
             "CERAMIC",
             "PLASTIC",
             "METAL"
-          ]
+          ],
+          "optionLabels": {
+            "CERAMIC": "도자기",
+            "PLASTIC": "플라스틱",
+            "METAL": "금속"
+          }
         }
       ]
     },
@@ -308,7 +344,12 @@
             "MIX",
             "PELLET",
             "MIXED"
-          ]
+          ],
+          "optionLabels": {
+            "MIX": "곡물 혼합",
+            "PELLET": "펠릿",
+            "MIXED": "혼합형"
+          }
         },
         {
           "key": "proteinPct",
@@ -360,7 +401,13 @@
             "CERAMIC",
             "PLASTIC",
             "CARDBOARD"
-          ]
+          ],
+          "optionLabels": {
+            "WOOD": "나무",
+            "CERAMIC": "도자기",
+            "PLASTIC": "플라스틱",
+            "CARDBOARD": "종이 상자"
+          }
         },
         {
           "key": "multiChamber",
@@ -402,7 +449,13 @@
             "DUST",
             "REPTILE_SAND",
             "OTHER"
-          ]
+          ],
+          "optionLabels": {
+            "CHINCHILLA_SAND": "친칠라 샌드",
+            "DUST": "더스트(가루형)",
+            "REPTILE_SAND": "파충류용 모래",
+            "OTHER": "기타"
+          }
         },
         {
           "key": "widthCm",
@@ -445,7 +498,12 @@
             "UNTREATED_WOOD",
             "MINERAL",
             "OTHER"
-          ]
+          ],
+          "optionLabels": {
+            "UNTREATED_WOOD": "무처리 나무",
+            "MINERAL": "미네랄",
+            "OTHER": "기타"
+          }
         }
       ]
     },

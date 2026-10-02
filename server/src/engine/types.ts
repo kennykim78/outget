@@ -291,6 +291,8 @@ export interface PhotoRec {
   license: string | null;
   author: string | null;
   sourceUrl: string | null;
+  /** R4 A2(S1 M-3): 라이선스 증서 URL — CC_BY·CC_BY_SA 필수(https://creativecommons.org/licenses/by|by-sa/N.N/). */
+  licenseUrl?: string | null;
   downloadedAt: string | null;
   modified: boolean;
   status: string;

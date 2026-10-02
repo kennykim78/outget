@@ -12,6 +12,8 @@ COPY client/package.json ./client/package.json
 RUN npm ci --workspace client --include-workspace-root
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY client ./client
+# 클라가 별칭(@ws/engine·@ws/copy·@ws/events)으로 가져오는 서버 공용 순수 모듈(client/tsconfig.json paths · vite alias).
+COPY server/src ./server/src
 RUN npm run build --workspace client
 
 # ── 2) server 빌드 (prisma generate + tsc → dist) ────────────────────────────
@@ -29,8 +31,12 @@ RUN npm run prisma:generate --workspace server \
 COPY --from=client-build /app/client/dist ./client/dist
 COPY client/public ./client/public
 COPY scripts ./scripts
+# 프리렌더 마스코트 SVG(cli.ts DEFAULT_MASCOTS = <repo>/docs/design/mascots → 이미지 /app/docs/design/mascots).
+COPY docs/design/mascots ./docs/design/mascots
 # 컴파일된 server/dist 엔진으로 프리렌더 → client/dist 에 정적 HTML 출력(seed:validate 오류 시 빌드 실패).
-RUN node scripts/prerender.mjs
+# 직후 컴플라이언스 스캔(--require-output: 산출물 manifest 없거나 FAIL 이면 빌드 실패).
+RUN NODE_ENV=production node scripts/prerender.mjs \
+ && node scripts/compliance-scan.mjs --require-output
 
 # ── 3) runtime (prod 의존성 + dist + prisma + client/dist) ───────────────────
 FROM node:22-alpine AS runtime

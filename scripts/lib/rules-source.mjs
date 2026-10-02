@@ -5,7 +5,7 @@ import { basename, extname, join } from 'node:path';
 import { CODE_EXT, TEXT_EXT, isDir, lexJs, relPosix, stripBom, stripSlashComments, walk } from './files.mjs';
 import { PRODUCT_IMAGE_ASSET_RE, REVIEWER_IMAGE_RE } from './asset-patterns.mjs';
 import { lintText } from './normalize.mjs';
-import { PRODUCT_IMAGE_LICENSES, PHOTO_LICENSES, SEED_FILES } from './seed-exposure.mjs';
+import { PRODUCT_IMAGE_LICENSES, PHOTO_LICENSES, SEED_FILES, ccLicenseOfUrl } from './seed-exposure.mjs';
 
 export const SCAN_DIRS = ['client/src', 'server/src', 'server/prisma', 'server/seed', 'scripts'];
 
@@ -163,12 +163,12 @@ function scanCode(rel, text, ctx) {
     });
   }
 
-  // C4-CODE — 코드 문자열·JSX 텍스트 금지어(R3 WARN, D10)
+  // C4-CODE — 코드 문자열·JSX 텍스트 금지어(R4 FAIL, R3 D10 전환)
   if ((rel.startsWith('client/src/') || rel.startsWith('server/src/')) && !isTestFile(rel) && rel !== 'server/src/seed/lint.ts') {
     const report = (txt, line) => {
       for (const h of lintText(txt, bw)) {
         if (h.rule === 'L02') continue;
-        add('C4-CODE', 'WARN', rel, line, `코드 리터럴 금지어 "${h.term}"${h.rule === 'L06' ? '(공백 제거 후)' : ''}`);
+        add('C4-CODE', 'FAIL', rel, line, `코드 리터럴 금지어 "${h.term}"${h.rule === 'L06' ? '(공백 제거 후)' : ''}`);
       }
     };
     for (const s of strings) report(s.text, s.line);
@@ -228,7 +228,7 @@ function scanPackage(rel, text, ctx) {
 }
 
 // ── 시드 ────────────────────────────────────────────────────
-const SEED_TEXT_SKIP = new Set(['id', 'url', 'sourceUrl', 'verifiedBy', 'slug', 'accessedAt']);
+const SEED_TEXT_SKIP = new Set(['id', 'url', 'sourceUrl', 'licenseUrl', 'verifiedBy', 'slug', 'accessedAt']);
 
 function walkJson(v, path, visit) {
   if (Array.isArray(v)) v.forEach((x, i) => walkJson(x, `${path}[${i}]`, visit));
@@ -272,9 +272,10 @@ function scanSeedFile(rel, text, ctx) {
         return;
       }
       const key = lastKey(n.path);
-      // C1-SEEDURL — http(s) 는 source[].url·sourceUrl 만
-      if (/(?:https?|wss?|ftp):\/\//i.test(n.value) && !/(^|\.)source\[\d+\]\.url$/.test(n.path) && key !== 'sourceUrl') {
-        add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${n.path}: 외부 URL 은 source[].url·sourceUrl 에만`);
+      // C1-SEEDURL — http(s) 는 source[].url·sourceUrl 만 + photos.licenseUrl(creativecommons.org 증서 허용목록만, S1 M-3)
+      const ccLicense = file === SEED_FILES.photos && n.path === 'licenseUrl' && ccLicenseOfUrl(n.value) !== null;
+      if (/(?:https?|wss?|ftp):\/\//i.test(n.value) && !/(^|\.)source\[\d+\]\.url$/.test(n.path) && key !== 'sourceUrl' && !ccLicense) {
+        add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${n.path}: 외부 URL 은 source[].url·sourceUrl 에만(사진 licenseUrl 은 CC 증서만)`);
       }
       // C4-BANNED — 제외: id/url/sourceUrl/source.title/verifiedBy/slug, photos.query·scene
       if (SEED_TEXT_SKIP.has(key)) return;
@@ -296,6 +297,7 @@ function scanSeedFile(rel, text, ctx) {
       if (typeof row.sourceUrl !== 'string' || !/^https:\/\/[^\s/]+/i.test(row.sourceUrl)) miss.push('https sourceUrl');
       if (typeof row.downloadedAt !== 'string' || row.downloadedAt.trim() === '') miss.push('downloadedAt');
       if (row.license !== 'CC0' && (typeof row.author !== 'string' || row.author.trim() === '')) miss.push('author');
+      if ((row.license === 'CC_BY' || row.license === 'CC_BY_SA') && ccLicenseOfUrl(row.licenseUrl) !== row.license) miss.push('licenseUrl(CC 증서)');
       if (miss.length) add('C6-IMG', 'FAIL', rel, null, `${where}: 사용권 기록 누락 ${miss.join(', ')}`);
     }
     if (file === SEED_FILES.curatedProducts && row.imageAsset !== null && row.imageAsset !== undefined && row.imageAsset !== '') {

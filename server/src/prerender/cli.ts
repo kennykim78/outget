@@ -1,5 +1,5 @@
 // npm run prerender — 빌드 타임 프리렌더 CLI(계획 §2 F3, D1·D7·D19·D20).
-//   사용: node scripts/prerender.mjs [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD]
+//   사용: node scripts/prerender.mjs [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now]
 //   순서: validateSeed(오류 → exit 1) → seedDigest → buildSite → 이전 산출물 정리 → 쓰기 → 검사(ws-data ≤ 32KB, /assets/* 실재).
 //   SITE_ORIGIN(env, 기본 http://localhost:3001) · WS_INDEXABLE=1 일 때만 robots Allow(Kenny 항목 §8-1).
 //   exit 0 = 성공, 1 = 시드 오류·산출물 검사 실패, 2 = 사용법·입력 오류. 빌드 시각은 어떤 파일에도 쓰지 않는다.
@@ -10,6 +10,7 @@ import { formatIssue, isIsoDate } from '../seed/common.js';
 import { asSeedBundle, readSeedDirRaw } from '../seed/read.js';
 import { validateSeed } from '../seed/validate.js';
 import { seedDigest } from './digest.js';
+import { loadMascots } from './mascot.js';
 import { buildSite, type SiteBuild } from './site.js';
 import { BODY_MARKER, HEAD_MARKER } from './template.js';
 
@@ -17,8 +18,10 @@ export interface PrerenderIo {
   stdout: (line: string) => void;
   stderr: (line: string) => void;
   env: Readonly<Record<string, string | undefined>>;
-  /** 시드 검증 기준일(--now 기본값). 산출물에는 쓰지 않는다. */
+  /** 시드 검증·노출 기준일(--now 기본값, M-1) = 오늘(Asia/Seoul, seoulToday). 산출물에는 쓰지 않는다. */
   today: () => string;
+  /** 마스코트 원본 디렉터리(기본 DEFAULT_MASCOTS). 테스트 주입용. */
+  mascotDir?: string;
 }
 
 export const WS_DATA_MAX_BYTES = 32 * 1024;
@@ -30,10 +33,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SEED_DIR = resolve(HERE, '..', '..', 'seed');
 export const DEFAULT_OUT = resolve(HERE, '..', '..', '..', 'client', 'dist');
 export const DEFAULT_PUBLIC = resolve(HERE, '..', '..', '..', 'client', 'public');
+/** 마스코트 원본(리포 디자인 자산, 스펙22 §2.16) — 히어로·컨텍스트 헤더 인라인 SVG. */
+export const DEFAULT_MASCOTS = resolve(HERE, '..', '..', '..', 'docs', 'design', 'mascots');
 const DEFAULT_ORIGIN = 'http://localhost:3001';
 
 const USAGE =
-  'usage: prerender [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD]';
+  'usage: prerender [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now]';
 
 interface Args {
   seedDir: string;
@@ -41,12 +46,18 @@ interface Args {
   publicDir: string;
   origin: string | null;
   now: string | null;
+  /** 테스트·재현용: 운영(NODE_ENV=production)에서도 오늘(서울) 아닌 --now 허용(S-R4 L-B). */
+  allowPastNow: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args | string {
-  const args: Args = { seedDir: DEFAULT_SEED_DIR, out: DEFAULT_OUT, publicDir: DEFAULT_PUBLIC, origin: null, now: null };
+  const args: Args = { seedDir: DEFAULT_SEED_DIR, out: DEFAULT_OUT, publicDir: DEFAULT_PUBLIC, origin: null, now: null, allowPastNow: false };
   for (let i = 0; i < argv.length; i++) {
     const raw = argv[i];
+    if (raw === '--allow-past-now') {
+      args.allowPastNow = true;
+      continue;
+    }
     const eq = raw.indexOf('=');
     const flag = raw.startsWith('--') && eq > 0 ? raw.slice(0, eq) : raw;
     const inline = raw.startsWith('--') && eq > 0 ? raw.slice(eq + 1) : null;
@@ -141,10 +152,29 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   }
   const origin = args.origin ?? io.env.SITE_ORIGIN ?? DEFAULT_ORIGIN;
   const indexable = io.env.WS_INDEXABLE === '1';
+  const production = io.env.NODE_ENV === 'production';
+
+  // L-B(S-R4): 운영 빌드는 오늘(서울)만 — 과거·미래 --now 로 강등을 늦추지 못하게. 테스트·재현은 --allow-past-now.
+  if (production && args.now !== null && !args.allowPastNow && args.now !== io.today()) {
+    io.stderr(`prerender: NODE_ENV=production 에서 --now(${args.now}) 는 오늘(Asia/Seoul ${io.today()})만 — 의도한 재현이면 --allow-past-now`);
+    return 2;
+  }
+
+  // L-F(S-R4): 마스코트 원본 — 운영에서 디렉터리가 없으면 실패(빈 마스코트로 조용히 배포 금지). 정제 실패도 입력 오류.
+  const mascotDir = io.mascotDir ?? DEFAULT_MASCOTS;
+  let mascots: Map<string, string>;
+  try {
+    mascots = loadMascots(mascotDir, { required: production });
+  } catch (e) {
+    io.stderr(`prerender: ${(e as Error).message}`);
+    return 2;
+  }
 
   // D20 — 시드 검증 선행.
   const { raw, issues } = readSeedDirRaw(args.seedDir);
-  const res = validateSeed(raw, { now: args.now ?? io.today(), strict: false });
+  // --now = 시드 검증 기준일이자 노출 기준일(M-1 검수 나이). 산출물에는 쓰지 않는다.
+  const asOf = args.now ?? io.today();
+  const res = validateSeed(raw, { now: asOf, strict: false });
   const errors = [...issues, ...res.errors];
   if (errors.length > 0) {
     for (const i of errors) io.stderr(formatIssue(i));
@@ -160,7 +190,7 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
 
   let b: SiteBuild;
   try {
-    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir) });
+    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots });
   } catch (e) {
     io.stderr(`prerender: ${(e as Error).message}`);
     return 1;
@@ -200,10 +230,14 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   return 0;
 }
 
-function localToday(): string {
-  const d = new Date();
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+/**
+ * 오늘(Asia/Seoul) YYYY-MM-DD — CI `TZ=Asia/Seoul date +%F` 와 같은 뜻(S-R4 L-A). 러너 로컬 시간대(UTC 등)와 무관.
+ *   scripts/compliance-scan.mjs seoulToday 와 같은 구현(패리티 테스트).
+ */
+export function seoulToday(at: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
+  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 function isMain(): boolean {
@@ -218,6 +252,6 @@ if (isMain()) {
     stdout: (l) => process.stdout.write(`${l}\n`),
     stderr: (l) => process.stderr.write(`${l}\n`),
     env: process.env,
-    today: localToday,
+    today: () => seoulToday(),
   });
 }

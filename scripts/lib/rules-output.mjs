@@ -147,7 +147,8 @@ function checkRoutes(m, dist, ex, add) {
     }
     if (r.region !== undefined && !ex.vetRegions.has(r.region)) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 노출 병원 없는 지역 ${r.region}`);
     if (r.kind === 'VET_REGION' && r.region === undefined) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: VET_REGION 에 region 없음`);
-    if (r.kind === 'CREDITS' && ex.ccByPhotos.length === 0 && !ex.ids.photos.size) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 표시할 사용 가능 사진 없음`);
+    // R4 D6: /credits 는 항상 생성(사진 0이면 빈 상태) — 존재 자체는 위반이 아니다. 내용은 아래 C6 가 본다.
+    if (r.kind === 'CREDITS' && r.indexable === true) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: /credits 는 noindex 여야 한다`);
     checkLayer(r.layer, ex, (w) => add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: layer ${w}`));
   }
   return m.routes.filter(isObj);
@@ -202,6 +203,25 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput }) 
   const needCredits = ex.ccByPhotos.length > 0;
   if (needCredits && !routes.some((r) => decodePath(r.path) === '/credits' && existsSync(join(dist, r.file)))) {
     add('C6-IMG', 'FAIL', 'prerender-manifest.json', null, `CC BY 계열 사진(${ex.ccByPhotos.join(', ')})이 있는데 /credits 페이지 없음`);
+  }
+
+  // C6(S1 M-3): /credits 에 CC BY 사진마다 항목 + 같은 종류의 creativecommons.org 증서 링크.
+  const creditsRoute = routes.find((r) => r.kind === 'CREDITS' && typeof r.file === 'string');
+  const creditsAbs = creditsRoute ? join(dist, creditsRoute.file) : null;
+  if (needCredits && creditsAbs && existsSync(creditsAbs)) {
+    const html = readFileSync(creditsAbs, 'utf8');
+    const rel = relPosix(root, creditsAbs);
+    for (const id of ex.ccByPhotos) {
+      const at = html.indexOf(`data-ws-id="photos#${id}"`);
+      if (at < 0) {
+        add('C6-IMG', 'FAIL', rel, null, `CC BY 사진 ${id} 의 저작자 표시 항목 없음`);
+        continue;
+      }
+      const end = html.indexOf('</li>', at);
+      const item = html.slice(at, end < 0 ? undefined : end);
+      const url = ex.licenseUrls?.get(id);
+      if (typeof url !== 'string' || !item.includes(`href="${url}"`)) add('C6-IMG', 'FAIL', rel, null, `CC BY 사진 ${id} 에 라이선스 증서 링크 없음`);
+    }
   }
 
   // HTML — credits 링크 규칙은 manifest 라우트 파일(404 포함)에만(SPA 셸 shell.html 등 비라우트 HTML 제외)

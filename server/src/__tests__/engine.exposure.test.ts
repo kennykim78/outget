@@ -10,12 +10,15 @@ import {
   isAnimalTypeExposable,
   isBundleExposable,
   isCompatRuleExposable,
+  PHOTO_USABLE_STATUSES,
   isPhotoUsable,
+  parseCcLicenseUrl,
   orderExposableProducts,
   createCatalog,
   isProductExposable,
   isRequirementExposable,
   isTestimonialExposable,
+  isTestimonialPublic,
   isVerified,
   isVetListed,
   isVetStatusListed,
@@ -48,6 +51,9 @@ function realSeed() {
     compatibilityRules: read<CompatibilityRuleRec>('compatibility-rules.json'),
   };
 }
+
+/** 노출 기준일 — 고정(실시계 의존 없음, F14). VERIFIED.verifiedAt + 1일. */
+const AS_OF = '2026-10-01';
 
 const VERIFIED: Pick<ContentMeta, 'reviewStatus' | 'reviewerType' | 'verifiedBy' | 'verifiedAt'> = {
   reviewStatus: 'VERIFIED',
@@ -104,17 +110,17 @@ describe('isRequirementExposable', () => {
 
   it('ACTIVE type + type, requirement, item, profile all VERIFIED', () => {
     const { cat, r } = promoted();
-    expect(isRequirementExposable(cat, r)).toBe(true);
+    expect(isRequirementExposable(cat, r, AS_OF)).toBe(true);
   });
 
   it.each(['req', 'item', 'profile', 'type'] as const)('not when %s is unverified', (skip) => {
     const { cat, r } = promoted({ skip });
-    expect(isRequirementExposable(cat, r)).toBe(false);
+    expect(isRequirementExposable(cat, r, AS_OF)).toBe(false);
   });
 
   it('not when the animal type is PLANNED', () => {
     const { cat, r } = promoted({ type: 'PLANNED' });
-    expect(isRequirementExposable(cat, r)).toBe(false);
+    expect(isRequirementExposable(cat, r, AS_OF)).toBe(false);
   });
 
   it('AI_DRAFT reviewer never exposes even if marked VERIFIED', () => {
@@ -124,45 +130,45 @@ describe('isRequirementExposable', () => {
       x.reviewerType = 'AI_DRAFT';
     }
     const cat = createCatalog(b);
-    expect(isRequirementExposable(cat, resolveRequirement(cat, 'critter-plain', 'box')!)).toBe(false);
+    expect(isRequirementExposable(cat, resolveRequirement(cat, 'critter-plain', 'box')!, AS_OF)).toBe(false);
   });
 
   it('DRAFT fixture exposes nothing', () => {
     const cat = createCatalog(makeBundle());
-    expect(isRequirementExposable(cat, resolveRequirement(cat, 'critter-plain', 'box')!)).toBe(false);
+    expect(isRequirementExposable(cat, resolveRequirement(cat, 'critter-plain', 'box')!, AS_OF)).toBe(false);
   });
 });
 
 describe('isAnimalTypeExposable (M1)', () => {
   it('ACTIVE ∧ type VERIFIED ∧ profile VERIFIED ∧ ≥1 exposable requirement', () => {
-    expect(isAnimalTypeExposable(createCatalog(promotedBundle()), 'critter-plain')).toBe(true);
+    expect(isAnimalTypeExposable(createCatalog(promotedBundle()), 'critter-plain', AS_OF)).toBe(true);
   });
 
   it('type alone left DRAFT → false (everything else VERIFIED)', () => {
-    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip: 'type' })), 'critter-plain')).toBe(false);
+    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip: 'type' })), 'critter-plain', AS_OF)).toBe(false);
   });
 
   it.each(['req', 'item', 'profile'] as const)('false when %s is unverified (no exposable requirement / profile)', (skip) => {
-    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip })), 'critter-plain')).toBe(false);
+    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip })), 'critter-plain', AS_OF)).toBe(false);
   });
 
   it('PLANNED → false; unknown id → false; type without profile → false', () => {
-    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ type: 'PLANNED' })), 'critter-plain')).toBe(false);
+    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ type: 'PLANNED' })), 'critter-plain', AS_OF)).toBe(false);
     const cat = createCatalog(promotedBundle());
-    expect(isAnimalTypeExposable(cat, 'nope')).toBe(false);
-    expect(isAnimalTypeExposable(cat, 'ghost')).toBe(false);
+    expect(isAnimalTypeExposable(cat, 'nope', AS_OF)).toBe(false);
+    expect(isAnimalTypeExposable(cat, 'ghost', AS_OF)).toBe(false);
   });
 
   it('AI_DRAFT type marked VERIFIED → false', () => {
     const b = promotedBundle();
     Object.assign(b.animalTypes.find((x) => x.id === 'critter-plain')!, { reviewerType: 'AI_DRAFT' });
-    expect(isAnimalTypeExposable(createCatalog(b), 'critter-plain')).toBe(false);
+    expect(isAnimalTypeExposable(createCatalog(b), 'critter-plain', AS_OF)).toBe(false);
   });
 
   it('real seed: hamster-golden is not exposable (all DRAFT)', () => {
     const cat = createCatalog(realSeed());
-    expect(isAnimalTypeExposable(cat, 'hamster-golden')).toBe(false);
-    for (const at of realSeed().animalTypes) expect(isAnimalTypeExposable(cat, at.id)).toBe(false);
+    expect(isAnimalTypeExposable(cat, 'hamster-golden', AS_OF)).toBe(false);
+    for (const at of realSeed().animalTypes) expect(isAnimalTypeExposable(cat, at.id, AS_OF)).toBe(false);
   });
 });
 
@@ -237,29 +243,29 @@ describe('checkAnimalMinSpec (M3 — override 반영, 제품 단계)', () => {
   });
 });
 
-describe('isProductExposable(cat, animalTypeId, p) — 규격 → 검수 (불변식 3, M2·M3)', () => {
+describe('isProductExposable(cat, animalTypeId, p, AS_OF) — 규격 → 검수 (불변식 3, M2·M3)', () => {
   const cat = createCatalog(allVerified());
   it('ACTIVE ∧ meetsMinSpec ∧ VERIFIED(non-AI) ∧ profile ∧ requirement exposed ∧ animal min spec', () => {
     const base = product('p1');
-    expect(isProductExposable(cat, 'critter', base)).toBe(true);
-    expect(isProductExposable(cat, 'critter', { ...base, meetsMinSpec: false })).toBe(false);
-    expect(isProductExposable(cat, 'critter', { ...base, meetsMinSpec: null })).toBe(false);
-    expect(isProductExposable(cat, 'critter', { ...base, status: 'REVIEW' })).toBe(false);
-    expect(isProductExposable(cat, 'critter', { ...base, status: 'SLOT' })).toBe(false);
-    expect(isProductExposable(cat, 'critter', { ...base, status: 'DISCONTINUED' })).toBe(false);
-    expect(isProductExposable(cat, 'critter', { ...base, reviewerType: 'AI_DRAFT' })).toBe(false);
-    expect(isProductExposable(cat, 'critter', { ...base, reviewStatus: 'NEEDS_REVIEW' })).toBe(false);
+    expect(isProductExposable(cat, 'critter', base, AS_OF)).toBe(true);
+    expect(isProductExposable(cat, 'critter', { ...base, meetsMinSpec: false }, AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', { ...base, meetsMinSpec: null }, AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', { ...base, status: 'REVIEW' }, AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', { ...base, status: 'SLOT' }, AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', { ...base, status: 'DISCONTINUED' }, AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', { ...base, reviewerType: 'AI_DRAFT' }, AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', { ...base, reviewStatus: 'NEEDS_REVIEW' }, AS_OF)).toBe(false);
   });
 
   it('override tightening min: exposed for plain type, hidden for override type', () => {
     const p = product('p21', { specValues: SPIN_21 });
-    expect(isProductExposable(cat, 'critter-plain', p)).toBe(true);
-    expect(isProductExposable(cat, 'critter', p)).toBe(false);
+    expect(isProductExposable(cat, 'critter-plain', p, AS_OF)).toBe(true);
+    expect(isProductExposable(cat, 'critter', p, AS_OF)).toBe(false);
   });
 
   it('care profile mismatch → false', () => {
-    expect(isProductExposable(cat, 'critter', product('px', { careProfileIds: ['pf-other'] }))).toBe(false);
-    expect(isProductExposable(cat, 'critter', product('py', { careProfileIds: [] }))).toBe(false);
+    expect(isProductExposable(cat, 'critter', product('px', { careProfileIds: ['pf-other'] }), AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', product('py', { careProfileIds: [] }), AS_OF)).toBe(false);
   });
 
   const mutations: Array<[string, (b: Bundle) => void]> = [
@@ -273,18 +279,18 @@ describe('isProductExposable(cat, animalTypeId, p) — 규격 → 검수 (불변
     const b = allVerified();
     mutate(b);
     const cat = createCatalog(b);
-    expect(isProductExposable(cat, 'critter', product('p1'))).toBe(false);
+    expect(isProductExposable(cat, 'critter', product('p1'), AS_OF)).toBe(false);
   });
 
   it('unknown type, item without requirement, missing spec key → false', () => {
-    expect(isProductExposable(cat, 'nope', product('p1'))).toBe(false);
-    expect(isProductExposable(cat, 'critter', product('p1', { supplyItemId: 'nope' }))).toBe(false);
-    expect(isProductExposable(cat, 'critter', product('p1', { specValues: { sizeCm: 30, face: 'FLAT' } }))).toBe(false);
+    expect(isProductExposable(cat, 'nope', product('p1'), AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', product('p1', { supplyItemId: 'nope' }), AS_OF)).toBe(false);
+    expect(isProductExposable(cat, 'critter', product('p1', { specValues: { sizeCm: 30, face: 'FLAT' } }), AS_OF)).toBe(false);
   });
 
   it('DRAFT fixture exposes no product', () => {
     const cat = createCatalog(makeBundle());
-    expect(isProductExposable(cat, 'critter', product('p1'))).toBe(false);
+    expect(isProductExposable(cat, 'critter', product('p1'), AS_OF)).toBe(false);
   });
 });
 
@@ -300,30 +306,30 @@ describe('orderExposableProducts — OK → BELOW_RECOMMENDED → specVerifiedAt
     product('ai', { reviewerType: 'AI_DRAFT' }),
   ];
   it('filters non-exposable and orders by verdict, date desc, seed order', () => {
-    const out = orderExposableProducts(cat, 'critter', rows);
+    const out = orderExposableProducts(cat, 'critter', rows, AS_OF);
     expect(out.map((x) => x.product.id)).toEqual(['ok-mid-1', 'ok-mid-2', 'ok-old', 'ok-null', 'br-new']);
     expect(out.map((x) => x.verdict)).toEqual(['OK', 'OK', 'OK', 'OK', 'BELOW_RECOMMENDED']);
     expect(out[0].product).toBe(rows[3]);
   });
   it('per animal type: plain type keeps the override-failing product', () => {
-    expect(orderExposableProducts(cat, 'critter-plain', rows).map((x) => x.product.id)).toContain('hidden');
+    expect(orderExposableProducts(cat, 'critter-plain', rows, AS_OF).map((x) => x.product.id)).toContain('hidden');
   });
   it('does not mutate input and is deterministic', () => {
     const copy = JSON.stringify(rows);
-    const a = orderExposableProducts(cat, 'critter', rows);
-    const b = orderExposableProducts(cat, 'critter', [...rows]);
+    const a = orderExposableProducts(cat, 'critter', rows, AS_OF);
+    const b = orderExposableProducts(cat, 'critter', [...rows], AS_OF);
     expect(JSON.stringify(rows)).toBe(copy);
     expect(a.map((x) => x.product.id)).toEqual(b.map((x) => x.product.id));
   });
   it('real seed: nothing exposable for hamster-golden', () => {
     const products = read<CuratedProductRec>('curated-products.json');
     const cat = createCatalog(realSeed());
-    expect(orderExposableProducts(cat, 'hamster-golden', products)).toEqual([]);
-    for (const p of products) expect(isProductExposable(cat, 'hamster-golden', p)).toBe(false);
+    expect(orderExposableProducts(cat, 'hamster-golden', products, AS_OF)).toEqual([]);
+    for (const p of products) expect(isProductExposable(cat, 'hamster-golden', p, AS_OF)).toBe(false);
   });
 });
 
-describe('isBundleExposable(cat, typeId, b) — VERIFIED ∧ 프로필 일치 ∧ 모든 항목 노출', () => {
+describe('isBundleExposable(cat, typeId, b, AS_OF) — VERIFIED ∧ 프로필 일치 ∧ 모든 항목 노출', () => {
   const bundle: SetupBundleRec = {
     id: 'sb-1',
     careProfileId: 'pf-test',
@@ -340,39 +346,61 @@ describe('isBundleExposable(cat, typeId, b) — VERIFIED ∧ 프로필 일치 �
   };
   const cat = createCatalog(allVerified());
   it('true when all conditions hold', () => {
-    expect(isBundleExposable(cat, 'critter', bundle)).toBe(true);
+    expect(isBundleExposable(cat, 'critter', bundle, AS_OF)).toBe(true);
   });
   it('false: bundle unverified / AI_DRAFT / unknown reviewer', () => {
-    expect(isBundleExposable(cat, 'critter', { ...bundle, reviewStatus: 'DRAFT' })).toBe(false);
-    expect(isBundleExposable(cat, 'critter', { ...bundle, reviewerType: 'AI_DRAFT' })).toBe(false);
-    expect(isBundleExposable(cat, 'critter', { ...bundle, reviewerType: 'HUMAN' as unknown as ReviewerType })).toBe(false);
+    expect(isBundleExposable(cat, 'critter', { ...bundle, reviewStatus: 'DRAFT' }, AS_OF)).toBe(false);
+    expect(isBundleExposable(cat, 'critter', { ...bundle, reviewerType: 'AI_DRAFT' }, AS_OF)).toBe(false);
+    expect(isBundleExposable(cat, 'critter', { ...bundle, reviewerType: 'HUMAN' as unknown as ReviewerType }, AS_OF)).toBe(false);
   });
   it('false: profile mismatch, unknown type, empty or unknown items', () => {
-    expect(isBundleExposable(cat, 'critter', { ...bundle, careProfileId: 'pf-other' })).toBe(false);
-    expect(isBundleExposable(cat, 'nope', bundle)).toBe(false);
-    expect(isBundleExposable(cat, 'critter', { ...bundle, itemIds: [] })).toBe(false);
-    expect(isBundleExposable(cat, 'critter', { ...bundle, itemIds: ['box', 'nope'] })).toBe(false);
+    expect(isBundleExposable(cat, 'critter', { ...bundle, careProfileId: 'pf-other' }, AS_OF)).toBe(false);
+    expect(isBundleExposable(cat, 'nope', bundle, AS_OF)).toBe(false);
+    expect(isBundleExposable(cat, 'critter', { ...bundle, itemIds: [] }, AS_OF)).toBe(false);
+    expect(isBundleExposable(cat, 'critter', { ...bundle, itemIds: ['box', 'nope'] }, AS_OF)).toBe(false);
   });
   it('false when any item requirement is not exposed', () => {
     const b = allVerified();
     Object.assign(b.supplyRequirements.find((x) => x.id === 'rq-pf-test-spinner')!, { reviewStatus: 'NEEDS_REVIEW' });
     const c = createCatalog(b);
-    expect(isBundleExposable(c, 'critter', bundle)).toBe(false);
-    expect(isBundleExposable(c, 'critter', { ...bundle, itemIds: ['box'] })).toBe(true);
+    expect(isBundleExposable(c, 'critter', bundle, AS_OF)).toBe(false);
+    expect(isBundleExposable(c, 'critter', { ...bundle, itemIds: ['box'] }, AS_OF)).toBe(true);
   });
   it('false when the animal type itself is not verified', () => {
     const b = allVerified();
     Object.assign(b.animalTypes.find((x) => x.id === 'critter')!, { reviewStatus: 'DRAFT' });
-    expect(isBundleExposable(createCatalog(b), 'critter', bundle)).toBe(false);
+    expect(isBundleExposable(createCatalog(b), 'critter', bundle, AS_OF)).toBe(false);
   });
 });
 
 describe('isCompatRuleExposable — VERIFIED(rank ≥ OPERATOR) only', () => {
   const rule = allVerified().compatibilityRules[0];
   it('both directions', () => {
-    expect(isCompatRuleExposable(rule)).toBe(true);
-    expect(isCompatRuleExposable({ ...rule, reviewStatus: 'NEEDS_REVIEW' })).toBe(false);
-    expect(isCompatRuleExposable({ ...rule, reviewerType: 'AI_DRAFT' })).toBe(false);
+    expect(isCompatRuleExposable(rule, AS_OF)).toBe(true);
+    expect(isCompatRuleExposable({ ...rule, reviewStatus: 'NEEDS_REVIEW' }, AS_OF)).toBe(false);
+    expect(isCompatRuleExposable({ ...rule, reviewerType: 'AI_DRAFT' }, AS_OF)).toBe(false);
+  });
+});
+
+describe('isTestimonialPublic(cat, t, asOf) — APPROVED ∧ verifiedUsage ∧ 노출 타입(F5, fail-closed)', () => {
+  const cat = createCatalog(allVerified());
+  const t = { status: 'APPROVED' as const, verifiedUsage: true, animalTypeId: 'critter' };
+  it('노출 타입의 승인·이용 확인 후기만 true', () => {
+    expect(isTestimonialPublic(cat, t, AS_OF)).toBe(true);
+    expect(isTestimonialPublic(cat, { ...t, animalTypeId: 'ghost' }, AS_OF)).toBe(false); // PLANNED
+    expect(isTestimonialPublic(cat, { ...t, animalTypeId: 'nope' }, AS_OF)).toBe(false);
+    expect(isTestimonialPublic(cat, { ...t, animalTypeId: undefined as unknown as string }, AS_OF)).toBe(false);
+    expect(isTestimonialPublic(cat, { ...t, status: 'SUBMITTED' }, AS_OF)).toBe(false);
+    expect(isTestimonialPublic(cat, { ...t, verifiedUsage: false }, AS_OF)).toBe(false);
+  });
+  it('타입이 강등(검수 181일)되면 그 후기도 false', () => {
+    expect(isTestimonialPublic(cat, t, '2027-03-30')).toBe(false);
+  });
+  it('타입 미검수면 false, asOf 형식 오류는 throw', () => {
+    const b = allVerified();
+    Object.assign(b.animalTypes.find((x) => x.id === 'critter')!, { reviewStatus: 'DRAFT' });
+    expect(isTestimonialPublic(createCatalog(b), t, AS_OF)).toBe(false);
+    expect(() => isTestimonialPublic(cat, t, '2026-1-1')).toThrow(RangeError);
   });
 });
 
@@ -386,6 +414,7 @@ describe('isPhotoUsable — 비SLOT ∧ 사용권 기록(I01·C6)', () => {
     license: 'CC_BY',
     author: '작성자',
     sourceUrl: 'https://commons.wikimedia.org/wiki/File:x.jpg',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
     downloadedAt: '2026-09-30',
     modified: false,
     status: 'READY',
@@ -407,8 +436,42 @@ describe('isPhotoUsable — 비SLOT ∧ 사용권 기록(I01·C6)', () => {
     ['bad downloadedAt', { downloadedAt: '2026/09/30' }],
     ['CC_BY without author', { author: null }],
     ['CC_BY_SA blank author', { license: 'CC_BY_SA', author: '' }],
+    // M-3(R4 A2): CC BY 계열은 같은 종류의 creativecommons.org 증서 URL 필수.
+    ['CC_BY without licenseUrl', { licenseUrl: null }],
+    ['CC_BY licenseUrl missing key', { licenseUrl: undefined }],
+    ['CC_BY with by-sa licenseUrl', { licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+    ['CC_BY_SA with by licenseUrl', { license: 'CC_BY_SA' }],
+    ['CC_BY http licenseUrl', { licenseUrl: 'http://creativecommons.org/licenses/by/4.0/' }],
+    ['CC_BY lookalike host', { licenseUrl: 'https://creativecommons.org.evil.example/licenses/by/4.0/' }],
+    ['CC_BY subdomain host', { licenseUrl: 'https://evil.creativecommons.org/licenses/by/4.0/' }],
+    ['CC_BY userinfo', { licenseUrl: 'https://creativecommons.org@evil.example/licenses/by/4.0/' }],
+    ['CC_BY query', { licenseUrl: 'https://creativecommons.org/licenses/by/4.0/?x=1' }],
+    ['CC_BY other site', { licenseUrl: 'https://unsplash.com/license' }],
+    // S-R4 L-C: 버전은 2.0|2.5|3.0|4.0 만.
+    ['CC_BY version 9.9', { licenseUrl: 'https://creativecommons.org/licenses/by/9.9/' }],
+    ['CC_BY version 1.0', { licenseUrl: 'https://creativecommons.org/licenses/by/1.0/' }],
+    // S-R4 L-D: 달력상 날짜·점 있는 https 호스트.
+    ['impossible downloadedAt', { downloadedAt: '2026-02-30' }],
+    ['dotless sourceUrl host', { sourceUrl: 'https://localhost/x.jpg' }],
+    // S-R4 L-E: 상태 허용목록(READY)만.
+    ['status ACTIVE', { status: 'ACTIVE' }],
+    ['status lowercase ready', { status: 'ready' }],
+    ['status missing', { status: undefined as unknown as string }],
+    ['status empty', { status: '' }],
   ])('%s → false', (_n, patch) => {
     expect(isPhotoUsable({ ...photo, ...patch })).toBe(false);
+  });
+  it('CC_BY_SA with by-sa licenseUrl → true; deed 경로 허용', () => {
+    expect(isPhotoUsable({ ...photo, license: 'CC_BY_SA', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' })).toBe(true);
+    expect(isPhotoUsable({ ...photo, licenseUrl: 'https://creativecommons.org/licenses/by/2.0/deed.ko' })).toBe(true);
+    for (const v of ['2.5', '3.0']) expect(isPhotoUsable({ ...photo, licenseUrl: `https://creativecommons.org/licenses/by/${v}/` }), v).toBe(true);
+    expect(PHOTO_USABLE_STATUSES).toEqual(['READY']);
+  });
+  it('parseCcLicenseUrl: 표시명·종류', () => {
+    expect(parseCcLicenseUrl('https://creativecommons.org/licenses/by/4.0/')).toEqual({ license: 'CC_BY', version: '4.0', name: 'CC BY 4.0' });
+    expect(parseCcLicenseUrl('https://creativecommons.org/licenses/by-sa/3.0/deed.en')).toEqual({ license: 'CC_BY_SA', version: '3.0', name: 'CC BY-SA 3.0' });
+    expect(parseCcLicenseUrl('https://creativecommons.org/publicdomain/zero/1.0/')).toEqual({ license: 'CC0', version: '1.0', name: 'CC0 1.0' });
+    for (const bad of [null, '', 'https://creativecommons.org/licenses/by-nc/4.0/', 'https://creativecommons.org/licenses/by/4.0', 42]) expect(parseCcLicenseUrl(bad)).toBeNull();
   });
   it('real seed photos: none usable (all SLOT)', () => {
     for (const p of read<PhotoRec>('photos.json')) expect(isPhotoUsable(p)).toBe(false);

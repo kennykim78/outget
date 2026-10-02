@@ -1,12 +1,15 @@
 // 엔진 순수성(PRD US-021, R2 계획 §E Purity) — src/engine/*.ts 는 './x.js' 상대 import 만,
 //   fs·node:·@prisma·process.·Date·Math.random·eval·Function 금지. 클라이언트·프리렌더가 같은 소스를 쓴다.
+//   R4 B1: src/shared/*.ts(이벤트 계약 — 클라이언트 @ws/events)도 같은 규칙 + DOM 전역 금지.
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ENGINE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'engine');
+const SHARED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'shared');
 const files = readdirSync(ENGINE_DIR).filter((f) => f.endsWith('.ts'));
+const sharedFiles = readdirSync(SHARED_DIR).filter((f) => f.endsWith('.ts'));
 
 const FORBIDDEN: Array<[string, RegExp]> = [
   ['process.', /\bprocess\s*\./],
@@ -20,6 +23,31 @@ const FORBIDDEN: Array<[string, RegExp]> = [
   ['globalThis', /\bglobalThis\b/],
   ['setTimeout', /\bset(?:Timeout|Interval)\s*\(/],
 ];
+
+// shared/ 는 Node·DOM 양쪽에서 import 된다 — 어느 한쪽 전역에도 기대지 않는다.
+const FORBIDDEN_SHARED: Array<[string, RegExp]> = [
+  ...FORBIDDEN,
+  ['window', /\bwindow\b/],
+  ['document', /\bdocument\b/],
+  ['navigator', /\bnavigator\b/],
+  ['localStorage', /\b(?:local|session)Storage\b/],
+  ['crypto', /\bcrypto\b/],
+  ['TextEncoder', /\bText(?:En|De)coder\b/],
+  ['Buffer', /\bBuffer\b/],
+  ['Date', /\bDate\b/],
+];
+
+function specifiersOf(src: string): string[] {
+  return [
+    ...src.matchAll(/\b(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/g),
+    ...src.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]/g),
+    ...src.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm),
+  ].map((m) => m[1]);
+}
+
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
 
 describe('engine purity', () => {
   it('has the planned modules', () => {
@@ -57,5 +85,22 @@ describe('engine purity', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '');
     for (const [name, re] of FORBIDDEN) expect(code, `${file} uses ${name}`).not.toMatch(re);
+  });
+});
+
+describe('shared purity (R4 B1 — @ws/events)', () => {
+  it('has the planned modules', () => {
+    expect(sharedFiles.sort()).toEqual(['event-contract.ts']);
+  });
+
+  it.each(sharedFiles)('%s imports only ./x.js siblings', (file) => {
+    const src = readFileSync(join(SHARED_DIR, file), 'utf8');
+    for (const s of specifiersOf(src)) expect(s, `${file}: ${s}`).toMatch(/^\.\/[a-z][a-z-]*\.js$/);
+    expect(src).not.toMatch(/['"](?:node:|fs['"/]|@prisma|express)/);
+  });
+
+  it.each(sharedFiles)('%s uses no Node/DOM/impure globals', (file) => {
+    const code = stripComments(readFileSync(join(SHARED_DIR, file), 'utf8'));
+    for (const [name, re] of FORBIDDEN_SHARED) expect(code, `${file} uses ${name}`).not.toMatch(re);
   });
 });

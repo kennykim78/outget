@@ -2,7 +2,7 @@
 // 정책:
 //   - access 토큰은 **메모리(모듈 변수)** 에만 둔다. localStorage/sessionStorage 등
 //     영속 저장소에 절대 기록하지 않는다(XSS 탈취면 적용 최소화 + 새로고침 시 refresh 로 복구).
-//   - refresh 토큰만 localStorage(키 'outget.refresh') 에 둔다. 새로고침 후 세션 복구용.
+//   - refresh 토큰만 localStorage(키 'withsmall.refresh') 에 둔다. 새로고침 후 세션 복구용.
 //   - 토큰 리터럴 하드코딩 0 — 런타임 값만 저장한다.
 //   - 후속 httpOnly 쿠키 전환 시 이 파일만 교체하면 된다(호출부는 이 인터페이스만 의존).
 
@@ -10,7 +10,7 @@
 let accessToken: string | null = null;
 
 // refresh 영속 저장소 키.
-const REFRESH_KEY = 'outget.refresh';
+const REFRESH_KEY = 'withsmall.refresh';
 
 /** 현재 access 토큰(메모리). 없으면 null. */
 export function getAccessToken(): string | null {

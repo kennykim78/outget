@@ -2,7 +2,7 @@
 //   createApp(repos) 가 단일 진입점으로 주입받는다. 기본 인자는 makeInMemoryRepos()
 //   → 테스트가 createApp() 무인자로 인메모리에서 그대로 통과한다.
 //   index.ts 만 makePrismaRepos(prisma) 로 영속 경로를 켠다(전환 지점 1곳).
-//   (R1: Outget 리포지토리 agent/match/request/discount/dispute/bounty/groupslot,
+//   (R1: 이전 서비스 리포지토리 agent/match/request/discount/dispute/bounty/groupslot,
 //    v0.1 분양·신청서·용품거래 모듈 제거.)
 import type { PrismaClient } from '@prisma/client';
 
@@ -41,6 +41,9 @@ import {
 } from '../vet/vet.repo.js';
 import { PrismaVetClinicRepository } from '../vet/vet.prisma.repo.js';
 
+import { InMemoryEventRepository, type EventRepository } from '../analytics/event.repo.js';
+import { PrismaEventRepository } from '../analytics/event.prisma.repo.js';
+
 // 앱이 의존하는 전체 리포지토리 집합.
 export interface Repos {
   user: UserRepository;
@@ -50,6 +53,7 @@ export interface Repos {
   report: ReportRepository;
   badge: BadgeRepository;
   vet: VetClinicRepository;
+  event: EventRepository;
 }
 
 // 인메모리 구성(테스트 기본 + dev 폴백). 프로세스 메모리에만 존재.
@@ -62,6 +66,7 @@ export function makeInMemoryRepos(): Repos {
     report: new InMemoryReportRepository(),
     badge: new InMemoryBadgeRepository(),
     vet: new InMemoryVetClinicRepository(),
+    event: new InMemoryEventRepository(),
   };
 }
 
@@ -75,5 +80,6 @@ export function makePrismaRepos(prisma: PrismaClient): Repos {
     report: new PrismaReportRepository(prisma),
     badge: new PrismaBadgeRepository(prisma),
     vet: new PrismaVetClinicRepository(prisma),
+    event: new PrismaEventRepository(prisma),
   };
 }

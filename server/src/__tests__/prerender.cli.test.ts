@@ -7,7 +7,7 @@ import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runPrerenderCli, SHELL_FILE, type PrerenderIo } from '../prerender/cli.js';
 import { seedDigest } from '../prerender/digest.js';
-import { patch, promoted, SEED_DIR, writeSeedDir } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, patch, promoted, SEED_DIR, writeSeedDir } from './fixtures/prerender-seed.js';
 
 const ROOT = join(SEED_DIR, '..', '..');
 const TEMPLATE = readFileSync(join(ROOT, 'client', 'index.html'), 'utf8');
@@ -32,11 +32,16 @@ interface Run {
   out: string[];
   err: string[];
 }
-async function run(argv: string[], env: Record<string, string> = {}): Promise<Run> {
+/** --now 가 없으면 FIXTURE_AS_OF 를 붙인다. io.today 는 기본적으로 던진다(실시계 결합 0, F14). */
+async function run(argv: string[], env: Record<string, string> = {}, today?: () => string): Promise<Run> {
   const out: string[] = [];
   const err: string[] = [];
-  const io: PrerenderIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), env, today: () => '2026-10-01' };
-  return { code: await runPrerenderCli(argv, io), out, err };
+  const noClock = (): string => {
+    throw new Error('test: io.today() 호출 — --now 를 넘겨라');
+  };
+  const io: PrerenderIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), env, today: today ?? noClock };
+  const args = today || argv.some((a) => a === '--now' || a.startsWith('--now=')) ? argv : [...argv, '--now', FIXTURE_AS_OF];
+  return { code: await runPrerenderCli(args, io), out, err };
 }
 
 function walk(dir: string): string[] {
@@ -75,8 +80,8 @@ describe('prerender CLI', () => {
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 3 (+404), indexable 1, types 0']);
-    for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
+    expect(r1.out).toEqual(['prerender — pages 4 (+404), indexable 1, types 0']);
+    for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', 'credits/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
       expect(existsSync(join(out, f)), f).toBe(true);
     }
     expect(readFileSync(join(out, SHELL_FILE), 'utf8')).toBe(TEMPLATE);
@@ -116,8 +121,41 @@ describe('prerender CLI', () => {
     const r2 = await run(['--out', out]);
     expect(r2.code).toBe(0);
     expect(existsSync(join(out, 'hamster', 'golden', 'index.html'))).toBe(false);
-    expect(existsSync(join(out, 'credits', 'index.html'))).toBe(false);
+    expect(existsSync(join(out, 'credits', 'index.html'))).toBe(true); // R4 D6: 항상(빈 상태)
+    expect(readFileSync(join(out, 'credits', 'index.html'), 'utf8')).not.toContain('Fixture Author');
     expect(readdirSync(join(out, 'data'))).toHaveLength(1);
+  });
+
+  // M-1(R4 A1): --now 가 노출 기준일 — verifiedAt + 180 노출, + 181 강등. 기준일은 산출물에 쓰지 않는다.
+  it('--now 는 노출 기준일: verifiedAt+180 → types 1, +181 → types 0(타입 페이지 없음), 산출물에 날짜 없음', async () => {
+    const seedDir = tmp('seed');
+    writeSeedDir(seedDir, promoted());
+    const fresh = outDir();
+    const r1 = await run(['--out', fresh, '--seed-dir', seedDir, '--now', FIXTURE_LAST_FRESH]);
+    expect(r1.err).toEqual([]);
+    expect(r1.out).toEqual(['prerender — pages 17 (+404), indexable 14, types 1']);
+    const stale = outDir();
+    const r2 = await run(['--out', stale, '--seed-dir', seedDir, '--now', FIXTURE_FIRST_STALE]);
+    expect(r2.err).toEqual([]);
+    expect(r2.code).toBe(0);
+    expect(r2.out[0]).toMatch(/types 0$/);
+    expect(existsSync(join(stale, 'hamster', 'golden', 'index.html'))).toBe(false);
+    for (const f of walk(stale)) {
+      const text = readFileSync(f, 'utf8');
+      expect(text, f).not.toContain(FIXTURE_FIRST_STALE);
+      expect(text, f).not.toContain('픽스처 쳇바퀴 A');
+    }
+    for (const f of walk(fresh)) expect(readFileSync(f, 'utf8'), f).not.toContain(FIXTURE_LAST_FRESH);
+  });
+
+  it('--now 없으면 io.today() 가 노출 기준일(고정 값 주입 — 실시계 아님)', async () => {
+    const seedDir = tmp('seed');
+    writeSeedDir(seedDir, promoted());
+    const r = await run(['--out', outDir(), '--seed-dir', seedDir], {}, () => FIXTURE_FIRST_STALE);
+    expect(r.code).toBe(0);
+    expect(r.out[0]).toMatch(/types 0$/);
+    const r2 = await run(['--out', outDir(), '--seed-dir', seedDir], {}, () => FIXTURE_LAST_FRESH);
+    expect(r2.out[0]).toMatch(/types 1$/);
   });
 
   it('시드 오류 → exit 1, 아무것도 쓰지 않음(D20)', async () => {

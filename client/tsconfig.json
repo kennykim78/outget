@@ -4,7 +4,14 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "types": ["vite/client", "vite-plugin-pwa/client", "vitest/globals", "@testing-library/jest-dom"],
-    "noEmit": true
+    "noEmit": true,
+    // 서버 공용 순수 모듈은 이 별칭으로만 가져온다(상대 경로 금지 — .eslintrc.cjs no-restricted-imports).
+    // 대상 파일의 './x.js' 형제 import 는 moduleResolution Bundler 가 .ts 로 해석한다. vite.config.ts alias 와 1:1.
+    "paths": {
+      "@ws/engine": ["../server/src/engine/index.ts"],
+      "@ws/copy": ["../server/src/prerender/copy.ts"],
+      "@ws/events": ["../server/src/shared/event-contract.ts"]
+    }
   },
   "include": ["src", "vite.config.ts"]
 }

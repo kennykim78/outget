@@ -1,7 +1,7 @@
 // Prisma row ↔ 도메인 Stored* 매핑.
 //   Prisma 의 nullable(null) ↔ 도메인의 optional(undefined) 변환을 한곳에 모은다.
 //   매핑 함수는 순수(네트워크 호출 0) — repo 가 행위를, 매퍼가 형태를 담당한다.
-//   (R1: Outget 매퍼 agent/match/request/discount/dispute/bounty/groupslot 제거.)
+//   (R1: 이전 서비스 매퍼 agent/match/request/discount/dispute/bounty/groupslot 제거.)
 import type { StoredNotification } from '../notification/notification.types.js';
 import type { StoredMessage } from '../chat/message.types.js';
 import type { Report } from '../governance/report.types.js';

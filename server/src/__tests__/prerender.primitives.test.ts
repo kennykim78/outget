@@ -250,4 +250,14 @@ describe('copy', () => {
     expect(() => formatCopy('{x}', { animal: 'a' })).toThrow();
     expect(() => formatCopy(COPY.homeB.saveTitle, {})).toThrow();
   });
+
+  it('formatCopy 는 {n}(숫자)·{alias}·{name} 도 채우고 누락·비유한수는 throw', () => {
+    expect(formatCopy(COPY.homeB.nowRemaining, { n: 3 })).toBe('필수 3개 남았어요');
+    expect(formatCopy(COPY.homeB.nowRemaining, { n: 0 })).toBe('필수 0개 남았어요');
+    expect(formatCopy(COPY.homeB.aliasLine, { alias: '골댕이' })).toBe('골댕이라고도 불러요');
+    expect(formatCopy(COPY.checklist.itemDetailAria, { name: '케이지' })).toBe('케이지 자세히');
+    expect(formatCopy(COPY.bundle.newCount, { n: 2 })).toBe('새로 2개');
+    expect(() => formatCopy(COPY.homeB.nowRemaining, {})).toThrow();
+    expect(() => formatCopy(COPY.homeB.nowRemaining, { n: Number.NaN })).toThrow();
+  });
 });

@@ -7,7 +7,7 @@
 //
 // 신고 즉시 임시조치(블라인드) → 이의/복구/삭제 상태머신. 운영자 동선 분리.
 // 자금 흐름 필드 0. 좌표 0(검증에서 차단). 외부 fetch 0(자사만).
-// R1: Outget 할인소식 대상 연동 제거. 대상 작성자 추적은 해당 기능(병원 제보 등)이
+// R1: 이전 서비스 할인소식 대상 연동 제거. 대상 작성자 추적은 해당 기능(병원 제보 등)이
 //   들어올 때 추가한다 — 그 전까지 이의제기는 fail-closed(403).
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../auth/auth.middleware.js';
@@ -77,7 +77,7 @@ export function createReportRouter(
   });
 
   // 신고 목록(상태별) — 운영자만.
-  router.get('/reports', requireAuth, requireRole('운영자'), async (req, res) => {
+  router.get('/reports', requireAuth, requireRole('OPERATOR'), async (req, res) => {
     const status = req.query.status;
     if (isStatus(status)) {
       res.status(200).json(await reportRepo.listByStatus(status));
@@ -90,7 +90,7 @@ export function createReportRouter(
   router.post(
     '/reports/:id/restore',
     requireAuth,
-    requireRole('운영자'),
+    requireRole('OPERATOR'),
     async (req, res) => {
       const report = await reportRepo.findById(req.params.id);
       if (!report) {
@@ -106,7 +106,7 @@ export function createReportRouter(
   router.post(
     '/reports/:id/remove',
     requireAuth,
-    requireRole('운영자'),
+    requireRole('OPERATOR'),
     async (req, res) => {
       const report = await reportRepo.findById(req.params.id);
       if (!report) {

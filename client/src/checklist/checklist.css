@@ -1,0 +1,244 @@
+/* L2 체크리스트 + L3 두 질문(스펙22 §3.4 · §2.10). 토큰 변수만. 그림자·그라데이션 없음, 마스코트 없음. */
+.ws-check-muted {
+  color: var(--ws-ink-muted);
+}
+
+/* 요약 밴드(레이어 머리 bg-100 안) */
+.ws-check-band {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-check-band h2 {
+  margin: 0;
+}
+
+.ws-check-band p {
+  margin: 0;
+}
+
+.ws-check-progress {
+  height: 8px;
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-brand-soft);
+  overflow: hidden;
+}
+
+.ws-check-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-brand);
+}
+
+/* 그룹 */
+.ws-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-6);
+}
+
+.ws-check-group-head {
+  margin: 0 0 var(--ws-space-2);
+}
+
+.ws-check-fold {
+  min-height: var(--ws-touch);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ws-ink-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ws-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 행 */
+.ws-check-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  border-bottom: 1px solid var(--ws-line);
+}
+
+.ws-check-toggle {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--ws-touch);
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+  padding: var(--ws-space-3) 0;
+  background: none;
+  border: 0;
+  color: var(--ws-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ws-check-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+
+.ws-check-row--later .ws-check-name {
+  color: var(--ws-ink-muted);
+}
+
+.ws-check-owned {
+  padding: 0 var(--ws-space-2);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-pill);
+  color: var(--ws-ink-muted);
+  white-space: nowrap;
+}
+
+.ws-check-box {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  color: var(--ws-surface);
+}
+
+.ws-check-box--on {
+  background: var(--ws-status-ready);
+  border-color: var(--ws-status-ready);
+}
+
+.ws-check-more {
+  flex: none;
+  width: var(--ws-touch);
+  height: var(--ws-touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ws-ink-muted);
+  text-decoration: none;
+}
+
+/* 꼬리 */
+.ws-check-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ws-space-2);
+}
+
+.ws-check-foot p {
+  margin: 0;
+}
+
+.ws-check-save {
+  color: var(--ws-brand-text);
+}
+
+/* L3 */
+.ws-setupq {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-6);
+}
+
+.ws-setupq-q {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+}
+
+.ws-setupq-q legend {
+  padding: 0;
+  margin-bottom: var(--ws-space-3);
+}
+
+.ws-setupq-q p,
+.ws-setupq-title {
+  margin: 0;
+}
+
+.ws-setupq-radios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ws-space-3);
+}
+
+.ws-setupq-radio {
+  min-height: var(--ws-touch);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-md);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  text-align: center;
+  cursor: pointer;
+}
+
+.ws-setupq-radio--on {
+  background: var(--ws-brand-soft);
+}
+
+.ws-setupq-radio:focus-within {
+  outline: var(--ws-focus-ring);
+  outline-offset: var(--ws-focus-ring-offset);
+}
+
+.ws-setupq-owned {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ws-setupq-item {
+  min-height: var(--ws-touch);
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+  padding: var(--ws-space-3) 0;
+  border-bottom: 1px solid var(--ws-line);
+  cursor: pointer;
+}
+
+.ws-setupq-item input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--ws-status-ready);
+}
+
+.ws-setupq-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-3);
+}
+
+.ws-setupq-skip {
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-2);
+  background: none;
+  border: 0;
+  color: var(--ws-brand-text);
+  cursor: pointer;
+}

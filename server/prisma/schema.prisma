@@ -383,3 +383,21 @@ model Badge {
 
   @@id([userId, type])
 }
+
+// ─────────────────────────────────────────────────────────────
+// 익명 이벤트(PRD US-018, R4 계약 C-3) — server/src/shared/event-contract.ts 허용목록 통과분만 적재.
+//   IP·User-Agent·요청 헤더·좌표 저장 없음(불변식 8). 수신 시각은 일 단위(receivedDate)로만 남긴다.
+//   sessionKey 는 클라이언트 랜덤 UUID(개인 식별 목적 없음). props 는 JSON 문자열(≤1KB).
+// ─────────────────────────────────────────────────────────────
+model EventLog {
+  id           String  @id
+  name         String
+  ts           String // 클라이언트 시각 ISO
+  animalTypeId String?
+  props        String // JSON
+  sessionKey   String
+  receivedDate String // YYYY-MM-DD (Asia/Seoul)
+
+  @@index([name, receivedDate])
+  @@index([sessionKey])
+}

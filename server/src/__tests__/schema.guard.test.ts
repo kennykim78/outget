@@ -134,4 +134,21 @@ describe('schema guard', () => {
     }
     expect(missing).toEqual([]);
   });
+
+  it('(g) EventLog 는 계약 C-3 필드만 갖는다 — IP·UA·헤더·좌표 없음(PRD US-018, 불변식 8)', () => {
+    const fields = models.get('EventLog');
+    expect(fields).toBeDefined();
+    expect([...(fields ?? [])].sort()).toEqual(
+      ['animalTypeId', 'id', 'name', 'props', 'receivedDate', 'sessionKey', 'ts'].sort(),
+    );
+    const pii = /^(ip|ipAddress|ipHash|ua|userAgent|headers?|referr?er|lat|lng|latitude|longitude|coords?|email|phone|userId)$/i;
+    expect((fields ?? []).filter((f) => pii.test(f))).toEqual([]);
+  });
+
+  it('(h) 어떤 모델에도 IP·User-Agent 원문 필드가 없다(PRD US-018)', () => {
+    const re = /^(ip|ipAddress|remoteAddr|ua|userAgent)$/i;
+    const hits: string[] = [];
+    for (const [model, fields] of models) for (const f of fields) if (re.test(f)) hits.push(`${model}.${f}`);
+    expect(hits).toEqual([]);
+  });
 });

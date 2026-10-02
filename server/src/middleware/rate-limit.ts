@@ -26,7 +26,7 @@ function makeLimiter(opts: Partial<Options>): RequestHandler {
 
 const MINUTE = 60 * 1000;
 
-// 로그인/회원가입 — 자격증명 대입(brute force) 완화. 분당 10회/ IP.
+// 로그인·가입 — 자격증명 대입(brute force) 완화. 분당 10회/ IP.
 export const authLimiter = makeLimiter({
   windowMs: MINUTE,
   limit: 10,

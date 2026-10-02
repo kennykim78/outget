@@ -1,0 +1,875 @@
+/* WithSmall 앱 스타일(스펙22 §2). 값은 전부 tokens.css 변수 — hex·rgb·그라데이션·임의 그림자 0(§1.6).
+   브레이크포인트 리터럴: ≤767 모바일 · 768–1023 태블릿 · ≥1024 데스크톱. 다크 모드 규칙 없음(단일 라이트).
+   프리렌더 마크업(header.ws-header, main.ws-page, footer.ws-footer, nav.ws-tabbar, aside.ws-layer, ul.ws-chips…)도
+   하이드레이션 전부터 같은 모양이 되도록 같은 클래스를 그린다. */
+
+/* ── 기본 ─────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ws-bg-000);
+  color: var(--ws-ink);
+  font-family: var(--ws-font-sans);
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+  font-weight: var(--ws-type-body-weight);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  text-wrap: balance;
+}
+
+p,
+ul,
+ol,
+figure,
+blockquote {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: var(--ws-brand-text);
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: var(--ws-focus-ring);
+  outline-offset: var(--ws-focus-ring-offset);
+}
+
+[aria-disabled='true'],
+:disabled {
+  opacity: var(--ws-disabled-opacity);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  a:hover {
+    text-decoration: underline;
+  }
+}
+
+.ws-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── 버튼(§2.0) — 채운 CTA 는 화면당 하나 ───────────── */
+.ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ws-space-1);
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-6);
+  border-radius: var(--ws-radius-md);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-cta-weight);
+  text-decoration: none;
+}
+
+.ws-btn:active {
+  filter: var(--ws-pressed-brightness);
+}
+
+.ws-btn--fill {
+  background: var(--ws-brand);
+  color: var(--ws-on-brand);
+}
+
+.ws-btn--outline {
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  border: 1px solid var(--ws-line-strong);
+}
+
+@media (hover: hover) {
+  .ws-btn:hover {
+    text-decoration: none;
+  }
+  .ws-btn--outline:hover {
+    background: var(--ws-bg-100);
+  }
+}
+
+/* ── 상태 글리프(§2.0) ──────────────────────────────── */
+.ws-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--ws-space-6);
+  font-weight: var(--ws-type-cta-weight);
+}
+
+.ws-glyph[data-ws-glyph='ready'] {
+  color: var(--ws-status-ready);
+}
+.ws-glyph[data-ws-glyph='first'] {
+  color: var(--ws-status-first);
+}
+.ws-glyph[data-ws-glyph='check'] {
+  color: var(--ws-status-check);
+}
+.ws-glyph[data-ws-glyph='later'] {
+  color: var(--ws-status-later);
+}
+.ws-glyph[data-ws-glyph='fail'] {
+  color: var(--ws-status-fail);
+}
+.ws-glyph[data-ws-glyph='unknown'] {
+  color: var(--ws-ink-muted);
+}
+
+/* ── 아바타(§2.16) ─────────────────────────────────── */
+.ws-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ws-radius-pill);
+  overflow: hidden;
+}
+.ws-avatar--brand-soft {
+  background: var(--ws-brand-soft);
+}
+.ws-avatar--peach-soft {
+  background: var(--ws-peach-soft);
+}
+.ws-avatar--surface {
+  background: var(--ws-surface);
+}
+.ws-avatar--lg {
+  width: var(--ws-avatar-lg-disc);
+  height: var(--ws-avatar-lg-disc);
+}
+.ws-avatar--lg > img,
+.ws-avatar--lg > svg {
+  width: var(--ws-avatar-lg-img);
+  height: var(--ws-avatar-lg-img);
+}
+.ws-avatar--md {
+  width: var(--ws-avatar-md-disc);
+  height: var(--ws-avatar-md-disc);
+}
+.ws-avatar--md > img,
+.ws-avatar--md > svg {
+  width: var(--ws-avatar-md-img);
+  height: var(--ws-avatar-md-img);
+}
+.ws-avatar--sm {
+  width: var(--ws-avatar-sm-disc);
+  height: var(--ws-avatar-sm-disc);
+}
+.ws-avatar--sm > img,
+.ws-avatar--sm > svg {
+  width: var(--ws-avatar-sm-img);
+  height: var(--ws-avatar-sm-img);
+}
+.ws-avatar--type {
+  width: var(--ws-avatar-type-disc);
+  height: var(--ws-avatar-type-disc);
+}
+.ws-avatar--type > img,
+.ws-avatar--type > svg {
+  width: var(--ws-avatar-type-img);
+  height: var(--ws-avatar-type-img);
+}
+
+/* ── 페이지 폭(§1.3) ───────────────────────────────── */
+.ws-page,
+.ws-footer {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--ws-gutter-mobile);
+}
+
+@media (min-width: 768px) {
+  .ws-page,
+  .ws-footer {
+    max-width: calc(var(--ws-content-tablet) + 2 * var(--ws-gutter-wide));
+    padding-inline: var(--ws-gutter-wide);
+  }
+}
+
+@media (min-width: 1024px) {
+  .ws-page,
+  .ws-footer {
+    max-width: calc(var(--ws-content-max) + 2 * var(--ws-gutter-wide));
+  }
+}
+
+/* ── 전역 헤더(§2.1) ───────────────────────────────── */
+.ws-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-4);
+  height: var(--ws-header-h);
+  padding-inline: var(--ws-gutter-mobile);
+  background: var(--ws-bg-000);
+  border-bottom: 1px solid var(--ws-line);
+}
+
+.ws-logo {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-display-weight);
+  letter-spacing: var(--ws-type-label-tracking);
+  text-transform: uppercase;
+  color: var(--ws-brand-text);
+}
+
+@media (hover: hover) {
+  .ws-logo:hover {
+    text-decoration: none;
+  }
+}
+
+.ws-nav {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .ws-header {
+    gap: var(--ws-space-8);
+    padding-inline: max(var(--ws-gutter-wide), calc((100% - var(--ws-content-tablet)) / 2));
+  }
+  .ws-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--ws-space-8);
+    margin-left: auto;
+  }
+  .ws-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--ws-touch);
+    color: var(--ws-ink);
+    font-size: var(--ws-type-cta-size);
+    line-height: var(--ws-type-cta-lh);
+    font-weight: var(--ws-type-cta-weight);
+  }
+  .ws-nav a[aria-current='page'] {
+    color: var(--ws-brand-text);
+  }
+}
+
+@media (min-width: 1024px) {
+  .ws-header {
+    padding-inline: max(var(--ws-gutter-wide), calc((100% - var(--ws-content-max)) / 2));
+  }
+}
+
+/* ── 동물 칩(§2.2) — 시각 높이 40, 히트 44 ─────────── */
+[data-ws-chip] {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-width: 0;
+  height: calc(var(--ws-touch) - var(--ws-space-1));
+  padding: 0 var(--ws-space-4) 0 var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-cta-weight);
+  white-space: nowrap;
+}
+
+[data-ws-chip]::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--ws-space-1) / -2) 0;
+}
+
+.ws-chip--selected {
+  padding-left: var(--ws-space-1);
+}
+
+.ws-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-chip-caret {
+  color: var(--ws-ink-muted);
+}
+
+@media (hover: hover) {
+  [data-ws-chip]:hover {
+    text-decoration: none;
+    border-color: var(--ws-ink-muted);
+  }
+}
+
+/* ── 탭바(§2.3, ≤767) ──────────────────────────────── */
+.ws-tabbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  display: flex;
+  height: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--ws-bg-000);
+  border-top: 1px solid var(--ws-line);
+}
+
+.ws-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ws-space-1);
+  min-height: var(--ws-touch);
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+  letter-spacing: var(--ws-type-label-tracking);
+}
+
+.ws-tab[aria-current='page'] {
+  color: var(--ws-brand-text);
+}
+
+@media (hover: hover) {
+  .ws-tab:hover {
+    text-decoration: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .ws-page,
+  .ws-footer {
+    padding-bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  .ws-footer {
+    padding-bottom: calc(var(--ws-tabbar-h) + var(--ws-space-6) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (min-width: 768px) {
+  .ws-tabbar {
+    display: none;
+  }
+}
+
+/* ── 푸터(§2.19) ───────────────────────────────────── */
+.ws-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  margin-top: var(--ws-space-12);
+  padding-block: var(--ws-space-6);
+  border-top: 1px solid var(--ws-line);
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+
+.ws-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-label-weight);
+}
+
+/* ── 가로 레일(§2.4) ───────────────────────────────── */
+.ws-rail-section,
+section[data-ws-section] {
+  margin-top: var(--ws-space-6);
+}
+
+.ws-rail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ws-space-4);
+  margin-bottom: var(--ws-space-3);
+}
+
+.ws-rail-sub {
+  margin-top: var(--ws-space-2);
+  color: var(--ws-ink-muted);
+}
+
+.ws-rail-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+
+.ws-rail-arrow {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ws-touch);
+  height: var(--ws-touch);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-size: var(--ws-type-section-size);
+}
+
+@media (min-width: 1024px) {
+  .ws-rail-arrow {
+    display: inline-flex;
+  }
+}
+
+.ws-rail-more {
+  gap: var(--ws-space-1);
+  /* 히트 44 유지, 레이아웃 높이는 제목 줄(section lh)에 맞춤(F9). */
+  margin-block: calc((var(--ws-type-section-lh) - var(--ws-touch)) / 2);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-label-weight);
+}
+
+.ws-rail,
+ul.ws-chips,
+ul.ws-bundles,
+ul.ws-products,
+ul.ws-vets,
+ul.ws-reviews {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--ws-rail-gap);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.ws-rail::-webkit-scrollbar,
+ul.ws-chips::-webkit-scrollbar,
+ul.ws-bundles::-webkit-scrollbar,
+ul.ws-products::-webkit-scrollbar,
+ul.ws-vets::-webkit-scrollbar,
+ul.ws-reviews::-webkit-scrollbar {
+  display: none;
+}
+
+.ws-rail > li,
+ul.ws-chips > li,
+ul.ws-bundles > li,
+ul.ws-products > li,
+ul.ws-vets > li,
+ul.ws-reviews > li {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+/* ≤767 레일은 화면 가장자리까지(full-bleed), 스냅 기준은 거터. */
+@media (max-width: 767px) {
+  .ws-rail,
+  ul.ws-chips,
+  ul.ws-bundles,
+  ul.ws-products,
+  ul.ws-vets,
+  ul.ws-reviews {
+    margin-inline: calc(-1 * var(--ws-gutter-mobile));
+    padding-inline: var(--ws-gutter-mobile);
+    scroll-padding-inline: var(--ws-gutter-mobile);
+  }
+}
+
+/* 카드 폭(§2.4 표 — 컴포넌트 고정값, 태블릿은 모바일 폭). 카드 내부는 F4·F5. */
+ul.ws-bundles > li {
+  width: var(--ws-bundle-w);
+}
+ul.ws-products > li {
+  width: var(--ws-product-card-w);
+}
+ul.ws-vets > li {
+  width: var(--ws-vet-w);
+}
+ul.ws-reviews > li {
+  width: var(--ws-review-w);
+}
+
+@media (min-width: 1024px) {
+  ul.ws-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  ul.ws-bundles > li {
+    width: var(--ws-bundle-w-wide);
+  }
+  ul.ws-products > li {
+    width: var(--ws-product-card-w-wide);
+  }
+  ul.ws-vets > li {
+    width: var(--ws-vet-w-wide);
+  }
+  ul.ws-reviews > li {
+    width: var(--ws-review-w-wide);
+  }
+}
+
+/* ── 레이어(§2.9) ──────────────────────────────────── */
+.ws-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--ws-scrim);
+}
+
+.ws-layer-panel,
+aside.ws-layer {
+  position: fixed;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  overscroll-behavior: contain;
+}
+
+.ws-layer-panel:focus {
+  outline: none;
+}
+
+/* 바텀시트(≤767) — 그림자는 여기만(D-9). */
+.ws-layer-panel--sheet {
+  overflow: hidden;
+  inset: auto 0 0 0;
+  max-height: calc(100dvh - var(--ws-header-h));
+  border-radius: var(--ws-radius-lg) var(--ws-radius-lg) 0 0;
+  box-shadow: var(--ws-shadow-sheet);
+}
+
+/* 모달(768–1023: 600, ≥1024: 720) — 그림자 없음. */
+.ws-layer-panel--modal {
+  overflow: hidden;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(var(--ws-modal-w-tablet), calc(100% - 2 * var(--ws-gutter-wide)));
+  max-height: calc(100dvh - 2 * var(--ws-space-12));
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-lg);
+}
+
+@media (min-width: 1024px) {
+  .ws-layer-panel--modal {
+    width: min(var(--ws-modal-w), calc(100% - 2 * var(--ws-gutter-wide)));
+  }
+}
+
+/* 우측 드로어(≥1024 L4·L7) — 그림자·라운드 없음. */
+.ws-layer-panel--drawer {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--ws-drawer-w);
+  max-width: 100%;
+  border-left: 1px solid var(--ws-line);
+}
+
+/* 프리렌더 딥링크 aside.ws-layer(하이드레이션 전) — 같은 변형을 미디어 쿼리로. */
+aside.ws-layer {
+  inset: auto 0 0 0;
+  max-height: calc(100dvh - var(--ws-header-h));
+  overflow-y: auto;
+  padding: var(--ws-space-4);
+  border-radius: var(--ws-radius-lg) var(--ws-radius-lg) 0 0;
+  box-shadow: var(--ws-shadow-sheet);
+}
+
+@media (min-width: 768px) {
+  aside.ws-layer {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(var(--ws-modal-w-tablet), calc(100% - 2 * var(--ws-gutter-wide)));
+    max-height: calc(100dvh - 2 * var(--ws-space-12));
+    padding: var(--ws-space-6);
+    border: 1px solid var(--ws-line);
+    border-radius: var(--ws-radius-lg);
+    box-shadow: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  aside.ws-layer {
+    width: min(var(--ws-modal-w), calc(100% - 2 * var(--ws-gutter-wide)));
+  }
+  aside.ws-layer[data-ws-layer='L4'],
+  aside.ws-layer[data-ws-layer='L7'] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    transform: none;
+    width: var(--ws-drawer-w);
+    max-height: none;
+    border: 0;
+    border-left: 1px solid var(--ws-line);
+    border-radius: 0;
+  }
+}
+
+.ws-layer-grab {
+  flex: none;
+  align-self: center;
+  width: var(--ws-space-8);
+  height: var(--ws-space-1);
+  margin-top: var(--ws-space-2);
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-line-strong);
+}
+
+.ws-layer-head,
+.ws-layer-band {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-3) var(--ws-space-2) var(--ws-space-3) var(--ws-space-4);
+}
+
+.ws-layer-head {
+  flex-wrap: wrap;
+}
+
+.ws-layer-band {
+  align-items: flex-start;
+  padding: var(--ws-space-4);
+  background: var(--ws-bg-100);
+}
+
+.ws-layer-band > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-layer-back {
+  gap: var(--ws-space-1);
+  flex-basis: 100%;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  text-align: left;
+}
+
+.ws-layer-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-layer-title:focus {
+  outline: none;
+}
+
+.ws-layer-title:focus-visible {
+  outline: var(--ws-focus-ring);
+}
+
+.ws-layer-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ws-touch);
+  height: var(--ws-touch);
+  margin-left: auto;
+  border-radius: var(--ws-radius-pill);
+  color: var(--ws-ink);
+  font-size: var(--ws-type-section-size);
+}
+
+.ws-layer-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ws-layer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--ws-space-4);
+}
+
+.ws-layer-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+  padding: var(--ws-space-3) var(--ws-space-4) calc(var(--ws-space-3) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--ws-line);
+}
+
+@media (min-width: 768px) {
+  .ws-layer-body {
+    padding: var(--ws-space-6);
+  }
+}
+
+/* 전환은 opacity 120ms 만, reduced-motion 이면 0. */
+@media (prefers-reduced-motion: no-preference) {
+  .ws-scrim,
+  .ws-layer-panel {
+    animation: ws-fade-in var(--ws-motion) ease-out;
+  }
+}
+
+@keyframes ws-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 빈 상태(EmptyState) ───────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding-block: var(--ws-space-6);
+  color: var(--ws-ink-muted);
+}
+
+/* ── 디자인 검수 R4 보정(26_design_r4_review F1·F14·F15) ── */
+
+/* F14 ≥768 레이어 머리·밴드 좌우 = 본문(space-6)과 정렬 */
+@media (min-width: 768px) {
+  .ws-layer-head,
+  .ws-layer-band {
+    padding-inline: var(--ws-space-6);
+  }
+}
+
+/* F15 푸터 위 선은 내부 열(거터 안쪽)에만 */
+.ws-footer {
+  position: relative;
+  border-top: 0;
+}
+
+.ws-footer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--ws-gutter-mobile);
+  right: var(--ws-gutter-mobile);
+  border-top: 1px solid var(--ws-line);
+}
+
+@media (min-width: 768px) {
+  .ws-footer::before {
+    left: var(--ws-gutter-wide);
+    right: var(--ws-gutter-wide);
+  }
+}
+
+/* F1 정적 본문(StaticMain — credits·404·supplies·setup·vet 등) 기본 흐름 */
+.ws-static-main > main.ws-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  padding-top: var(--ws-space-8);
+}
+
+.ws-static-main > main.ws-page h1 {
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+  letter-spacing: var(--ws-type-title-tracking);
+}
+
+@media (min-width: 768px) {
+  .ws-static-main > main.ws-page h1 {
+    font-size: var(--ws-type-display-size);
+    line-height: var(--ws-type-display-lh);
+    font-weight: var(--ws-type-display-weight);
+    letter-spacing: var(--ws-type-display-tracking);
+  }
+}
+
+.ws-static-main > main.ws-page h2 {
+  margin-top: var(--ws-space-6);
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-section-weight);
+}
+
+.ws-static-main > main.ws-page ul:not([class]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-static-main > main.ws-page a:not([class]) {
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-cta-weight);
+}

@@ -5,13 +5,18 @@ import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { SiteModel, TypeModel } from '../project.js';
 import { regionSegment } from '../routes.js';
 import {
+  SCRIM,
+  allTypes,
   emptyData,
   externalLink,
   hrefOf,
   mainOpen,
+  mascotAvatar,
+  navCurrent,
   renderFooter,
   renderHead,
   renderHeader,
+  renderTabBar,
   wsData,
   type Crumb,
   type PageContext,
@@ -28,12 +33,14 @@ function page(
   return {
     head: renderHead(ctx, { title: o.title, description: o.description, crumbs: o.crumbs }),
     body: [
-      renderHeader(o.header ? o.header.pub : null),
+      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route)),
       mainOpen(ctx, o.typeId),
       ...o.main,
       '</main>',
-      o.aside ?? '',
-      renderFooter(ctx),
+      o.aside ? `${SCRIM}
+${o.aside}` : '',
+      renderFooter(),
+      renderTabBar(o.header ? o.header.pub : null, navCurrent(ctx.route)),
     ]
       .filter((x) => x !== '')
       .join('\n'),
@@ -43,6 +50,18 @@ function page(
 
 function typeLink(t: TypeModel): string {
   return `<li data-ws-id="animalTypes#${a(t.id)}"><a href="${a(hrefOf(`/${t.slug}`))}">${h(t.pub.displayName)}</a></li>`;
+}
+
+/** 홈 ws-data 병원 상한 — ws-data ≤ 32KB 유지(병원 1건 ≈ 300B). 넘치면 /vet 이 전체 목록. */
+export const HOME_VETS_MAX = 20;
+
+/**
+ * 홈 ws-data vets: 목록 노출 병원(isVetListed — /vet 과 같은 PublicVet 투영) 중 지역 → 이름 → id 순 최대 HOME_VETS_MAX.
+ *   후기 카드 "동네 병원 보기" 행동이 병원 존재 여부를 알 수 있게(HTML 본문에는 그리지 않는다).
+ */
+function homeVets(m: SiteModel): SiteModel['vets'] {
+  const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+  return [...m.vets].sort((a, b) => cmp(a.region, b.region) || cmp(a.name, b.name) || cmp(a.id, b.id)).slice(0, HOME_VETS_MAX);
 }
 
 /** 홈 A — ① 친구 선택 ② 실제 이용 후기(0개면 섹션 없음) ③ 소개 ④ 시작 배너. */
@@ -69,6 +88,7 @@ export function renderHome(m: SiteModel, ctx: PageContext): RenderedPage {
     crumbs: [HOME],
     main: [
       '<section data-ws-section="hero">',
+      mascotAvatar(ctx, 'group-small-mammal', 'brand-soft'),
       `<h1>${h(COPY.homeA.heroTitle)}</h1>`,
       `<p><button type="button" data-ws-action="pick-animal">${h(COPY.homeA.heroCta)}</button></p>`,
       `<ul class="ws-feature-chips">${COPY.homeA.featureChips.map((c, i) => `<li><a href="#ws-intro-${i + 1}">${h(c)}</a></li>`).join('')}</ul>`,
@@ -82,7 +102,7 @@ export function renderHome(m: SiteModel, ctx: PageContext): RenderedPage {
       `<p>${h(COPY.homeA.startNote)}</p>`,
       '</section>',
     ].filter((x) => x !== ''),
-    data: { ...emptyData(), types: m.types.map((t) => t.pub), testimonials: m.testimonials },
+    data: { ...emptyData(), types: allTypes(m), vets: homeVets(m), testimonials: m.testimonials },
   });
 }
 
@@ -95,7 +115,7 @@ export function renderFamily(m: SiteModel, ctx: PageContext): RenderedPage {
     description: COPY.site.description,
     crumbs: [HOME, { name, path: ctx.route.path }],
     main: [`<h1>${h(name)}</h1>`, `<ul class="ws-types">`, ...ts.map(typeLink), '</ul>'],
-    data: { ...emptyData(), types: ts.map((t) => t.pub) },
+    data: { ...emptyData(), types: allTypes(m) },
   });
 }
 
@@ -119,7 +139,7 @@ export function renderSupplies(m: SiteModel, ctx: PageContext): RenderedPage {
       ...cells,
       '</ul>',
     ],
-    data: { ...emptyData(), types: m.types.map((t) => t.pub) },
+    data: { ...emptyData(), types: allTypes(m) },
   });
 }
 
@@ -132,7 +152,7 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
   let aside: string | undefined;
   let typeId: string | undefined;
   let header: TypeModel | undefined;
-  const data: WsPageData['data'] = { ...emptyData(), types: ts.map((t) => t.pub) };
+  const data: WsPageData['data'] = { ...emptyData(), types: allTypes(m) };
   if (ctx.route.kind === 'SUPPLY_ITEM_TYPE') {
     const t = ts.find((x) => x.id === ctx.route.typeId);
     const r = t?.requirements.find((x) => x.item.id === it.id);
@@ -141,7 +161,6 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     typeId = t.id;
     header = t;
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
-    data.types = [t.pub];
     data.requirements = [r.pub];
     data.products = r.products;
   }
@@ -205,12 +224,35 @@ export function renderVet(m: SiteModel, ctx: PageContext): RenderedPage {
     description: vets.length ? COPY.vet.visitNote : COPY.vet.emptyAll,
     crumbs,
     main: main.filter((x) => x !== ''),
-    data: { ...emptyData(), vets },
+    data: { ...emptyData(), types: allTypes(m), vets },
   });
 }
 
-/** /credits — CC BY 계열 사진 저작자 표시(PRD US-021 계열, C6). */
+/**
+ * /credits — CC BY 계열 사진 저작자 표시(C6, S1 M-3). R4 D6: 항상 생성(noindex·sitemap 제외), 0건이면 빈 상태.
+ *   항목마다 장면 · 저작자 · 라이선스명(증서 링크) · 수정 여부 · 원본 링크(출처 사이트명).
+ */
+/** 사진 source 코드 → "표시명 · "(copy credits.sourceName). 이름 없는 코드는 원시 코드 대신 생략(원본 링크만). */
+function sourceLabel(code: string): string {
+  const names: Readonly<Record<string, string>> = COPY.credits.sourceName;
+  const name = Object.prototype.hasOwnProperty.call(names, code) ? names[code] : undefined;
+  return typeof name === 'string' && name !== '' ? `${h(name)} · ` : '';
+}
+
 export function renderCredits(m: SiteModel, ctx: PageContext): RenderedPage {
+  const items = m.credits.map((c) =>
+    [
+      `<li class="ws-credit" data-ws-id="photos#${a(c.id)}">`,
+      `<p class="ws-credit-scene">${h(c.scene)}</p>`,
+      c.author ? `<p>${h(COPY.credits.author)}: <span class="ws-credit-author">${h(c.author)}</span></p>` : '',
+      `<p>${h(COPY.credits.license)}: ${externalLink(c.licenseUrl, c.licenseName)}</p>`,
+      `<p>${h(COPY.credits.modified)}: ${h(c.modified ? COPY.credits.modifiedYes : COPY.credits.modifiedNo)}</p>`,
+      `<p>${h(COPY.credits.source)}: ${sourceLabel(c.source)}${externalLink(c.sourceUrl, COPY.credits.original)}</p>`,
+      '</li>',
+    ]
+      .filter((x) => x !== '')
+      .join(''),
+  );
   return page(ctx, {
     title: `${COPY.credits.title}${COPY.site.titleSuffix}`,
     description: COPY.credits.intro,
@@ -218,22 +260,9 @@ export function renderCredits(m: SiteModel, ctx: PageContext): RenderedPage {
     main: [
       `<h1>${h(COPY.credits.title)}</h1>`,
       `<p>${h(COPY.credits.intro)}</p>`,
-      '<ul class="ws-credits">',
-      ...m.credits.map((c) =>
-        [
-          `<li data-ws-id="photos#${a(c.id)}">`,
-          `<p>${h(c.scene)}</p>`,
-          c.author ? `<p>${h(COPY.credits.author)}: ${h(c.author)}</p>` : '',
-          `<p>${h(COPY.credits.license)}: ${h(c.license)}</p>`,
-          `<p>${h(COPY.credits.source)}: ${externalLink(c.sourceUrl, c.source)}</p>`,
-          '</li>',
-        ]
-          .filter((x) => x !== '')
-          .join(''),
-      ),
-      '</ul>',
+      items.length ? ['<ul class="ws-credits">', ...items, '</ul>'].join('\n') : `<p class="ws-empty">${h(COPY.credits.empty)}</p>`,
     ],
-    data: emptyData(),
+    data: { ...emptyData(), types: allTypes(m) },
   });
 }
 
@@ -257,6 +286,6 @@ export function renderNotFound(m: SiteModel, ctx: PageContext): RenderedPage {
       `<li><a href="/">${h(COPY.notFound.home)}</a></li>`,
       '</ul>',
     ],
-    data: { ...emptyData(), types: m.types.map((t) => t.pub) },
+    data: { ...emptyData(), types: allTypes(m) },
   });
 }

@@ -1,16 +1,23 @@
 // 타입 홈 B(컨텍스트 헤더 + 5섹션, UX §3.1 B) · 구성안(/setup) · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
 //   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 칩. 병원은 /vet 링크만.
-import type { PublicProduct, SpecSchema, WsPageData } from '../../engine/index.js';
+import { hasCompleteOptionLabels, optionLabel, type PublicProduct, type WsPageData } from '../../engine/index.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { RequirementModel, SiteModel, TypeModel } from '../project.js';
 import {
+  SCRIM,
+  allTypes,
   externalLink,
   hrefOf,
+  imageTile,
   mainOpen,
+  mascotAvatar,
+  meetsBadge,
+  navCurrent,
   renderFooter,
   renderHead,
   renderHeader,
+  renderTabBar,
   ruleText,
   specLine,
   wsData,
@@ -36,17 +43,21 @@ function crumbsOf(m: SiteModel, t: TypeModel): Crumb[] {
   return out;
 }
 
-function productCard(t: TypeModel, p: PublicProduct, schema: SpecSchema | undefined): string {
+type ItemOf = RequirementModel['item'];
+
+/** 스펙22 §2.7 — li.ws-product > a > img|span.ws-tile, .ws-product-title, .ws-spec(비면 생략), .ws-badge(✓ 기준 충족). 가격·판매처 없음. */
+function productCard(t: TypeModel, p: PublicProduct, item: ItemOf | undefined): string {
   const img = p.imageAsset
-    ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" loading="lazy" width="200" height="200">`
-    : '<span class="ws-tile" aria-hidden="true"></span>';
+    ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" loading="lazy" decoding="async" width="160" height="160">`
+    : imageTile(item?.glyph);
+  const spec = item ? specLine(item.specSchema, p.specValues) : '';
   return [
     `<li class="ws-product" data-ws-id="curatedProducts#${a(p.id)}">`,
     `<a href="${a(hrefOf(`${base(t)}/products/${p.id}`))}">`,
     img,
     `<span class="ws-product-title">${h(p.title)}</span>`,
-    schema ? `<span class="ws-spec">${h(specLine(schema, p.specValues))}</span>` : '',
-    `<span class="ws-badge">${h(COPY.product.badge)}</span>`,
+    spec ? `<span class="ws-spec">${h(spec)}</span>` : '',
+    meetsBadge(),
     '</a>',
     '</li>',
   ]
@@ -54,8 +65,8 @@ function productCard(t: TypeModel, p: PublicProduct, schema: SpecSchema | undefi
     .join('\n');
 }
 
-function schemaFor(t: TypeModel, itemId: string): SpecSchema | undefined {
-  return t.requirements.find((r) => r.item.id === itemId)?.item.specSchema;
+function itemFor(t: TypeModel, itemId: string): ItemOf | undefined {
+  return t.requirements.find((r) => r.item.id === itemId)?.item;
 }
 
 /** 타입 홈 본문(부모 페이지). */
@@ -87,11 +98,12 @@ function typeMain(ctx: PageContext, t: TypeModel): string {
         .join('\n')}\n</ul>\n<p><a href="${a(hrefOf(`${base(t)}/setup`))}">${h(COPY.setup.detailLink)}</a></p>`
     : `<p>${h(COPY.homeB.bundlesEmpty)}</p>`;
   const products = t.products.length
-    ? `<ul class="ws-products">\n${t.products.map((p) => productCard(t, p, schemaFor(t, p.supplyItemId))).join('\n')}\n</ul>`
+    ? `<ul class="ws-products">\n${t.products.map((p) => productCard(t, p, itemFor(t, p.supplyItemId))).join('\n')}\n</ul>`
     : `<p>${h(COPY.homeB.productsEmpty)}</p>`;
   return [
     mainOpen(ctx, t.id),
     `<section class="ws-context" data-ws-id="animalTypes#${a(t.id)}">`,
+    mascotAvatar(ctx, t.pub.mascot, 'peach-soft'),
     `<h1>${h(t.pub.displayName)}</h1>`,
     t.pub.oneLiner ? `<p>${h(t.pub.oneLiner)}</p>` : '',
     `<p><a href="/" data-ws-action="change-animal">${h(COPY.nav.changeFriend)}</a></p>`,
@@ -131,10 +143,14 @@ function searchBlock(r: RequirementModel): string {
 export function layerL4(t: TypeModel, r: RequirementModel): string {
   const p = r.pub;
   const schema = r.item.specSchema;
-  const rules = (title: string, rs: typeof p.minSpec.rules): string =>
-    rs.length
-      ? `<h4>${h(title)}</h4>\n<ul>\n${rs.map((x) => `<li>${h(ruleText(schema, x))}${x.reason ? ` — ${h(x.reason)}` : ''}</li>`).join('\n')}\n</ul>`
-      : '';
+  // 스펙22 §4-3: 라벨 없는 enum 값(규칙·when)이 들어간 조건 행은 숨긴다 — 원시 코드 비노출.
+  const rules = (title: string, rs: typeof p.minSpec.rules): string => {
+    const rows = rs.flatMap((x) => {
+      const text = ruleText(schema, x);
+      return text === null ? [] : [`<li>${h(text)}${x.reason ? ` — ${h(x.reason)}` : ''}</li>`];
+    });
+    return rows.length ? `<h4>${h(title)}</h4>\n<ul>\n${rows.join('\n')}\n</ul>` : '';
+  };
   const alts = p.item.alternativeIds
     .map((id) => t.requirements.find((x) => x.item.id === id))
     .filter((x): x is RequirementModel => x !== undefined);
@@ -167,7 +183,7 @@ export function layerL4(t: TypeModel, r: RequirementModel): string {
     r.products.length
       ? `<section data-ws-part="products"><h3>${h(COPY.supplyLayer.matchingProducts)}</h3><ul>\n${r.products
           .slice(0, 3)
-          .map((x) => productCard(t, x, schema))
+          .map((x) => productCard(t, x, r.item))
           .join('\n')}\n</ul></section>`
       : '',
     '</aside>',
@@ -182,16 +198,22 @@ function numAttr(name: string, v: unknown): string {
   return Number.isFinite(n) ? ` ${name}="${a(String(n))}"` : '';
 }
 
-/** L5 규격 확인 — 정적 폼(판정 없음, 하이드레이션 후 활성). */
+/**
+ * L5 규격 확인 — 정적 폼(판정 없음, 하이드레이션 후 활성).
+ *   스펙22 §4-3·§4-4: optionLabels 가 불완전한 enum 필드는 렌더하지 않는다(엔진은 값 없음 → CHECK, fail-closed).
+ *   specSchema optional 필드는 라벨 뒤 " · 선택"(copy checkLayer.optional).
+ */
 function layerL5(r: RequirementModel): string {
-  const fields = (Array.isArray(r.item.specSchema?.fields) ? r.item.specSchema.fields : []).map((f) => {
+  const all = Array.isArray(r.item.specSchema?.fields) ? r.item.specSchema.fields : [];
+  const fields = all.filter(hasCompleteOptionLabels).map((f) => {
     const id = `ws-f-${f.key}`;
-    const label = `<label for="${a(id)}">${h(f.label)}</label>`;
+    const opt = f.optional === true ? `<span class="ws-optional"> · ${h(COPY.checkLayer.optional)}</span>` : '';
+    const label = `<label for="${a(id)}">${h(f.label)}${opt}</label>`;
     if (f.type === 'number') {
       return `${label}<input id="${a(id)}" name="${a(f.key)}" type="number"${numAttr('min', f.min)}${numAttr('max', f.max)} inputmode="decimal">`;
     }
     if (f.type === 'boolean') return `<input id="${a(id)}" name="${a(f.key)}" type="checkbox">${label}`;
-    const opts = f.options.map((o) => `<option value="${a(o)}">${h(f.optionLabels?.[o] ?? o)}</option>`).join('');
+    const opts = f.options.map((o) => `<option value="${a(o)}">${h(optionLabel(f, o) as string)}</option>`).join('');
     return `${label}<select id="${a(id)}" name="${a(f.key)}"><option value=""></option>${opts}</select>`;
   });
   return [
@@ -212,13 +234,14 @@ function layerL7(t: TypeModel, p: PublicProduct): string {
   const r = t.requirements.find((x) => x.item.id === p.supplyItemId) as RequirementModel;
   const lm = yearMonth(p.specVerifiedAt);
   const reasons = p.reasonCodes.map((c) => (c === 'SPEC_MET' ? COPY.product.reasonSpecMet : COPY.product.reasonProfileMatch));
+  const spec = specLine(r.item.specSchema, p.specValues);
   return [
     `<aside class="ws-layer" data-ws-layer="L7" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="curatedProducts#${a(p.id)}">`,
-    p.imageAsset ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" width="400" height="400">` : '<span class="ws-tile" aria-hidden="true"></span>',
+    p.imageAsset ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" decoding="async" width="160" height="160">` : imageTile(r.item.glyph),
     `<h2 id="ws-layer-title">${h(p.title)}</h2>`,
     `<p class="ws-meta" data-ws-id="supplyItems#${a(r.item.id)}">${h(r.item.name)}</p>`,
-    `<p class="ws-spec">${h(specLine(r.item.specSchema, p.specValues))}</p>`,
-    `<p class="ws-badge">${h(COPY.product.badge)}</p>`,
+    spec ? `<p class="ws-spec">${h(spec)}</p>` : '',
+    `<p>${meetsBadge()}</p>`,
     `<h3>${h(COPY.product.reasonsTitle)}</h3>`,
     `<ul>${reasons.map((x) => `<li>${h(x)}</li>`).join('')}</ul>`,
     lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
@@ -229,9 +252,10 @@ function layerL7(t: TypeModel, p: PublicProduct): string {
     .join('\n');
 }
 
-function typeData(t: TypeModel): WsPageData['data'] {
+/** ws-data — types 는 노출 타입 전체(R4 A2(a)), 나머지는 이 타입의 것. */
+function typeData(m: SiteModel, t: TypeModel): WsPageData['data'] {
   return {
-    types: [t.pub],
+    types: allTypes(m),
     requirements: t.requirements.map((r) => r.pub),
     products: t.products,
     bundles: t.bundles,
@@ -269,8 +293,16 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     .map((r) => ({ name: r.item.name, path: `${base(t)}/supplies/${r.item.id}` }));
   return {
     head: renderHead(ctx, { title, description, crumbs, itemList: layer ? undefined : itemList }),
-    body: [renderHeader(t.pub), typeMain(ctx, t), aside, renderFooter(ctx)].filter((x) => x !== '').join('\n'),
-    data: wsData(ctx, typeData(t)),
+    body: [
+      renderHeader(t.pub, navCurrent(ctx.route)),
+      typeMain(ctx, t),
+      aside ? `${SCRIM}\n${aside}` : '',
+      renderFooter(),
+      renderTabBar(t.pub, navCurrent(ctx.route)),
+    ]
+      .filter((x) => x !== '')
+      .join('\n'),
+    data: wsData(ctx, typeData(m, t)),
   };
 }
 
@@ -298,12 +330,13 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
       .join('\n'),
   );
   const body = [
-    renderHeader(t.pub),
+    renderHeader(t.pub, navCurrent(ctx.route)),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.homeB.bundlesTitle)}</h1>`,
     ...cards,
     '</main>',
-    renderFooter(ctx),
+    renderFooter(),
+    renderTabBar(t.pub, navCurrent(ctx.route)),
   ].join('\n');
   return {
     head: renderHead(ctx, {
@@ -312,6 +345,6 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
       crumbs,
     }),
     body,
-    data: wsData(ctx, { ...typeData(t), products: [] }),
+    data: wsData(ctx, { ...typeData(m, t), products: [] }),
   };
 }

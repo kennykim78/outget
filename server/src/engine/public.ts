@@ -64,7 +64,8 @@ export interface PublicRequirement {
   avoid: string | null;
   searchKeyword: string;
   searchLinks: SearchLink[];
-  item: { id: string; name: string; category: SupplyCategory; specSchema: SpecSchema; alternativeIds: string[] };
+  /** glyph: SupplyItem.glyph(이미지 대체 타일·용품 목록, 스펙22 §4-2 G5). */
+  item: { id: string; name: string; category: SupplyCategory; glyph: string; specSchema: SpecSchema; alternativeIds: string[] };
   source: Array<{ url: string; title: string }>;
   /** 체인(type·profile·requirement·item) verifiedAt 최솟값. */
   lastVerifiedAt: string;

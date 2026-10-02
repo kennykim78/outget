@@ -3,7 +3,7 @@
 import { Collector, type Issue, type RawSeed } from './common.js';
 import { buildCtx, type ValidateOptions } from './context.js';
 import { lintRecord } from './lint.js';
-import { checkExposure, checkExprs, meetsMinSpecFn, type ExposureSummary } from './validate-engine.js';
+import { checkExposure, checkExprs, checkOptionLabels, meetsMinSpecFn, type ExposureSummary } from './validate-engine.js';
 import { checkPeople } from './validate-people.js';
 import { checkProducts } from './validate-products.js';
 import { checkRefs } from './validate-refs.js';
@@ -38,6 +38,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
     for (const { rec, id } of ctx.rows[key]) lintRecord(key, id, rec, out);
   }
   const summary = checkExposure(ctx, raw, !out.issues.some((i) => i.severity === 'ERROR'));
+  if (!out.issues.some((i) => i.severity === 'ERROR')) checkOptionLabels(ctx, raw);
 
   return {
     errors: out.issues.filter((i) => i.severity === 'ERROR'),

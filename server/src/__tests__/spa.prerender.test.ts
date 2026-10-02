@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { securityHeaders } from '../middleware/security-headers.js';
 import { mountSpa, normalizeRequestPath, SPA_CSP } from '../middleware/spa.js';
 import { runPrerenderCli } from '../prerender/cli.js';
-import { promoted, SEED_DIR, writeSeedDir } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, promoted, SEED_DIR, writeSeedDir } from './fixtures/prerender-seed.js';
 
 const TEMPLATE = readFileSync(join(SEED_DIR, '..', '..', 'client', 'index.html'), 'utf8');
 const temps: string[] = [];
@@ -25,9 +25,11 @@ afterAll(() => {
 async function prerendered(seedDir?: string): Promise<string> {
   const out = tmp('dist');
   writeFileSync(join(out, 'index.html'), TEMPLATE);
-  const argv = ['--out', out, '--public-dir', tmp('pub'), ...(seedDir ? ['--seed-dir', seedDir] : [])];
+  const argv = ['--out', out, '--public-dir', tmp('pub'), '--now', FIXTURE_AS_OF, ...(seedDir ? ['--seed-dir', seedDir] : [])];
   const err: string[] = [];
-  const code = await runPrerenderCli(argv, { stdout: () => undefined, stderr: (l) => err.push(l), env: {}, today: () => '2026-10-01' });
+  const code = await runPrerenderCli(argv, { stdout: () => undefined, stderr: (l) => err.push(l), env: {}, today: () => {
+    throw new Error('test: --now 필수(실시계 결합 0)');
+  } });
   if (code !== 0) throw new Error(`prerender 실패: ${err.join('\n')}`);
   // 경로 이탈 표적(dist 밖)
   writeFileSync(join(out, '..', `${out.split(/[\\/]/).pop()}-secret.env`), 'SECRET=1');
