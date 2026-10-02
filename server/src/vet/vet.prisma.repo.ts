@@ -1,11 +1,12 @@
-// 병원 영속 리포지토리(Prisma) — 읽기 전용, 쓰기 없음. VERIFIED 만 반환(불변식 7).
+// 병원 영속 리포지토리(Prisma) — 읽기 전용, 쓰기 없음. where 는 engine VET_LISTED_STATUS, 사후 필터는
+//   isVetStatusListed(이중 방어, 불변식 7).
 //   적재는 시드 로더(R2)가 담당한다.
 import type { PrismaClient, VetClinic as VetClinicRow } from '@prisma/client';
 import type { StoredVetClinic, VetClinic, VetQuery } from './vet.types.js';
 import { toPublicVet } from './vet.types.js';
 import type { VetClinicRepository } from './vet.repo.js';
 import { matchesQuery } from './vet.repo.js';
-import { isVetSource, isVetStatus } from '../engine/domain.js';
+import { VET_LISTED_STATUS, isVetSource, isVetStatus, isVetStatusListed } from '../engine/index.js';
 
 function parseTreats(raw: string): string[] {
   try {
@@ -43,21 +44,21 @@ export class PrismaVetClinicRepository implements VetClinicRepository {
 
   async list(query?: VetQuery): Promise<VetClinic[]> {
     const rows = await this.prisma.vetClinic.findMany({
-      where: { status: 'VERIFIED', ...(query?.region ? { region: query.region } : {}) },
+      where: { status: VET_LISTED_STATUS, ...(query?.region ? { region: query.region } : {}) },
       orderBy: { id: 'asc' },
     });
     const out: VetClinic[] = [];
     for (const r of rows) {
       const c = rowToStored(r);
-      if (c && c.status === 'VERIFIED' && matchesQuery(c, query)) out.push(toPublicVet(c));
+      if (c && isVetStatusListed(c.status) && matchesQuery(c, query)) out.push(toPublicVet(c));
     }
     return out;
   }
 
   async findById(id: string): Promise<VetClinic | null> {
-    const r = await this.prisma.vetClinic.findFirst({ where: { id, status: 'VERIFIED' } });
+    const r = await this.prisma.vetClinic.findFirst({ where: { id, status: VET_LISTED_STATUS } });
     if (!r) return null;
     const c = rowToStored(r);
-    return c && c.status === 'VERIFIED' ? toPublicVet(c) : null;
+    return c && isVetStatusListed(c.status) ? toPublicVet(c) : null;
   }
 }

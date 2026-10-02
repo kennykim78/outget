@@ -1,4 +1,4 @@
-// specCheck(+호환 판정)·checkProfileMinSpec·createEngine (제품기획 §7.2, PRD US-009/011, 부록 A).
+// specCheck(+호환 판정)·checkProfileMinSpec·checkAnimalMinSpec·createEngine (제품기획 §7.2, PRD US-009/011, 부록 A).
 //   제품 단계: resolveRequirement 결과(override 반영)의 min/recommended 규칙.
 //   호환 단계: userContext.ownedItems 와 CompatibilityRule 양방향(A-10). UNKNOWN → CHECK(onFail 무관).
 //   종합 verdict = worst(product, compat≠NONE). 대안은 verdict≠OK 일 때만.
@@ -110,6 +110,26 @@ export function specCheck(
   };
 }
 
+export interface MinSpecResult {
+  meets: boolean;
+  verdict: Verdict;
+  reasons: Reason[];
+}
+
+function noCriteria(): MinSpecResult {
+  return {
+    meets: false,
+    verdict: 'CHECK',
+    reasons: [
+      { stage: 'PRODUCT', kind: 'RULE', verdict: 'CHECK', message: '이 용품의 규격 기준을 찾을 수 없어 확인이 필요해요.' },
+    ],
+  };
+}
+
+function minSpecResult({ verdict, reasons }: { verdict: Verdict; reasons: Reason[] }): MinSpecResult {
+  return { meets: verdict === 'OK' || verdict === 'BELOW_RECOMMENDED', verdict, reasons };
+}
+
 /**
  * CuratedProduct.meetsMinSpec 의 단일 계산 지점(불변식 3, A-12). 프로필 기본 요구사항만(override 없음),
  * 제품 단계만. meets = verdict ∈ {OK, BELOW_RECOMMENDED}. 기준을 찾지 못하면 throw 대신 CHECK/false(fail-closed).
@@ -119,22 +139,28 @@ export function checkProfileMinSpec(
   careProfileId: string,
   supplyItemId: string,
   specValues: SpecValues,
-): { meets: boolean; verdict: Verdict; reasons: Reason[] } {
+): MinSpecResult {
   const item = cat.supplyItems.get(supplyItemId);
   const base = cat.careProfiles.has(careProfileId)
     ? cat.requirementsByProfile.get(careProfileId)?.get(supplyItemId)
     : undefined;
-  if (!item || !base) {
-    return {
-      meets: false,
-      verdict: 'CHECK',
-      reasons: [
-        { stage: 'PRODUCT', kind: 'RULE', verdict: 'CHECK', message: '이 용품의 규격 기준을 찾을 수 없어 확인이 필요해요.' },
-      ],
-    };
-  }
-  const { verdict, reasons } = evaluateProductStage(item.specSchema, base.minSpec, base.recommendedSpec, specValues ?? {});
-  return { meets: verdict === 'OK' || verdict === 'BELOW_RECOMMENDED', verdict, reasons };
+  if (!item || !base) return noCriteria();
+  return minSpecResult(evaluateProductStage(item.specSchema, base.minSpec, base.recommendedSpec, specValues ?? {}));
+}
+
+/**
+ * 동물별 최소 규격(M3) — resolveRequirement 결과(careOverrides 반영)의 제품 단계만. 노출 판정(isProductExposable)의
+ * 규격 기준. meets = verdict ∈ {OK, BELOW_RECOMMENDED}. 기준을 찾지 못하면 throw 대신 CHECK/false(fail-closed).
+ */
+export function checkAnimalMinSpec(
+  cat: EngineCatalog,
+  animalTypeId: string,
+  supplyItemId: string,
+  specValues: SpecValues,
+): MinSpecResult {
+  const r = resolveRequirement(cat, animalTypeId, supplyItemId);
+  if (!r) return noCriteria();
+  return minSpecResult(evaluateProductStage(r.item.specSchema, r.minSpec, r.recommendedSpec, specValues ?? {}));
 }
 
 export interface Engine {

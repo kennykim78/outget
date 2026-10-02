@@ -1,10 +1,13 @@
-// 큐레이션 상품 규칙 P01~P04 (불변식 1·3).
+// 큐레이션 상품 규칙 P01~P05 (불변식 1·3).
 //   P01(meetsMinSpec 재계산 일치)은 엔진 checkProfileMinSpec 에 위임 — 판정 로직을 여기 두지 않는다.
 import { isIsoDate, isNonEmptyStr, isSlotRow } from './common.js';
 import type { Ctx } from './context.js';
 
 /** 이미지 자산을 붙일 수 있는 사용권(불변식 1). NONE 이면 imageAsset 은 null. */
 export const PRODUCT_IMAGE_LICENSES_WITH_ASSET = ['OWN_PHOTO', 'SELLER_PERMISSION', 'AFFILIATE_API'];
+
+/** P05(M7): 상품 이미지는 동일 오리진 자산 경로만 — 외부 URL 핫링크·경로 순회·프로토콜 상대 URL 차단(불변식 1). */
+export const PRODUCT_IMAGE_ASSET_RE = /^\/assets\/products\/[a-z0-9][a-z0-9-]*\.(webp|avif|jpg|jpeg|png)$/;
 
 /** P01 재계산기 — validate.ts 가 엔진으로 주입한다. 반환 null = 재계산 불가(참조 오류, R09 가 보고). */
 export type MeetsMinSpecFn = (careProfileId: string, supplyItemId: string, specValues: Record<string, unknown>) => boolean | null;
@@ -14,9 +17,12 @@ export function checkProducts(ctx: Ctx, recompute: MeetsMinSpecFn | null): void 
   for (const { rec, id } of ctx.rows.curatedProducts) {
     const slot = isSlotRow('curatedProducts', rec);
 
-    // P03 — 모든 행
+    // P03·P05 — 모든 행(SLOT 포함)
     const asset = rec.imageAsset;
     if (asset !== null && asset !== undefined) {
+      if (typeof asset !== 'string' || !PRODUCT_IMAGE_ASSET_RE.test(asset)) {
+        out.error('P05', 'curatedProducts', id, 'imageAsset', `imageAsset 은 /assets/products/<kebab>.(webp|avif|jpg|jpeg|png) 만 (현재 ${JSON.stringify(asset)})`);
+      }
       if (!PRODUCT_IMAGE_LICENSES_WITH_ASSET.includes(rec.imageLicense as string)) {
         out.error('P03', 'curatedProducts', id, 'imageLicense', `imageAsset 이 있으면 사용권 ${PRODUCT_IMAGE_LICENSES_WITH_ASSET.join('/')} 필요 (현재 ${String(rec.imageLicense)})`);
       }

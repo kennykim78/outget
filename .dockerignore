@@ -11,10 +11,15 @@ dev-dist
 *.db-journal
 *.sqlite
 *.sqlite3
+**/*.db
+**/*.db-journal
 
 # 시크릿(.env.example 만 허용은 불필요 — 컨테이너는 런타임 주입).
 .env
 .env.*
+**/.env
+**/.env.*
+!**/.env.example
 
 # 개인 기획/하네스 도구(repo 비포함 대상).
 _bmad

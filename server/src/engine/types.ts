@@ -139,7 +139,7 @@ export interface AnimalTypeRec extends ContentMeta {
   careOverrides: CareOverrides;
   mascot?: string | null;
   oneLiner?: string | null;
-  /** A-16: R2 시드엔 없음(W-SLUG). 라우트 체계는 R3. */
+  /** A-16: 라우트 세그먼트 /{slug}(1~2개, D3). 형태·예약어·충돌은 seed/validate-slug.ts SL00~SL05. */
   slug?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;

@@ -1,4 +1,4 @@
-// 구조 규칙 S01~S09 — 파일·id·enum/타입·부록 B·specSchema·규칙 세트·날짜·금지 키·미지 키.
+// 구조 규칙 S01~S09 — 파일·id·enum/타입·부록 B·specSchema·규칙 세트·날짜·금지 키(상품·후기는 허용목록)·미지 키.
 import {
   ANIMAL_GROUPS,
   ANIMAL_TYPE_STATUSES,
@@ -145,14 +145,21 @@ function checkFields(ctx: Ctx, key: SeedKey, id: string, r: Rec, table: Record<s
 
 // ── S08 금지 키 ──────────────────────────────────────────────
 const SUPPLY_ITEM_FORBIDDEN = ['priority', 'minSpec', 'recommendedSpec', 'notNowReason', 'orderHint', 'searchKeyword'];
-const PRODUCT_FORBIDDEN_RE = /price|merchant|affiliate|url|likeCount/i;
-const TESTIMONIAL_FORBIDDEN = ['rating', 'score'];
+
+/**
+ * S08 허용목록(L2, D14) — 상품·후기는 스키마 키 밖이면 모두 ERROR(link/href/seller/price/rating 등 거래·평점 키 차단, 불변식 3·4·7).
+ * SLOT 행 포함. 상품은 부록 B 공통 필드 포함.
+ */
+export const S08_ALLOWED_KEYS: Readonly<Partial<Record<SeedKey, ReadonlySet<string>>>> = {
+  curatedProducts: new Set([...Object.keys(FIELDS.curatedProducts), ...Object.keys(META_FIELDS)]),
+  testimonials: new Set(Object.keys(FIELDS.testimonials)),
+};
 
 function forbiddenKeys(key: SeedKey, r: Rec): string[] {
   const keys = Object.keys(r);
   if (key === 'supplyItems') return keys.filter((k) => SUPPLY_ITEM_FORBIDDEN.includes(k));
-  if (key === 'curatedProducts') return keys.filter((k) => PRODUCT_FORBIDDEN_RE.test(k));
-  if (key === 'testimonials') return keys.filter((k) => TESTIMONIAL_FORBIDDEN.includes(k));
+  const allowed = S08_ALLOWED_KEYS[key];
+  if (allowed) return keys.filter((k) => !allowed.has(k));
   return [];
 }
 
@@ -377,7 +384,10 @@ export function checkStructure(ctx: Ctx): void {
 
       // S08
       const forbidden = forbiddenKeys(key, rec);
-      for (const k of forbidden) ctx.out.error('S08', key, id, k, '금지 키(불변식 3·4·6 — 소유 모델이 다르거나 Phase 0 범위 밖)');
+      for (const k of forbidden) {
+        const why = S08_ALLOWED_KEYS[key] ? '허용목록 밖 키(불변식 3·4·7 — 링크·판매처·가격·평점 등은 스키마에 없다)' : '금지 키(불변식 3·4·6 — 소유 모델이 다르거나 Phase 0 범위 밖)';
+        ctx.out.error('S08', key, id, k, why);
+      }
       if (key === 'curatedProducts' && Array.isArray(rec.curationReasons) && rec.curationReasons.length > 0) {
         ctx.out.error('S08', key, id, 'curationReasons', '상품별 자유 문구 금지(PRD US-022) — 비워 둔다');
       }

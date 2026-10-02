@@ -32,9 +32,11 @@ function verify(r: Rec, reviewerType = 'EXPERIENCED_KEEPER'): void {
   r.verifiedAt = '2026-09-30';
 }
 
+/** 주입용 정상 출처 1건(V04 동반 오류를 막는다). */
+const SRC = { url: 'https://example.org/spec', title: 'spec', accessedAt: '2026-09-30' };
+
 const errorRules = (r: ValidateResult): string[] => r.errors.map((i) => i.rule);
 const warnRules = (r: ValidateResult): string[] => r.warnings.map((i) => i.rule);
-const count = (xs: string[], x: string): number => xs.filter((y) => y === x).length;
 
 describe('seed:validate — lint 원시 함수', () => {
   it('L01 정확 금지어 9개 + 전문가 N명 패턴', () => {
@@ -68,14 +70,14 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고: W-EXPOSURE-ZERO 1 · L02 2 · L03(caution) 7 · L05 4 · W-SLUG 1', () => {
-    const w = warnRules(res);
-    expect(count(w, 'W-EXPOSURE-ZERO')).toBe(1);
-    expect(count(w, 'L02')).toBe(2);
+  it('경고 baseline 16 = W-EXPOSURE-ZERO 1 · L03 9(caution 7 + 번들 note 단위 2) · L02 2 · L05 4 (R3 C5: W-SLUG 삭제, L06 0)', () => {
+    const byRule: Record<string, number> = {};
+    for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
+    // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 9, L02: 2, L05: 4 });
+    expect(res.warnings).toHaveLength(16);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(7);
-    expect(count(w, 'L05')).toBe(4);
-    expect(count(w, 'W-SLUG')).toBe(1);
-    expect(count(w, 'S09')).toBe(0);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(2);
   });
 
   it('노출 0(DRAFT 전량)', () => {
@@ -100,6 +102,11 @@ interface Case {
   rule: string;
   sev?: 'ERROR' | 'WARN';
   opts?: { now?: string; strict?: boolean };
+  /**
+   * 이 주입이 정당하게 함께 내는 ERROR 규칙(문서화된 동반 규칙). 이 집합 + rule 밖의 ERROR 가 나오면 실패한다
+   * (QA R2 gap 3: toContain 만으로는 엉뚱한 규칙이 같이 터져도 통과했다).
+   */
+  also?: string[];
   inject: (s: Required<RawSeed>) => void;
 }
 
@@ -109,7 +116,7 @@ const CASES: Case[] = [
   { name: 'S02 id 형식', rule: 'S02', inject: (s) => { row(s, 'photos', 'ph-01').id = 'Photo_1'; } },
   { name: 'S03 enum 밖 category', rule: 'S03', inject: (s) => { row(s, 'supplyItems', 'cage').category = 'HOUSING'; } },
   { name: 'S03 SLOT 은 상태 필드에만', rule: 'S03', inject: (s) => { row(s, 'animalTypes', 'budgie').status = 'SLOT'; } },
-  { name: 'S04 contentKind 누락', rule: 'S04', inject: (s) => { delete row(s, 'taxa', 'mesocricetus-auratus').contentKind; } },
+  { name: 'S04 contentKind 누락', rule: 'S04', also: ['V05'] /* Taxon 은 contentKind LEGAL 필수 — 누락은 V05 도 */, inject: (s) => { delete row(s, 'taxa', 'mesocricetus-auratus').contentKind; } },
   {
     name: 'S04 source url ftp:',
     rule: 'S04',
@@ -118,6 +125,8 @@ const CASES: Case[] = [
   {
     name: 'S05 min > max',
     rule: 'S05',
+    also: ['S06'], // 잘못된 필드는 스키마 맵에 안 들어가므로 그 key 를 쓰는 요구사항 규칙이 S06 으로 연쇄
+
     inject: (s) => {
       const f = ((row(s, 'supplyItems', 'saucer').specSchema as Rec).fields as Rec[])[0];
       f.min = 10;
@@ -148,7 +157,7 @@ const CASES: Case[] = [
       ];
     },
   },
-  { name: 'S07 날짜 형식', rule: 'S07', inject: (s) => { verify(row(s, 'supplyItems', 'cage')); row(s, 'supplyItems', 'cage').verifiedAt = '2026/10/05'; } },
+  { name: 'S07 날짜 형식', rule: 'S07', also: ['V02'] /* VERIFIED 는 ISO verifiedAt 필수 */, inject: (s) => { verify(row(s, 'supplyItems', 'cage')); row(s, 'supplyItems', 'cage').verifiedAt = '2026/10/05'; } },
   {
     name: 'S07 미래 날짜',
     rule: 'S07',
@@ -222,7 +231,7 @@ const CASES: Case[] = [
     rule: 'R09',
     inject: (s) => {
       const p = row(s, 'curatedProducts', 'cp-001');
-      p.status = 'REVIEW';
+      Object.assign(p, { status: 'REVIEW', title: '상품 A', meetsMinSpec: false });
       p.specValues = { diameterCm: '30', surface: 'SOLID', mount: 'STAND' };
     },
   },
@@ -230,7 +239,12 @@ const CASES: Case[] = [
   { name: 'R10 후기 animalTypeId 없음', rule: 'R10', inject: (s) => { row(s, 'testimonials', 't-001').animalTypeId = 'hamster-x'; } },
   { name: 'R10 사진 slot 중복', rule: 'R10', inject: (s) => { row(s, 'photos', 'ph-02').slot = 'intro-1'; } },
   { name: 'V01 AI_DRAFT + VERIFIED', rule: 'V01', inject: (s) => { verify(row(s, 'supplyItems', 'cage'), 'AI_DRAFT'); } },
-  { name: 'V01 AI_DRAFT + VERIFIED (상품 SLOT 포함)', rule: 'V01', inject: (s) => { verify(row(s, 'curatedProducts', 'cp-003'), 'AI_DRAFT'); } },
+  {
+    name: 'V01 AI_DRAFT + VERIFIED (상품 SLOT 포함)',
+    rule: 'V01',
+    also: ['P04'], // SLOT 행 VERIFIED 자체가 P04
+    inject: (s) => { const p = row(s, 'curatedProducts', 'cp-003'); verify(p, 'AI_DRAFT'); p.source = [SRC]; },
+  },
   {
     name: 'V02 verifiedBy 없음',
     rule: 'V02',
@@ -262,6 +276,8 @@ const CASES: Case[] = [
   {
     name: 'P02 ACTIVE 상품 제목 비어있음',
     rule: 'P02',
+    also: ['L04'], // 빈 title 은 자리표시자 린트 L04 도
+
     inject: (s) => {
       const p = row(s, 'curatedProducts', 'cp-004');
       p.status = 'ACTIVE';
@@ -273,19 +289,19 @@ const CASES: Case[] = [
   {
     name: 'P01 비SLOT meetsMinSpec=false 인데 재계산 true (cp-004)',
     rule: 'P01',
-    inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-004'), { status: 'REVIEW', meetsMinSpec: false }); },
+    inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-004'), { status: 'REVIEW', meetsMinSpec: false, title: '상품 A' }); },
   },
   {
     name: 'P01 비SLOT meetsMinSpec=true 인데 재계산 false (cp-003 barGapMm 누락 → CHECK)',
     rule: 'P01',
-    inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-003'), { status: 'REVIEW', meetsMinSpec: true }); },
+    inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-003'), { status: 'REVIEW', meetsMinSpec: true, title: '상품 B' }); },
   },
-  { name: 'P01 비SLOT meetsMinSpec null', rule: 'P01', inject: (s) => { row(s, 'curatedProducts', 'cp-005').status = 'REVIEW'; } },
-  { name: 'P03 NONE 인데 imageAsset', rule: 'P03', inject: (s) => { row(s, 'curatedProducts', 'cp-001').imageAsset = 'products/cp-001.jpg'; } },
-  { name: 'P04 SLOT + VERIFIED', rule: 'P04', inject: (s) => { verify(row(s, 'curatedProducts', 'cp-001')); } },
+  { name: 'P01 비SLOT meetsMinSpec null', rule: 'P01', inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-005'), { status: 'REVIEW', title: '상품 C' }); } },
+  { name: 'P03 NONE 인데 imageAsset', rule: 'P03', inject: (s) => { row(s, 'curatedProducts', 'cp-001').imageAsset = '/assets/products/cp-001.jpg'; } },
+  { name: 'P04 SLOT + VERIFIED', rule: 'P04', inject: (s) => { const p = row(s, 'curatedProducts', 'cp-001'); verify(p); p.source = [SRC]; } },
   { name: 'T01 APPROVED 인데 verifiedUsage false', rule: 'T01', inject: (s) => { const t = row(s, 'testimonials', 't-001'); t.status = 'APPROVED'; t.quote = '처음 준비할 때 도움이 됐어요'; t.consentAt = '2026-09-30'; } },
   { name: 'T01 APPROVED 80자 초과', rule: 'T01', inject: (s) => { const t = row(s, 'testimonials', 't-001'); t.status = 'APPROVED'; t.verifiedUsage = true; t.consentAt = '2026-09-30'; t.quote = '가'.repeat(81); } },
-  { name: 'T02 이미지 동의 없음', rule: 'T02', inject: (s) => { row(s, 'testimonials', 't-002').reviewerImage = 'beta/t-002.jpg'; } },
+  { name: 'T02 이미지 동의 없음', rule: 'T02', inject: (s) => { row(s, 'testimonials', 't-002').reviewerImage = '/assets/reviewers/t-002.jpg'; } },
   {
     name: 'VC01 VERIFIED 인데 WEBSITE 확인',
     rule: 'VC01',
@@ -325,8 +341,13 @@ describe('seed:validate — 규칙별 주입', () => {
       const s = fresh();
       c.inject(s);
       const res = validateSeed(s, { now: c.opts?.now ?? NOW, strict: c.opts?.strict });
-      if ((c.sev ?? 'ERROR') === 'ERROR') expect(errorRules(res)).toContain(c.rule);
-      else {
+      if ((c.sev ?? 'ERROR') === 'ERROR') {
+        expect(errorRules(res)).toContain(c.rule);
+        const allowed = new Set([c.rule, ...(c.also ?? [])]);
+        const unexpected = [...new Set(errorRules(res))].filter((r) => !allowed.has(r));
+        expect(unexpected, `예상 밖 ERROR: ${res.errors.filter((i) => !allowed.has(i.rule)).map((i) => `${i.rule} ${i.file}#${i.id} ${i.path}`).join(' | ')}`).toEqual([]);
+        for (const a of c.also ?? []) expect(errorRules(res), `문서화된 동반 규칙 ${a} 가 더 이상 나오지 않음 — also 갱신`).toContain(a);
+      } else {
         expect(warnRules(res)).toContain(c.rule);
         expect(res.errors).toEqual([]);
       }
@@ -346,17 +367,42 @@ describe('seed:validate — 규칙별 주입', () => {
     expect(res.errors[0].id).toBe('cp-003');
   });
 
-  it('정상 승격(요구사항·용품·프로필·동물 VERIFIED) → errors 0, 노출 요구사항 1, W-EXPOSURE-ZERO 없음', () => {
-    const s = fresh();
+  /** golden 체인(요구사항·용품·프로필[·동물]) VERIFIED + cp-004(철망 60×40, 간격 9mm) ACTIVE·VERIFIED 승격. 메모리 복사본만. */
+  function promoteGoldenChain(s: Required<RawSeed>, opts: { animalType: boolean }): void {
     verify(row(s, 'supplyRequirements', 'req-syrian-cage'));
     verify(row(s, 'supplyItems', 'cage'));
     verify(row(s, 'careProfiles', 'cp-hamster-syrian'));
-    verify(row(s, 'animalTypes', 'hamster-golden'));
+    if (opts.animalType) verify(row(s, 'animalTypes', 'hamster-golden'));
+    const p = row(s, 'curatedProducts', 'cp-004');
+    Object.assign(p, {
+      status: 'ACTIVE',
+      meetsMinSpec: true,
+      title: '철망 케이지 상품 A',
+      specVerifiedBy: 'operator-handle',
+      specVerifiedAt: '2026-09-30',
+      source: [SRC],
+    });
+    verify(p);
+  }
+
+  it('정상 승격(요구사항·용품·프로필·동물 VERIFIED + 상품 cp-004) → errors 0, 노출 요구사항 1·타입 1·상품 1 (A6 회귀)', () => {
+    const s = fresh();
+    promoteGoldenChain(s, { animalType: true });
     const res = validateSeed(s, { now: NOW, strict: true });
     expect(res.errors).toEqual([]);
     expect(res.summary.requirements).toBe(1);
     expect(res.summary.types).toBe(1);
+    expect(res.summary.products).toBe(1);
     expect(warnRules(res)).not.toContain('W-EXPOSURE-ZERO');
     expect(warnRules(res)).not.toContain('W-COHERENCE');
+  });
+
+  it('같은 승격이지만 hamster-golden DRAFT → 타입 0·상품 0 (M1: 동물 미검수면 상품도 비노출, A6 회귀)', () => {
+    const s = fresh();
+    promoteGoldenChain(s, { animalType: false });
+    const res = validateSeed(s, { now: NOW });
+    expect(res.errors).toEqual([]);
+    expect(res.summary.types).toBe(0);
+    expect(res.summary.products).toBe(0);
   });
 });

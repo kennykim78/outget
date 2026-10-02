@@ -5,14 +5,19 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   ci:
-    name: compliance -> lint -> typecheck -> build -> test
+    name: compliance -> seed guard -> seed validate -> lint -> typecheck -> build -> compliance(out) -> test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
@@ -31,8 +36,12 @@ jobs:
       - name: Compliance & secret scan
         run: node scripts/compliance-scan.mjs
 
+      - name: Seed review transition guard (M4)
+        if: github.event_name == 'pull_request'
+        run: node scripts/seed-review-diff.mjs --base "origin/${{ github.base_ref }}"
+
       - name: Seed validate
-        run: npm run seed:validate
+        run: npm run seed:validate --workspace server -- --now "$(TZ=Asia/Seoul date +%F)"
 
       - name: Lint
         run: npm run lint
@@ -46,8 +55,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Compliance (prerender output)
+        run: npm run compliance:out
+
       - name: Test (client)
         run: npm test --workspace client
 
       - name: Test (server)
         run: npm test --workspace server
+
+      - name: Test (scripts)
+        run: npm run test:scripts

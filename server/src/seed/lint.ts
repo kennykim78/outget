@@ -1,45 +1,59 @@
 // 콘텐츠 린트(불변식 5) — 금지어 정확 일치 = ERROR(L01), 어간 = WARN(L02),
-//   문체(L03)·자리표시자(L04)·검색어 토큰(L05).
-//   금지어 목록은 PRD·시드 문서·CLAUDE.md 합집합 9개(계획 §G-10). compliance-scan 과의 단일 소스화는 R3 부채.
+//   문체(L03)·자리표시자(L04)·검색어 토큰(L05)·공백 제거 후에만 걸리는 짧은 금지어 = WARN(L06).
+//   금지어 목록 단일 소스: banned-words.json (scripts/ compliance-scan 과 패리티 테스트로 묶임).
 import { asRec, isSlotRow, type Collector, type Rec, type SeedKey } from './common.js';
+import data from './banned-words.json' with { type: 'json' };
 
 export interface BannedTerm {
   term: string;
   re: RegExp;
 }
 
+interface WordEntry {
+  term: string;
+  pattern: string;
+}
+
+const compile = (list: readonly WordEntry[]): readonly BannedTerm[] =>
+  list.map((w) => ({ term: w.term, re: new RegExp(w.pattern, 'u') }));
+
 /** L01 — 정확 금지어(불변식 5). */
-export const BANNED: readonly BannedTerm[] = [
-  { term: '괜찮다', re: /괜찮다/ },
-  { term: '안전하다', re: /안전하다/ },
-  { term: '최저가', re: /최저가/ },
-  { term: '판매순', re: /판매순/ },
-  { term: '베스트', re: /베스트/ },
-  { term: '정확도', re: /정확도/ },
-  { term: '전문가 N명', re: /전문가\s*\d+\s*명/ },
-  { term: '회원가입', re: /회원가입/ },
-  { term: '구매', re: /구매/ },
-];
+export const BANNED: readonly BannedTerm[] = compile(data.banned);
 
 /** L02 — 금지어 어간(활용형 의심). 정확 금지어로 이미 잡힌 부분은 제외. */
-export const STEMS: readonly BannedTerm[] = [
-  { term: '안전', re: /안전/ },
-  { term: '괜찮', re: /괜찮/ },
-];
+export const STEMS: readonly BannedTerm[] = compile(data.stems);
 
 export interface LintHit {
-  rule: 'L01' | 'L02';
+  rule: 'L01' | 'L02' | 'L06';
   term: string;
 }
 
-/** 금지어·어간 검사(순수). 같은 텍스트에서 정확 금지어 부분을 지운 뒤 어간을 찾는다. */
+/**
+ * 린트용 정규화. NFKC → 소프트하이픈·제로폭·방향 표식 제거 → 공백 연속을 ' ' 하나로.
+ * stripped 는 공백을 전부 제거한다.
+ */
+export function normalizeLintText(s: string, mode: 'spaced' | 'stripped'): string {
+  const spaced = s
+    .normalize('NFKC')
+    .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, '')
+    .replace(/\s+/g, ' ');
+  return mode === 'spaced' ? spaced : spaced.replace(/ /g, '');
+}
+
+/** 금지어·어간 검사(순수). 정규화 후 정확 금지어 부분을 지운 뒤 어간을 찾는다. */
 export function lintText(text: string): LintHit[] {
   const hits: LintHit[] = [];
-  let rest = text;
+  const spaced = normalizeLintText(text, 'spaced');
+  const stripped = normalizeLintText(text, 'stripped');
+  let rest = spaced;
   for (const b of BANNED) {
-    if (b.re.test(text)) {
+    if (b.re.test(spaced)) {
       hits.push({ rule: 'L01', term: b.term });
-      rest = rest.replace(new RegExp(b.re.source, 'g'), ' ');
+      rest = rest.replace(new RegExp(b.re.source, 'gu'), ' ');
+    } else if (b.re.test(stripped)) {
+      // 공백 제거 후에만 걸림 — 긴 금지어는 우회로 보고 ERROR, 짧은 것(단어 경계 걸침 가능)은 WARN.
+      const len = b.term.replace(/[\sN]/g, '').length;
+      hits.push({ rule: len >= 3 ? 'L01' : 'L06', term: b.term });
     }
   }
   for (const s of STEMS) {
@@ -188,6 +202,7 @@ export function lintRecord(key: SeedKey, id: string, r: Rec, out: Collector): vo
   for (const f of textFieldsOf(key, r)) {
     for (const h of lintText(f.text)) {
       if (h.rule === 'L01') out.error('L01', key, id, f.path, `금지어 "${h.term}" (불변식 5)`);
+      else if (h.rule === 'L06') out.warn('L06', key, id, f.path, `공백 제거 시 금지어 "${h.term}" 와 일치 — 단어 경계 확인`);
       else out.warn('L02', key, id, f.path, `금지어 어간 "${h.term}" — 문구 확인 필요`);
     }
     if (isPlaceholder(f.text)) out.error('L04', key, id, f.path, `자리표시자 값 "${f.text}" — null 로 두거나 채운다`);

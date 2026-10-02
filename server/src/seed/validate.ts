@@ -8,6 +8,7 @@ import { checkPeople } from './validate-people.js';
 import { checkProducts } from './validate-products.js';
 import { checkRefs } from './validate-refs.js';
 import { checkReview } from './validate-review.js';
+import { checkSlugs } from './validate-slug.js';
 import { checkStructure } from './validate-structure.js';
 import { SEED_KEYS } from './common.js';
 
@@ -28,6 +29,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   checkRefs(ctx);
   checkExprs(ctx);
   checkReview(ctx);
+  checkSlugs(ctx);
   // P01 재계산은 구조·참조 오류가 없을 때만 엔진에 맡긴다(깨진 입력으로 엔진을 돌리지 않는다).
   const structurallySound = !out.issues.some((i) => i.severity === 'ERROR');
   checkProducts(ctx, structurallySound ? meetsMinSpecFn(raw) : null);

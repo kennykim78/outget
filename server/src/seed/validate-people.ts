@@ -1,17 +1,23 @@
-// 사람·장소·사진 규칙 T01·T02·VC01·VC02·I01 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
+// 사람·장소·사진 규칙 T01~T03·VC01·VC02·I01 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
 import { asRec, isHttpUrl, isIsoDate, isNonEmptyStr, isSlotRow } from './common.js';
 import type { Ctx } from './context.js';
 
 export const TESTIMONIAL_SOURCE_RE = /^BETA_\d{4}_\d{2}$|^IN_APP$/;
 export const QUOTE_MAX = 80;
+/** T03(M7): 작성자 사진은 동일 오리진 자산 경로만(외부 URL·경로 순회·프로토콜 상대 금지). */
+export const REVIEWER_IMAGE_RE = /^\/assets\/reviewers\/[a-z0-9][a-z0-9-]*\.(webp|avif|jpg|jpeg|png)$/;
 /** 대한민국 대략 경계(VC02). 병원 고정 주소 좌표만 — 사용자 위치는 어디에도 두지 않는다(불변식 8). */
 export const KR_BOUNDS = { latMin: 33, latMax: 39, lngMin: 124, lngMax: 132 } as const;
 
 function checkTestimonials(ctx: Ctx): void {
   const { out } = ctx;
   for (const { rec, id } of ctx.rows.testimonials) {
-    if (rec.reviewerImage !== null && rec.reviewerImage !== undefined && rec.reviewerImageConsent !== true) {
-      out.error('T02', 'testimonials', id, 'reviewerImageConsent', '작성자 사진은 별도 동의 필요');
+    const img = rec.reviewerImage;
+    if (img !== null && img !== undefined) {
+      if (rec.reviewerImageConsent !== true) out.error('T02', 'testimonials', id, 'reviewerImageConsent', '작성자 사진은 별도 동의 필요');
+      if (typeof img !== 'string' || !REVIEWER_IMAGE_RE.test(img)) {
+        out.error('T03', 'testimonials', id, 'reviewerImage', `reviewerImage 는 /assets/reviewers/<kebab>.(webp|avif|jpg|jpeg|png) 만 (현재 ${JSON.stringify(img)})`);
+      }
     }
     if (rec.status !== 'APPROVED') continue;
     if (rec.verifiedUsage !== true) out.error('T01', 'testimonials', id, 'verifiedUsage', 'APPROVED 후기는 verifiedUsage=true(실사용 확인)만');

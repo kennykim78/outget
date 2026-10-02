@@ -1,7 +1,8 @@
-// 검수 규칙 V01~V05 + W-STALE·W-COHERENCE·W-SLUG (불변식 7).
+// 검수 규칙 V01~V05 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { isVerified, reviewerRank } from '../engine/index.js';
-import { CONTENT_KEYS, daysBetween, hostnameOf, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
+import { CONTENT_KEYS, daysBetween, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
+import { registrableDomainOfUrl } from './hostname.js';
 import type { Ctx } from './context.js';
 
 /** contentKind 별 최소 검수 등급(제품기획 §7.3 + A-7). LEGAL 은 정확히 OFFICIAL_SOURCE. */
@@ -56,8 +57,9 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
     const urls = sourceUrls(r);
     if (urls.length < 1) out.error('V04', key, id, 'source', 'VERIFIED 는 출처 1개 이상');
     if (g.distinctHosts) {
-      const hosts = new Set(urls.map(hostnameOf).filter((h): h is string => h !== null));
-      if (hosts.size < g.minSources) out.error('V04', key, id, 'source', `${kind} 는 서로 다른 호스트의 출처 ${g.minSources}개 이상 (현재 ${hosts.size})`);
+      // M6: registrable domain 기준(서브도메인·후행 점·대소문자·IDN 우회 차단). 판정 불가(IP·localhost 등)는 세지 않는다.
+      const domains = new Set(urls.map(registrableDomainOfUrl).filter((h): h is string => h !== null));
+      if (domains.size < g.minSources) out.error('V04', key, id, 'source', `${kind} 는 서로 다른 기관 도메인(registrable domain)의 출처 ${g.minSources}개 이상 (현재 ${domains.size})`);
     }
   }
 
@@ -84,10 +86,5 @@ export function checkReview(ctx: Ctx): void {
     if (missing.length > 0) {
       ctx.out.warn('W-COHERENCE', 'supplyRequirements', id, 'reviewStatus', `VERIFIED 요구사항이지만 ${missing.join(', ')} 미검수 — 노출되지 않는다`);
     }
-  }
-
-  // W-SLUG (A-16)
-  for (const { rec, id } of ctx.rows.animalTypes) {
-    if (rec.status === 'ACTIVE' && !isNonEmptyStr(rec.slug)) ctx.out.warn('W-SLUG', 'animalTypes', id, 'slug', 'ACTIVE 동물에 slug 없음(라우트 체계 R3)');
   }
 }

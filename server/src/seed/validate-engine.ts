@@ -5,10 +5,10 @@ import {
   createCatalog,
   exprComparedLiterals,
   exprRefs,
+  isAnimalTypeExposable,
   isProductExposable,
   isRequirementExposable,
   isTestimonialExposable,
-  isVerified,
   isVetListed,
   listResolvedRequirements,
   parseExpr,
@@ -69,6 +69,8 @@ export function meetsMinSpecFn(raw: RawSeed): MeetsMinSpecFn {
 
 /**
  * 노출 요약 + W-EXPOSURE-ZERO(A-13). 판정은 engine/exposure.ts 만(A-6).
+ *   types = isAnimalTypeExposable, requirements = ACTIVE 타입별 노출 요구사항 합,
+ *   products = 노출 타입 중 하나 이상에서 isProductExposable(cat, typeId, p)(M2·M3).
  * 구조·참조 오류가 있으면 엔진을 돌리지 않고 0 을 보고한다(어차피 exit 1).
  */
 export function checkExposure(ctx: Ctx, raw: RawSeed, sound: boolean): ExposureSummary {
@@ -76,18 +78,22 @@ export function checkExposure(ctx: Ctx, raw: RawSeed, sound: boolean): ExposureS
   if (!sound) return summary;
   const bundle = asSeedBundle(raw);
   const cat = createCatalog(bundle);
+  const exposedTypeIds: string[] = [];
   for (const at of bundle.animalTypes) {
     if (at.status !== 'ACTIVE') continue;
     const n = listResolvedRequirements(cat, at.id).filter((r) => isRequirementExposable(cat, r)).length;
     summary.requirements += n;
-    if (n > 0 && isVerified(at)) summary.types += 1;
+    if (isAnimalTypeExposable(cat, at.id)) exposedTypeIds.push(at.id);
     if (n === 0) {
       const msg = 'VERIFIED 0건 — 노출 0 (ACTIVE 동물의 노출 가능한 요구사항 없음)';
       if (ctx.strict) ctx.out.error('W-EXPOSURE-ZERO', 'animalTypes', at.id, '', msg);
       else ctx.out.warn('W-EXPOSURE-ZERO', 'animalTypes', at.id, '', msg);
     }
   }
-  summary.products = bundle.curatedProducts.filter((p) => isProductExposable(p)).length;
+  summary.types = exposedTypeIds.length;
+  summary.products = bundle.curatedProducts.filter((p) =>
+    exposedTypeIds.some((typeId) => isProductExposable(cat, typeId, p)),
+  ).length;
   summary.testimonials = bundle.testimonials.filter((t) => isTestimonialExposable(t)).length;
   summary.vets = bundle.vetClinics.filter((v) => isVetListed(v)).length;
   return summary;

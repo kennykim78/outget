@@ -1,321 +1,96 @@
 #!/usr/bin/env node
-// Outget 컴플라이언스 / 시크릿 정적 스캐너.
-// 의존성 0 — node 빌트인(node:fs / node:path)만 사용.
-// 규칙은 .claude/skills/knockedu-qa/SKILL.md 의 5 불변식과 1:1 일치한다.
+// WithSmall 컴플라이언스 / 시크릿 / 노출 정적 스캐너 — R3 계획 §5(C1-FETCH ~ C8-OUT-SAFE), D8·D9·D10.
+// 의존성 0(node 빌트인만), Node 20 호환.
 //
 // 사용법:
-//   node scripts/compliance-scan.mjs            # 사람용 출력, 위반 시 exit 1
-//   node scripts/compliance-scan.mjs --json     # 기계용 JSON, 위반 시 exit 1
+//   node scripts/compliance-scan.mjs                     # 사람용 출력
+//   node scripts/compliance-scan.mjs --json              # 기계용 JSON 한 줄
+//   node scripts/compliance-scan.mjs --root <dir>        # 다른 트리(테스트 픽스처)
+//   node scripts/compliance-scan.mjs --prerender <dir>   # 산출물 디렉터리(기본 <root>/client/dist)
+//   node scripts/compliance-scan.mjs --require-output    # manifest 없으면 FAIL("NOT RUN")
 //
-// 깨끗한 트리 → exit 0. 위반 1건 이상 → exit 1 + "파일:라인:규칙" 출력.
-
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+// exit: 0 = FAIL 0건(WARN 은 무관) · 1 = FAIL ≥1 · 2 = 설정 오류(인수, 금지어 단일 소스 없음·형식 오류)
+//
+// 규칙: C1-FETCH C1-LIB C1-SDK C1-SEEDURL · C2-TRADE C2-PRICE · C3-QUERY C3-GUARDTEST C3-OUT-ID C3-OUT-ROUTE ·
+//       C4-BANNED C4-CODE(R3 WARN) C4-STEM(WARN) · C5-GEO · C6-IMG · C7-SECRET · C8-OUT-SAFE · C0-SEED C0-OUTPUT
+import { existsSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDir } from './lib/files.mjs';
+import { ConfigError, loadBannedWords } from './lib/normalize.mjs';
+import { scanSources } from './lib/rules-source.mjs';
+import { scanOutputs } from './lib/rules-output.mjs';
+import { computeExposure, readSeed, seedDigest } from './lib/seed-exposure.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const ROOT = resolve(dirname(__filename), '..');
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BANNED_WORDS_PATH = 'server/src/seed/banned-words.json';
 
-// 스캔 대상 트리.
-const SCAN_DIRS = ['client/src', 'server/src', 'scripts'];
-
-// 디렉터리 제외(이름 일치).
-const EXCLUDE_DIRS = new Set([
-  'node_modules',
-  'dist',
-  'dev-dist',
-  '.git',
-]);
-
-// 파일 제외: *.example, 자기 자신, 비텍스트 확장자.
-const SELF = resolve(__filename);
-const TEXT_EXT = new Set([
-  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-  '.json', '.yml', '.yaml', '.md', '.css', '.html',
-]);
-
-function isExcludedFile(absPath) {
-  if (absPath === SELF) return true;
-  if (absPath.endsWith('.example')) return true;
-  // .env.example 류(placeholder)는 시크릿 규칙에서 제외 — 위 .example 검사로 포괄.
-  const ext = extname(absPath);
-  if (ext && !TEXT_EXT.has(ext)) return true;
-  return false;
-}
-
-// ── 화이트리스트(매칭 제외 토큰) — 네이버 지도/쇼핑 공식 API 도메인 ───────────
-// 면제는 "줄 단위 언급"이 아니라 (a) 매칭된 그 외부 URL 토큰 자체가 화이트 도메인,
-// 또는 (b) 명시적 SDK 로드 패턴(script.src / 스크립트 주입 / 지도 SDK URL) 일 때만.
-// (MED 수정) 무관한 주석에 네이버 도메인이 섞여도 같은 줄의 다른 위반은 잡힌다.
-const R1_WHITELIST = [
-  /openapi\.naver\.com/i,        // 네이버쇼핑 API (정가 조회, 약관 내)
-  /oapi\.map\.naver\.com/i,      // 네이버 지도 SDK
-  /[a-z0-9.-]*\.map\.naver\.com/i, // *.map.naver.com 지도 SDK
-  /naveropenapi/i,               // 네이버 지도/오픈API SDK 식별자
-];
-
-// SDK 로드(스크립트 주입) 패턴 — 본문수집이 아니라 지도 SDK 로드.
-const R1_SDK_LOAD = /(script\.src\s*=|createElement\(\s*['"]script['"]\)|<script\b)/i;
-
-// 주어진 "외부 URL 토큰"(R1_FETCH_EXTERNAL 등이 잡은 URL 문자열)이 화이트 도메인인가.
-function isWhitelistedUrl(urlToken) {
-  return R1_WHITELIST.some((re) => re.test(urlToken));
-}
-
-// 한 줄에 등장하는 모든 절대 http(s) URL 리터럴을 추출.
-const URL_LITERAL = /[`'"](https?:\/\/[^`'"\s]+)[`'"]/gi;
-function extractUrls(line) {
-  const out = [];
-  let m;
-  URL_LITERAL.lastIndex = 0;
-  while ((m = URL_LITERAL.exec(line)) !== null) out.push(m[1]);
-  return out;
-}
-
-// ── 규칙 정의 ────────────────────────────────────────────────────────────────
-// 각 규칙: { id, test(line, ctx) -> boolean }.
-// 라인 단위 평가(시크릿 PRIVATE KEY 헤더도 한 줄에 등장).
-
-// R1 무크롤링: 스크래핑/헤드리스/크롤 키워드, 또는 외부 도메인 대상 fetch.
-const R1_KEYWORDS = /puppeteer|playwright|cheerio|headless|\.scrape|crawl/i;
-// 외부 도메인(브랜드·아울렛·SNS·쇼핑몰·커뮤니티) 대상 cron/scheduled fetch 휴리스틱:
-// cron/schedule/setInterval 문맥에서 외부 http(s) fetch 를 거는 패턴.
-const R1_CRON = /(cron|schedule|setInterval|node-cron)/i;
-const R1_FETCH_EXTERNAL = /(fetch|axios|got|request)\s*\(\s*[`'"]https?:\/\//i;
-
-// (HIGH 수정) on-demand 외부 본문 fetch.
-// 네트워크 호출(fetch/axios/got/request)이 절대 http(s) URL 을 향하면 R1 위반으로 본다.
-// 면제: 그 URL 이 네이버 화이트 도메인이거나, localhost/127.0.0.1(자사 dev) 일 때.
-// (상대경로 /api·자사 도메인은 애초에 절대 http(s) URL 이 아니므로 자동 면제.)
-const R1_NET_CALL = /\b(fetch|axios|got|request)\b/i;
-const R1_SELFHOST = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i;
-
-// R2 자금 미보유.
-const R2_KEYWORDS = /escrow|payout|정산|예치|환불|refund/i;
-// 서버측 플랫폼 PG 가맹점: merchantId 와 charge|capture 동반(같은 줄).
-const R2_MERCHANT = /merchantId/i;
-const R2_PG_VERB = /\b(charge|capture)\b/i;
-// 서버측 balance 보유: balance 를 보유/적립/증감하는 패턴.
-const R2_BALANCE = /\b(balance)\b\s*[:=+\-]|(?:platform|user|wallet)\s*\.?\s*balance/i;
-
-// R3 위치 비실시간: 사용자 위경도 서버 저장/전송 패턴.
-// 위경도 토큰 + (서버 영속/전송 동사) 동반(같은 줄). 클라 메모리 일시 사용은 허용.
-const R3_COORD = /\b(lat|lng|latitude|longitude|coords)\b/i;
-// 서버 저장 동사 — 영어 키워드만(한국어 주석 "컬럼/저장" 오탐 방지).
-const R3_PERSIST = /\b(INSERT|save|create|column|schema)\b/i;
-// 서버 전송 패턴 — POST .*/api (spec), 그리고 fetch/axios 로 /api 또는 coords 를
-// 실어 보내는 호출(1.4 위경도 미전송 가드: fetch('/api/...', {lat,lng}) 도 포착).
-const R3_API_POST = /POST\s+[^\n]*\/api/i;
-const R3_SEND = /(?:fetch|axios)\s*\([^\n]*(?:\/api|coords)/i;
-
-// (HIGH 수정) 위경도 멀티패턴 네트워크 전송.
-// 휴리스틱: 좌표 토큰(R3_COORD)이 네트워크 전송 호출과 같은 함수블록/근접 N줄에 공존.
-// 전송 호출: fetch/axios/sendBeacon/.emit/XMLHttpRequest/.post(/got/request.
-// 단, 전송 호출은 "실제 코드 라인"에서만 인정(주석에 적힌 fetch/axios 는 무시).
-// → useDefaultRegion.ts(getCurrentPosition→로컬 setState, 전송 없음)는 통과한다.
-const R3_NET_SEND =
-  /(\bfetch\s*\(|\baxios\b|\bsendBeacon\b|\.emit\s*\(|\bXMLHttpRequest\b|\.post\s*\(|\bgot\b|\brequest\s*\()/i;
-const R3_PROXIMITY = 6; // 좌표↔전송 호출 근접 허용 줄 수.
-
-// 줄에서 라인주석(//...)·블록주석 토막을 제거해 "실제 코드"만 남긴다.
-// (정밀 파서는 아니지만 주석 속 fetch/axios 오탐 차단엔 충분.)
-function stripComments(line) {
-  let s = line.replace(/\/\*.*?\*\//g, ' '); // 한 줄 내 블록주석.
-  // 라인주석 `//` 를 자른다. 단 URL 스킴(`://`)의 `//` 는 주석이 아니므로 건너뛴다
-  // (이걸 안 하면 "https://..." 가 https: 로 잘려 R1 URL 추출이 깨진다).
-  for (let i = 0; i < s.length - 1; i++) {
-    if (s[i] === '/' && s[i + 1] === '/' && (i === 0 || s[i - 1] !== ':')) {
-      s = s.slice(0, i);
-      break;
-    }
-  }
-  return s;
-}
-
-// R4 링크 보증.
-const R4_KEYWORDS = /verifyLink|linkSafety|validateExternalUrl|isSafeLink/i;
-// 보증 + 링크 검증기(같은 줄에 "보증" 과 "링크").
-const R4_KO = /(?=.*보증)(?=.*링크)/;
-
-// R5 가격주장: 플랫폼 산정 단정 가격 변수.
-const R5_KEYWORDS = /\b(platformPrice|ourPrice|officialPrice)\b/;
-
-// ── 시크릿 규칙 ──────────────────────────────────────────────────────────────
-// 네이버 클라이언트 헤더 리터럴(값 포함). 헤더 키 명만으로는 약하므로 값 동반 패턴.
-const SEC_NAVER = /X-Naver-Client-(Id|Secret)\s*['"]?\s*[:=]\s*['"][^'"]+['"]/i;
-// 하드코딩 api key.
-const SEC_APIKEY = /api[_-]?key\s*[:=]\s*['"][A-Za-z0-9]{16,}/i;
-// 하드코딩 JWT 시크릿(JWT_*_SECRET = "리터럴 16+").
-const SEC_JWT = /JWT[_A-Z]*SECRET\s*[:=]\s*['"][A-Za-z0-9_\-]{16,}['"]/;
-// PEM private key 헤더.
-const SEC_PEM = /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/;
-
-// 라인 단위(line-local) 규칙. R3 멀티라인/근접 규칙은 checkFile 에서 별도 처리.
-function checkLine(line) {
-  const hits = [];
-  // 불변식 규칙(R1~R5)은 모두 **주석 제거 코드(code)** 에만 적용한다.
-  // 이유: deny-list 주석(예: "// 정산 로직 없음", "// platformPrice 금지")이 키워드 매칭으로
-  // false-positive 되는 클래스를 근절(매 에픽 재발). 실제 위반은 코드에 있으므로 탐지력 손실 없음.
-  // 단 **시크릿은 raw line 유지** — 주석에 붙여넣은 키도 실제 유출이므로 잡아야 한다.
-  const code = stripComments(line);
-
-  // ── R1 무크롤링 ─────────────────────────────────────────────
-  // (1) 스크래핑 라이브러리 키워드 자체가 위반.
-  if (R1_KEYWORDS.test(code)) hits.push('R1-무크롤링');
-
-  // (2) 외부 절대 http(s) URL 을 향한 네트워크 호출(on-demand 본문수집).
-  //     화이트(네이버)/자사(localhost) 가 아닌 외부 URL + 네트워크 호출 토큰. SDK 로드는 면제.
-  else if (R1_NET_CALL.test(code) && !R1_SDK_LOAD.test(code)) {
-    const externalUrls = extractUrls(code).filter(
-      (u) => !isWhitelistedUrl(u) && !R1_SELFHOST.test(u),
-    );
-    if (externalUrls.length > 0) hits.push('R1-무크롤링');
-  }
-  // (3) cron/scheduled fetch (외부 URL 추출에 안 걸리는 변형 보강용).
-  if (
-    !hits.includes('R1-무크롤링') &&
-    R1_CRON.test(code) &&
-    R1_FETCH_EXTERNAL.test(code) &&
-    extractUrls(code).some((u) => !isWhitelistedUrl(u) && !R1_SELFHOST.test(u))
-  ) {
-    hits.push('R1-무크롤링');
-  }
-
-  // R2
-  if (R2_KEYWORDS.test(code)) hits.push('R2-자금미보유');
-  else if (R2_MERCHANT.test(code) && R2_PG_VERB.test(code)) hits.push('R2-자금미보유');
-  else if (R2_BALANCE.test(code)) hits.push('R2-자금미보유');
-
-  // R3 (라인 단위 — 같은 줄 영속/전송). 멀티라인 근접은 checkFileR3.
-  if (R3_COORD.test(code)) {
-    if (R3_PERSIST.test(code) || R3_API_POST.test(code) || R3_SEND.test(code)) {
-      hits.push('R3-위치저장');
-    }
-  }
-
-  // R4
-  if (R4_KEYWORDS.test(code) || R4_KO.test(code)) hits.push('R4-링크보증');
-
-  // R5
-  if (R5_KEYWORDS.test(code)) hits.push('R5-가격주장');
-
-  // 시크릿 (raw line — 주석 속 키도 유출)
-  if (SEC_NAVER.test(line)) hits.push('SECRET-naver');
-  if (SEC_APIKEY.test(line)) hits.push('SECRET-apikey');
-  if (SEC_JWT.test(line)) hits.push('SECRET-jwt');
-  if (SEC_PEM.test(line)) hits.push('SECRET-pem');
-
-  return hits;
-}
-
-// 파일 단위 규칙 — R3 멀티라인/근접 위경도 전송.
-// 좌표 토큰이 있는 줄을 기준으로, 근접 N줄(주석 제거 후 실제 코드) 안에
-// 네트워크 전송 호출이 있으면 R3 위반으로 본다.
-// 클라 로컬 사용(getCurrentPosition→setState, 전송 호출 없음)은 통과한다.
-function checkFileR3(lines) {
-  const hits = []; // { line: <coord 토큰 줄(1-based)> }
-  const code = lines.map(stripComments); // 주석 제거된 실제 코드 라인.
-
-  for (let i = 0; i < lines.length; i++) {
-    // 좌표 토큰 자체도 주석이 아닌 실제 코드에서 나와야 한다.
-    if (!R3_COORD.test(code[i])) continue;
-    // 이미 라인 단위(R3_SEND/API_POST/PERSIST)로 잡힌 경우는 checkLine 이 처리하므로
-    // 여기서는 "근접 전송"만 본다(중복 보고는 main 에서 dedupe).
-    const lo = Math.max(0, i - R3_PROXIMITY);
-    const hi = Math.min(lines.length - 1, i + R3_PROXIMITY);
-    let found = false;
-    for (let j = lo; j <= hi && !found; j++) {
-      if (R3_NET_SEND.test(code[j])) found = true;
-    }
-    if (found) hits.push(i + 1);
-  }
-  return hits;
-}
-
-// ── 파일 수집 ────────────────────────────────────────────────────────────────
-function walk(dirAbs, out) {
-  let entries;
-  try {
-    entries = readdirSync(dirAbs, { withFileTypes: true });
-  } catch {
-    return; // 디렉터리 없음 — 조용히 통과(예: scripts 가 비어있는 경우).
-  }
-  for (const ent of entries) {
-    const abs = join(dirAbs, ent.name);
-    if (ent.isDirectory()) {
-      if (EXCLUDE_DIRS.has(ent.name)) continue;
-      walk(abs, out);
-    } else if (ent.isFile()) {
-      if (isExcludedFile(abs)) continue;
-      out.push(abs);
-    }
-  }
-}
-
-function collectFiles() {
-  const files = [];
-  for (const d of SCAN_DIRS) {
-    const abs = resolve(ROOT, d);
-    let st;
-    try {
-      st = statSync(abs);
-    } catch {
-      continue;
-    }
-    if (st.isDirectory()) walk(abs, files);
-  }
-  return files;
-}
-
-// ── 실행 ─────────────────────────────────────────────────────────────────────
-function main() {
-  const asJson = process.argv.includes('--json');
-  const files = collectFiles();
-  const violations = [];
-
-  for (const abs of files) {
-    let content;
-    try {
-      content = readFileSync(abs, 'utf8');
-    } catch {
-      continue;
-    }
-    const rel = relative(ROOT, abs).split(sep).join('/');
-    const lines = content.split(/\r?\n/);
-    // 같은 (line, rule) 중복 보고 방지(라인 규칙 ↔ 파일 규칙 겹침).
-    const seen = new Set();
-    const add = (line, rule) => {
-      const key = `${line}:${rule}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      violations.push({ file: rel, line, rule });
+function parseArgs(argv) {
+  const o = { root: REPO_ROOT, json: false, prerender: null, requireOutput: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const val = () => {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('--')) throw new ConfigError(`${a} 에 값이 필요하다`);
+      return v;
     };
+    if (a === '--json') o.json = true;
+    else if (a === '--require-output') o.requireOutput = true;
+    else if (a === '--root') o.root = resolve(val());
+    else if (a === '--prerender') o.prerender = val();
+    else throw new ConfigError(`알 수 없는 인수: ${a}`);
+  }
+  o.prerender = o.prerender === null ? join(o.root, 'client', 'dist') : isAbsolute(o.prerender) ? o.prerender : resolve(o.prerender);
+  return o;
+}
 
-    for (let i = 0; i < lines.length; i++) {
-      for (const rule of checkLine(lines[i])) add(i + 1, rule);
-    }
-    // R3 멀티라인/근접 위경도 전송(파일 단위).
-    for (const line of checkFileR3(lines)) add(line, 'R3-위치저장');
+function main() {
+  let opts;
+  let bw;
+  try {
+    opts = parseArgs(process.argv.slice(2));
+    if (!isDir(opts.root)) throw new ConfigError(`--root 디렉터리 없음: ${opts.root}`);
+    bw = loadBannedWords(join(opts.root, ...BANNED_WORDS_PATH.split('/')));
+  } catch (e) {
+    if (!(e instanceof ConfigError)) throw e;
+    process.stderr.write(`compliance-scan: CONFIG ERROR — ${e.message}\n`);
+    process.exit(2);
   }
 
-  if (asJson) {
-    process.stdout.write(
-      JSON.stringify({ ok: violations.length === 0, violations }, null, 2) + '\n',
-    );
-  } else if (violations.length === 0) {
-    process.stdout.write(
-      `compliance-scan: OK — ${files.length}개 파일, 위반 0건.\n`,
-    );
+  const findings = [];
+  const seenKey = new Set();
+  const add = (rule, severity, file, line, message) => {
+    const k = `${rule}|${severity}|${file}|${line}|${message}`;
+    if (seenKey.has(k)) return;
+    seenKey.add(k);
+    findings.push({ rule, severity, file, line: line ?? null, message });
+  };
+  const notes = [];
+
+  const { files } = scanSources(opts.root, { add, bw }, notes);
+
+  const seedDir = join(opts.root, 'server', 'seed');
+  const { seed } = readSeed(seedDir);
+  const ex = computeExposure(seed);
+  const digest = existsSync(seedDir) ? seedDigest(seedDir) : null;
+  const outputs = scanOutputs({ root: opts.root, dist: opts.prerender, ex, digest, bw, add, requireOutput: opts.requireOutput });
+  if (outputs === 'NOT RUN') notes.push('산출물 규칙(C3-OUT-*, C4 산출물, C6 산출물, C8): NOT RUN — prerender-manifest.json 없음');
+
+  const order = { FAIL: 0, WARN: 1 };
+  findings.sort((a, b) => order[a.severity] - order[b.severity] || a.rule.localeCompare(b.rule) || a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0));
+  const fail = findings.filter((f) => f.severity === 'FAIL').length;
+  const warn = findings.length - fail;
+  const exposed = Object.fromEntries(Object.entries(ex.ids).map(([k, s]) => [k, s.size]));
+
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ ok: fail === 0, fail, warn, files, outputs, seedDigest: digest, exposed, notes, findings })}\n`);
   } else {
-    process.stdout.write(
-      `compliance-scan: FAIL — ${violations.length}건 위반 발견:\n`,
-    );
-    for (const v of violations) {
-      process.stdout.write(`  ${v.file}:${v.line}:${v.rule}\n`);
-    }
+    const head = fail === 0 ? 'OK' : 'FAIL';
+    process.stdout.write(`compliance-scan: ${head} — ${fail} FAIL, ${warn} WARN (files ${files}, outputs ${outputs})\n`);
+    for (const f of findings) process.stdout.write(`  ${f.severity} ${f.rule} ${f.file}${f.line ? `:${f.line}` : ''} ${f.message}\n`);
+    for (const n of notes) process.stdout.write(`  note: ${n}\n`);
   }
-
-  process.exit(violations.length === 0 ? 0 : 1);
+  process.exit(fail === 0 ? 0 : 1);
 }
 
 main();

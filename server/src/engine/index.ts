@@ -17,13 +17,23 @@ export {
 } from './rules.js';
 export type { RuleKind, SpecRead } from './rules.js';
 export { listResolvedRequirements, resolveRequirement } from './resolve.js';
-export { EngineLookupError, checkProfileMinSpec, createEngine, specCheck } from './spec-check.js';
-export type { Engine } from './spec-check.js';
+export { EngineLookupError, checkAnimalMinSpec, checkProfileMinSpec, createEngine, specCheck } from './spec-check.js';
+export type { Engine, MinSpecResult } from './spec-check.js';
 export { buildSearchKeyword } from './search-keyword.js';
 export {
+  VET_LISTED_STATUS,
+  isAnimalTypeExposable,
+  isBundleExposable,
+  isCompatRuleExposable,
+  isPhotoUsable,
   isProductExposable,
   isRequirementExposable,
   isTestimonialExposable,
   isVerified,
   isVetListed,
+  isVetStatusListed,
+  orderExposableProducts,
 } from './exposure.js';
+export type { ExposableProduct, ProductForExposure } from './exposure.js';
+export { buildSearchLinks, type SearchLink, type SearchProvider } from './search-links.js';
+export * from './public.js';

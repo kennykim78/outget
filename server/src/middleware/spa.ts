@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import express, { type Express, type RequestHandler } from 'express';
+import express, { type Express, type RequestHandler, type Response } from 'express';
 
 // SPA(클라이언트 빌드) 정적 서빙 — 동일 오리진 단일 컨테이너 배포 전용.
 //   app.ts 에서 NODE_ENV==='production' 일 때만 mountSpa(app) 으로 마운트한다.
@@ -36,7 +36,7 @@ function resolveClientDist(): string {
 
 // SPA(HTML) 응답 전용 CSP — securityHeaders 의 default-src 'none' 을 덮어쓴다.
 //   네이버 지도 JS SDK(script) + 지도 타일/이미지(img) + SDK 통신(connect)만 외부 허용.
-const SPA_CSP = [
+export const SPA_CSP = [
   "default-src 'self'",
   "script-src 'self' https://oapi.map.naver.com 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.map.naver.com https://*.pstatic.net",
@@ -55,14 +55,132 @@ function isSpaHtmlRequest(reqPath: string): boolean {
   return true;
 }
 
-export function mountSpa(app: Express): void {
-  const clientDist = resolveClientDist();
+/** 프리렌더 전용 SPA 경로(URL 은 있지만 정적 HTML 이 없는 화면 — L8 이메일 저장). */
+export const SPA_ONLY_PATHS: ReadonlySet<string> = new Set(['/save']);
+
+export type NormalizedPath =
+  | { kind: 'ok'; path: string }
+  | { kind: 'redirect'; location: string }
+  | { kind: 'bad' };
+
+/** 원문: 소문자·숫자·'-'·'/' 와 %XX(16진 2자리)만. */
+const RAW_PATH_RE = /^(?:[a-z0-9\-/]|%[0-9A-Fa-f]{2})+$/;
+const DECODED_PATH_RE = /^[a-z0-9\-/가-힣]+$/;
+
+/**
+ * 요청 경로 정규화(manifest 모드, 계획 F4): 원문은 소문자·숫자·'-'·'/'·'%' 만, percent-decode 후 NFC,
+ *   디코드 결과는 소문자·숫자·'-'·'/'·한글 음절만('.'·'\'·'%'·공백·제어문자 → bad). 빈 세그먼트('//') bad.
+ *   후행 '/' 는 제거 경로로 301.
+ */
+export function normalizeRequestPath(raw: string): NormalizedPath {
+  if (typeof raw !== 'string' || !raw.startsWith('/') || !RAW_PATH_RE.test(raw)) return { kind: 'bad' };
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw).normalize('NFC');
+  } catch {
+    return { kind: 'bad' };
+  }
+  if (!DECODED_PATH_RE.test(decoded) || !decoded.startsWith('/')) return { kind: 'bad' };
+  if (decoded.length > 1 && decoded.endsWith('/')) {
+    const trimmed = decoded.replace(/\/+$/, '');
+    if (trimmed === '' || trimmed.includes('//')) return { kind: 'bad' };
+    return { kind: 'redirect', location: trimmed.split('/').map((seg) => encodeURIComponent(seg)).join('/') };
+  }
+  if (decoded.includes('//')) return { kind: 'bad' };
+  return { kind: 'ok', path: decoded };
+}
+
+interface ManifestRoute {
+  file: string;
+  status: number;
+}
+
+/** prerender-manifest.json → (경로 → dist 내부 절대 파일). 없거나 손상이면 null(현행 동작, D16). */
+function loadManifest(clientDist: string): Map<string, ManifestRoute> | null {
+  const manPath = path.join(clientDist, 'prerender-manifest.json');
+  if (!fs.existsSync(manPath)) return null;
+  let m: unknown;
+  try {
+    m = JSON.parse(fs.readFileSync(manPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  const routes = (m as { routes?: unknown })?.routes;
+  if (!Array.isArray(routes)) return null;
+  const out = new Map<string, ManifestRoute>();
+  for (const r of routes as Array<Record<string, unknown>>) {
+    if (typeof r?.path !== 'string' || typeof r.file !== 'string') continue;
+    const abs = containedFile(clientDist, r.file);
+    if (!abs) continue;
+    out.set(r.path.normalize('NFC'), { file: abs, status: r.kind === 'NOT_FOUND' ? 404 : 200 });
+  }
+  return out;
+}
+
+/** dist 내부의 실제 파일만(path.resolve 포함 검사). */
+function containedFile(root: string, rel: string): string | null {
+  const base = path.resolve(root);
+  const abs = path.resolve(base, rel);
+  if (!abs.startsWith(base + path.sep)) return null;
+  return abs;
+}
+
+export interface MountSpaOptions {
+  /** 테스트·특수 배치용. 기본은 resolveClientDist(). */
+  clientDist?: string;
+}
+
+export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
+  const clientDist = path.resolve(opts.clientDist ?? resolveClientDist());
   const indexHtml = path.join(clientDist, 'index.html');
+  const manifest = loadManifest(clientDist);
 
-  // 정적 자산 서빙. index:false → 디렉터리 요청에 자동 index.html 응답 금지(아래 fallback 이 CSP 와 함께 처리).
-  app.use(express.static(clientDist, { index: false }));
+  // 정적 자산 서빙. index:false → 디렉터리 요청에 자동 index.html 응답 금지, redirect:false → 디렉터리 301 금지
+  //   (아래 핸들러가 CSP 와 함께 처리). '..' 등은 send 가 거부 → fallthrough 로 아래에서 404.
+  app.use(express.static(clientDist, { index: false, redirect: false }));
 
-  // SPA fallback: 자산에 매칭되지 않은 GET(HTML 진입) → index.html + SPA 전용 CSP.
+  if (manifest) {
+    // 프리렌더 모드(D16): manifest 라우트 → 파일, /save → 셸, 그 외 404.html(404).
+    const shell = fs.existsSync(path.join(clientDist, 'shell.html')) ? path.join(clientDist, 'shell.html') : indexHtml;
+    const notFound = path.join(clientDist, '404.html');
+    const sendHtml = (res: Response, file: string, status: number): void => {
+      if (!fs.existsSync(file)) {
+        res.status(404).type('text/plain').send('Not Found');
+        return;
+      }
+      res.status(status);
+      res.setHeader('Content-Security-Policy', SPA_CSP);
+      res.sendFile(file);
+    };
+    const prerendered: RequestHandler = (req, res, next) => {
+      if ((req.method !== 'GET' && req.method !== 'HEAD') || !isSpaHtmlRequest(req.path)) {
+        next();
+        return;
+      }
+      const n = normalizeRequestPath(req.path);
+      if (n.kind === 'redirect') {
+        const q = req.originalUrl.indexOf('?');
+        res.redirect(301, n.location + (q >= 0 ? req.originalUrl.slice(q) : ''));
+        return;
+      }
+      if (n.kind === 'ok') {
+        const r = manifest.get(n.path);
+        if (r) {
+          sendHtml(res, r.file, r.status);
+          return;
+        }
+        if (SPA_ONLY_PATHS.has(n.path)) {
+          sendHtml(res, shell, 200);
+          return;
+        }
+      }
+      sendHtml(res, notFound, 404);
+    };
+    app.use(prerendered);
+    return;
+  }
+
+  // 현행(manifest 없음): 자산에 매칭되지 않은 GET(HTML 진입) → index.html + SPA 전용 CSP.
   const fallback: RequestHandler = (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       next();
