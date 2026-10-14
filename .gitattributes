@@ -1,0 +1,2 @@
+# 셸 스크립트는 Linux 컨테이너에서 실행 — Windows autocrlf 체크아웃에서도 LF 고정(R6 entrypoint)
+*.sh text eol=lf
