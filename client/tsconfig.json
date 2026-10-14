@@ -10,7 +10,8 @@
     "paths": {
       "@ws/engine": ["../server/src/engine/index.ts"],
       "@ws/copy": ["../server/src/prerender/copy.ts"],
-      "@ws/events": ["../server/src/shared/event-contract.ts"]
+      "@ws/events": ["../server/src/shared/event-contract.ts"],
+      "@ws/forbidden-keys": ["../server/src/shared/forbidden-keys.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

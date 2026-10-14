@@ -1,158 +1,152 @@
-import { Router } from 'express';
+// 운영자 비밀번호 인증(R5 B1-4, D3). 일반 사용자는 매직링크 세션(save/)만 쓴다.
+//   POST /login   {email,password} → 200 {accessToken, role} + Set-Cookie ws_op_rt | 400 | 401 | 403(USER)
+//   POST /refresh (쿠키 ws_op_rt)  → 200 {accessToken} + 회전된 쿠키 | 401
+//   POST /logout  (쿠키 ws_op_rt)  → 204 + 쿠키 삭제(멱등)
+//   - /register 없음(D3, SEC-1 M-C). OPERATOR 는 운영 절차(repo 직접 생성)로만.
+//   - refresh 토큰은 HttpOnly·SameSite=Strict·Path=/auth 쿠키로만 오간다 — 응답 본문·요청 본문 미사용(L-H).
+//   - 역할은 자격 확인(비밀번호 일치) 뒤에만 드러난다: 미지·틀림·비밀번호 없음 = 401, 맞는 USER = 403.
+import { Router, type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { signAccess, signRefresh, verifyRefresh } from './jwt.js';
-import type { Role } from './roles.js';
+import { REFRESH_TTL_S, signAccess, signRefresh, verifyRefresh } from './jwt.js';
 import {
+  burnPasswordCheck,
   InMemoryUserRepository,
-  hashPassword,
   verifyPassword,
   type User,
   type UserRepository,
 } from './user.repo.js';
-import {
-  InMemoryRefreshTokenStore,
-  type RefreshTokenStore,
-} from './refresh.store.js';
+import { InMemoryRefreshTokenStore, type RefreshTokenStore } from './refresh.store.js';
 
-// 간단한 이메일 형식 검증(서버측 최소 검증). 정교한 RFC 검증은 후속.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const REFRESH_COOKIE = 'ws_op_rt';
+const JWT_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
-// refresh TTL(7d) 과 일치하는 만료 시각 계산(store 기록용).
-const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-function refreshExpiry(): Date {
-  return new Date(Date.now() + REFRESH_TTL_MS);
+export interface AuthRouterOptions {
+  /** production → Secure 쿠키. */
+  secureCookie?: boolean;
 }
-
-// 보안(H1): 공개 register 는 body.role 을 무시하고 항상 최저 권한(USER)으로 생성한다.
-//   OPERATOR 는 repo 직접 생성/운영 절차로만 부여(R4 D7 역할 USER|OPERATOR, refresh 키 정리는 R5).
-const SELF_REGISTER_ROLE: Role = 'USER';
 
 function isNonEmptyString(x: unknown): x is string {
   return typeof x === 'string' && x.length > 0;
 }
 
-// 발급 1쌍(access + 회전형 refresh). refresh jti 를 store 에 활성으로 기록한다.
-async function issueTokens(
-  user: User,
-  refreshStore: RefreshTokenStore,
-): Promise<{ accessToken: string; refreshToken: string }> {
-  const jti = randomUUID();
-  await refreshStore.issue(jti, user.id, refreshExpiry());
-  return {
-    accessToken: signAccess({ sub: user.id, role: user.role }),
-    refreshToken: signRefresh({ sub: user.id, jti }),
-  };
+function refreshCookie(token: string, secure: boolean): string {
+  return `${REFRESH_COOKIE}=${token}; Max-Age=${REFRESH_TTL_S}; Path=/auth; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`;
 }
 
-// 라우터 팩토리 — userRepo + refreshStore 주입(테스트/영속성 교체).
-//   기본 인자는 인메모리 — 직접 호출 시에도 동작(주 진입점 createApp 은 명시 주입).
+function clearRefreshCookie(secure: boolean): string {
+  return `${REFRESH_COOKIE}=; Max-Age=0; Path=/auth; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`;
+}
+
+function readRefreshCookie(req: Request): string | null {
+  const header = req.headers.cookie;
+  if (typeof header !== 'string') return null;
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0 || part.slice(0, eq).trim() !== REFRESH_COOKIE) continue;
+    const v = part.slice(eq + 1).trim();
+    return JWT_RE.test(v) ? v : null;
+  }
+  return null;
+}
+
+function noStore(res: Response): void {
+  res.set('Cache-Control', 'no-store');
+}
+
+// 발급 1쌍: access 는 본문, refresh(jti 활성 기록)는 쿠키.
+async function issue(user: User, store: RefreshTokenStore, res: Response, secure: boolean): Promise<string> {
+  const jti = randomUUID();
+  await store.issue(jti, user.id, new Date(Date.now() + REFRESH_TTL_S * 1000));
+  res.setHeader('Set-Cookie', refreshCookie(signRefresh({ sub: user.id, jti }), secure));
+  return signAccess({ sub: user.id, role: user.role });
+}
+
 export function createAuthRouter(
   repo: UserRepository = new InMemoryUserRepository(),
   refreshStore: RefreshTokenStore = new InMemoryRefreshTokenStore(),
+  opts: AuthRouterOptions = {},
 ): Router {
+  const secure = opts.secureCookie ?? false;
   const router = Router();
 
-  // POST /auth/register
-  router.post('/register', async (req, res) => {
-    const { email, password } = (req.body ?? {}) as Record<string, unknown>;
-
-    if (!isNonEmptyString(email) || !EMAIL_RE.test(email)) {
-      res.status(400).json({ error: 'invalid_email' });
-      return;
-    }
-    if (!isNonEmptyString(password)) {
-      res.status(400).json({ error: 'invalid_password' });
-      return;
-    }
-    const existing = await repo.findByEmail(email);
-    if (existing) {
-      res.status(409).json({ error: 'email_taken' });
-      return;
-    }
-
-    const passwordHash = await hashPassword(password);
-    const user = await repo.create(email, passwordHash, SELF_REGISTER_ROLE);
-    const tokens = await issueTokens(user, refreshStore);
-
-    res.status(201).json({ ...tokens, role: user.role });
-  });
-
-  // POST /auth/login
-  router.post('/login', async (req, res) => {
-    const { email, password } = (req.body ?? {}) as Record<string, unknown>;
-
-    if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
-      res.status(400).json({ error: 'missing_credentials' });
-      return;
-    }
-
-    const user = await repo.findByEmail(email);
-    // 사용자 없음·비번 불일치 모두 401(계정 존재 여부 노출 금지).
-    if (!user || !(await verifyPassword(password, user.passwordHash))) {
-      res.status(401).json({ error: 'invalid_credentials' });
-      return;
-    }
-
-    const tokens = await issueTokens(user, refreshStore);
-    res.status(200).json({ ...tokens, role: user.role });
-  });
-
-  // POST /auth/refresh — 회전: 활성 확인 → 새 access+refresh 발급 → 이전 jti revoke.
-  //   재사용(이미 revoke 된 jti)은 401(탐지). 응답에 새 refreshToken 동반.
-  router.post('/refresh', async (req, res) => {
-    const { refreshToken } = (req.body ?? {}) as Record<string, unknown>;
-
-    if (!isNonEmptyString(refreshToken)) {
-      res.status(400).json({ error: 'missing_refresh_token' });
-      return;
-    }
-
-    let sub: string;
-    let jti: string;
+  router.post('/login', async (req, res, next) => {
     try {
-      ({ sub, jti } = verifyRefresh(refreshToken));
-    } catch {
-      res.status(401).json({ error: 'invalid_refresh_token' });
-      return;
+      noStore(res);
+      const { email, password } = (req.body ?? {}) as Record<string, unknown>;
+      if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
+        res.status(400).json({ error: 'missing_credentials' });
+        return;
+      }
+      const user = await repo.findByEmail(email);
+      // L-4: 계정 없음·비밀번호 없는(매직링크) 계정도 bcrypt 비교 1회 — 존재 여부가 응답 시간으로 드러나지 않게.
+      if (!user || user.passwordHash === null) {
+        await burnPasswordCheck(password);
+        res.status(401).json({ error: 'invalid_credentials' });
+        return;
+      }
+      if (!(await verifyPassword(password, user.passwordHash))) {
+        res.status(401).json({ error: 'invalid_credentials' });
+        return;
+      }
+      if (user.role !== 'OPERATOR') {
+        res.status(403).json({ error: 'forbidden' });
+        return;
+      }
+      const accessToken = await issue(user, refreshStore, res, secure);
+      res.status(200).json({ accessToken, role: user.role });
+    } catch (err) {
+      next(err);
     }
-
-    // 회전 핵심: 제출된 jti 가 현재 활성이어야 한다(재사용/폐기 토큰 거부).
-    if (!(await refreshStore.isActive(jti))) {
-      res.status(401).json({ error: 'invalid_refresh_token' });
-      return;
-    }
-
-    // sub로 현재 role 재조회(역할 변경 반영).
-    const user = await repo.findById(sub);
-    if (!user) {
-      res.status(401).json({ error: 'invalid_refresh_token' });
-      return;
-    }
-
-    // 새 토큰 1쌍 발급 후 이전 jti 폐기(회전 완료).
-    const tokens = await issueTokens(user, refreshStore);
-    await refreshStore.revoke(jti);
-
-    res.status(200).json(tokens);
   });
 
-  // POST /auth/logout — 제출된 refresh jti 를 폐기(이후 회전 불가).
-  router.post('/logout', async (req, res) => {
-    const { refreshToken } = (req.body ?? {}) as Record<string, unknown>;
-
-    if (!isNonEmptyString(refreshToken)) {
-      res.status(400).json({ error: 'missing_refresh_token' });
-      return;
-    }
-
+  // 회전: 쿠키 jti 활성 확인 → OPERATOR 재확인 → 새 쌍 발급 → 이전 jti 폐기. 재사용(폐기된 jti)은 401.
+  router.post('/refresh', async (req, res, next) => {
     try {
-      const { jti } = verifyRefresh(refreshToken);
+      noStore(res);
+      const token = readRefreshCookie(req);
+      let sub: string;
+      let jti: string;
+      try {
+        if (token === null) throw new Error('no cookie');
+        ({ sub, jti } = verifyRefresh(token));
+      } catch {
+        res.status(401).json({ error: 'invalid_refresh_token' });
+        return;
+      }
+      if (!(await refreshStore.isActive(jti))) {
+        res.status(401).json({ error: 'invalid_refresh_token' });
+        return;
+      }
+      const user = await repo.findById(sub);
+      if (!user || user.role !== 'OPERATOR') {
+        await refreshStore.revoke(jti);
+        res.status(401).json({ error: 'invalid_refresh_token' });
+        return;
+      }
+      const accessToken = await issue(user, refreshStore, res, secure);
       await refreshStore.revoke(jti);
-    } catch {
-      // 위조/만료 토큰은 조용히 통과(로그아웃은 멱등 — 항상 204).
+      res.status(200).json({ accessToken });
+    } catch (err) {
+      next(err);
     }
+  });
 
-    res.status(204).end();
+  router.post('/logout', async (req, res, next) => {
+    try {
+      noStore(res);
+      const token = readRefreshCookie(req);
+      if (token !== null) {
+        try {
+          await refreshStore.revoke(verifyRefresh(token).jti);
+        } catch {
+          // 위조·만료 토큰은 조용히 통과(로그아웃은 멱등).
+        }
+      }
+      res.setHeader('Set-Cookie', clearRefreshCookie(secure));
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

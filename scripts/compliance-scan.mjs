@@ -13,7 +13,8 @@
 // exit: 0 = FAIL 0건(WARN 은 무관) · 1 = FAIL ≥1 · 2 = 설정 오류(인수, 금지어 단일 소스 없음·형식 오류)
 //
 // 규칙: C1-FETCH C1-LIB C1-SDK C1-SEEDURL · C2-TRADE C2-PRICE · C3-QUERY C3-GUARDTEST C3-OUT-ID C3-OUT-ROUTE ·
-//       C4-BANNED C4-CODE(R4 FAIL) C4-STEM(WARN) · C5-GEO · C6-IMG · C7-SECRET · C8-OUT-SAFE · C0-SEED C0-OUTPUT
+//       C4-BANNED C4-CODE(R4 FAIL) C4-STEM(WARN) · C5-GEO(+R5 위치 API 0) · C6-IMG · C7-SECRET · C8-OUT-SAFE C8-SRC-SAFE ·
+//       C9-STORAGE(웹 저장소 lib/storage.ts 만·document.cookie 0) C9-COOKIE(서버 쿠키 발급 2파일) · C0-SEED C0-OUTPUT
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

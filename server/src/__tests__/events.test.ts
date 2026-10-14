@@ -61,6 +61,12 @@ const VALID: Record<string, Record<string, unknown>> = {
   vet_clicked: { clinicId: 'vc-mapo-01', action: 'call' },
   reaction_helpful: { targetType: 'SUPPLY_ITEM', targetId: 'cage' },
   reaction_recheck: { targetType: 'GUIDE', targetId: 'cp-001' },
+  save_prompt_view: { entry: 'home_band' },
+  save_email_submit: {},
+  save_link_confirm: {},
+  save_merge: { winner: 'mixed' },
+  product_viewed: { productId: 'cp-wheel-01', supplyItemId: 'wheel' },
+  reaction_like: { productId: 'cp-wheel-01' },
 };
 
 describe('event-contract — 이름(PRD US-018 원문 13종)', () => {
@@ -79,7 +85,15 @@ describe('event-contract — 이름(PRD US-018 원문 13종)', () => {
       'vet_clicked',
       'reaction_helpful',
       'reaction_recheck',
+      // R5 C-R5-7(D18): US-025 저장 4종 + US-022 상품·♥ 2종
+      'save_prompt_view',
+      'save_email_submit',
+      'save_link_confirm',
+      'save_merge',
+      'product_viewed',
+      'reaction_like',
     ]);
+    expect(EVENT_NAMES.length).toBe(19);
     expect(Object.keys(EVENT_PROP_SPECS).sort()).toEqual([...EVENT_NAMES].sort());
   });
 
@@ -93,6 +107,35 @@ describe('event-contract — 이름(PRD US-018 원문 13종)', () => {
     expect(validateEvent(ev('helpful_clicked', {}))).toEqual({ ok: false, error: 'unknown_name' });
     expect(validateEvent(ev('__proto__', {}))).toEqual({ ok: false, error: 'unknown_name' });
     expect(validateEvent(ev('toString', {}))).toEqual({ ok: false, error: 'unknown_name' });
+  });
+});
+
+describe('event-contract — R5 +6(C-R5-7)', () => {
+  it('save_prompt_view.entry 는 진입점 3종만(스펙33 §5.9)', () => {
+    for (const entry of ['home_band', 'l2_footer', 'deeplink']) {
+      expect(validateEvent(ev('save_prompt_view', { entry }))).toMatchObject({ ok: true });
+    }
+    expect(validateEvent(ev('save_prompt_view', { entry: 'popup' }))).toEqual({ ok: false, error: 'bad_prop_value' });
+    expect(validateEvent(ev('save_prompt_view', {}))).toEqual({ ok: false, error: 'missing_prop' });
+  });
+  it('save_merge.winner 는 local·server·mixed·none 만', () => {
+    for (const winner of ['local', 'server', 'mixed', 'none']) {
+      expect(validateEvent(ev('save_merge', { winner }))).toMatchObject({ ok: true });
+    }
+    expect(validateEvent(ev('save_merge', { winner: 'tie' }))).toEqual({ ok: false, error: 'bad_prop_value' });
+  });
+  it('save_email_submit·save_link_confirm 은 props 없음 — email·token 등 어떤 키도 거부(불변식 ⑧)', () => {
+    for (const name of ['save_email_submit', 'save_link_confirm']) {
+      expect(validateEvent(ev(name, { email: 'a@b.co' }))).toEqual({ ok: false, error: 'unknown_prop' });
+      expect(validateEvent(ev(name, { token: 'abc' }))).toEqual({ ok: false, error: 'unknown_prop' });
+      expect(validateEvent(ev(name, {}))).toMatchObject({ ok: true, event: { props: {} } });
+    }
+  });
+  it('product_viewed·reaction_like — productId slug, 이메일 모양 값 거부', () => {
+    expect(validateEvent(ev('product_viewed', { productId: 'cp-wheel-01' }))).toEqual({ ok: false, error: 'missing_prop' });
+    expect(validateEvent(ev('reaction_like', { productId: 'A B' }))).toEqual({ ok: false, error: 'bad_prop_value' });
+    expect(validateEvent(ev('reaction_like', { productId: 'x@y.kr' }))).toEqual({ ok: false, error: 'pii_pattern' });
+    expect(validateEvent(ev('reaction_like', { productId: 'cp-1', likeCount: 3 }))).toEqual({ ok: false, error: 'unknown_prop' });
   });
 });
 

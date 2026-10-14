@@ -17,8 +17,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { COPY } from '@ws/copy';
+import type { LayerKind } from './useLayer';
 
-export type LayerShellKind = 'L1' | 'L2' | 'L4' | 'L5' | 'L7' | 'L8';
+export type LayerShellKind = LayerKind;
 export type LayerVariant = 'sheet' | 'modal' | 'drawer';
 
 const MQ_SHEET = '(max-width: 767px)';
@@ -85,11 +86,63 @@ export interface LayerProps {
   kind: LayerShellKind;
   /** 기본 제목(스텝이 setTitle 로 바꿀 수 있다). */
   title: string;
+  /** 패널 data-ws-id(프리렌더 aside 와 같은 식별자, 스펙33 §2.1). */
+  wsId?: string | null;
   onClose(): void;
+  /**
+   * 레이어 안 스텝 키(L1 그룹→종 · L3→L2 · L5↔L6 등 — LayerHost 가 props.step 을 넘긴다). 바뀌면 포커스를 잃은 경우(BODY·제거된 노드)
+   * 새 제목으로 옮긴다(WCAG 2.4.3). 이미 레이어 안의 살아 있는 요소(입력 등)에 있으면 빼앗지 않는다.
+   */
+  stepKey?: string;
   children: ReactNode;
 }
 
-export function Layer({ kind, title: initialTitle, onClose, children }: LayerProps) {
+const HEADINGS = 'h1, h2, h3, h4, h5, h6';
+
+/** 포커스를 잃었는지 — BODY·null·DOM 에서 제거된 노드. */
+function focusLost(doc: Document): boolean {
+  const a = doc.activeElement;
+  return a === null || a === doc.body || a === doc.documentElement || !a.isConnected;
+}
+
+/** 입력 중인 편집 필드(텍스트 입력·선택·textarea·contenteditable) — 스텝 전환에도 포커스를 빼앗지 않는다. */
+function isEditing(el: HTMLElement): boolean {
+  if (el.isContentEditable) return true;
+  if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true;
+  if (el instanceof HTMLInputElement) return !['button', 'submit', 'reset', 'checkbox', 'radio', 'image', 'file', 'color', 'range'].includes(el.type);
+  return false;
+}
+
+/** 프로그램 포커스가 가능하도록(이미 포커스 가능하면 그대로) tabIndex=-1 을 단다. */
+function focusTarget(el: HTMLElement): HTMLElement {
+  if (!el.matches(FOCUSABLE) && !el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+  return el;
+}
+
+/** 닫힌 뒤 복귀 대상이 아직 쓸 수 있는지 — DOM 에 있고 숨겨지지 않았다. */
+function usableOpener(el: HTMLElement | null): el is HTMLElement {
+  if (!el || !el.isConnected || el === document.body) return false;
+  if (el.closest('[hidden], [inert]')) return false;
+  const check = (el as HTMLElement & { checkVisibility?: () => boolean }).checkVisibility;
+  if (typeof check === 'function' && !check.call(el)) return false;
+  return true;
+}
+
+/** 복귀 대상이 없을 때 — main 의 h1, 없으면 #main, 없으면 main(WCAG 2.4.3, D8). */
+function mainFallback(doc: Document): HTMLElement | null {
+  const el = doc.querySelector<HTMLElement>('main h1') ?? doc.getElementById('main') ?? doc.querySelector<HTMLElement>('main');
+  return el ? focusTarget(el) : null;
+}
+
+/**
+ * 프리렌더 딥링크의 정적 레이어(div.ws-scrim · aside.ws-layer)를 걷어낸다 — React 레이어가 마운트되는 같은 useLayoutEffect 에서
+ * 불러 이중 aside 프레임 0(스펙33 §2.1). React 스크림은 data-ws-scrim 으로 구분, React 패널은 aside 가 아니다.
+ */
+export function removePrerenderedLayer(doc: Document): void {
+  for (const el of Array.from(doc.querySelectorAll('aside.ws-layer, div.ws-scrim:not([data-ws-scrim])'))) el.remove();
+}
+
+export function Layer({ kind, title: initialTitle, wsId, onClose, stepKey, children }: LayerProps) {
   const variant = useLayerVariant(kind);
   const titleId = `ws-layer-title-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const [title, setTitle] = useState(initialTitle);
@@ -100,7 +153,13 @@ export function Layer({ kind, title: initialTitle, onClose, children }: LayerPro
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  useEffect(() => setTitle(initialTitle), [initialTitle]);
+  // 기본 제목이 바뀔 때만 반영 — 마운트 때 내용이 setTitle 로 정한 제목(L4 용품명 등)을 덮지 않는다.
+  const prevInitialTitle = useRef(initialTitle);
+  useEffect(() => {
+    if (prevInitialTitle.current === initialTitle) return;
+    prevInitialTitle.current = initialTitle;
+    setTitle(initialTitle);
+  }, [initialTitle]);
 
   // 포털 컨테이너 — body 직속(다른 자식은 inert).
   const [container] = useState(() => {
@@ -112,6 +171,7 @@ export function Layer({ kind, title: initialTitle, onClose, children }: LayerPro
   // 열기: 포털 부착, 배경 inert, 스크롤 잠금, 제목 포커스. 닫기: 모두 복원 + 연 요소로 포커스 복귀.
   useLayoutEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    removePrerenderedLayer(document);
     document.body.appendChild(container);
     const inerted: Element[] = [];
     for (const el of Array.from(document.body.children)) {
@@ -135,9 +195,63 @@ export function Layer({ kind, title: initialTitle, onClose, children }: LayerPro
       if (prevGutter) html.style.setProperty('scrollbar-gutter', prevGutter);
       else html.style.removeProperty('scrollbar-gutter');
       container.remove();
-      if (opener && opener.isConnected) opener.focus();
+      // 복귀: 연 요소가 살아 있으면 그곳, 아니면 main h1(D8). 닫힘과 같은 커밋·직후에 트리거가 사라질 수 있어(동물 선택 → 홈 교체)
+      //   한 틱 뒤에도 포커스를 잃었으면 다시 main h1 로.
+      if (usableOpener(opener)) opener.focus();
+      else mainFallback(document)?.focus();
+      setTimeout(() => {
+        if (document.querySelector('.ws-layer-root')) return; // 다음 레이어가 열렸다 — 그 레이어가 포커스를 맡는다
+        if (focusLost(document)) mainFallback(document)?.focus();
+      }, 0);
     };
   }, [container]);
+
+  // 포커스 복구: 레이어 안에서 포커스를 잃으면(BODY·제거된 노드) 현재 제목으로. 살아 있는 요소의 포커스는 건드리지 않는다.
+  //   onStep: 스텝 전환 — React 가 같은 모양의 버튼 DOM 을 재사용하면(L5 [등록] 자리에 L6 [저장]) 포커스가 "살아 있는" 채로
+  //   새 제목이 낭독되지 않는다. 그래서 스텝 전환 때는 입력 중(편집 필드)만 보호하고 그 밖엔 새 제목으로 옮긴다.
+  const recoverFocus = useCallback((onStep = false) => {
+    const panel = panelRef.current;
+    if (!panel || !panel.isConnected) return;
+    if (!focusLost(document)) {
+      const a = document.activeElement as HTMLElement;
+      if (!onStep || !panel.contains(a) || isEditing(a)) return;
+    }
+    const title = titleRef.current?.isConnected ? titleRef.current : null;
+    const heading = title ?? panel.querySelector<HTMLElement>(HEADINGS);
+    (heading ? focusTarget(heading) : panel).focus();
+  }, []);
+
+  // 스텝 전환(D1): 키가 바뀐 커밋에서 눌린 버튼이 사라졌으면 새 제목으로. 첫 실행은 열기 효과가 맡는다.
+  const prevStepKey = useRef(stepKey);
+  useLayoutEffect(() => {
+    if (prevStepKey.current === stepKey) return;
+    prevStepKey.current = stepKey;
+    recoverFocus(true);
+  }, [stepKey, recoverFocus]);
+
+  // 일반 가드: 내용 교체(로컬 상태 스텝·L2 밴드 교체 등)로 포커스된 노드가 언마운트되면 복구. focusout 은 브라우저마다
+  //   제거 시 발화가 달라 MutationObserver(childList)와 함께 본다.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const mo = typeof MutationObserver === 'function' ? new MutationObserver(() => recoverFocus()) : null;
+    mo?.observe(panel, { childList: true, subtree: true });
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onFocusOut = (e: FocusEvent) => {
+      if (e.relatedTarget !== null) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        recoverFocus();
+      }, 0);
+    };
+    panel.addEventListener('focusout', onFocusOut);
+    return () => {
+      mo?.disconnect();
+      panel.removeEventListener('focusout', onFocusOut);
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [recoverFocus]);
 
   // ESC 닫기(문서 단위 — 한 번에 하나라 충돌 없음).
   useEffect(() => {
@@ -162,7 +276,8 @@ export function Layer({ kind, title: initialTitle, onClose, children }: LayerPro
     const first = list[0];
     const last = list[list.length - 1];
     const active = document.activeElement;
-    const atTitle = active === titleRef.current || active === panelRef.current;
+    const atTitle =
+      active === titleRef.current || active === panelRef.current || (active instanceof HTMLElement && active.id === titleId);
     if (e.shiftKey && (active === first || atTitle)) {
       e.preventDefault();
       last.focus();
@@ -170,7 +285,7 @@ export function Layer({ kind, title: initialTitle, onClose, children }: LayerPro
       e.preventDefault();
       first.focus();
     }
-  }, []);
+  }, [titleId]);
 
   const chrome = useMemo<LayerChrome>(
     () => ({ titleId, close: () => onCloseRef.current(), setTitle, setBack, setBand }),
@@ -186,6 +301,7 @@ export function Layer({ kind, title: initialTitle, onClose, children }: LayerPro
         ref={panelRef}
         className={`ws-layer-panel ws-layer-panel--${variant}`}
         data-ws-layer={kind}
+        data-ws-id={wsId ?? undefined}
         data-ws-variant={variant}
         role="dialog"
         aria-modal="true"

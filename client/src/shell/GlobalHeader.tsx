@@ -15,6 +15,9 @@ export interface GlobalHeaderProps {
 export default function GlobalHeader({ type, current, chipExpanded, onChipOpen }: GlobalHeaderProps) {
   return (
     <header className="ws-header">
+      <a className="ws-skip-link" href="#main">
+        {COPY.nav.skipToMain}
+      </a>
       <a className="ws-logo" href="/">
         {COPY.nav.logo}
       </a>

@@ -27,6 +27,16 @@ export const ANIMAL_TYPE_KEY = 'ws.animalType';
 
 const listeners = new Set<() => void>();
 
+/** ws.animalType 변경 구독(같은 탭 + 다른 탭) — 저장 조각(context/animalTypeSaveable)도 같은 경로를 쓴다. */
+export function subscribeAnimalType(l: () => void): () => void {
+  return subscribe(l);
+}
+
+/** 같은 탭 구독자에게 ws.animalType 변경을 알린다(저장 import 후). */
+export function notifyAnimalType(): void {
+  for (const l of [...listeners]) l();
+}
+
 function subscribe(l: () => void): () => void {
   listeners.add(l);
   const onStorage = (e: StorageEvent): void => {

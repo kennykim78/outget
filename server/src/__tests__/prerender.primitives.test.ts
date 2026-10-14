@@ -148,9 +148,9 @@ describe('robots', () => {
     expect(buildRobots({ indexable: '1' as unknown as boolean, origin: 'https://withsmall.kr' })).toContain('Disallow: /');
   });
 
-  it('indexable=true 일 때만 Allow + Sitemap 줄', () => {
+  it('indexable=true 일 때만 Allow + Sitemap 줄, /save 는 그래도 Disallow(R5 D11)', () => {
     expect(buildRobots({ indexable: true, origin: 'https://withsmall.kr/' })).toBe(
-      'User-agent: *\nAllow: /\n\nSitemap: https://withsmall.kr/sitemap.xml\n',
+      'User-agent: *\nAllow: /\nDisallow: /save\n\nSitemap: https://withsmall.kr/sitemap.xml\n',
     );
   });
 
@@ -238,6 +238,30 @@ describe('copy', () => {
     const sentences = allCopyStrings({ sentencesOnly: true });
     expect(sentences.length).toBeGreaterThan(10);
     expect(sentences.filter((s) => !/요[.?]?$/.test(s))).toEqual([]);
+  });
+
+  it('R5 카피: PRD 원문 고정 문구·토큰 템플릿', () => {
+    // US-011 호환 판정어 3개, US-025 고정 3문장·툴팁·연결 해제, US-013 빈 상태·제보, US-015 반응
+    expect(COPY.verdict.compatOk).toBe('현재 케이지에서 사용 가능한 조건');
+    expect(COPY.verdict.compatCheck).toBe('공간 조건 재확인');
+    expect(COPY.verdict.compatBelowMin).toBe('현재 케이지 조건에서 최소 요구 미충족');
+    expect(COPY.save.title).toBe('이메일로 저장해 둘까요?');
+    expect(COPY.save.description).toBe('선택한 동물과 준비 상태만 저장해요. 비밀번호 없이 메일의 링크로 확인해요.');
+    expect(COPY.save.noAds).toBe('광고 메일은 보내지 않아요');
+    expect(COPY.save.dotTitle).toBe('이메일로 저장 중');
+    expect(COPY.save.disconnect).toBe('이 기기에서 연결 해제');
+    expect(COPY.vet.emptyRegion).toBe('이 지역엔 아직 확인된 병원이 없어요');
+    expect(COPY.vet.reportLink).toBe('제보하기');
+    expect(COPY.vet.nearbyLink).toBe('인접 지역 보기');
+    expect(COPY.reaction.helpful).toBe('도움됐어요');
+    expect(formatCopy(COPY.verdict.moreReasons, { n: 2 })).toBe('그 밖에 2개');
+    expect(formatCopy(COPY.save.resendWait, { n: 30 })).toBe('30초 뒤 다시 보낼 수 있어요');
+    expect(formatCopy(COPY.product.reasonSpecRecommended, { animal: '골든햄스터' })).toBe('골든햄스터 권장 규격 충족');
+    expect(formatCopy(COPY.product.reasonProfileTpl, { name: '쳇바퀴' })).toBe('쳇바퀴 요구사항과 일치');
+    expect(formatCopy(COPY.setup.title, { animal: '골든햄스터' })).toBe('골든햄스터 · 처음 준비한다면');
+    // "판매처"는 setup.priceNote·L7 면책에만
+    const withSeller = strings.filter((s) => s.includes('판매처'));
+    expect(withSeller.sort()).toEqual([COPY.product.priceNote, COPY.setup.priceNote].sort());
   });
 
   it('COPY 는 동결되어 런타임 변경 불가', () => {

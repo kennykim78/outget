@@ -2,12 +2,13 @@
 import type { OrderHint, Priority, PublicRequirement } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
 import { deriveChecklist } from './derive';
-import type { SetupV1 } from './setupStore';
+import type { SetupV2 } from './setupStore';
 
 const T = '2026-10-02T00:00:00.000Z';
 
 function req(id: string, priority: Priority, orderHint: OrderHint = 'BEFORE_ARRIVAL'): PublicRequirement {
   return {
+    requirementId: `req-${id}`,
     animalTypeId: 'hamster-golden',
     supplyItemId: id,
     priority,
@@ -26,9 +27,9 @@ function req(id: string, priority: Priority, orderHint: OrderHint = 'BEFORE_ARRI
   };
 }
 
-function setup(checks: Record<string, 'OWNED' | 'UNKNOWN' | 'PURCHASED'>): SetupV1 {
+function setup(checks: Record<string, 'OWNED' | 'UNKNOWN' | 'PURCHASED'>): SetupV2 {
   return {
-    v: 1,
+    v: 2,
     firstTime: false,
     owned: Object.entries(checks)
       .filter(([, s]) => s === 'OWNED')
@@ -37,6 +38,7 @@ function setup(checks: Record<string, 'OWNED' | 'UNKNOWN' | 'PURCHASED'>): Setup
     startedAt: T,
     checks: Object.fromEntries(Object.entries(checks).map(([id, source]) => [id, { source, at: T }])),
     reached100At: null,
+    updatedAt: T,
   };
 }
 

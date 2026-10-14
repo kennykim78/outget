@@ -8,7 +8,8 @@ export const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*(\/[a-z0-9]+(-[a-z0-9]+)*)?$/;
 
 /** 첫 세그먼트로 쓸 수 없는 값 — 고정 라우트·서버 경로(SL03). */
 export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
-  'supplies', 'vet', 'credits', 'save', 'api', 'auth', 'assets', 'data', 'health', '404',
+  'supplies', 'vet', 'credits', 'save', 'pick', 'api', 'auth', 'assets', 'data', 'health', '404',
+  'mascots', 'admin', // SEC-5 L-5: /mascots/{asset}.svg 정적 자산·/admin 서버 경로
 ];
 
 /** 둘째 세그먼트로 쓸 수 없는 값 — 타입 하위 라우트(/{type}/setup 등, SL05). */

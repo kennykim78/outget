@@ -2,7 +2,14 @@
 //   불변식 ①: 카탈로그는 이 사이트가 빌드 때 만든 정적 파일만 — 정확한 경로 패턴 + 동일 출처, 리다이렉트 금지.
 //   불변식 ⑥: 최종값 계산은 서버와 같은 엔진(@ws/engine createEngine)이 한다 — 클라이언트에 별도 구현 없음.
 //   표시용: 여기 결과로 상품 노출·정렬을 바꾸지 않는다(노출은 빌드 시 ws-data 가 결정, 불변식 ③).
-import { createCatalog, createEngine, type CatalogInput, type Engine, type PublicCatalog } from '@ws/engine';
+import {
+  createCatalog,
+  createEngine,
+  type CatalogInput,
+  type Engine,
+  type EngineCatalog,
+  type PublicCatalog,
+} from '@ws/engine';
 
 const CATALOG_PATH_RE = /^\/data\/catalog\.v1\.[0-9a-f]{8}\.json$/;
 const CATALOG_ARRAYS = ['animalTypes', 'careProfiles', 'supplyItems', 'supplyRequirements', 'compatibilityRules'] as const;
@@ -34,9 +41,15 @@ export interface LoadEngineDeps {
   origin?: string;
 }
 
-const memo = new Map<string, Promise<Engine>>();
+/** 엔진 + 같은 카탈로그(L5 가 "이 용품에 케이지 호환 규칙이 있는가"를 볼 때만 읽는다 — 판정은 엔진만). */
+export interface SpecCatalog {
+  engine: Engine;
+  catalog: EngineCatalog;
+}
 
-async function fetchEngine(url: string, f: typeof fetch): Promise<Engine> {
+const memo = new Map<string, Promise<SpecCatalog>>();
+
+async function fetchSpecCatalog(url: string, f: typeof fetch): Promise<SpecCatalog> {
   let res: Response;
   try {
     res = await f(url, { credentials: 'same-origin', redirect: 'error' });
@@ -58,11 +71,12 @@ async function fetchEngine(url: string, f: typeof fetch): Promise<Engine> {
     supplyRequirements: body.supplyRequirements,
     compatibilityRules: body.compatibilityRules,
   };
-  return createEngine(createCatalog(input));
+  const catalog = createCatalog(input);
+  return { engine: createEngine(catalog), catalog };
 }
 
-/** catalogUrl(ws-data) → 엔진. URL 별 메모이즈(진행 중 요청 공유), 실패는 메모하지 않는다. */
-export function loadEngine(catalogUrl: string, deps: LoadEngineDeps = {}): Promise<Engine> {
+/** catalogUrl(ws-data) → 엔진 + 카탈로그. URL 별 메모이즈(진행 중 요청 공유), 실패는 메모하지 않는다. */
+export function loadSpecCatalog(catalogUrl: string, deps: LoadEngineDeps = {}): Promise<SpecCatalog> {
   const origin = deps.origin ?? window.location.origin;
   if (!isCatalogUrl(catalogUrl, origin)) {
     return Promise.reject(new CatalogLoadError('허용되지 않는 카탈로그 주소예요'));
@@ -71,12 +85,17 @@ export function loadEngine(catalogUrl: string, deps: LoadEngineDeps = {}): Promi
   const hit = memo.get(key);
   if (hit) return hit;
   const f = deps.fetch ?? fetch;
-  const p = fetchEngine(key, f);
+  const p = fetchSpecCatalog(key, f);
   memo.set(key, p);
   p.catch(() => {
     if (memo.get(key) === p) memo.delete(key);
   });
   return p;
+}
+
+/** catalogUrl(ws-data) → 엔진(loadSpecCatalog 와 같은 메모). */
+export function loadEngine(catalogUrl: string, deps: LoadEngineDeps = {}): Promise<Engine> {
+  return loadSpecCatalog(catalogUrl, deps).then((x) => x.engine);
 }
 
 /** 테스트 전용. */

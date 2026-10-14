@@ -21,6 +21,7 @@ import {
   type CatalogInput,
   type CompatibilityRuleRec,
   type ContentMeta,
+  type CuratedProductRec,
   type EngineCatalog,
   type PhotoRec,
   type PublicAnimalType,
@@ -34,6 +35,16 @@ import {
   type SupplyItemRec,
   type SupplyRequirementRec,
 } from '../engine/index.js';
+import { PRODUCT_IMAGE_ASSET_RE, PRODUCT_IMAGE_LICENSES_WITH_ASSET } from '../seed/validate-products.js';
+
+/**
+ * 상품 이미지 허용목록(SEC L6, R5 B3-2): 사용권 ∈ OWN_PHOTO·SELLER_PERMISSION·AFFILIATE_API(US-023) ∧ 운영자 자산 경로만.
+ *   그 외(NONE·미지 값·외부 URL)는 null → 용품 아이콘 타일. validate P03·P05 와 같은 상수(단일 소스).
+ */
+function productImageAsset(p: Pick<CuratedProductRec, 'imageLicense' | 'imageAsset'>): string | null {
+  if (!PRODUCT_IMAGE_LICENSES_WITH_ASSET.includes(p.imageLicense as string)) return null;
+  return typeof p.imageAsset === 'string' && PRODUCT_IMAGE_ASSET_RE.test(p.imageAsset) ? p.imageAsset : null;
+}
 
 export interface RequirementModel {
   /** 기반 SupplyRequirement id(data-ws-id). */
@@ -136,7 +147,7 @@ function projectRequirement(
   at: AnimalTypeRec,
   r: ResolvedRequirement,
   exposedItemIds: ReadonlySet<string>,
-): PublicRequirement {
+): Omit<PublicRequirement, 'requirementId'> {
   const keyword = buildSearchKeyword(at, r);
   const lastVerifiedAt =
     minDate([
@@ -211,7 +222,7 @@ export function projectSite(seed: SeedBundle, asOf: string): SiteModel {
         id: p.id,
         supplyItemId: p.supplyItemId,
         title: p.title,
-        imageAsset: p.imageLicense !== 'NONE' && typeof p.imageAsset === 'string' ? p.imageAsset : null,
+        imageAsset: productImageAsset(p),
         imageLicense: p.imageLicense,
         specValues: { ...p.specValues },
         verdict,
@@ -220,7 +231,7 @@ export function projectSite(seed: SeedBundle, asOf: string): SiteModel {
       }));
       return {
         requirementId: base.id,
-        pub: projectRequirement(at, r, exposedItemIds),
+        pub: { requirementId: base.id, ...projectRequirement(at, r, exposedItemIds) },
         item: {
           id: r.item.id,
           name: r.item.name,

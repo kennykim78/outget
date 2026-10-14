@@ -1,0 +1,497 @@
+// L8 이메일 저장(UX §4 L8 · 스펙33 §7 · PRD US-025 · 계약 C-R5-2). 진입 = 홈 B 저장 배너 링크 · L2 꼬리 링크 · /save 딥링크.
+//   상태: input(A) → sending(B) → sent(C) · connect → verifying → confirmed | expired · linked(로그인 상태)
+//         · serverLinked(이 브라우저에 서버 세션만 살아 있음 — 연결하기 | 연결 해제).
+//   - 이메일은 이 컴포넌트 state(메모리)에만 — localStorage·history·이벤트 0(불변식 ⑧ / K4). 마케팅 동의·비밀번호·소셜 0.
+//   - /save#t= : 렌더 첫 단계에서 captureMagicToken(즉시 replaceState). verify 는 [이 기기 연결하기] 클릭 때만
+//     (SEC-3 M-1 — 링크 스캐너가 토큰을 소진하거나 남의 링크로 자동 연결되는 로그인 CSRF 방지). 연결 후 마스킹 주소 표시(저장 0).
+//   - 연결 안 된 채 열면 GET /auth/session 1회(미전송 로그아웃이 있으면 그것부터 재시도 — SEC-3 L-3).
+//   - 마스코트는 요약 줄 AnimalAvatar sm 하나(L8 유일). L3 전 숫자 0(D-34). 채운 CTA ≤ 1.
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { COPY, formatCopy } from '@ws/copy';
+import type { PublicAnimalType, PublicRequirement } from '@ws/engine';
+import { useAnimalSelection } from '../animal/selection';
+import { useLayerPage } from '../app/layerPage';
+import { useCageCompat } from '../checklist/cageCompat';
+import { deriveChecklist } from '../checklist/derive';
+import { useSetup } from '../checklist/setupStore';
+import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
+import { track } from '../events/track';
+import AnimalAvatar from '../ui/AnimalAvatar';
+import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
+import type { LayerContentProps } from '../ui/layer/LayerHost';
+import { readLayerState } from '../ui/layer/useLayer';
+import type { MagicEntry } from './api';
+import { fetchSaveApi, type SaveApi } from './api';
+import type { SaveMergeWinner } from './contract';
+import { captureMagicToken, clearMagicToken, subscribeMagicToken } from './magicLink';
+import { useSaveLinked } from './useSaveLinked';
+import { getSaveSync, type SaveSync } from './sync';
+import '../styles/save.css';
+
+export const RESEND_COOLDOWN_S = 60;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_EMAIL = 254;
+
+type View = 'input' | 'sending' | 'sent' | 'connect' | 'verifying' | 'confirmed' | 'expired' | 'linked' | 'serverLinked';
+type PromptEntry = 'home_band' | 'l2_footer' | 'deeplink';
+
+const SERVER_ENTRY: Record<PromptEntry, MagicEntry> = { home_band: 'home', l2_footer: 'checklist', deeplink: 'direct' };
+
+/** 진입점: 딥링크 = depth 0, 홈 배너 = 부모 위 1단, L2 꼬리 = L2 위(2단↑). 진입점은 이 둘뿐(스펙33 §5.9). */
+function promptEntry(): PromptEntry {
+  const s = readLayerState(typeof window === 'undefined' ? null : window.history.state);
+  if (!s || s.wsDepth === 0) return 'deeplink';
+  return s.wsDepth >= 2 ? 'l2_footer' : 'home_band';
+}
+
+/** 테스트 주입(기본 = 앱 전역 동기화·동일 출처 API). */
+export const saveLayerDeps: { sync: () => SaveSync; api: () => SaveApi } = {
+  sync: getSaveSync,
+  api: () => fetchSaveApi,
+};
+
+function SaveSummary({ type, reqs, catalogUrl }: { type: PublicAnimalType; reqs: PublicRequirement[]; catalogUrl: string }) {
+  const { setup } = useSetup(type.id);
+  // P1 MAJOR-2: 홈 B·L2 와 같은 경로 — 케이지 스키마로 읽고, 케이지가 있을 때만 카탈로그를 불러 △(compat)를 넘긴다(개수 일치).
+  const cageSchema = useMemo(() => reqs.find((r) => r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null, [reqs]);
+  const { cage } = useCage(type.id, { schema: cageSchema });
+  const compat = useCageCompat(type.id, reqs, catalogUrl, cage);
+  const view = useMemo(() => deriveChecklist(reqs, setup, compat ? { compat } : undefined), [reqs, setup, compat]);
+  const answered = Boolean(setup?.answeredAt);
+  const parts: string[] = [type.displayName];
+  if (answered) {
+    // 숫자는 L3 응답 후만(D-34). 이 문서 ws-data 에 요구사항이 있을 때만 남은 개수.
+    if (view.requiredTotal >= 1 && view.remainingRequired > 0) parts.push(formatCopy(COPY.save.summaryRemaining, { n: view.remainingRequired }));
+    if (cage) parts.push(`${COPY.save.summaryCage} ${cage.floorWcm}×${cage.floorDcm}×${cage.heightCm}cm`);
+  }
+  return (
+    <p className="ws-save-summary" data-ws-save="summary">
+      <AnimalAvatar asset={type.mascot} size="sm" tone="peach-soft" alt="" />
+      <span className="ws-t-meta">{parts.join(' · ')}</span>
+    </p>
+  );
+}
+
+export default function SaveLayer({ close }: LayerContentProps) {
+  const chrome = useLayerChrome();
+  const page = useLayerPage();
+  // 렌더 첫 단계 — 프래그먼트 토큰은 여기서 지워진다(이후 effect 의 verify 보다 먼저).
+  const [captured, setCaptured] = useState(() => captureMagicToken());
+  const linked = useSaveLinked();
+  const [view, setView] = useState<View>(() => (captured ? ('invalid' in captured ? (linked ? 'linked' : 'expired') : 'connect') : linked ? 'linked' : 'input'));
+  const [maskedEmail, setMaskedEmail] = useState<string | undefined>(undefined);
+  const probed = useRef(false);
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<'format' | 'network' | 'unavailable' | null>(null);
+  /** M4: [이 기기 연결하기] 가 네트워크·서버 오류로 끝남(만료 아님) — 연결 화면에 안내, 토큰 유지. */
+  const [connectFailed, setConnectFailed] = useState(false);
+  const [winner, setWinner] = useState<SaveMergeWinner | null>(null);
+  /** P1 MAJOR-1: 연결은 됐지만 로컬·서버 모두 저장할 준비가 없음(PUT 0) — "저장했어요" 대신 connectedEmpty. */
+  const [linkedEmpty, setLinkedEmpty] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const entryRef = useRef<PromptEntry>(promptEntry());
+  const promptSent = useRef(false);
+  const inputId = `ws-save-email-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const errorId = `${inputId}-err`;
+
+  const selection = useAnimalSelection(page.data.types);
+  const type = useMemo(() => page.data.types.find((t) => t.id === selection.typeId) ?? null, [page.data.types, selection.typeId]);
+  const reqs = useMemo(() => (type ? page.data.requirements.filter((r) => r.animalTypeId === type.id) : []), [page.data.requirements, type]);
+
+  const title =
+    view === 'sent'
+      ? COPY.save.sentTitle
+      : view === 'confirmed'
+        ? linkedEmpty
+          ? COPY.save.signedInTitle // 빈 연결: "저장했어요" 금지 — 연결 상태 제목(자동 저장은 켜져 있다)
+          : COPY.save.confirmedTitle
+        : view === 'expired'
+          ? COPY.save.expiredTitle
+          : view === 'linked'
+            ? COPY.save.signedInTitle
+            : view === 'verifying' || view === 'connect'
+              ? COPY.save.connectTitle
+              : COPY.save.title;
+  useLayoutEffect(() => {
+    chrome.setTitle(title);
+  }, [chrome, title]);
+
+  // P3 D6: 결과 화면(보냄·확인·만료)으로 바뀌면 새 제목(h2, tabIndex=-1)으로 포커스 — 낭독 시점이 새 제목이 되도록
+  //   제목 갱신(setTitle → Layer 재렌더)이 끝난 뒤 마이크로태스크에서. 첫 렌더는 Layer 열기 효과가 맡는다. 오류로 입력·연결 화면에
+  //   돌아올 때는 포커스를 옮기지 않는다(버튼이 aria-disabled 로 포커스를 유지 + role=alert).
+  const prevView = useRef(view);
+  useEffect(() => {
+    if (prevView.current === view) return;
+    prevView.current = view;
+    if (view !== 'sent' && view !== 'confirmed' && view !== 'expired') return;
+    let live = true;
+    queueMicrotask(() => {
+      if (live) document.getElementById(chrome.titleId)?.focus();
+    });
+    return () => {
+      live = false;
+    };
+  }, [view, chrome.titleId]);
+
+  // 같은 탭 매직링크(L8 이 열린 채 /save#t= 붙여넣기) — 새 토큰이면 연결 확인 화면으로. verify 는 여전히 클릭 때만(SEC-3 M-1).
+  useEffect(
+    () =>
+      subscribeMagicToken(() => {
+        const next = captureMagicToken();
+        if (!next) return;
+        setCaptured(next);
+        setConnectFailed(false);
+        setView('invalid' in next ? (linked ? 'linked' : 'expired') : 'connect');
+      }),
+    [linked],
+  );
+
+  // 형식이 틀린 토큰 — 네트워크 0, 만료 화면.
+  useEffect(() => {
+    if (captured && 'invalid' in captured) clearMagicToken();
+  }, [captured]);
+
+  // 매직링크 확인 — 사용자가 [이 기기 연결하기]를 눌렀을 때만(1회용 토큰, sync.link 가 중복 전송을 막는다).
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const capturedRef = useRef(captured);
+  capturedRef.current = captured;
+  const onConnect = () => {
+    if (!captured || 'invalid' in captured || view !== 'connect') return;
+    const sent = captured;
+    setView('verifying');
+    setConnectFailed(false);
+    void saveLayerDeps
+      .sync()
+      .link(captured.token)
+      .then((r) => {
+        // 그 사이 같은 탭에 새 링크가 들어왔으면(연결 화면 재표시) 이전 결과로 새 토큰·화면을 덮지 않는다.
+        if (capturedRef.current !== sent) return;
+        // M4: 네트워크·서버 오류(error)는 토큰이 아직 쓰이지 않았을 수 있다 — 토큰을 유지하고 연결 화면에서 다시 누를 수 있게.
+        if (r.kind === 'error') {
+          if (!alive.current) return;
+          setConnectFailed(true);
+          setView((v) => (v === 'verifying' ? 'connect' : v));
+          return;
+        }
+        clearMagicToken();
+        if (!alive.current) return;
+        if (r.kind === 'linked') {
+          setWinner(r.winner);
+          setLinkedEmpty(r.empty === true);
+          setMaskedEmail(r.maskedEmail);
+          setView('confirmed');
+        } else setView(linked ? 'linked' : 'expired'); // 이미 연결된 기기에서 쓰인 링크 → 연결 상태(DR-2 m-12)
+      });
+  };
+
+  // 토큰 없이 열림: 세션 확인 1회. 연결된 기기 → 마스킹 주소 + 자동 저장 재개(F3-3 부팅 전이어도),
+  //   연결 기록 없는 기기인데 서버 세션이 살아 있음 → serverLinked(연결하기 | 연결 해제).
+  useEffect(() => {
+    if ((captured && view !== 'linked') || probed.current) return;
+    probed.current = true;
+    const wasLinked = linked;
+    const sync = saveLayerDeps.sync();
+    void sync.probe().then((p) => {
+      if (!alive.current) return;
+      if (p?.linked) setMaskedEmail(p.maskedEmail);
+      if (wasLinked && (p === null || p.linked)) void sync.resume();
+      if (!wasLinked && p?.linked) setView((v) => (v === 'input' ? 'serverLinked' : v));
+    });
+  }, [captured, linked, view]);
+
+  useEffect(() => {
+    if (!linked && view === 'linked') setView('input');
+  }, [linked, view]);
+
+  // 다른 탭에서 연결됨(false → true) — 보냄·입력 화면에 머무르지 않고 연결 상태로 전환(DR-2 m-11).
+  //   전이만 본다: 연결 해제 직후(아직 linked 가 남은 순간)에 입력 화면을 되돌리지 않기 위해.
+  const prevLinked = useRef(linked);
+  useEffect(() => {
+    const was = prevLinked.current;
+    prevLinked.current = linked;
+    if (!was && linked && (view === 'sent' || view === 'input' || view === 'sending')) {
+      setView('linked');
+      // 마스킹 주소 줄 — 세션 확인 probe 를 전환 시 1회만 다시(verify 아님). 실패(null)·미연결이면 줄 생략.
+      void saveLayerDeps
+        .sync()
+        .probe()
+        .then((p) => {
+          if (alive.current && p?.linked) setMaskedEmail(p.maskedEmail);
+        });
+    }
+  }, [linked, view]);
+
+  useEffect(() => {
+    if (view !== 'input' || promptSent.current) return;
+    promptSent.current = true;
+    track('save_prompt_view', { entry: entryRef.current });
+  }, [view]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const send = useCallback(
+    async (address: string) => {
+      setView('sending');
+      setError(null);
+      const res = await saveLayerDeps.api().requestMagic(address, SERVER_ENTRY[entryRef.current]);
+      if (res.status === 202 || res.status === 200) {
+        setCooldown(RESEND_COOLDOWN_S);
+        setView((v) => (v === 'sending' ? 'sent' : v)); // 그 사이 다른 탭이 연결해 linked 로 전환됐으면 덮어쓰지 않는다
+        return;
+      }
+      setError(res.status === 503 ? 'unavailable' : res.status === 400 ? 'format' : 'network');
+      setView((v) => (v === 'sending' ? 'input' : v));
+    },
+    [],
+  );
+
+  const onSubmit = (e?: FormEvent) => {
+    e?.preventDefault();
+    if (view === 'sending') return;
+    const address = email.trim();
+    if (address.length === 0 || address.length > MAX_EMAIL || !EMAIL_RE.test(address)) {
+      setError('format');
+      return;
+    }
+    track('save_email_submit', {});
+    void send(address);
+  };
+
+  const onUnlink = () => {
+    void saveLayerDeps.sync().unlink();
+    setEmail('');
+    setMaskedEmail(undefined);
+    setView('input');
+  };
+
+  const onAdopt = () => {
+    void saveLayerDeps.sync().adopt();
+    setView('linked');
+  };
+
+  const linkedAs = maskedEmail ? (
+    <p className="ws-t-meta ws-save-muted" data-ws-save="linked-as">
+      {formatCopy(COPY.save.linkedAs, { name: maskedEmail })}
+    </p>
+  ) : null;
+
+  if (view === 'connect' || view === 'verifying') {
+    const busy = view === 'verifying';
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save={busy ? 'verifying' : 'connect'}>
+            <p className="ws-t-body">{COPY.save.connectBody}</p>
+            {connectFailed && !busy ? (
+              <p className="ws-t-meta ws-save-muted" role="alert" data-ws-error="connect">
+                {COPY.save.connectError}
+              </p>
+            ) : null}
+            {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            {/* D6: disabled 대신 aria-disabled — 포커스 유지(onConnect 는 verifying 중 무시). */}
+            <button type="button" className="ws-btn ws-btn--fill" aria-disabled={busy ? true : undefined} aria-busy={busy ? true : undefined} onClick={onConnect}>
+              {busy ? COPY.save.verifying : COPY.save.connectCta}
+            </button>
+            <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+              {COPY.save.later}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'serverLinked') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="server-linked">
+            {linkedAs}
+            {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--fill" onClick={onAdopt}>
+              {COPY.save.connectCta}
+            </button>
+            <button type="button" className="ws-btn ws-btn--outline" onClick={onUnlink}>
+              {COPY.save.disconnect}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'linked') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="linked">
+            {linkedAs}
+            <p className="ws-t-meta ws-save-muted">{COPY.save.signedInNote}</p>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--outline" onClick={onUnlink}>
+              {COPY.save.disconnect}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'confirmed') {
+    const note = linkedEmpty
+      ? null
+      : winner === 'server'
+        ? COPY.save.mergedServer
+        : winner === 'local' || winner === 'mixed'
+          ? COPY.save.mergedLocal
+          : null;
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save={linkedEmpty ? 'connected-empty' : 'confirmed'}>
+            <p className="ws-t-body">{linkedEmpty ? COPY.save.connectedEmpty : COPY.save.confirmedBody}</p>
+            {linkedAs}
+            {note ? <p className="ws-t-meta ws-save-muted">{note}</p> : null}
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+              {COPY.save.close}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'expired') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="expired">
+            <p className="ws-t-body">{COPY.save.expiredBody}</p>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--fill" onClick={() => setView('input')}>
+              {COPY.save.resendVerify}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'sent') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="sent">
+            <p className="ws-t-body">{COPY.save.sentBody}</p>
+            <p className="ws-t-body" data-ws-save="same-device">
+              {COPY.save.sentSameDevice}
+            </p>
+            <div className="ws-save-resend">
+              <p className="ws-t-meta ws-save-muted">{COPY.save.notReceived}</p>
+              <button type="button" className="ws-save-link ws-t-meta" disabled={cooldown > 0} onClick={() => void send(email.trim())}>
+                {COPY.save.resend}
+              </button>
+              {/* D7: 카운트다운은 live 밖(매초 낭독 금지) — 시각 안내만. 버튼 활성화로 다시 보낼 수 있음이 드러난다. */}
+              {cooldown > 0 ? (
+                <p className="ws-t-meta ws-save-muted" data-ws-save="countdown">
+                  {formatCopy(COPY.save.resendWait, { n: cooldown })}
+                </p>
+              ) : null}
+              <button type="button" className="ws-save-link ws-t-meta" onClick={() => setView('input')}>
+                {COPY.save.otherAddress}
+              </button>
+            </div>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+              {COPY.save.close}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  // input(A) · sending(B)
+  const sending = view === 'sending';
+  const errorText =
+    error === 'format' ? COPY.save.errorFormat : error === 'unavailable' ? COPY.save.unavailable : error ? COPY.save.errorNetwork : null;
+  return (
+    <>
+      <LayerBody>
+        <div className="ws-save" data-ws-save="input">
+          <p className="ws-t-body">{COPY.save.description}</p>
+          <form className="ws-save-form" noValidate onSubmit={onSubmit}>
+            <label htmlFor={inputId} className="ws-t-label ws-save-muted">
+              {COPY.save.emailLabel}
+            </label>
+            <input
+              id={inputId}
+              className={`ws-save-input${error === 'format' ? ' ws-save-input--invalid' : ''}`}
+              type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
+              required
+              value={email}
+              aria-invalid={error === 'format' ? true : undefined}
+              aria-describedby={errorText ? errorId : undefined}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error === 'format') setError(null);
+              }}
+            />
+            {errorText ? (
+              <p id={errorId} className={`ws-t-meta ${error === 'format' ? 'ws-save-error' : 'ws-save-muted'}`} role="alert" data-ws-error={error ?? undefined}>
+                {errorText}
+              </p>
+            ) : null}
+          </form>
+          {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+        </div>
+      </LayerBody>
+      <LayerFoot>
+        <div className="ws-save-foot">
+          {/* D6: disabled 대신 aria-disabled — 포커스 유지(onSubmit 은 sending 중 무시). */}
+          <button type="button" className="ws-btn ws-btn--fill" aria-disabled={sending ? true : undefined} aria-busy={sending ? true : undefined} onClick={() => onSubmit()}>
+            {sending ? COPY.save.sending : COPY.save.submit}
+          </button>
+          <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+            {COPY.save.later}
+          </button>
+          <p className="ws-t-meta ws-save-muted">{COPY.save.noAds}</p>
+        </div>
+      </LayerFoot>
+    </>
+  );
+}

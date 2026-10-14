@@ -1,7 +1,7 @@
 // 프리렌더 라우트 계획(계획 §4, D3·D4·D11·D12). 순수 — 사이트 모델 → 결정론적 라우트 목록.
 //   노출 가능한 것만 만든다. /, /supplies, /vet, /credits, 404 는 항상. 비면 noindex + sitemap 제외.
 //   URL 세그먼트 규칙은 seed/validate-slug.ts 단일 소스. 위반 값은 조용히 건너뛰지 않고 throw(검증 우회 방지).
-import type { RouteKind, WsLayer } from '../engine/index.js';
+import { PICK_PATH, type RouteKind, type WsLayer } from '../engine/index.js';
 import { RESERVED_FIRST_SEGMENTS, RESERVED_SECOND_SEGMENTS, SLUG_RE, VET_REGION_RE } from '../seed/validate-slug.js';
 import { maxDate, type SiteModel } from './project.js';
 
@@ -114,6 +114,10 @@ export function planRoutes(m: SiteModel): RoutePlan[] {
     add({ path: `/vet/${regionSegment(region)}`, kind: 'VET_REGION', indexable: true, lastmod: maxDate(vs.map((v) => v.verifiedAt)), region, layer: null });
   }
 
+  // R5 D11: /save 는 항상 — L8 딥링크(매직링크 복귀 /save#t=). noindex·sitemap 제외, robots Disallow(색인 허용 시에도).
+  add({ path: '/save', kind: 'SAVE', indexable: false, lastmod: null, layer: null });
+  // K1(51 레인 A): /pick 은 항상 — 친구 선택 CTA·헤더 칩의 no-JS 대상(홈 A 부모 + L1 정적 본문). noindex·sitemap 제외, canonical /.
+  add({ path: PICK_PATH, kind: 'PICK', indexable: false, canonicalPath: '/', lastmod: null, layer: null });
   // R4 D6: /credits 는 항상(푸터 링크 항상, 사진 0이면 빈 상태). noindex·sitemap 제외.
   add({ path: '/credits', kind: 'CREDITS', indexable: false, lastmod: null, layer: null });
   add({ path: '/404', file: '404.html', kind: 'NOT_FOUND', indexable: false, lastmod: null, layer: null });

@@ -8,7 +8,7 @@ import type { User, UserRepository } from './user.repo.js';
 export class PrismaUserRepository implements UserRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(email: string, passwordHash: string, role: Role): Promise<User> {
+  async create(email: string, passwordHash: string | null, role: Role): Promise<User> {
     const row = await this.prisma.user.create({
       data: { id: `usr-${randomUUID()}`, email, passwordHash, role },
     });
@@ -18,6 +18,16 @@ export class PrismaUserRepository implements UserRepository {
   async findByEmail(email: string): Promise<User | undefined> {
     const row = await this.prisma.user.findUnique({ where: { email } });
     if (!row) return undefined;
+    return { id: row.id, email: row.email, passwordHash: row.passwordHash, role: row.role as Role };
+  }
+
+  async upsertByEmail(email: string): Promise<User> {
+    // update: {} — 기존 사용자의 역할·비밀번호는 건드리지 않는다.
+    const row = await this.prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { id: `usr-${randomUUID()}`, email, passwordHash: null, role: 'USER', createdAt: new Date().toISOString() },
+    });
     return { id: row.id, email: row.email, passwordHash: row.passwordHash, role: row.role as Role };
   }
 

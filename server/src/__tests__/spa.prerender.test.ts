@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { securityHeaders } from '../middleware/security-headers.js';
-import { mountSpa, normalizeRequestPath, SPA_CSP } from '../middleware/spa.js';
+import { cspForPath, mountSpa, normalizeRequestPath, SPA_CSP, VET_CSP } from '../middleware/spa.js';
 import { runPrerenderCli } from '../prerender/cli.js';
 import { FIXTURE_AS_OF, promoted, SEED_DIR, writeSeedDir } from './fixtures/prerender-seed.js';
 
@@ -101,11 +101,12 @@ describe('spa — 실시드 dist(manifest 있음)', () => {
     expect(r.headers['content-security-policy']).toBe(SPA_CSP);
   });
 
-  it('/save → 200 셸(프리렌더 아님)', async () => {
+  it('/save → 200(R5 D11: 프리렌더면 noindex, 아니면 셸) + 기본 CSP', async () => {
     const r = await request(app).get('/save');
     expect(r.status).toBe(200);
-    expect(r.text).toContain('<!--ws:body-->');
-    expect(r.text).not.toContain('data-ws-prerendered');
+    expect(r.headers['content-security-policy']).toBe(SPA_CSP);
+    if (r.text.includes('data-ws-prerendered')) expect(r.text).toMatch(/<meta name="robots" content="[^"]*noindex/);
+    else expect(r.text).toContain('<!--ws:body-->');
   });
 
   it('/supplies·/vet → 200, /404 → 404', async () => {
@@ -233,5 +234,84 @@ describe('spa — manifest file 경로 이탈(containedFile, Q1 D2)', () => {
     expect(r.status).toBe(404);
     expect(r.text).not.toContain(SECRET);
     expect(r.text).toContain('not-found-page');
+  });
+});
+
+// R5 B3-3(D21, SEC L4): CSP 경로 분리 — 기본은 외부 출처 0·unsafe-inline 스크립트 0, 네이버 지도 호스트는 /vet·/vet/* 에만.
+describe('CSP 경로 분리(D21)', () => {
+  const directive = (csp: string, name: string): string =>
+    csp.split(';').map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? '';
+
+  it('기본 CSP: script-src self 만, base-uri·object-src none, frame-ancestors none, form-action self, 네이버 0', () => {
+    expect(directive(SPA_CSP, 'script-src')).toBe("script-src 'self'");
+    expect(directive(SPA_CSP, 'base-uri')).toBe("base-uri 'none'");
+    expect(directive(SPA_CSP, 'object-src')).toBe("object-src 'none'");
+    expect(directive(SPA_CSP, 'frame-ancestors')).toBe("frame-ancestors 'none'");
+    expect(directive(SPA_CSP, 'form-action')).toBe("form-action 'self'");
+    expect(directive(SPA_CSP, 'default-src')).toBe("default-src 'self'");
+    expect(SPA_CSP).not.toMatch(/naver|pstatic|unsafe-eval/);
+    expect(directive(SPA_CSP, 'script-src')).not.toContain('unsafe-inline');
+    expect(SPA_CSP).not.toMatch(/https?:/);
+  });
+
+  it('/vet CSP: 기본 + 네이버 지도 호스트(script oapi, img·connect 지도), 스크립트 unsafe-inline 0', () => {
+    expect(directive(VET_CSP, 'script-src')).toBe("script-src 'self' https://oapi.map.naver.com");
+    expect(directive(VET_CSP, 'img-src')).toContain('https://*.map.naver.com');
+    expect(directive(VET_CSP, 'img-src')).toContain('https://*.pstatic.net');
+    expect(directive(VET_CSP, 'connect-src')).toContain('https://*.map.naver.com');
+    for (const d of ['base-uri', 'object-src', 'frame-ancestors', 'form-action', 'default-src', 'font-src', 'style-src']) {
+      expect(directive(VET_CSP, d), d).toBe(directive(SPA_CSP, d));
+    }
+  });
+
+  it('cspForPath: /vet·/vet/* 만 지도 CSP', () => {
+    expect(cspForPath('/vet')).toBe(VET_CSP);
+    expect(cspForPath('/vet/서울-마포구')).toBe(VET_CSP);
+    for (const p of ['/', '/vets', '/vetx', '/save', '/credits', '/hamster/golden', '/hamster/vet', '/x/vet/y', '']) expect(cspForPath(p), p).toBe(SPA_CSP);
+  });
+
+  describe('supertest — manifest 모드', () => {
+    let app: Express;
+    beforeAll(async () => {
+      app = appFor(await prerendered());
+    }, 60_000);
+    it('/ · /save · 404 → 네이버 0', async () => {
+      for (const p of ['/', '/save', '/hamster/golden', '/vetx']) {
+        const r = await request(app).get(p);
+        expect(r.headers['content-security-policy'], p).toBe(SPA_CSP);
+        expect(r.headers['content-security-policy'], p).not.toContain('naver');
+      }
+    });
+    it('/vet · /vet/<지역> → 네이버 포함', async () => {
+      const r = await request(app).get('/vet');
+      expect(r.status).toBe(200);
+      expect(r.headers['content-security-policy']).toBe(VET_CSP);
+      const r2 = await request(app).get(`/vet/${encodeURIComponent('서울-없는구')}`);
+      expect(r2.headers['content-security-policy']).toBe(VET_CSP);
+    });
+    it('Permissions-Policy 가 / · /vet · /api 모두에 존재', async () => {
+      for (const p of ['/', '/vet', '/api/ping']) {
+        const r = await request(app).get(p);
+        expect(r.headers['permissions-policy'], p).toBe('geolocation=(), camera=(), microphone=(), payment=()');
+      }
+    });
+    it('/api 는 securityHeaders 의 default-src none 유지', async () => {
+      const r = await request(app).get('/api/ping');
+      expect(r.headers['content-security-policy']).not.toContain('naver');
+    });
+  });
+
+  describe('supertest — manifest 없음(현행 fallback)', () => {
+    let app: Express;
+    beforeAll(() => {
+      const d = tmp('plain');
+      writeFileSync(join(d, 'index.html'), TEMPLATE);
+      app = appFor(d);
+    });
+    it('/ → 기본, /vet → 지도', async () => {
+      expect((await request(app).get('/')).headers['content-security-policy']).toBe(SPA_CSP);
+      expect((await request(app).get('/vet')).headers['content-security-policy']).toBe(VET_CSP);
+      expect((await request(app).get('/vet/x')).headers['content-security-policy']).toBe(VET_CSP);
+    });
   });
 });

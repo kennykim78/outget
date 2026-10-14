@@ -1,6 +1,6 @@
 # WithSmall 제품기획 v0.2 — 소동물 사육 준비·구매·관리 오케스트레이션
 
-Status: **동결(Frozen) v0.2.3** — Phase 0 개발 기준. 이후 변경은 §9 백로그의 트리거 조건으로만 연다.
+Status: **동결(Frozen) v0.2.4** — Phase 0 개발 기준. 이후 변경은 §9 백로그의 트리거 조건으로만 연다.
 Date: 2026-09-30 · 이전 버전: v0.1(피벗 타당성·분양 플랫폼 안) — 본 문서가 대체
 추가 아이디어 게이트: **기존 AnimalType/CareProfile + SupplyRequirement/SupplyItem + Checklist 데이터로 해결되는가?** Yes → Phase 0 검토, No → §9 백로그.
 법적 서술은 리스크 분석이며 법률 자문이 아니다.
@@ -208,7 +208,7 @@ VetClinic
 ## 7. 아키텍처
 
 ### 7.1 스택 결정
-- 유지: 모노레포(client Vite+React PWA / server Express ESM), SQLite+Prisma(M2 Postgres), 동일 오리진 단일 컨테이너, CI compliance-scan, auth·security-headers·rate-limit·governance·notification·badge 모듈.
+- 유지: 모노레포(client Vite+React PWA / server Express ESM), SQLite+Prisma(M2 Postgres), 동일 오리진 단일 컨테이너, CI compliance-scan, auth(US-025 이메일 저장용)·security-headers·rate-limit·governance·notification 모듈. chat·badge는 Phase 0 범위 밖 — R5에서 언마운트(UGC·계정 기능 도입 시 재검토).
 - **SEO: 빌드 타임 프리렌더.** `/{group}/{type}`(예 `/hamster/golden`, `/gerbil`, `/parrot/budgie`), `/{group}/{type}/check/{item}`, `/supplies/{item}`, `/vet/*`를 시드 데이터에서 정적 HTML 생성 + 하이드레이션. 프레임워크 이전 없음. Express는 정적 파일 + JSON API.
 - 신규 서버 모듈: `animal/`(AnimalType·Taxon·CareProfile 마스터 + 별칭 검색), `supply/`(SupplyItem·SupplyRequirement·SetupBundle·CuratedProduct), `vet/`(기존 보강), `spec-check/`(판정 로직, 순수 함수·테스트 가능), `reaction/`(ReactionSignal), `analytics/`(이벤트 수집 최소).
 - 신규 클라이언트: `animal/`(2단계 선택·Hub), `supply/`(용품 상세·용품으로 찾기), `checklist/`(localStorage 스토어), `speccheck/`, `vet/`. 재사용: `map/`, `board/` 카드·바텀시트, 테마 CSS, `governance/` 신고.
@@ -299,6 +299,7 @@ Phase 0 판단 기준: 4주 내 검색 유입 → 종 선택 → 첫 체크 전�
 | 날짜 | 변경 |
 |---|---|
 | 2026-09-30 | v0.1(분양 플랫폼) → v0.2(사육 준비·구매·관리 오케스트레이션) 전환·동결. 재입양 격하, Phase 0 범위 확정, 데이터 모델·프리렌더·검수 워크플로·백로그 트리거 정의 |
+| 2026-10-02 | **v0.2.4** — §7.1 유지 목록에서 chat·badge를 "Phase 0 범위 밖 — R5에서 언마운트(UGC·계정 기능 도입 시 재검토)"로 정정, auth는 US-025 이메일 저장용으로 유지(Kenny 결정) |
 | 2026-09-30 | **v0.2.3** — 호환성(CompatibilityRule) 추가: "내 케이지" 컨텍스트 기반 용품 간 조합 판정을 규격 확인기에 확장(Phase 0 규칙 3~5개), `specSchema`·`inspectCycleDays` 필드, 구성안 카피 원칙("상품 세트" 아님·신뢰 수치화 금지). 상품 간 호환·소진 예측·점검 알림은 §9 |
 | 2026-09-30 | **v0.2.2** — "Species 3종" 폐기. 데이터 축을 `AnimalType(사용자 언어) → Taxon(법) → CareProfile(사육) → SupplyRequirement → SupplyItem`으로 교체(Care & Supply Engine). 종 추가 비용 비선형화, "용품으로 찾기" 역방향 진입, 2단계 동물 선택 + 별칭("사막다람쥐"→저빌). Phase 0 타입 7~8개(햄스터 5·저빌·기니피그·사랑앵무·왕관앵무), CareProfile 4~5개, 목표 지표를 종 수→핵심 용품 커버율로. 모란·코뉴어·퀘이커·친칠라·토끼·식별 도우미·종간 비교는 §9 |
 | 2026-09-30 | **v0.2.1** — SetupBundle(실속/균형/중고 활용 구성안, Phase 0 정의·Phase 1 상품 채움; "최저가·판매순" 표현 금지) 추가. 수의사 인맥 없는 검수 구조: reviewerType 등급 + contentKind별 최소 등급, AI=초안/출처/모순 검출. 좋아요는 커뮤니티가 아닌 반응 신호로 Phase 0 포함 — 정보 👍 도움됐어요 / 상품 ♥ 마음에 들어요(Phase 1) / ⚠ 다시 확인, 노출 순서 규격→검수→선호 고정. 앵무 종명 확정 조건, alternativeIds, NOT_NOW·orderHint 의미 고정, TTFUA 디버깅 지표, 추가 아이디어 게이트 문구 |

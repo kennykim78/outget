@@ -2,7 +2,7 @@
 //   프리렌더 HTML 의 <script id="ws-data" type="application/json"> 만 읽는다(데이터 출처는 이것 하나 —
 //   재노출·재정렬·재판정 없음, 불변식 ③). 검증 실패는 전부 null(fail-closed) → 빈 데이터 + routeFromLocation.
 //   shell.html·vite dev 처럼 ws-data 가 없는 문서도 같은 폴백을 탄다.
-import { ROUTE_KINDS, VERDICTS, WS_DATA_KEYS, type RouteKind, type WsLayer, type WsPageData, type WsRoute } from '@ws/engine';
+import { PICK_PATH, ROUTE_KINDS, VERDICTS, WS_DATA_KEYS, type RouteKind, type WsLayer, type WsPageData, type WsRoute } from '@ws/engine';
 
 const LAYER_KINDS = ['L4', 'L5', 'L7'] as const;
 
@@ -69,6 +69,10 @@ export function routeFromLocation(loc: Pick<Location, 'pathname'>): WsRoute {
       return { kind: 'VET', path };
     case '/credits':
       return { kind: 'CREDITS', path };
+    case '/save':
+      return { kind: 'SAVE', path };
+    case PICK_PATH:
+      return { kind: 'PICK', path };
     default:
       return { kind: 'NOT_FOUND', path };
   }

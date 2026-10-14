@@ -134,6 +134,32 @@ const GUARD_TEST = [
   '',
 ].join('\n');
 
+/**
+ * spa.ts 픽스처(D21 구조: 기본 SPA_CSP·공통 꼬리·VET_CSP·cspForPath). QA-M D3 — 변이는 인수로 주입.
+ *   spaExtra: SPA_CSP script-src 뒤에 붙일 텍스트, tailExtra: 공통 꼬리에 넣을 항목, pick: cspForPath 본문.
+ */
+function spaTs({ spaExtra = '', tailExtra = '', pick = "p === '/vet' || p.startsWith('/vet/') ? VET_CSP : SPA_CSP" } = {}) {
+  return [
+    'const CSP_COMMON_TAIL = [',
+    `  "base-uri 'none'",${tailExtra}`,
+    '];',
+    'export const SPA_CSP = [',
+    `  "default-src 'self'",`,
+    `  "script-src 'self'${spaExtra}",`,
+    '  ...CSP_COMMON_TAIL,',
+    "].join('; ');",
+    'export const VET_CSP = [',
+    j(`  "script-src 'self' `, HTTPS, MAP_HOST, '",'),
+    j(`  "img-src 'self' https://`, PST_HOST, '",'),
+    '  ...CSP_COMMON_TAIL,',
+    "].join('; ');",
+    'export function cspForPath(p) {',
+    `  return ${pick};`,
+    '}',
+    '',
+  ].join('\n');
+}
+
 function baseSource() {
   return {
     'package.json': JSON.stringify({ name: 'fx', private: true }),
@@ -141,7 +167,7 @@ function baseSource() {
     'server/package.json': JSON.stringify({ name: 's', dependencies: { express: '^4' } }),
     'client/src/app.ts': j("export const load = () => ", FETCH, "('/api/vets');\n"),
     'client/src/map/loader.ts': j("export const SDK = '", HTTPS, MAP_HOST, "/openapi/v3/maps.js';\n"),
-    'server/src/middleware/spa.ts': j('export const CSP = "img-src \'self\' https://', PST_HOST, '";\n'),
+    'server/src/middleware/spa.ts': spaTs(),
     'server/src/vet/vet.prisma.repo.ts': [
       "import { VET_LISTED_STATUS } from '../engine/exposure.js';",
       'export const list = (prisma) => prisma.vetClinic.findMany({ where: { status: VET_LISTED_STATUS } });',
@@ -371,6 +397,52 @@ test('C1-LIB: jsdom 은 devDependencies 만', async () => {
 test('C1-SDK: 지도 SDK 호스트가 허용 파일 밖', async () => {
   const src = j("const s = document.createElement('script'); s.src = '", HTTPS, MAP_HOST, "/maps.js';\n");
   expectFail(scan(await makeRoot({ source: (s) => { s['client/src/home/x.ts'] = src; } })), 'C1-SDK');
+});
+
+// R5 C1-SDK 분리: 하위 도메인 없는 웹 호스트 map.naver.com 은 engine/links.ts(+테스트)만, SDK 호스트는 거기서도 금지.
+const WEB_MAP_HOST = j('map.', 'naver.com');
+const webLink = j("export const U = '", HTTPS, WEB_MAP_HOST, "/p/search/';\n");
+test('C1-SDK: 웹 딥링크 호스트가 클라 파일(지도 폴더 포함)·다른 서버 파일에 → 실패', async () => {
+  for (const f of ['client/src/vet/VetCard.tsx', 'client/src/map/x.ts', 'server/src/prerender/pages/common.ts', 'server/src/engine/other.ts']) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[f] = webLink; } })), 'C1-SDK');
+  }
+});
+test('C1-SDK: 웹 딥링크 호스트가 engine/links.ts·engine.links.test.ts 에 → 통과', async () => {
+  for (const f of ['server/src/engine/links.ts', 'server/src/__tests__/engine.links.test.ts']) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = webLink; } }));
+    assert.ok(!rulesOf(res, 'FAIL').includes('C1-SDK'), `${f}: ${JSON.stringify(res.json?.findings)}`);
+  }
+});
+test('C1-SDK: SDK 호스트(oapi·openapi.map·pstatic·하위 도메인 위장)는 engine/links.ts·그 테스트에서도 실패', async () => {
+  const sdkHosts = [MAP_HOST, j('openapi.map.', 'naver.com'), j('ssl.pstatic', '.net'), j('x', WEB_MAP_HOST)];
+  for (const f of ['server/src/engine/links.ts', 'server/src/__tests__/engine.links.test.ts']) {
+    for (const h of sdkHosts) {
+      expectFail(scan(await makeRoot({ source: (s) => { s[f] = j("export const U = '", HTTPS, h, "/a';\n"); } })), 'C1-SDK');
+    }
+  }
+});
+test('C1-SDK: SDK 호스트는 client/src/map·spa.ts 에서 통과', async () => {
+  // spa.ts 는 D21 구조(VET_CSP 안의 SDK 호스트) — 기본 픽스처 spaTs() 가 그 자체로 통과해야 한다.
+  const files = { 'client/src/map/x.ts': j("export const U = '", HTTPS, MAP_HOST, "/maps.js';\n"), 'server/src/middleware/spa.ts': spaTs() };
+  for (const [f, text] of Object.entries(files)) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.ok(!rulesOf(res, 'FAIL').includes('C1-SDK'), `${f}: ${JSON.stringify(res.json?.findings)}`);
+  }
+});
+
+// QA-M D3(심층 방어): spa.ts 기본 CSP 에 지도 호스트·전 경로 VET_CSP → 실패.
+test('C1-SDK(CSP): SPA_CSP·공통 꼬리에 naver/pstatic, VET_CSP 전 경로 적용, VET_CSP 밖 지도 호스트, SPA_CSP 없음 → 실패', async () => {
+  const bad = [
+    spaTs({ spaExtra: j(' ', HTTPS, MAP_HOST) }),
+    spaTs({ spaExtra: j(' ', HTTPS, PST_HOST) }),
+    spaTs({ tailExtra: j(`\n  "connect-src 'self' `, HTTPS, MAP_HOST, '",') }),
+    spaTs({ pick: 'VET_CSP' }),
+    spaTs({ pick: "p.startsWith('/') ? VET_CSP : SPA_CSP" }),
+    j(spaTs(), "export const ALL = (res) => res.setHeader('Content-Security-Policy', VET_CSP);\n"),
+    j(spaTs(), "export const X = \"img-src ", HTTPS, PST_HOST, "\";\n"),
+    spaTs().replace(/SPA_CSP/g, 'DEFAULT_CSP'),
+  ];
+  for (const text of bad) expectFail(scan(await makeRoot({ source: (s) => { s['server/src/middleware/spa.ts'] = text; } })), 'C1-SDK');
 });
 
 test('C1-SDK: 쇼핑 오픈API 호스트 전면 금지(허용 파일 안이어도)', async () => {
@@ -714,16 +786,19 @@ test('C5-GEO: vet-clinics.json 외 시드 좌표 키', async () => {
   expectFail(scan(await makeRoot({ seed: (d) => { d['animal-types.json'][0].lat = 37.5; } })), 'C5-GEO');
 });
 
-test('C5-GEO: 클라 메모리 사용(전송·영속 없음)은 통과', async () => {
+// R5 B3-4(D14): 위치 API 자체가 금지 — 이전의 "메모리 사용은 통과" 는 뒤집혔다. 좌표의 메모리 사용(병원 주소 좌표로 지도 중심)은 통과.
+test('C5-GEO: 클라 좌표 메모리 사용(전송·영속 없음)은 통과, 위치 API 로 얻으면 실패', async () => {
+  const mem = 'export const center = (vet) => {\n  setCenter(vet.lat, vet.lng);\n};\n';
+  expectClean(scan(await makeRoot({ source: (s) => { s['client/src/g.ts'] = mem; } })));
   const src = 'navigator.geolocation.getCurrentPosition((pos) => {\n  setCenter(pos.coords.latitude, pos.coords.longitude);\n});\n';
-  expectClean(scan(await makeRoot({ source: (s) => { s['client/src/g.ts'] = src; } })));
+  expectFail(scan(await makeRoot({ source: (s) => { s['client/src/g.ts'] = src; } })), 'C5-GEO');
 });
 
 // ── C6 이미지 ───────────────────────────────────────────────
 const CC_BY_URL = j(HTTPS, 'creativecommons.org/licenses/by/4.0/');
 const ccByPhoto = (over = {}) => ({
-  id: 'ph-02', scene: 'x', slot: 'intro-2', query: 'q', source: 'Wikimedia Commons', license: 'CC_BY', author: 'Jane',
-  sourceUrl: j(HTTPS, 'commons.example.org/p.jpg'), licenseUrl: CC_BY_URL, downloadedAt: '2026-09-30', modified: false, status: 'READY', ...over,
+  id: 'ph-02', scene: 'x', slot: 'intro-2', query: 'q', source: 'WIKIMEDIA', license: 'CC_BY', author: 'Jane',
+  sourceUrl: j(HTTPS, 'commons.wikimedia.org/wiki/File:p.jpg'), licenseUrl: CC_BY_URL, downloadedAt: '2026-09-30', modified: false, status: 'READY', ...over,
 });
 /** S1 M-3 — /credits 항목(저작자·증서 링크). */
 const CREDIT_ITEM = j('<ul class="ws-credits"><li class="ws-credit" data-ws-id="photos#ph-02"><p>x</p><p>저작자: Jane</p><p>라이선스: <a href="', CC_BY_URL, '" target="_blank" rel="noopener noreferrer nofollow">CC BY 4.0</a></p></li></ul>');
@@ -743,6 +818,32 @@ test('C6-IMG·C1-SEEDURL: CC_BY licenseUrl 없음·종류 불일치 → C6, 허�
 test('C6-IMG: 라이선스 허용 외 값·http sourceUrl', async () => {
   expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ license: 'UNKNOWN' })); } })), 'C6-IMG');
   expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ sourceUrl: 'http://commons.example.org/p.jpg' })); } })), 'C6-IMG');
+});
+
+// L3·M-1·L8(R5 B3-2): C6-IMG 는 isPhotoUsableRow 와 같은 엄격도.
+test('C6-IMG: READY 외 상태·출처↔호스트 불일치·userinfo·포트·미정 출처(OWN) → 실패', async () => {
+  const bad = [
+    { status: 'ACTIVE' },
+    { sourceUrl: j(HTTPS, 'www.instagram.com/p/abc/') },
+    { sourceUrl: j(HTTPS, 'u@commons.wikimedia.org/wiki/File:p.jpg') },
+    { sourceUrl: j(HTTPS, 'commons.wikimedia.org:443/wiki/File:p.jpg') },
+    { sourceUrl: j(HTTPS, 'commons.wikimedia.org.evil.example/p.jpg') },
+    { source: 'OWN', license: 'PERMISSION', licenseUrl: null },
+    { source: 'Wikimedia Commons' },
+    { downloadedAt: '2026-02-30' },
+  ];
+  for (const over of bad) {
+    expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto(over)); } })), 'C6-IMG');
+  }
+});
+
+test('C6-IMG: CC_BY_SA 히어로·합성 슬롯·modified → 실패, 카드 슬롯 원본 → C6 없음', async () => {
+  const sa = { license: 'CC_BY_SA', licenseUrl: j(HTTPS, 'creativecommons.org/licenses/by-sa/4.0/') };
+  for (const over of [{ slot: 'hero' }, { slot: 'composite-intro' }, { modified: true }]) {
+    expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ ...sa, ...over })); } })), 'C6-IMG');
+  }
+  const ok = scan(await makeRoot({ seed: (d) => { d['photos.json'].push(ccByPhoto({ ...sa, slot: 'l4-cage' })); } }));
+  assert.ok(!rulesOf(ok, 'FAIL').includes('C6-IMG'), JSON.stringify(ok.json?.findings));
 });
 
 test('C6-IMG: 상품 imageAsset 인데 imageLicense 허용 외', async () => {
@@ -937,4 +1038,118 @@ test('normalize: spaced/stripped 절차와 판정', async () => {
 test('실트리 소스 파일이 존재하면 테스트 픽스처와 무관하게 읽힌다(스모크)', () => {
   assert.ok(existsSync(SCANNER));
   assert.ok(readFileSync(SCANNER, 'utf8').length > 0);
+});
+
+// ── B3-4(R5): 위치·웹 저장소·쿠키·인라인 실행·서버 쿠키 발급 ───────────────
+const GEO = j('geo', 'location');
+const LS = j('local', 'Storage');
+const SS = j('session', 'Storage');
+const DOC_COOKIE = j('document.', 'cookie');
+const JS_URL = j('java', 'script:');
+const SET_COOKIE = j('Set-', 'Cookie');
+
+/** 소스 한 파일 주입 → 해당 규칙 FAIL. */
+async function failsWith(rule, file, text) {
+  expectFail(scan(await makeRoot({ source: (s) => { s[file] = text; } })), rule);
+}
+/** 소스 한 파일 주입 → 해당 규칙 없음. */
+async function cleanOf(rule, file, text) {
+  const res = scan(await makeRoot({ source: (s) => { s[file] = text; } }));
+  assert.ok(!rulesOf(res, 'FAIL').includes(rule), `${file}: ${JSON.stringify(res.json?.findings)}`);
+}
+
+test('C5-GEO: navigator.geolocation 은 client/src 어디서나(지도 폴더·테스트 포함) 실패, 키 접근 우회도', async () => {
+  const use = j('export const g = () => navigator.', GEO, '.getCurrentPosition(() => {});\n');
+  for (const f of ['client/src/vet/useRegion.ts', 'client/src/map/useDefaultRegion.ts', 'client/src/vet/useRegion.test.ts']) await failsWith('C5-GEO', f, use);
+  await failsWith('C5-GEO', 'client/src/vet/a.ts', j("export const g = navigator['", GEO, "'];\n"));
+  await failsWith('C5-GEO', 'client/src/vet/b.ts', 'export const w = (n) => n.watchPosition(() => {});\n');
+  await cleanOf('C5-GEO', 'client/src/vet/c.ts', j('// ', GEO, ' 는 쓰지 않는다(D14)\nexport const x = 1;\n'));
+});
+
+test('C9-STORAGE: localStorage·sessionStorage 는 lib/storage.ts 만(테스트 예외), 키 접근 우회도', async () => {
+  await failsWith('C9-STORAGE', 'client/src/home/x.ts', j("export const f = () => ", LS, ".setItem('a', 'b');\n"));
+  await failsWith('C9-STORAGE', 'client/src/home/y.ts', j('export const f = () => ', SS, '.clear();\n'));
+  await failsWith('C9-STORAGE', 'client/src/home/z.tsx', j("export const s = window['", LS, "'];\n"));
+  await cleanOf('C9-STORAGE', 'client/src/lib/storage.ts', j("export const read = (k) => window.", LS, '.getItem(k);\n'));
+  await cleanOf('C9-STORAGE', 'client/src/home/x.test.ts', j('beforeEach(() => ', LS, '.clear());\n'));
+  await cleanOf('C9-STORAGE', 'client/src/home/w.ts', j('// 기본 = 브라우저 ', LS, '\nexport const w = 1;\n'));
+});
+
+test('C9-STORAGE: document.cookie·cookieStore 는 client/src 전체(테스트 포함) 실패', async () => {
+  await failsWith('C9-STORAGE', 'client/src/save/sid.ts', j("export const sid = () => ", DOC_COOKIE, ";\n"));
+  await failsWith('C9-STORAGE', 'client/src/save/sid.test.ts', j("it('x', () => { ", DOC_COOKIE, " = 'a=b'; });\n"));
+  await failsWith('C9-STORAGE', 'client/src/save/k.ts', "export const k = document['cookie'];\n");
+  await failsWith('C9-STORAGE', 'client/src/save/c.ts', 'export const c = () => cookieStore.get("ws_sid");\n');
+});
+
+test('C8-SRC-SAFE: 클라 소스의 javascript: URL·on*= 마크업·문자열 핸들러 → 실패, 테스트·정상 JSX 핸들러 → 통과', async () => {
+  await failsWith('C8-SRC-SAFE', 'client/src/home/A.tsx', j("export const A = () => <a href=\"", JS_URL, "void(0)\">x</a>;\n"));
+  await failsWith('C8-SRC-SAFE', 'client/src/home/b.ts', j("export const h = '", JS_URL, "alert(1)';\n"));
+  await failsWith('C8-SRC-SAFE', 'client/src/home/c.ts', "export const m = '<img src=x onerror=alert(1)>';\n");
+  await failsWith('C8-SRC-SAFE', 'client/src/home/d.ts', "export const f = (el) => el.setAttribute('onclick', 'go()');\n");
+  await failsWith('C8-SRC-SAFE', 'client/src/home/e.ts', "export const f = (el) => { el.onclick = 'go()'; };\n");
+  await failsWith('C8-SRC-SAFE', 'client/src/home/F.tsx', 'export const F = () => <button onClick="go()">x</button>;\n');
+  await cleanOf('C8-SRC-SAFE', 'client/src/home/G.tsx', 'export const G = ({ go }) => <button onClick={go}>x</button>;\n');
+  await cleanOf('C8-SRC-SAFE', 'client/src/home/h.ts', "export const f = (o) => { o.ongoing = 'yes'; };\n");
+  await cleanOf('C8-SRC-SAFE', 'client/src/home/i.test.ts', j("const hostile = ['", JS_URL, "alert(1)'];\n"));
+});
+
+test('C8-SRC-SAFE: client/index.html 의 on*= 속성·javascript: 값(공백·탭 우회 포함) → 실패', async () => {
+  for (const html of [
+    '<!doctype html><html><body onload="go()"><div id="root"></div></body></html>',
+    j('<!doctype html><html><body><a href="java\tscript:go()">x</a></body></html>'),
+    j('<!doctype html><html><body><a href=" ', JS_URL, 'go()">x</a></body></html>'),
+  ]) await failsWith('C8-SRC-SAFE', 'client/index.html', html);
+  await cleanOf('C8-SRC-SAFE', 'client/index.html', '<!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>');
+});
+
+test('C8-OUT-SAFE: 산출물 on*= 속성·javascript:/vbscript: 값(엔티티·탭 우회 포함) → 실패', async () => {
+  for (const add of [
+    '<button onclick="go()">x</button>',
+    '<img src="/a.png" onerror="go()">',
+    j('<form action="', JS_URL, 'go()"></form>'),
+    '<a href="&#106;avascript:go()">x</a>',
+    '<a href="java&#9;script:go()">x</a>',
+    '<a href="vbscript:go">x</a>',
+  ]) {
+    const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</footer>', `</footer>${add}`); } }));
+    expectFail(res, 'C8-OUT-SAFE');
+  }
+});
+
+test('C9-COOKIE: 서버 쿠키 발급은 save/magic.routes.ts·auth/auth.routes.ts 만, 속성 직렬화는 save/cookie.ts·auth/auth.routes.ts 만', async () => {
+  const emit = j("export const f = (res) => res.setHeader('", SET_COOKIE, "', 'a=b');\n");
+  // 직렬화 파일(cookie.ts)은 정상 템플릿(ser)과 함께 넣어 플래그 규칙이 아닌 발급 규칙으로 실패함을 본다.
+  const ser = "export const c = (v, secure) => `ws_x=${v}; Max-Age=60; Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;\n";
+  for (const [f, text] of [['server/src/app.ts', emit], ['server/src/save/session.ts', emit], ['server/src/save/cookie.ts', ser + emit]]) await failsWith('C9-COOKIE', f, text);
+  await failsWith('C9-COOKIE', 'server/src/reaction/routes.ts', "export const f = (res) => res.cookie('rk', 'x');\n");
+  await failsWith('C9-COOKIE', 'server/src/vet/x.ts', "export const f = (res) => res.clearCookie('ws_sid');\n");
+  for (const f of ['server/src/save/session.ts', 'server/src/app.ts']) await failsWith('C9-COOKIE', f, ser);
+  await cleanOf('C9-COOKIE', 'server/src/save/magic.routes.ts', emit);
+  await cleanOf('C9-COOKIE', 'server/src/auth/auth.routes.ts', ser + emit);
+  for (const f of ['server/src/save/cookie.ts', 'server/src/auth/auth.routes.ts']) await cleanOf('C9-COOKIE', f, ser);
+  await cleanOf('C9-COOKIE', 'server/src/__tests__/save.magic.test.ts', emit + ser);
+  await cleanOf('C9-COOKIE', 'server/src/save/magic.routes.ts', 'export const read = (req) => req.headers.cookie;\n');
+});
+
+// QA-M D3(심층 방어): 허용 직렬화 파일의 쿠키 템플릿 플래그.
+test('C9-COOKIE 플래그: cookie.ts·auth.routes.ts 템플릿에 HttpOnly·SameSite(Lax|Strict)·Secure(조건부 허용) 없으면 실패', async () => {
+  const good = (name, path, site) => `export const c = (v, secure) => \`${name}=\${v}; Max-Age=60; Path=${path}; HttpOnly; SameSite=${site}\${secure ? '; Secure' : ''}\`;\n`;
+  const okSid = good('ws_sid', '/', 'Lax');
+  const okRt = good('ws_op_rt', '/auth', 'Strict');
+  await cleanOf('C9-COOKIE', 'server/src/save/cookie.ts', okSid);
+  await cleanOf('C9-COOKIE', 'server/src/auth/auth.routes.ts', okRt);
+  await cleanOf('C9-COOKIE', 'server/src/save/cookie.ts', 'export const c = (v) => `ws_sid=${v}; Max-Age=60; Path=/; HttpOnly; SameSite=Lax; Secure`;\n');
+  for (const [f, ok] of [['server/src/save/cookie.ts', okSid], ['server/src/auth/auth.routes.ts', okRt]]) {
+    for (const bad of [
+      ok.replace('; HttpOnly', ''),
+      ok.replace("${secure ? '; Secure' : ''}", ''),
+      ok.replace(/; SameSite=(Lax|Strict)/, ''),
+      ok.replace(/SameSite=(Lax|Strict)/, 'SameSite=None'),
+      'export const c = (v) => v;\n',
+    ]) await failsWith('C9-COOKIE', f, bad);
+  }
+  // 발급 줄에 secure=false 리터럴(조건부 Secure 무력화)
+  await failsWith('C9-COOKIE', 'server/src/save/magic.routes.ts', j("export const f = (res, sid) => res.setHeader('", SET_COOKIE, "', serializeSessionCookie(sid, false));\n"));
+  await cleanOf('C9-COOKIE', 'server/src/save/magic.routes.ts', j("export const f = (res, sid, cfg) => res.setHeader('", SET_COOKIE, "', serializeSessionCookie(sid, cfg.secureCookie));\n"));
 });

@@ -1,0 +1,252 @@
+/* R5 레이어 본문(스펙33 §2.2·§2.3·§4·§5.1) — L4 용품 상세 · SearchBlock · ReactionBar. 토큰 변수만, 그림자·그라데이션 0. */
+
+/* ── L4 ─────────────────────────────────────────── */
+.ws-supply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-6);
+}
+
+.ws-supply-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ws-space-2);
+  color: var(--ws-ink-muted);
+}
+
+.ws-state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  padding: var(--ws-space-1) var(--ws-space-3);
+  border-radius: var(--ws-radius-pill);
+  color: var(--ws-ink);
+}
+.ws-state-chip--ready { background: var(--ws-status-ready-soft); }
+.ws-state-chip--first { background: var(--ws-status-first-soft); }
+.ws-state-chip--check { background: var(--ws-status-check-soft); }
+.ws-state-chip--later { background: var(--ws-bg-100); }
+
+.ws-supply-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-supply-head {
+  color: var(--ws-ink-muted);
+}
+
+.ws-supply-head:focus {
+  outline: none;
+}
+
+.ws-cond-table {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin: 0;
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-md);
+}
+.ws-cond-table--2 {
+  grid-template-columns: 1fr 1fr;
+}
+.ws-cond-cell {
+  padding: var(--ws-space-3) var(--ws-space-4);
+}
+.ws-cond-table--2 .ws-cond-cell + .ws-cond-cell {
+  border-left: 1px solid var(--ws-line);
+}
+.ws-cond-cell dt {
+  color: var(--ws-ink-muted);
+}
+.ws-cond-cell dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-cond-list h4 {
+  color: var(--ws-ink-muted);
+}
+.ws-cond-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-supply-alts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-2);
+}
+.ws-supply-alts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-4);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-pill);
+  color: var(--ws-ink);
+}
+
+.ws-compat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  padding: var(--ws-space-3);
+  border-radius: var(--ws-radius-sm);
+}
+.ws-compat--ok { background: var(--ws-status-ready-soft); }
+.ws-compat--check { background: var(--ws-status-check-soft); }
+.ws-compat--below_min { background: var(--ws-status-fail-soft); }
+.ws-compat-verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+}
+.ws-compat-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-cta-weight);
+}
+
+.ws-supply-ready[aria-pressed='true'] {
+  background: var(--ws-brand-soft);
+}
+
+.ws-supply-products {
+  display: flex;
+  gap: var(--ws-rail-gap);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ws-supply-products > li {
+  flex: none;
+  width: var(--ws-product-card-w);
+}
+
+.ws-supply-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ws-space-2);
+  width: 100%;
+}
+
+/* ── SearchBlock ──────────────────────────────────── */
+.ws-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.ws-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-1) var(--ws-space-1) var(--ws-space-1) var(--ws-space-3);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-bg-000);
+}
+.ws-search-keyword {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ws-search-copy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ws-touch);
+  height: var(--ws-touch);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  color: var(--ws-ink);
+}
+.ws-search-copied:empty {
+  display: none;
+}
+.ws-search-merchants {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ws-space-2);
+}
+.ws-search-merchants .ws-btn {
+  padding: 0 var(--ws-space-2);
+  text-align: center;
+}
+
+/* ── ReactionBar ──────────────────────────────────── */
+.ws-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ws-space-1);
+}
+.ws-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-pill);
+  color: var(--ws-ink);
+  font-weight: var(--ws-type-label-weight);
+}
+.ws-reaction[aria-pressed='true'] {
+  background-color: var(--ws-brand-soft);
+  color: var(--ws-brand-text);
+}
+.ws-reaction-thanks {
+  flex-basis: 100%;
+  color: var(--ws-ink-muted);
+}
+.ws-reaction-thanks:empty {
+  display: none;
+}
+
+/* ── L7 상품 상세(스펙33 §5.4) ─────────────────────── */
+.ws-product-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+}
+.ws-product-detail-img {
+  display: flex;
+  width: 160px;
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  border-radius: var(--ws-radius-sm);
+}
+.ws-product-detail-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+.ws-product-detail-row > .ws-like {
+  margin-left: auto;
+}
+.ws-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+.ws-reasons > li {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+}
+.ws-product-detail-find {
+  width: 100%;
+}
+
+/* DR m-1: 조건 표 값 = 숫자 spec-lg + " 이상" meta ink-muted(스펙33 §5.1). */
+.ws-cond-cell dd .ws-t-meta {
+  color: var(--ws-ink-muted);
+}

@@ -19,9 +19,11 @@ export {
 } from './rules.js';
 export type { RuleKind, SpecRead } from './rules.js';
 export { listResolvedRequirements, resolveRequirement } from './resolve.js';
-export { EngineLookupError, checkAnimalMinSpec, checkProfileMinSpec, createEngine, specCheck } from './spec-check.js';
+export { EngineLookupError, checkAnimalMinSpec, checkProfileMinSpec, createEngine, minSpecBaseline, requirementCompat, specCheck } from './spec-check.js';
 export type { Engine, MinSpecResult } from './spec-check.js';
 export { buildSearchKeyword } from './search-keyword.js';
+export { SPEC_WORDS, chipSpecText, ruleText, specLine } from './spec-text.js';
+export { naverMapSearchUrl } from './links.js';
 export {
   VET_LISTED_STATUS,
   isAnimalTypeExposable,
@@ -43,3 +45,5 @@ export {
 export type { CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
 export { buildSearchLinks, type SearchLink, type SearchProvider } from './search-links.js';
 export * from './public.js';
+/** K1(51 레인 A): 친구 선택 정적 URL — 홈 A 부모 + L1 정적 본문(noindex·sitemap 제외). client shell/pickLink.ts PICK_PATH 와 같은 값. */
+export const PICK_PATH = '/pick';

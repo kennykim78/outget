@@ -79,6 +79,8 @@ export default function Reviews({ testimonials, types, onAction, vetAvailable }:
   const reduced = useMediaQuery(MQ_REDUCED_MOTION);
   const [paused, setPaused] = useState(false);
   const [touching, setTouching] = useState(false);
+  // 포커스가 든 행은 애니메이션·transform 을 해제(정적 배치) — 원본 묶음이 항상 x≥0 에 놓여 링이 보이고 브라우저가 행을 스크롤해 따라간다(WCAG 2.4.7·2.4.11).
+  const [focusRow, setFocusRow] = useState<number | null>(null);
   const ladder = reviewLadder(testimonials.length);
   if (ladder === 'none') return null;
 
@@ -127,7 +129,7 @@ export default function Reviews({ testimonials, types, onAction, vetAvailable }:
   return (
     <section className="ws-reviews-section" data-ws-section="reviews" data-ws-ladder="marquee" aria-labelledby="ws-sec-reviews-title">
       <div className="ws-rail-head">
-        <h2 id="ws-sec-reviews-title" className="ws-t-title">
+        <h2 id="ws-sec-reviews-title" className="ws-t-section">
           {title}
         </h2>
         <button type="button" className="ws-btn ws-btn--outline ws-marquee-toggle" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
@@ -141,7 +143,16 @@ export default function Reviews({ testimonials, types, onAction, vetAvailable }:
         onTouchCancel={() => setTouching(false)}
       >
         {rows.map((row, i) => (
-          <div key={i} className={`ws-marquee-row ws-marquee-row--${i === 0 ? 'left' : 'right'}`}>
+          <div
+            key={i}
+            className={`ws-marquee-row ws-marquee-row--${i === 0 ? 'left' : 'right'}${focusRow === i ? ' ws-marquee-row--focus' : ''}`}
+            onFocus={() => setFocusRow(i)}
+            onBlur={(e) => {
+              if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+              e.currentTarget.scrollLeft = 0;
+              setFocusRow((cur) => (cur === i ? null : cur));
+            }}
+          >
             <div className="ws-marquee-track">
               <ul className="ws-marquee-set" role="list">
                 {cards(row)}

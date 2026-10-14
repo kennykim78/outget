@@ -19,6 +19,7 @@
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
 //   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
+//                        ∧ 출처별 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 원본·카드 슬롯(L8)
 //                        ∧ (CC_BY·CC_BY_SA → licenseUrl 이 같은 종류의 creativecommons.org 증서, M-3)
 //   같은 id 가 여러 행이면 전부 노출일 때만 노출.
 import { createHash } from 'node:crypto';
@@ -99,6 +100,50 @@ export const PHOTO_USABLE_STATUSES = new Set(['READY']);
 /** https + 점 있는 호스트(engine HTTPS_URL 과 같은 엄격도, S-R4 L-D). */
 const HTTPS_DOTTED_URL = /^https:\/\/[^\s/?#]+\.[^\s/?#]+(?:[/?#]\S*)?$/;
 
+/**
+ * 출처 코드 → 원본 호스트 허용목록(SEC-2 M-1, 독립 구현) — engine PHOTO_SOURCE_HOSTS 와 같다(패리티 테스트).
+ *   OWN·SELLER·AFFILIATE 는 사진 증빙 필드 규칙이 문서에 없어 사용 불가(fail-closed).
+ */
+export const PHOTO_SOURCE_HOSTS = Object.freeze({
+  WIKIMEDIA: Object.freeze(['commons.wikimedia.org', 'upload.wikimedia.org']),
+  UNSPLASH: Object.freeze(['unsplash.com', 'images.unsplash.com']),
+  PEXELS: Object.freeze(['www.pexels.com', 'pexels.com', 'images.pexels.com']),
+  PIXABAY: Object.freeze(['pixabay.com', 'cdn.pixabay.com']),
+});
+
+/**
+ * 원본 URL 이 출처의 허용 호스트인가(M-1, 독립 구현 — WHATWG URL 파싱 + 원문 대조).
+ *   https ∧ userinfo·포트 없음 ∧ hostname 허용목록 ∧ 원문 authority 가 hostname 과 글자 그대로 같다(대소문자·끝 점·인코딩 정규화로 통과 금지).
+ */
+export function photoSourceUrlAllowed(source, sourceUrl) {
+  if (typeof source !== 'string' || typeof sourceUrl !== 'string') return false;
+  if (!Object.hasOwn(PHOTO_SOURCE_HOSTS, source)) return false;
+  if (!HTTPS_DOTTED_URL.test(sourceUrl)) return false;
+  let u;
+  try {
+    u = new URL(sourceUrl);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:' || u.username !== '' || u.password !== '' || u.port !== '') return false;
+  if (!PHOTO_SOURCE_HOSTS[source].includes(u.hostname)) return false;
+  const rest = sourceUrl.slice('https://'.length);
+  if (!rest.startsWith(u.hostname)) return false;
+  const next = rest.charAt(u.hostname.length);
+  return next === '' || next === '/' || next === '?' || next === '#';
+}
+
+/** CC BY-SA 카드 슬롯 허용목록(L8, 독립 구현) — engine CC_BY_SA_CARD_SLOT_RE 와 같은 집합(패리티 테스트). */
+const CC_BY_SA_SLOT_EXACT = new Set(['review-side', 'vet-empty', 'done']);
+const CC_BY_SA_SLOT_PREFIX = /^(?:intro-[1-9]|(?:group|l4)-[a-z0-9]+(?:-[a-z0-9]+)*)$/;
+
+/** CC BY-SA 는 원본 그대로(modified === false) ∧ 카드 슬롯만(히어로·합성 금지). 다른 라이선스는 true. */
+export function ccBySaPlacementOk(p) {
+  if (!isObj(p) || p.license !== 'CC_BY_SA') return true;
+  if (p.modified !== false || typeof p.slot !== 'string') return false;
+  return CC_BY_SA_SLOT_EXACT.has(p.slot) || CC_BY_SA_SLOT_PREFIX.test(p.slot);
+}
+
 /** engine isPhotoUsable 과 정확히 같은 판정(S-R4 L-D, 패리티 테스트) — 이보다 넓으면 안 된다. */
 export function isPhotoUsableRow(p) {
   if (!isObj(p) || !PHOTO_USABLE_STATUSES.has(p.status)) return false;
@@ -107,6 +152,8 @@ export function isPhotoUsableRow(p) {
   if (!nonEmpty(p.source)) return false;
   if (dayNumber(p.downloadedAt) === null) return false;
   if (typeof p.sourceUrl !== 'string' || !HTTPS_DOTTED_URL.test(p.sourceUrl)) return false;
+  if (!photoSourceUrlAllowed(p.source, p.sourceUrl)) return false;
+  if (!ccBySaPlacementOk(p)) return false;
   return p.license === 'CC0' || nonEmpty(p.author);
 }
 

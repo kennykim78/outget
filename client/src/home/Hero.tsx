@@ -1,9 +1,10 @@
-// 홈 A ① 친구 선택(스펙22 §3.1). 마스코트 + h1 + 채운 CTA(→ L1) + 저장 타입 있으면 "이어서" 링크(자동 이동 없음, D-6)
+// 홈 A ① 친구 선택(스펙22 §3.1). 마스코트 + h1 + 채운 CTA(a href=/pick → 하이드레이션 후 L1, K1) + 저장 타입 있으면 "이어서" 링크(자동 이동 없음, D-6)
 //   + 기능 칩 4(→ #ws-intro-i, D-25). 부제 없음(D-26). 마스코트는 img(D-2 인라인 SVG 대신 — 보고서 참고).
 import type { PublicAnimalType } from '@ws/engine';
 import { COPY } from '@ws/copy';
 import AnimalAvatar from '../ui/AnimalAvatar';
 import { copyFmt } from '../ui/copyText';
+import { PICK_PATH, pickLinkClick } from '../shell/pickLink';
 import { typeHomeHref } from '../shell/shellType';
 
 export interface HeroProps {
@@ -20,9 +21,9 @@ export default function Hero({ continueType, onPick, onFeature }: HeroProps) {
       <h1 id="ws-hero-title" className="ws-t-display">
         {COPY.homeA.heroTitle}
       </h1>
-      <button type="button" className="ws-btn ws-btn--fill" data-ws-action="pick-animal" onClick={onPick}>
+      <a className="ws-btn ws-btn--fill" data-ws-action="pick-animal" href={PICK_PATH} onClick={pickLinkClick(onPick)}>
         {COPY.homeA.heroCta}
-      </button>
+      </a>
       {continueType && cont ? (
         <a className="ws-continue ws-t-meta" href={typeHomeHref(continueType)}>
           <AnimalAvatar asset={continueType.mascot} size="md" tone="peach-soft" alt="" />

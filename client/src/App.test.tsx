@@ -65,7 +65,7 @@ describe('App shell', () => {
     render(<App page={page('TYPE', 'hamster-golden')} captured={NO_CAPTURE} />);
     const chip = document.querySelector('a[data-ws-chip]');
     expect(chip).toHaveTextContent('골든햄스터');
-    expect(chip).toHaveAttribute('href', '/hamster/golden');
+    expect(chip).toHaveAttribute('href', '/pick'); // K1: no-JS 대상 = /pick(하이드레이션 후 L1)
     expect(chip?.querySelector('img')).toHaveAttribute('src', '/mascots/hamster-golden.svg');
     const home = document.querySelector('nav.ws-tabbar a.ws-tab');
     expect(home).toHaveAttribute('href', '/hamster/golden');

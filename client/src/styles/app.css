@@ -13,6 +13,13 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scroll-padding-top: var(--ws-header-h);
+}
+
+@media (max-width: 767px) {
+  html {
+    scroll-padding-bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--ws-space-2));
+  }
 }
 
 body {
@@ -258,6 +265,22 @@ button {
   border-bottom: 1px solid var(--ws-line);
 }
 
+/* 건너뛰기 링크(WCAG 2.4.1) — 평소 시각적으로 숨김, 포커스 시 헤더 위 좌상단. 포커스 링은 전역 :focus-visible 재사용. */
+.ws-skip-link {
+  position: absolute;
+  inset-block-start: var(--ws-space-2);
+  inset-inline-start: var(--ws-space-2);
+  z-index: 30;
+  padding: var(--ws-space-2) var(--ws-space-4);
+  background: var(--ws-bg-000);
+  color: var(--ws-ink);
+  transform: translateY(-200%);
+}
+
+.ws-skip-link:focus {
+  transform: none;
+}
+
 .ws-logo {
   flex: none;
   display: inline-flex;
@@ -394,16 +417,6 @@ button {
   }
 }
 
-@media (max-width: 767px) {
-  .ws-page,
-  .ws-footer {
-    padding-bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
-  }
-  .ws-footer {
-    padding-bottom: calc(var(--ws-tabbar-h) + var(--ws-space-6) + env(safe-area-inset-bottom, 0px));
-  }
-}
-
 @media (min-width: 768px) {
   .ws-tabbar {
     display: none;
@@ -421,6 +434,16 @@ button {
   color: var(--ws-ink-muted);
   font-size: var(--ws-type-meta-size);
   line-height: var(--ws-type-meta-lh);
+}
+
+@media (max-width: 767px) {
+  .ws-page,
+  .ws-footer {
+    padding-bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  .ws-footer {
+    padding-bottom: calc(var(--ws-tabbar-h) + var(--ws-space-6) + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .ws-footer a {
@@ -576,6 +599,13 @@ ul.ws-reviews > li {
   background: var(--ws-scrim);
 }
 
+/* 프리렌더 정적 scrim(JS 전, data-ws-scrim 없음): 모바일에서 하단 탭바를 덮지 않는다. React scrim 은 제외. */
+@media (max-width: 767px) {
+  .ws-scrim:not([data-ws-scrim]) {
+    bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .ws-layer-panel,
 aside.ws-layer {
   position: fixed;
@@ -630,8 +660,8 @@ aside.ws-layer {
 
 /* 프리렌더 딥링크 aside.ws-layer(하이드레이션 전) — 같은 변형을 미디어 쿼리로. */
 aside.ws-layer {
-  inset: auto 0 0 0;
-  max-height: calc(100dvh - var(--ws-header-h));
+  inset: auto 0 calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px)) 0;
+  max-height: calc(100dvh - var(--ws-header-h) - var(--ws-tabbar-h) - env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   padding: var(--ws-space-4);
   border-radius: var(--ws-radius-lg) var(--ws-radius-lg) 0 0;
@@ -721,12 +751,10 @@ aside.ws-layer {
   min-width: 0;
 }
 
-.ws-layer-title:focus {
-  outline: none;
-}
-
+/* D-32: 열 때 제목으로 옮기는 프로그램 포커스(tabindex=-1)에는 링을 그리지 않는다 — 제목은 Tab 순서에 없다. */
+.ws-layer-title:focus,
 .ws-layer-title:focus-visible {
-  outline: var(--ws-focus-ring);
+  outline: none;
 }
 
 .ws-layer-close {
@@ -832,15 +860,15 @@ aside.ws-layer {
   }
 }
 
-/* F1 정적 본문(StaticMain — credits·404·supplies·setup·vet 등) 기본 흐름 */
-.ws-static-main > main.ws-page {
+/* F1 정적 본문(credits·404·supplies·setup 등) 기본 흐름 — 프리렌더 main.ws-page[data-ws-route] 를 직접 겨냥(하이드레이션 전 DOM 포함) */
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) {
   display: flex;
   flex-direction: column;
   gap: var(--ws-space-3);
   padding-top: var(--ws-space-8);
 }
 
-.ws-static-main > main.ws-page h1 {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) h1 {
   font-size: var(--ws-type-title-size);
   line-height: var(--ws-type-title-lh);
   font-weight: var(--ws-type-title-weight);
@@ -848,7 +876,7 @@ aside.ws-layer {
 }
 
 @media (min-width: 768px) {
-  .ws-static-main > main.ws-page h1 {
+  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) h1 {
     font-size: var(--ws-type-display-size);
     line-height: var(--ws-type-display-lh);
     font-weight: var(--ws-type-display-weight);
@@ -856,20 +884,102 @@ aside.ws-layer {
   }
 }
 
-.ws-static-main > main.ws-page h2 {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) h2 {
   margin-top: var(--ws-space-6);
   font-size: var(--ws-type-section-size);
   line-height: var(--ws-type-section-lh);
   font-weight: var(--ws-type-section-weight);
 }
 
-.ws-static-main > main.ws-page ul:not([class]) {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) ul:not([class]) {
   display: flex;
   flex-direction: column;
   gap: var(--ws-space-2);
 }
 
-.ws-static-main > main.ws-page a:not([class]) {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) a:not([class]) {
   color: var(--ws-brand-text);
   font-weight: var(--ws-type-cta-weight);
+}
+
+/* m-9 정적 /setup · /supplies 행 (프리렌더 마크업 셀렉터) */
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'])[data-ws-route='SETUP'] {
+  --ws-reading-w: var(--ws-modal-w);
+  width: 100%;
+  max-width: var(--ws-reading-w);
+  margin-inline: auto;
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-bundle ul,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) ul.ws-supply-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+  padding: 0;
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-bundle li > a,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) a.ws-supply-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+  min-height: 56px;
+  border-top: 1px solid var(--ws-line);
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-supply-name {
+  flex: 1;
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-row-priority {
+  margin-left: var(--ws-space-1);
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-row-chevron,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-supply-chevron {
+  margin-left: auto;
+  color: var(--ws-ink-muted);
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-bundle h3 {
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+}
+
+/* DR-3 m-14 · n-12 */
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-bundle .ws-range-note,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-bundle .ws-bundle-note {
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-supply-name {
+  font-weight: var(--ws-type-cta-weight);
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) .ws-bundle > h2:first-child {
+  margin-top: 0;
+}
+
+/* DR-3 m-15 */
+@media (min-width: 768px) {
+  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) ul.ws-supply-rows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--ws-space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) ul.ws-supply-rows {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

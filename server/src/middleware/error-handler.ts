@@ -24,6 +24,20 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     return;
   }
 
+  // body-parser(express.json 등) 클라이언트 오류: 라우터 전용 파서가 next(err) 로 넘긴 경우(R5 반응·제보 라우터).
+  //   상한 초과 → 413, 그 밖의 4xx(깨진 JSON·인코딩) → 400. 상세 메시지는 내보내지 않는다.
+  const bodyErr = err && typeof err === 'object' ? (err as { type?: unknown; status?: unknown }) : undefined;
+  if (bodyErr && typeof bodyErr.type === 'string' && typeof bodyErr.status === 'number') {
+    if (bodyErr.type === 'entity.too.large') {
+      res.status(413).json({ error: 'payload_too_large' });
+      return;
+    }
+    if (bodyErr.status >= 400 && bodyErr.status < 500) {
+      res.status(400).json({ error: 'bad_body' });
+      return;
+    }
+  }
+
   res.status(500).json({ error: 'internal' });
 };
 

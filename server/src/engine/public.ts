@@ -27,6 +27,10 @@ export const ROUTE_KINDS = [
   'VET',
   'VET_REGION',
   'CREDITS',
+  // R5 C-R5-6(D11): /save — 홈 셸 + L8(이메일 저장) 정적 본문, noindex·sitemap 제외·robots Disallow.
+  'SAVE',
+  // K1(51 레인 A): /pick — 홈 셸 + L1(친구 선택) 정적 본문, noindex·sitemap 제외, canonical /.
+  'PICK',
   'NOT_FOUND',
 ] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
@@ -52,6 +56,8 @@ export interface PublicAnimalType {
 }
 
 export interface PublicRequirement {
+  /** SupplyRequirement id(R5 계약 확장) — 클라이언트 L4/L5 가 data-ws-id="supplyRequirements#…" 를 달 때 쓴다. 노출 요구사항만. */
+  requirementId: string;
   animalTypeId: string;
   supplyItemId: string;
   priority: Priority;

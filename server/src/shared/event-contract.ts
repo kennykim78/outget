@@ -17,6 +17,13 @@ export const EVENT_NAMES = [
   'vet_clicked',
   'reaction_helpful',
   'reaction_recheck',
+  // R5 C-R5-7(D18): US-025 이메일 저장 4종 + US-022 상품 상세·♥ 2종.
+  'save_prompt_view',
+  'save_email_submit',
+  'save_link_confirm',
+  'save_merge',
+  'product_viewed',
+  'reaction_like',
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
@@ -89,6 +96,13 @@ export const EVENT_PROP_SPECS: Readonly<Record<EventName, Readonly<Record<string
   vet_clicked: { clinicId: SLUG, action: en('call', 'route', 'detail') },
   reaction_helpful: REACTION,
   reaction_recheck: REACTION,
+  // 진입점(스펙33 §5.9): 홈 B 저장 배너 · L2 꼬리 · /save 딥링크. 이메일·토큰은 어떤 저장 이벤트에도 싣지 않는다(⑧).
+  save_prompt_view: { entry: en('home_band', 'l2_footer', 'deeplink') },
+  save_email_submit: {},
+  save_link_confirm: {},
+  save_merge: { winner: en('local', 'server', 'mixed', 'none') },
+  product_viewed: { productId: SLUG, supplyItemId: SLUG },
+  reaction_like: { productId: SLUG },
 };
 
 export type PropValue = string | number | boolean;

@@ -99,8 +99,9 @@ describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
   const b = build(realSeed());
 
   it('라우트가 정확히 5개(R4 D6: /credits 항상, noindex)', () => {
-    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/credits', '/404']);
-    expect(b.routes.map((r) => r.kind)).toEqual(['HOME', 'SUPPLIES', 'VET', 'CREDITS', 'NOT_FOUND']);
+    // 51 레인 A(K1): /pick 항상(noindex·sitemap 제외).
+    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/save', '/pick', '/credits', '/404']);
+    expect(b.routes.map((r) => r.kind)).toEqual(['HOME', 'SUPPLIES', 'VET', 'SAVE', 'PICK', 'CREDITS', 'NOT_FOUND']);
     expect(b.routes.find((r) => r.kind === 'CREDITS')?.indexable).toBe(false);
     expect(b.routes.find((r) => r.kind === 'NOT_FOUND')?.file).toBe('404.html');
   });
@@ -124,15 +125,17 @@ describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
     const html = b.pages[0].html;
     expect(html).not.toContain('data-ws-section="reviews"');
     expect(html).toContain('작은 친구를 처음부터 제대로 준비해요');
-    expect(html).toContain('WithSmall 소개 — 작은 친구의 첫 준비를 이렇게 도와요');
+    // 51 레인 A: 소개 제목은 client SplitTitle 마크업(" — " 를 visually-hidden span 으로 분리).
+    expect(html).toContain('<span class="ws-split-title">WithSmall 소개</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">작은 친구의 첫 준비를 이렇게 도와요</span>');
     expect(html).not.toMatch(/ws:head|ws:body/);
     expect(html.match(/<title>/g)).toHaveLength(1);
     expect(html).toContain('<div id="root" data-ws-prerendered="1">');
   });
 
-  it('/supplies 는 카테고리 10칸·링크 0, /vet 은 빈 상태 문구', () => {
+  it('/supplies 는 노출 카테고리만(0개 → 그룹 0, D-49)·링크 0·빈 상태, /vet 은 빈 상태 문구', () => {
     const sup = b.pages.find((x) => x.route.path === '/supplies')?.html as string;
-    expect(sup.match(/data-ws-category=/g)).toHaveLength(10);
+    expect(sup).not.toContain('data-ws-category=');
+    expect(sup).toContain(COPY.supplies.empty);
     expect(sup).not.toMatch(/href="\/supplies\//);
     const vet = b.pages.find((x) => x.route.path === '/vet')?.html as string;
     expect(vet).toContain('전화로 확인한 병원을 준비하고 있어요');
@@ -174,6 +177,8 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
       '/supplies/wheel/hamster-golden',
       '/vet',
       '/vet/서울-마포구',
+      '/save',
+      '/pick',
       '/credits',
       '/404',
     ]);
@@ -203,17 +208,22 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(sm).toContain(`${ORIGIN}/vet/${encodeURIComponent('서울-마포구')}</loc><lastmod>2026-09-28</lastmod>`);
   });
 
-  it('타입 홈 B: 컨텍스트 + 5섹션 순서, ① 숫자 없음(D18), 병원은 /vet 링크만', () => {
+  it('타입 홈 B: 컨텍스트 + 5섹션 순서, ① 진행 숫자 없음(D18 — 칩 규격 요약 G-1 만 예외), ④ 병원 레일(D16) + /vet 링크', () => {
     const html = page('/hamster/golden');
     const order = ['now', 'bundles', 'products', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(html).toContain('<h2>지금 필요한 것</h2><p>필수 준비를 먼저 확인해요</p>');
-    const now = html.slice(order[0], order[1]);
-    expect(visibleText(now)).not.toMatch(/\d/); // 가시 텍스트에 숫자 없음
+    // 51 레인 A: client RailSection 마크업(h2.ws-t-section + p.ws-rail-sub), NeedChip 규격 span.ws-need-spec.
+    expect(html).toContain('<h2 id="ws-sec-now-title" class="ws-t-section">지금 필요한 것</h2><p class="ws-rail-sub ws-t-body">필수 준비를 먼저 확인해요</p>');
+    // 여는 태그 속성(data-ws-answered="0")은 가시 텍스트가 아니므로 태그 끝 이후부터.
+    const now = html.slice(html.indexOf('>', order[0]) + 1, order[1]);
+    // 진행·개수 숫자 0. 숫자는 칩 규격 요약(엔진 chipSpecText, "28cm 이상")에만.
+    expect(visibleText(now.replace(/<span class="ws-t-meta ws-need-spec">[^<]*<\/span>/g, ''))).not.toMatch(/\d/);
+    expect(now).toContain('<span class="ws-t-meta ws-need-spec">60×40×30cm 이상</span>');
+    expect(now).not.toContain('↑');
     const vet = html.slice(order[3], order[4]);
     expect(vet).toContain('href="/vet"');
-    expect(vet).not.toContain('data-ws-id');
+    expect(vet).toContain('data-ws-id="vetClinics#');
     expect(html).toContain('data-ws-type="hamster-golden"');
     expect(html).toContain('골든햄스터 준비, 이어서 할까요?');
   });
@@ -301,7 +311,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
 
   it('WS_INDEXABLE=1 일 때만 robots Allow + Sitemap', () => {
     const on = build(promoted(), true);
-    expect(on.files.get('robots.txt')).toBe(`User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
+    expect(on.files.get('robots.txt')).toBe(`User-agent: *\nAllow: /\nDisallow: /save\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
     expect(on.manifest.indexable).toBe(true);
   });
 });
@@ -312,7 +322,7 @@ describe('(c) 같은 승격에서 type 만 DRAFT → 타입 라우트 0', () => 
   it('TYPE·SETUP·FAMILY·SUPPLY_ITEM* 라우트 없음, typeId 0', () => {
     expect(b.routes.filter((r) => ['FAMILY', 'TYPE', 'SETUP', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE'].includes(r.kind))).toEqual([]);
     expect(b.routes.filter((r) => r.typeId !== undefined)).toEqual([]);
-    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/vet/서울-마포구', '/credits', '/404']);
+    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/vet/서울-마포구', '/save', '/pick', '/credits', '/404']);
     expect(b.catalog.animalTypes).toEqual([]);
     expect(b.catalog.supplyRequirements).toEqual([]);
   });
@@ -393,8 +403,10 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(html).toContain(`${COPY.credits.source}: ${COPY.credits.sourceName.WIKIMEDIA} · <a href="https://commons.wikimedia.org/wiki/File:Fixture.jpg"`);
     expect(visible(html)).not.toMatch(/\b[A-Z][A-Z_]{2,}\b/);
     patch(s, 'photos', 'ph-01', { source: 'NEW_SITE' });
+    // R5 B3-1(SEC-2 M-1): 허용목록 밖 source 는 사진 자체가 사용 불가 → /credits 에서 빠진다(원시 코드 노출 경로 없음).
     const html2 = pageOf(buildM(s), '/credits');
-    expect(html2).toContain(`${COPY.credits.source}: <a href="https://commons.wikimedia.org/wiki/File:Fixture.jpg"`);
+    expect(html2).not.toContain('https://commons.wikimedia.org/wiki/File:Fixture.jpg');
+    expect(html2).not.toContain('NEW_SITE');
     expect(visible(html2)).not.toMatch(/\b[A-Z][A-Z_]{2,}\b/);
     // 시드 허용 source 값(validate PHOTO_SOURCES) 전부 표시명이 있다.
     for (const code of PHOTO_SOURCES) expect(COPY.credits.sourceName[code], code).toMatch(/\S/);
@@ -451,7 +463,11 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(l5).toContain('name="diameterCm"');
     expect(l5).not.toContain('name="surface"');
     expect(l5).not.toContain('name="mount"');
-    expect(l5).toContain('<label for="ws-f-silent">무소음(베어링)<span class="ws-optional"> · 선택</span></label>');
+    // G-6: boolean = 라디오 카드 예/아니오(기본값 없음), 그룹 이름 = 필드 라벨 + 선택 표기.
+    expect(l5).toContain('<fieldset class="ws-radio-cards" role="radiogroup"><legend>무소음(베어링)<span class="ws-optional"> · 선택</span></legend>');
+    expect(l5).toContain('<input type="radio" name="silent" value="true">예</label>');
+    expect(l5).toContain('<input type="radio" name="silent" value="false">아니오</label>');
+    expect(l5).not.toMatch(/type="checkbox"|checked/);
     const l5cage = pageOf(b, '/hamster/golden/check/cage');
     expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격(mm)<span class="ws-optional"> · 선택</span></label>');
     expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로(cm)</label>');
@@ -472,11 +488,13 @@ describe('R4 A2 프리렌더 보강', () => {
       expect(pageOf(b, p), p).toMatch(/<div class="ws-scrim" aria-hidden="true"><\/div>\n<aside class="ws-layer"/);
     }
     expect(pageOf(b, '/hamster/golden')).not.toContain('ws-scrim');
-    const hero = /<section data-ws-section="hero">\n(<span class="ws-avatar[^"]*" aria-hidden="true"><svg [^>]*>)/.exec(pageOf(b, '/'));
+    // 51 레인 A(O-1): 인라인 SVG(D-2) → client AnimalAvatar 와 같은 img(/mascots/{asset}.svg). 정제 SVG 는 빌드 시 자산 검증용으로만.
+    const hero = /<section class="ws-hero"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/'));
     expect(hero?.[1]).toContain('ws-avatar--brand-soft');
-    expect(hero?.[1]).toContain('aria-hidden="true" focusable="false"');
-    const ctx = /<section class="ws-context"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><svg [^>]*>)/.exec(pageOf(b, '/hamster/golden'));
+    expect(hero?.[1]).toContain('<img src="/mascots/group-small-mammal.svg" width="96" height="96" alt=""');
+    const ctx = /<section class="ws-context"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/hamster/golden'));
     expect(ctx?.[1]).toContain('ws-avatar--peach-soft');
+    expect(ctx?.[1]).toContain('src="/mascots/hamster-golden.svg"');
     expect(pageOf(b, '/hamster/golden')).not.toMatch(/role="img"|aria-label="골든/);
   });
 

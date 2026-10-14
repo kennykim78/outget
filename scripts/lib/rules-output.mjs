@@ -12,7 +12,7 @@ import { scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { SEED_KEYS } from './seed-exposure.mjs';
 
-const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'NOT_FOUND']);
+const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'SAVE', 'PICK', 'NOT_FOUND']);
 const TYPE_KINDS = new Set(['TYPE', 'SETUP']);
 const WS_DATA_KEYS = { types: 'animalTypes', products: 'curatedProducts', bundles: 'setupBundles', vets: 'vetClinics', testimonials: 'testimonials' };
 const JSON_TEXT_SKIP = /^(id|slug|href|url|sourceUrl|path|catalogUrl|imageAsset|reviewerImage|seedDigest|file|item|@context|@type|@id|kind|provider|reviewerType|priority|orderHint|category|tier|verdict|reasonCodes|situation|linkedAction|group|imageLicense)$|Id$|Ids$|At$/;
@@ -267,6 +267,11 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput }) 
       const line = lineOf(t.index);
       const a = t.attrs;
       if (['iframe', 'frame', 'frameset', 'object', 'embed'].includes(t.name)) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${t.name}> 금지`);
+      // B3-4(SEC L4): 인라인 이벤트 핸들러 속성(on*=)·모든 속성의 javascript:/vbscript: 값 0 — CSP 'unsafe-inline' 없이 동작해야 한다.
+      for (const [k, v] of Object.entries(a)) {
+        if (/^on/i.test(k)) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${t.name} ${k}=> 인라인 핸들러`);
+        else if (typeof v === 'string' && /^(?:javascript|vbscript):/i.test(v.replace(/[\u0000-\u0020]/g, ''))) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${t.name} ${k}> 위험 URL: ${v.slice(0, 40)}`);
+      }
       if (t.name === 'link' && a.href !== undefined && isExternal(a.href.trim()) && (a.rel ?? '').toLowerCase().trim() !== 'canonical') {
         add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 <link href>: ${a.href}`);
       }

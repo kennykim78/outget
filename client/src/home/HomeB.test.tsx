@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { NO_CAPTURE } from '../app/staticCapture';
 import { setupKey } from '../checklist/setupStore';
+import type { PublicVet } from '@ws/engine';
 import { bundle, golden, pageOf, product, req } from '../test/fixtures';
+import { wsStorage } from '../lib/storage';
+import { writeSaveState } from '../save/saveStateStore';
 import { layerStore } from '../ui/layer/useLayer';
 
 const T = '2026-10-02T00:00:00.000Z';
@@ -21,6 +24,10 @@ function typePage() {
     },
     { typeId: golden.id, path: '/hamster/golden' },
   );
+}
+
+function vet(id: string): PublicVet {
+  return { id, name: `병원 ${id}`, address: '서울 마포구', phone: '02-000-0000', region: 'seoul-mapo', treats: [golden.id], night: null, emergency: null, lat: null, lng: null, verifiedAt: null };
 }
 
 function sections(): string[] {
@@ -99,6 +106,16 @@ describe('홈 B', () => {
     expect(layerStore.get()?.kind).toBe('L2');
   });
 
+  it('DR-3 m-13: 이메일 연결(ws.save linked)이면 "이 기기에만 저장돼요" 0개, 미연결이면 1개', () => {
+    const { unmount } = render(<App page={typePage()} captured={NO_CAPTURE} />);
+    expect(document.body.textContent?.split('이 기기에만 저장돼요').length).toBe(2);
+    unmount();
+    writeSaveState(wsStorage, { linked: true, lastSyncAt: null });
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
+    expect(document.body.textContent ?? '').not.toContain('이 기기에만 저장돼요');
+    expect(document.querySelectorAll('a[href="/save"]')).toHaveLength(1);
+  });
+
   it('K1: L3 후 REQUIRED 0 이면 "필수 준비 끝"·완료 블록·숫자 줄 없음', () => {
     localStorage.setItem(
       setupKey(golden.id),
@@ -149,7 +166,57 @@ describe('홈 B', () => {
     localStorage.setItem('ws.animalType', 'gerbil');
     render(<App page={typePage()} captured={NO_CAPTURE} />);
     expect(localStorage.getItem('ws.animalType')).toBe(golden.id);
-    fireEvent.click(screen.getByRole('button', { name: '친구 바꾸기' }));
+    const change = screen.getByRole('link', { name: '친구 바꾸기' });
+    expect(change).toHaveAttribute('href', '/pick');
+    expect(change).toHaveAttribute('data-ws-action', 'change-animal');
+    // K1: 수정 키 클릭은 기본 동작(새 탭) — 가로채지 않는다.
+    expect(fireEvent.click(change, { ctrlKey: true })).toBe(true);
+    expect(layerStore.get()).toBeNull();
+    expect(fireEvent.click(change)).toBe(false); // defaultPrevented
     expect(layerStore.get()?.kind).toBe('L1');
+  });
+
+  it('F1-4 ④ vets 0: 레일 없이 /vet 링크만(섹션 순서 불변)', () => {
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
+    const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
+    expect(v.querySelectorAll('li.ws-vet')).toHaveLength(0);
+    expect(v.querySelector('ul')).toBeNull();
+    expect(Array.from(v.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual(['/vet']);
+    expect(sections()).toEqual(['context', 'now', 'bundles', 'products', 'vet', 'save']);
+  });
+
+  it('F1-4 ④ vets: ws-data 순서 VetCard 레일(≤20, 진료 동물 = 표시명, 원시 id 0) + /vet 링크, 섹션 순서 = 프리렌더(type.ts) [now, bundles, products, vet, save]', () => {
+    const p = typePage();
+    const vets = Array.from({ length: 22 }, (_, i) => vet(`v${i}`));
+    render(<App page={{ ...p, data: { ...p.data, vets } }} captured={NO_CAPTURE} />);
+    expect(sections()).toEqual(['context', 'now', 'bundles', 'products', 'vet', 'save']);
+    const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
+    const ids = Array.from(v.querySelectorAll('li.ws-vet')).map((li) => li.getAttribute('data-ws-id'));
+    expect(ids).toEqual(vets.slice(0, 20).map((x) => `vetClinics#${x.id}`));
+    expect(v.querySelector('a[href="/vet"]')).not.toBeNull();
+    expect(v.textContent).toContain(golden.displayName);
+    expect(v.textContent).not.toContain(golden.id);
+    expect(v.querySelector('.ws-vet-name')).toBeNull(); // onSelect 없음 — 지도 선택 버튼 0
+  });
+
+  it('F1-4: 칩 → L4 · 상품 카드 → L7 · 저장 링크 → L8(SPA push, URL 갱신)', () => {
+    window.history.replaceState(null, '', '/hamster/golden');
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
+    fireEvent.click(document.querySelector('[data-ws-section="now"] a.ws-need[href="/hamster/golden/supplies/cage"]') as Element);
+    expect(layerStore.get()).toMatchObject({ kind: 'L4', props: { typeId: golden.id, itemId: 'cage' } });
+    expect(window.location.pathname).toBe('/hamster/golden/supplies/cage');
+    act(() => layerStore.resetForTest());
+    window.history.replaceState(null, '', '/hamster/golden');
+    fireEvent.click(document.querySelector('[data-ws-section="products"] a[href="/hamster/golden/products/p1"]') as Element);
+    expect(layerStore.get()).toMatchObject({ kind: 'L7', props: { typeId: golden.id, productId: 'p1' } });
+    act(() => layerStore.resetForTest());
+    window.history.replaceState(null, '', '/hamster/golden');
+    const save = document.querySelector('[data-ws-section="save"] a.ws-save-link') as HTMLElement;
+    expect(save).toHaveAttribute('href', '/save');
+    fireEvent.click(save);
+    expect(layerStore.get()?.kind).toBe('L8');
+    expect(window.location.pathname).toBe('/save');
+    act(() => layerStore.resetForTest());
+    window.history.replaceState(null, '', '/');
   });
 });

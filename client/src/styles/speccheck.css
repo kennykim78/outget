@@ -1,0 +1,411 @@
+/* L5 규격 확인 + L6 내 케이지(스펙33 §3·§4·§5.2·§5.3). 토큰 변수만. 그림자·그라데이션·마스코트 없음. */
+.ws-spec-layer,
+.ws-cage-step {
+  display: contents;
+}
+
+.ws-spec-body,
+.ws-cage-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+}
+
+.ws-cage-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ws-spec-body p,
+.ws-cage-form p {
+  margin: 0;
+}
+
+.ws-spec-muted {
+  color: var(--ws-ink-muted);
+}
+
+.ws-spec-notice {
+  padding: var(--ws-space-3);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-bg-100);
+}
+
+/* ── SpecForm ─────────────────────────────────────────── */
+.ws-spec-form {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+}
+
+.ws-spec-form:disabled {
+  opacity: var(--ws-disabled-opacity);
+}
+
+.ws-spec-numbers {
+  display: grid;
+  gap: var(--ws-space-3);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ws-spec-numbers--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ws-space-2);
+}
+
+.ws-spec-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+
+.ws-spec-label {
+  padding: 0;
+  color: var(--ws-ink-muted);
+}
+
+.ws-spec-optional {
+  color: var(--ws-ink-muted);
+}
+
+.ws-spec-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* n-1: 숫자 칸 브라우저 스피너 제거 */
+.ws-spec-input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.ws-spec-input[type="number"]::-webkit-outer-spin-button,
+.ws-spec-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* m-2: 범위 밖 칸 — fail 테두리 + meta 안내 */
+.ws-spec-input--invalid {
+  border-color: var(--ws-status-fail);
+}
+
+.ws-spec-error {
+  margin: 0;
+  color: var(--ws-status-fail);
+}
+
+.ws-spec-input:focus-visible {
+  outline: var(--ws-focus-ring);
+  outline-offset: var(--ws-focus-ring-offset);
+}
+
+.ws-spec-radios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ws-space-2);
+}
+
+.ws-spec-radio {
+  position: relative;
+  min-height: var(--ws-touch);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ws-space-2) var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-md);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  text-align: center;
+  cursor: pointer;
+}
+
+.ws-spec-radio input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.ws-spec-radio--on {
+  background: var(--ws-brand-soft);
+  border: 2px solid var(--ws-brand-text);
+  padding: calc(var(--ws-space-2) - 1px) calc(var(--ws-space-3) - 1px);
+  font-weight: 600;
+}
+
+.ws-spec-radio--on::before {
+  content: '✓' / '';
+  margin-right: var(--ws-space-1, 4px);
+}
+
+@media (forced-colors: active) {
+  .ws-spec-radio--on {
+    border-color: Highlight;
+  }
+}
+
+.ws-spec-radio:focus-within {
+  outline: var(--ws-focus-ring);
+  outline-offset: var(--ws-focus-ring-offset);
+}
+
+@media (min-width: 768px) {
+  .ws-spec-numbers--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── CageRow(D-45 bg-100) ─────────────────────────────── */
+.ws-cage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-3);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-bg-100);
+}
+
+.ws-spec-link {
+  min-height: var(--ws-touch);
+  min-width: var(--ws-touch);
+  padding: 0 var(--ws-space-2);
+  border: 0;
+  background: none;
+  color: var(--ws-brand-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── VerdictCard ──────────────────────────────────────── */
+.ws-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  padding: var(--ws-space-4);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-lg);
+  background: var(--ws-surface);
+}
+
+.ws-verdict p,
+.ws-verdict h3,
+.ws-verdict ul {
+  margin: 0;
+}
+
+.ws-verdict-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+
+.ws-verdict-overall {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.ws-verdict-overall--ready {
+  color: var(--ws-status-ready);
+}
+
+.ws-verdict-overall--check {
+  color: var(--ws-status-check);
+}
+
+.ws-verdict-overall--fail {
+  color: var(--ws-status-fail);
+}
+
+.ws-verdict-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  padding: var(--ws-space-3);
+  border-radius: var(--ws-radius-sm);
+}
+
+.ws-verdict-line--ready {
+  background: var(--ws-status-ready-soft);
+}
+
+.ws-verdict-line--check {
+  background: var(--ws-status-check-soft);
+}
+
+.ws-verdict-line--fail {
+  background: var(--ws-status-fail-soft);
+}
+
+.ws-verdict-line-head {
+  color: var(--ws-ink-muted);
+}
+
+.ws-verdict-line-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+
+.ws-verdict-line--ready .ws-verdict-glyph {
+  color: var(--ws-status-ready);
+}
+
+.ws-verdict-line--check .ws-verdict-glyph {
+  color: var(--ws-status-check);
+}
+
+.ws-verdict-line--fail .ws-verdict-glyph {
+  color: var(--ws-status-fail);
+}
+
+.ws-verdict-headline {
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-verdict-reasons {
+  padding-left: var(--ws-space-4);
+}
+
+.ws-verdict-more {
+  align-self: flex-start;
+  min-height: var(--ws-touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ws-brand-text);
+  cursor: pointer;
+}
+
+.ws-verdict-alts ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-verdict-alts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+}
+
+/* ── 검색 블록(§2.2) ──────────────────────────────────── */
+.ws-spec-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+}
+
+.ws-spec-search-toggle {
+  border: 0;
+  cursor: pointer;
+}
+
+.ws-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-3);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-bg-000);
+}
+
+.ws-search-keyword {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-search-copy {
+  flex: none;
+  width: var(--ws-touch);
+  height: var(--ws-touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  cursor: pointer;
+}
+
+.ws-search-merchants {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ws-space-2);
+}
+
+.ws-search-merchant {
+  padding: var(--ws-space-2) var(--ws-space-3);
+  text-align: center;
+  white-space: normal;
+}
+
+/* ── 꼬리 ─────────────────────────────────────────────── */
+.ws-spec-submit {
+  flex: 1;
+  cursor: pointer;
+}
+
+.ws-spec-submit.ws-btn--fill,
+.ws-cage-save {
+  border: 0;
+}
+
+.ws-cage-foot {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ws-space-3);
+}
+
+.ws-cage-save {
+  flex: 1 0 100%;
+  cursor: pointer;
+}
+
+.ws-spec-submit:disabled,
+.ws-cage-save:disabled {
+  opacity: var(--ws-disabled-opacity);
+  cursor: default;
+}
+
+/* m-8: 케이지 있음 · 규칙 없음 — CageRow 자리에 meta 한 줄(링크 없음) */
+.ws-cage-row--norule {
+  color: var(--ws-ink-muted);
+}

@@ -5,7 +5,18 @@ import { basename, extname, join } from 'node:path';
 import { CODE_EXT, TEXT_EXT, isDir, lexJs, relPosix, stripBom, stripSlashComments, walk } from './files.mjs';
 import { PRODUCT_IMAGE_ASSET_RE, REVIEWER_IMAGE_RE } from './asset-patterns.mjs';
 import { lintText } from './normalize.mjs';
-import { PRODUCT_IMAGE_LICENSES, PHOTO_LICENSES, SEED_FILES, ccLicenseOfUrl } from './seed-exposure.mjs';
+import { tags } from './html.mjs';
+import {
+  PHOTO_LICENSES,
+  PHOTO_USABLE_STATUSES,
+  PRODUCT_IMAGE_LICENSES,
+  SEED_FILES,
+  ccBySaPlacementOk,
+  ccLicenseOfUrl,
+  dayNumber,
+  isPhotoUsableRow,
+  photoSourceUrlAllowed,
+} from './seed-exposure.mjs';
 
 export const SCAN_DIRS = ['client/src', 'server/src', 'server/prisma', 'server/seed', 'scripts'];
 
@@ -22,8 +33,16 @@ export const SELF_FILES = new Set([
 ]);
 
 // 지도 SDK (파일, 호스트) 예외 — 이 파일들에서만 지도 호스트 리터럴 허용.
-const SDK_ALLOWED = (rel) => rel.startsWith('client/src/map/') || rel === 'server/src/middleware/spa.ts';
+//   R5 C1-SDK 분리(오케스트레이터 결정):
+//   SDK 호스트(oapi./openapi./*.map.naver.com·pstatic.net) → client/src/map/** · server/src/middleware/spa.ts(CSP) · 그 테스트만.
+//   웹 딥링크 호스트(하위 도메인 없는 map.naver.com — 길찾기·검색 링크) → server/src/engine/links.ts · 그 테스트만
+//   (클라는 @ws/engine 헬퍼를 import — 클라 코드에 호스트 리터럴 0).
+const SDK_ALLOWED = (rel) =>
+  rel.startsWith('client/src/map/') || rel === 'server/src/middleware/spa.ts' || rel === 'server/src/__tests__/spa.prerender.test.ts';
+const WEB_MAP_ALLOWED = (rel) => rel === 'server/src/engine/links.ts' || rel === 'server/src/__tests__/engine.links.test.ts';
 const MAP_HOST_RE = /(?:[a-z0-9*-]+\.)*(?:map\.naver\.com|pstatic\.net)\b/gi;
+/** 매치가 하위 도메인 없는 웹 호스트 map.naver.com 인가 — 앞 글자가 호스트 문자면(위장 'xmap.naver.com' 등) SDK 쪽으로(fail-closed). */
+const isBareWebMapHost = (line, m) => m[0].toLowerCase() === 'map.naver.com' && !/[a-z0-9*.-]/i.test(line.charAt(m.index - 1));
 const SHOP_API_RE = /openapi\.naver\.com/i;
 
 const BANNED_LIBS = ['puppeteer', 'puppeteer-core', 'playwright', 'playwright-core', 'cheerio', 'crawlee', 'node-cron', 'undici', 'axios', 'got'];
@@ -49,6 +68,43 @@ const GEO_ACT_RE = /\b(?:INSERT|save|create|createMany|upsert)\b|\b(?:localStora
 const GEO_PROXIMITY = 6;
 const GEO_KEY = /^(lat|lng|lon|long|latitude|longitude|coords|coordinates)$/i;
 const GEO_FIELD = /^(lat|lng|lon|latitude|longitude|coords|coordinates)$|(?:Lat|Lng|Latitude|Longitude)$/;
+
+// ── B3-4(R5): 클라 위치·저장·쿠키·인라인 실행, 서버 쿠키 발급 ─────────────
+// C5-GEO 위치 API — client/src 전체(테스트 포함·지도 폴더 예외 없음, D14). 주석은 제외, 문자열은 포함('geolocation' 키 접근 우회 차단).
+const GEOLOC_RE = /\bgeolocation\b|\b(?:getCurrentPosition|watchPosition)\b/;
+// C9-STORAGE — 웹 저장소는 client/src/lib/storage.ts 한 곳(C-R5-1 금지 키·ws. 접두사 강제 지점). 테스트는 jsdom 저장소를 직접
+//   비우고 저장 형식을 되읽어 계약을 단언해야 하므로 예외(실행 코드 아님).
+const STORAGE_RE = /\b(?:localStorage|sessionStorage)\b/;
+const STORAGE_ALLOWED = (rel) => rel === 'client/src/lib/storage.ts';
+// C9-STORAGE 쿠키 — client/src 전체(테스트 포함) document.cookie·cookieStore 0. 세션은 서버 HttpOnly 쿠키만(D2).
+const CLIENT_COOKIE_RE = /\bdocument\s*(?:\.\s*cookie\b|\[\s*['"`]cookie['"`]\s*\])|\bcookieStore\b/;
+// C8-SRC-SAFE — 소스의 인라인 실행: 문자열 속 javascript:/vbscript: URL·on*= 핸들러 마크업, setAttribute('on…'), el.onx = '문자열',
+//   JSX 핸들러에 문자열 값(onClick="…"). 테스트는 적대 입력을 일부러 넣으므로 예외.
+const JS_URL_RE = /\b(?:javascript|vbscript)\s*:/i;
+const INLINE_HANDLER_MARKUP_RE = /<[a-z][^>]*\son[a-z]+\s*=/i;
+const SET_ON_ATTR_RE = /\bsetAttribute(?:NS)?\s*\(\s*(?:[^,]+,\s*)?['"`]on[a-z]+['"`]/i;
+const ON_PROP_STRING_RE =
+  /\.\s*on(?:click|dblclick|load|error|abort|mouse\w+|key\w+|focus\w*|blur|change|input|submit|reset|pointer\w+|touch\w+|message|toggle|animation\w+|transition\w+|scroll|wheel|drag\w*|drop|copy|paste|cut|contextmenu|beforeunload|unload|resize|hashchange|popstate|select|invalid)\s*=\s*['"`]/i;
+const JSX_ON_STRING_RE = /\son[A-Z][A-Za-z]*\s*=\s*['"]/;
+// C9-COOKIE — 서버 쿠키 발급(Set-Cookie·res.cookie·clearCookie)과 쿠키 속성 직렬화(HttpOnly·Max-Age=·SameSite=)는 허용 파일만.
+//   발급: save/magic.routes.ts(ws_sid, 사용자 저장 세션) · auth/auth.routes.ts(ws_op_rt, 운영자 refresh — D3).
+//   직렬화: save/cookie.ts(ws_sid 단일 정의) · auth/auth.routes.ts(ws_op_rt 정의가 라우트 파일 안에 있음).
+const COOKIE_EMIT_RE = /set-cookie|\.\s*(?:cookie|clearCookie)\s*\(/i;
+const COOKIE_SER_RE = /\bHttpOnly\b|\bMax-Age\s*=|\bSameSite\s*=/i;
+const COOKIE_EMIT_ALLOWED = new Set(['server/src/save/magic.routes.ts', 'server/src/auth/auth.routes.ts']);
+const COOKIE_SER_ALLOWED = new Set(['server/src/save/cookie.ts', 'server/src/auth/auth.routes.ts']);
+// C9-COOKIE 플래그(QA-M D3, 심층 방어): 허용 직렬화 파일의 쿠키 템플릿(Max-Age= 가 있는 줄)마다 HttpOnly · SameSite=Lax|Strict ·
+//   Secure(무조건 '; Secure' 또는 운영 조건부 `${secure ? '; Secure' : ''}` — 현재 구조) 필수, SameSite=None 금지.
+//   발급 줄(Set-Cookie)에 secure 인자로 리터럴 false 를 넘기는 것도 금지(조건부 Secure 무력화).
+const COOKIE_TEMPLATE_RE = /\bMax-Age\s*=/i;
+const COOKIE_HTTPONLY_RE = /;\s*HttpOnly\b/;
+const COOKIE_SAMESITE_RE = /;\s*SameSite=(?:Lax|Strict)\b/;
+const COOKIE_SECURE_RE = /;\s*Secure\b/;
+const COOKIE_SECURE_COND_RE = /\?\s*['"`];\s*Secure['"`]\s*:\s*['"`]{2}/;
+// CSP(QA-M D3, D21): spa.ts 의 기본 정책 SPA_CSP(와 그것이 펼치는 상수)에 네이버·pstatic 호스트 0, 지도 호스트 리터럴은 VET_CSP 정의 안에만,
+//   VET_CSP 사용은 /vet·/vet/ 분기 줄에서만(전 경로 적용 금지).
+const SPA_FILE = 'server/src/middleware/spa.ts';
+const CSP_EXT_HOST_RE = /naver|pstatic/i;
 
 const SECRET_RES = [
   /X-Naver-Client-(Id|Secret)\s*['"]?\s*[:=]\s*['"][^'"]+['"]/i,
@@ -113,7 +169,15 @@ function scanCode(rel, text, ctx) {
     codeL.forEach((l, i) => {
       if (SHOP_API_RE.test(l)) add('C1-SDK', 'FAIL', rel, i + 1, '쇼핑 오픈API 호스트 전면 금지');
       MAP_HOST_RE.lastIndex = 0;
-      if (!SDK_ALLOWED(rel) && MAP_HOST_RE.test(l)) add('C1-SDK', 'FAIL', rel, i + 1, '지도 SDK 호스트는 client/src/map/**·server/src/middleware/spa.ts 만');
+      let mm;
+      let sdk = false;
+      let web = false;
+      while ((mm = MAP_HOST_RE.exec(l)) !== null) {
+        if (isBareWebMapHost(l, mm)) web = true;
+        else sdk = true;
+      }
+      if (sdk && !SDK_ALLOWED(rel)) add('C1-SDK', 'FAIL', rel, i + 1, '지도 SDK 호스트는 client/src/map/**·server/src/middleware/spa.ts(+테스트) 만');
+      if (web && !WEB_MAP_ALLOWED(rel)) add('C1-SDK', 'FAIL', rel, i + 1, '지도 웹 딥링크 호스트 map.naver.com 은 server/src/engine/links.ts(+테스트) 만 — 클라는 @ws/engine 헬퍼');
     });
 
     // C2-TRADE — 라우트 문자열
@@ -176,6 +240,124 @@ function scanCode(rel, text, ctx) {
       bareL.forEach((l, i) => {
         for (const seg of l.split(/[<>{}]/)) if (/[가-힣]/.test(seg)) report(seg, i + 1);
       });
+    }
+  }
+
+  if (!self) scanClientServerSafety(rel, codeL, strings, add);
+}
+
+// B3-4 — 클라 위치·저장·쿠키·인라인 실행(client/src), 서버 쿠키 발급(server/src 비테스트). scanCode 끝에서 호출.
+function scanClientServerSafety(rel, codeL, strings, add) {
+  const test = isTestFile(rel);
+  if (rel.startsWith('client/src/')) {
+    codeL.forEach((l, i) => {
+      if (GEOLOC_RE.test(l)) add('C5-GEO', 'FAIL', rel, i + 1, '위치 API(navigator.geolocation 등) 금지 — 지역은 URL 텍스트만(D14, 불변식 ⑧)');
+      if (!test && !STORAGE_ALLOWED(rel) && STORAGE_RE.test(l)) add('C9-STORAGE', 'FAIL', rel, i + 1, 'localStorage·sessionStorage 는 client/src/lib/storage.ts 만');
+      if (CLIENT_COOKIE_RE.test(l)) add('C9-STORAGE', 'FAIL', rel, i + 1, 'document.cookie·cookieStore 금지 — 세션은 서버 HttpOnly 쿠키만');
+    });
+    if (!test) {
+      for (const s of strings) {
+        if (JS_URL_RE.test(s.text)) add('C8-SRC-SAFE', 'FAIL', rel, s.line, 'javascript:/vbscript: URL 문자열');
+        if (INLINE_HANDLER_MARKUP_RE.test(s.text)) add('C8-SRC-SAFE', 'FAIL', rel, s.line, '문자열 마크업에 on*= 인라인 핸들러');
+      }
+      codeL.forEach((l, i) => {
+        if (SET_ON_ATTR_RE.test(l) || ON_PROP_STRING_RE.test(l)) add('C8-SRC-SAFE', 'FAIL', rel, i + 1, 'on* 핸들러를 문자열로 설정');
+      });
+      if (/\.[jt]sx$/.test(rel)) {
+        codeL.forEach((l, i) => {
+          if (JSX_ON_STRING_RE.test(l)) add('C8-SRC-SAFE', 'FAIL', rel, i + 1, 'JSX on* 핸들러에 문자열 값');
+        });
+      }
+    }
+  }
+  if (rel.startsWith('server/src/') && !test) {
+    codeL.forEach((l, i) => {
+      if (COOKIE_EMIT_RE.test(l) && !COOKIE_EMIT_ALLOWED.has(rel)) {
+        add('C9-COOKIE', 'FAIL', rel, i + 1, 'Set-Cookie 발급은 save/magic.routes.ts(ws_sid)·auth/auth.routes.ts(ws_op_rt) 만');
+      }
+    });
+    for (const s of strings) {
+      if (COOKIE_SER_RE.test(s.text) && !COOKIE_SER_ALLOWED.has(rel)) {
+        add('C9-COOKIE', 'FAIL', rel, s.line, '쿠키 속성 직렬화(HttpOnly·Max-Age·SameSite)는 save/cookie.ts·auth/auth.routes.ts 만');
+      }
+    }
+    if (COOKIE_SER_ALLOWED.has(rel)) checkCookieFlags(rel, codeL, add);
+    if (COOKIE_EMIT_ALLOWED.has(rel)) {
+      codeL.forEach((l, i) => {
+        if (/set-cookie/i.test(l) && /\bfalse\b/.test(l)) add('C9-COOKIE', 'FAIL', rel, i + 1, 'Set-Cookie 발급에 secure=false 리터럴 — 운영 Secure 조건 무력화');
+      });
+    }
+    if (rel === SPA_FILE) checkSpaCsp(rel, codeL, add);
+  }
+}
+
+/** C9-COOKIE 플래그 — 허용 직렬화 파일의 쿠키 템플릿 줄마다 HttpOnly·SameSite(Lax|Strict)·Secure(무조건 또는 조건부). */
+function checkCookieFlags(rel, codeL, add) {
+  let templates = 0;
+  codeL.forEach((l, i) => {
+    if (!COOKIE_TEMPLATE_RE.test(l)) return;
+    templates++;
+    const miss = [];
+    if (!COOKIE_HTTPONLY_RE.test(l)) miss.push('HttpOnly');
+    if (!COOKIE_SAMESITE_RE.test(l)) miss.push('SameSite=Lax|Strict');
+    if (!COOKIE_SECURE_RE.test(l) && !COOKIE_SECURE_COND_RE.test(l)) miss.push('Secure(무조건 또는 운영 조건부)');
+    if (/SameSite\s*=\s*None/i.test(l)) miss.push('SameSite=None 금지');
+    if (miss.length) add('C9-COOKIE', 'FAIL', rel, i + 1, `쿠키 템플릿 플래그 누락·위반: ${miss.join(', ')}`);
+  });
+  if (templates === 0) add('C9-COOKIE', 'FAIL', rel, null, '쿠키 템플릿(Max-Age=)을 찾지 못함 — 플래그 검사 불가(fail-closed)');
+}
+
+/** `const NAME = [ … ]` 또는 `export const NAME = [ … ].join(…)` 블록의 줄 범위(코드 기준, 0-based) — 없으면 null. */
+function constBlock(codeL, name) {
+  const start = codeL.findIndex((l) => new RegExp(`^\\s*(?:export\\s+)?const\\s+${name}\\b`).test(l));
+  if (start < 0) return null;
+  let depth = 0;
+  for (let k = start; k < codeL.length; k++) {
+    for (const ch of codeL[k]) {
+      if (ch === '[' || ch === '(' || ch === '{') depth++;
+      else if (ch === ']' || ch === ')' || ch === '}') depth--;
+    }
+    if (depth <= 0 && /[;\]]\s*(?:\.join\([^)]*\))?\s*;?\s*$/.test(codeL[k])) return [start, k];
+  }
+  return [start, codeL.length - 1];
+}
+
+/** CSP — 기본 정책 SPA_CSP(+ 펼친 상수)에 지도 호스트 0, 지도 호스트 리터럴은 VET_CSP 정의 안에만, VET_CSP 는 /vet 분기에서만. */
+function checkSpaCsp(rel, codeL, add) {
+  const spa = constBlock(codeL, 'SPA_CSP');
+  if (!spa) {
+    add('C1-SDK', 'FAIL', rel, null, 'SPA_CSP 상수를 찾지 못함 — 기본 CSP 검사 불가(fail-closed)');
+    return;
+  }
+  const blocks = [spa];
+  const spaText = codeL.slice(spa[0], spa[1] + 1).join('\n');
+  for (const m of spaText.matchAll(/\.\.\.\s*([A-Za-z_$][\w$]*)/g)) {
+    const b = constBlock(codeL, m[1]);
+    if (b) blocks.push(b);
+  }
+  for (const [a, b] of blocks) {
+    for (let k = a; k <= b; k++) {
+      if (CSP_EXT_HOST_RE.test(codeL[k])) add('C1-SDK', 'FAIL', rel, k + 1, '기본 CSP(SPA_CSP)에 네이버·pstatic 호스트 — 지도 호스트는 VET_CSP(/vet)만(D21)');
+    }
+  }
+  const vet = constBlock(codeL, 'VET_CSP');
+  codeL.forEach((l, k) => {
+    const inVet = vet && k >= vet[0] && k <= vet[1];
+    if (!inVet && CSP_EXT_HOST_RE.test(l) && !blocks.some(([a, b]) => k >= a && k <= b)) {
+      add('C1-SDK', 'FAIL', rel, k + 1, '지도 호스트 리터럴은 VET_CSP 정의 안에만(D21)');
+    }
+    if (!inVet && /\bVET_CSP\b/.test(l) && !(/['"`]\/vet['"`]/.test(l) && /['"`]\/vet\/['"`]/.test(l) && /\bSPA_CSP\b/.test(l))) {
+      add('C1-SDK', 'FAIL', rel, k + 1, 'VET_CSP 는 /vet·/vet/ 분기(… ? VET_CSP : SPA_CSP)에서만 — 전 경로 적용 금지(D21)');
+    }
+  });
+}
+
+/** client/index.html(소스 템플릿) — on*= 속성·javascript: 값 0(C8-SRC-SAFE). */
+function scanSourceHtml(rel, text, add) {
+  for (const t of tags(text)) {
+    for (const [k, v] of Object.entries(t.attrs)) {
+      if (/^on/i.test(k)) add('C8-SRC-SAFE', 'FAIL', rel, null, `<${t.name} ${k}=> 인라인 핸들러`);
+      if (typeof v === 'string' && /(?:javascript|vbscript):/i.test(v.replace(/[\u0000-\u0020]/g, ''))) add('C8-SRC-SAFE', 'FAIL', rel, null, `<${t.name} ${k}> javascript: 값`);
     }
   }
 }
@@ -290,15 +472,20 @@ function scanSeedFile(rel, text, ctx) {
 
     // C6-IMG
     if (!row || typeof row !== 'object') return;
+    // L3(R5 B3-2): SLOT 이 아닌 사진은 isPhotoUsableRow(engine isPhotoUsable 패리티)와 같은 엄격도 — READY 상태만,
+    //   https + 점 있는 호스트, 출처별 호스트 허용목록·userinfo 거부(M-1), 달력상 downloadedAt, CC BY-SA 원본·카드 슬롯(L8).
     if (file === SEED_FILES.photos && row.status !== 'SLOT') {
       const miss = [];
+      if (!PHOTO_USABLE_STATUSES.has(row.status)) miss.push(`status(${row.status})`);
       if (!PHOTO_LICENSES.has(row.license)) miss.push(`license(${row.license})`);
       if (typeof row.source !== 'string' || row.source.trim() === '') miss.push('source');
-      if (typeof row.sourceUrl !== 'string' || !/^https:\/\/[^\s/]+/i.test(row.sourceUrl)) miss.push('https sourceUrl');
-      if (typeof row.downloadedAt !== 'string' || row.downloadedAt.trim() === '') miss.push('downloadedAt');
+      if (typeof row.sourceUrl !== 'string' || !photoSourceUrlAllowed(row.source, row.sourceUrl)) miss.push('sourceUrl(https·출처별 호스트 허용목록·userinfo 금지)');
+      if (dayNumber(row.downloadedAt) === null) miss.push('downloadedAt');
       if (row.license !== 'CC0' && (typeof row.author !== 'string' || row.author.trim() === '')) miss.push('author');
       if ((row.license === 'CC_BY' || row.license === 'CC_BY_SA') && ccLicenseOfUrl(row.licenseUrl) !== row.license) miss.push('licenseUrl(CC 증서)');
-      if (miss.length) add('C6-IMG', 'FAIL', rel, null, `${where}: 사용권 기록 누락 ${miss.join(', ')}`);
+      if (!ccBySaPlacementOk(row)) miss.push('CC_BY_SA 배치(원본 그대로·카드 슬롯만 — 히어로·합성 금지)');
+      if (!miss.length && !isPhotoUsableRow(row)) miss.push('사용 가능 판정 불일치');
+      if (miss.length) add('C6-IMG', 'FAIL', rel, null, `${where}: 사용권 기록 누락·위반 ${miss.join(', ')}`);
     }
     if (file === SEED_FILES.curatedProducts && row.imageAsset !== null && row.imageAsset !== undefined && row.imageAsset !== '') {
       if (!PRODUCT_IMAGE_LICENSES.has(row.imageLicense)) add('C6-IMG', 'FAIL', rel, null, `${where}: imageAsset 있는데 imageLicense=${row.imageLicense}`);
@@ -359,7 +546,7 @@ export function scanSources(root, ctx, notes) {
     /* 루트 없음은 상위에서 처리 */
   }
   walk(join(root, '.github', 'workflows'), extra);
-  for (const p of ['client/package.json', 'server/package.json']) {
+  for (const p of ['client/package.json', 'server/package.json', 'client/index.html']) {
     const abs = join(root, ...p.split('/'));
     if (existsSync(abs)) extra.push(abs);
   }
@@ -384,6 +571,7 @@ export function scanSources(root, ctx, notes) {
     if (['package.json', 'client/package.json', 'server/package.json'].includes(rel)) {
       scanPackage(rel, text, ctx);
     }
+    if (rel === 'client/index.html') scanSourceHtml(rel, text, add);
     if (CODE_EXT.has(ext)) scanCode(rel, text, ctx);
     else if (ext === '.prisma' && rel.startsWith('server/prisma/')) scanPrisma(rel, text, ctx);
     else if (ext === '.json' && rel.startsWith('server/seed/') && !rel.slice('server/seed/'.length).includes('/')) scanSeedFile(rel, text, ctx);

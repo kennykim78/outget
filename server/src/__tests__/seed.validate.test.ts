@@ -425,7 +425,7 @@ describe('seed:validate I01·I02 ↔ engine isPhotoUsable 일치(사진이 통�
     const s = fresh();
     const p = Object.assign(row(s, 'photos', 'ph-01'), base, v);
     const res = validateSeed(s, { now: NOW });
-    const photoErrs = res.errors.filter((i) => i.file === 'photos.json' && (i.rule === 'I01' || i.rule === 'I02' || i.rule === 'S03'));
+    const photoErrs = res.errors.filter((i) => i.file === 'photos.json' && (i.rule === 'I01' || i.rule === 'I02' || i.rule === 'I03' || i.rule === 'S03'));
     expect(photoErrs.length === 0, JSON.stringify(photoErrs.map((i) => `${i.rule} ${i.path}`))).toBe(isPhotoUsable(p as never));
   });
 });

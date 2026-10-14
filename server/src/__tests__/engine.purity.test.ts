@@ -58,12 +58,14 @@ describe('engine purity', () => {
         'exposure.ts',
         'expr.ts',
         'index.ts',
+        'links.ts',
         'public.ts',
         'resolve.ts',
         'rules.ts',
         'search-keyword.ts',
         'search-links.ts',
         'spec-check.ts',
+        'spec-text.ts',
         'types.ts',
       ].sort(),
     );
@@ -90,7 +92,8 @@ describe('engine purity', () => {
 
 describe('shared purity (R4 B1 — @ws/events)', () => {
   it('has the planned modules', () => {
-    expect(sharedFiles.sort()).toEqual(['event-contract.ts']);
+    // R-1: forbidden-keys.ts(금지 키 단일 소스, 클라 @ws/forbidden-keys) 추가 — 아래 순수성 검사도 같이 받는다.
+    expect(sharedFiles.sort()).toEqual(['event-contract.ts', 'forbidden-keys.ts']);
   });
 
   it.each(sharedFiles)('%s imports only ./x.js siblings', (file) => {

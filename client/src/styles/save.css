@@ -1,0 +1,91 @@
+/* L8 이메일 저장(스펙33 §7) — 토큰 변수만. 그림자·그라데이션 0. */
+.ws-save {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+}
+
+.ws-save-muted {
+  color: var(--ws-ink-muted);
+}
+
+.ws-save-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-save-input {
+  min-height: 48px;
+  padding: 0 var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-bg-000);
+  color: var(--ws-ink);
+  font: inherit;
+  font-size: var(--ws-type-body-size);
+}
+
+.ws-save-input--invalid {
+  border-color: var(--ws-status-fail);
+}
+
+.ws-save-error {
+  color: var(--ws-status-fail);
+}
+
+.ws-save-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  margin: 0;
+}
+
+.ws-save-resend {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ws-space-1);
+}
+
+.ws-save-link {
+  min-height: var(--ws-touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-cta-weight);
+  cursor: pointer;
+}
+
+.ws-save-link:disabled {
+  color: var(--ws-ink-muted);
+  cursor: default;
+}
+
+/* DR M-2: 꼬리 버튼은 전부 전체 폭·세로 쌓기. .ws-layer-foot 가 가로 flex(align-items center)라 래퍼도 폭을 채운다. */
+.ws-save-foot {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--ws-space-2);
+  width: 100%;
+}
+
+.ws-save-foot > .ws-btn {
+  width: 100%;
+  align-self: stretch;
+}
+
+/* 헤더 저장 점(스펙33 §4 SaveDot · DR m-4) — AnimalChip 안 이름 뒤, 간격 space-1, 6×6 brand-text. 칩 접근 이름에 sr-only 포함. */
+.ws-save-dot {
+  display: inline-block;
+  flex: none;
+  /* 칩 gap(space-2) 을 상쇄해 이름과의 간격 = space-1. */
+  margin-left: calc(var(--ws-space-1) - var(--ws-space-2));
+  width: 6px;
+  height: 6px;
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-brand-text);
+}

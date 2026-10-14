@@ -11,13 +11,32 @@ import { typeHomeHref } from '../shell/shellType';
 import AnimalAvatar from '../ui/AnimalAvatar';
 import { copyAt, copyFmt } from '../ui/copyText';
 import { useLayerChrome } from '../ui/layer/Layer';
-import type { LayerProps } from '../ui/layer/useLayer';
+import { layerStore, type LayerProps } from '../ui/layer/useLayer';
 import { findCandidates } from './match';
 import { nav } from './navigate';
+import { runPickHandler } from './pickHandler';
 import { useAnimalSelection, type SelectVia } from './selection';
 import './picker.css';
 
 type Step = { kind: 'groups' } | { kind: 'types'; group: AnimalGroup } | { kind: 'unsure'; from: AnimalGroup | null };
+
+// 단계는 L1 히스토리 스텝(props.step, 문자열) — 뒤로가기 = 이전 단계, 첫 단계에서 뒤로 = 닫기(디자인 Layer README · L5→L6 와 같은 패턴).
+//   'groups'(또는 없음) | 'types:{GROUP}' | 'unsure' | 'unsure:{GROUP}'. 모르는 값은 groups.
+const isGroup = (v: string): v is AnimalGroup => (ANIMAL_GROUPS as readonly string[]).includes(v);
+
+function parseStep(raw: unknown): Step {
+  if (typeof raw !== 'string') return { kind: 'groups' };
+  const [kind, g = ''] = raw.split(':');
+  if (kind === 'types' && isGroup(g)) return { kind: 'types', group: g };
+  if (kind === 'unsure') return { kind: 'unsure', from: isGroup(g) ? g : null };
+  return { kind: 'groups' };
+}
+
+function stepKey(step: Step): string {
+  if (step.kind === 'types') return `types:${step.group}`;
+  if (step.kind === 'unsure') return step.from ? `unsure:${step.from}` : 'unsure';
+  return 'groups';
+}
 
 const GROUP_MASCOT: Record<AnimalGroup, string> = { SMALL_MAMMAL: 'group-small-mammal', PARROT: 'group-parrot' };
 
@@ -39,29 +58,73 @@ function UnsureRow({ onOpen }: { onOpen(): void }) {
   );
 }
 
-export default function AnimalPicker({ close }: { props: LayerProps; close(): void }) {
+export default function AnimalPicker({ props, close }: { props: LayerProps; close(): void }) {
   const page = useLayerPage();
   const types = page.data.types;
   const chrome = useLayerChrome();
   const selection = useAnimalSelection(types);
-  const [step, setStep] = useState<Step>({ kind: 'groups' });
+  const key = stepKey(parseStep(props.step));
+  const step = useMemo(() => parseStep(key), [key]);
   const [query, setQuery] = useState('');
   const reported = useRef(new Set<string>());
+  /** 이 L1 인스턴스가 지나온 단계(히스토리 항목과 1:1). 길이 1 = 진입 단계 → ‹ 는 뒤로 대신 교체. */
+  const trail = useRef<string[]>([key]);
 
   useEffect(() => {
+    const t = trail.current;
+    if (t[t.length - 1] === key) return;
+    if (t.length > 1 && t[t.length - 2] === key) t.pop(); // 뒤로가기·‹
+    else t.push(key); // push 또는 브라우저 앞으로
+  }, [key]);
+
+  /** 다음 단계로: 같은 URL 에 L1 스텝 push(뒤로 = 이 단계). */
+  function pushStep(next: Step): void {
+    const k = stepKey(next);
+    layerStore.open('L1', k === 'groups' ? {} : { step: k });
+  }
+
+  /** ‹ 이전 단계: 지나온 단계가 있으면 history 뒤로, 진입 단계(딥링크 등)면 목표 단계로 교체. */
+  function backTo(target: Step): void {
+    if (trail.current.length > 1) {
+      layerStore.back();
+      return;
+    }
+    const k = stepKey(target);
+    trail.current = [k];
+    layerStore.open('L1', k === 'groups' ? {} : { step: k }, { replace: true });
+  }
+
+  /** 그룹 선택으로(0건 안내의 버튼): 지나온 groups 항목까지 되돌아가고, 없으면 교체. */
+  function backToGroups(): void {
+    const t = trail.current;
+    const idx = t.lastIndexOf('groups');
+    if (idx >= 0 && idx < t.length - 1) {
+      const n = t.length - 1 - idx;
+      if (n === 1) layerStore.back();
+      else window.history.go(-n); // popstate → layerStore.onPopState 가 그 항목의 단계를 복원
+      return;
+    }
+    if (key !== 'groups') backTo({ kind: 'groups' });
+  }
+
+  const backRef = useRef(backTo);
+  backRef.current = backTo;
+
+  useEffect(() => {
+    const onBack = (target: Step) => () => backRef.current(target);
     if (step.kind === 'groups') {
       chrome.setTitle(COPY.homeA.heroCta);
       chrome.setBack(null);
     } else if (step.kind === 'types') {
       chrome.setTitle(COPY.groups[step.group]);
-      chrome.setBack({ label: backToGroupsLabel(), onBack: () => setStep({ kind: 'groups' }) });
+      chrome.setBack({ label: backToGroupsLabel(), onBack: onBack({ kind: 'groups' }) });
     } else {
       const from = step.from;
       chrome.setTitle(COPY.picker.unsure);
       chrome.setBack(
         from
-          ? { label: COPY.groups[from], onBack: () => setStep({ kind: 'types', group: from }) }
-          : { label: backToGroupsLabel(), onBack: () => setStep({ kind: 'groups' }) },
+          ? { label: COPY.groups[from], onBack: onBack({ kind: 'types', group: from }) }
+          : { label: backToGroupsLabel(), onBack: onBack({ kind: 'groups' }) },
       );
     }
   }, [step, chrome]);
@@ -71,6 +134,7 @@ export default function AnimalPicker({ close }: { props: LayerProps; close(): vo
 
   function choose(type: PublicAnimalType, via: SelectVia): void {
     selection.select(type.id, via);
+    if (runPickHandler(type, via)) return; // 여는 쪽이 이동을 맡음(이중 이동 방지)
     const href = typeHomeHref(type);
     if (window.location.pathname === href) close();
     else nav.assign(href);
@@ -84,7 +148,7 @@ export default function AnimalPicker({ close }: { props: LayerProps; close(): vo
 
   function openUnsure(from: AnimalGroup | null): void {
     setQuery('');
-    setStep({ kind: 'unsure', from });
+    pushStep({ kind: 'unsure', from });
   }
 
   if (step.kind === 'groups') {
@@ -93,7 +157,7 @@ export default function AnimalPicker({ close }: { props: LayerProps; close(): vo
         <ul className="ws-picker-grid ws-picker-grid--groups">
           {ANIMAL_GROUPS.map((g) => (
             <li key={g}>
-              <button type="button" className="ws-type-card ws-type-card--group" data-ws-group={g} onClick={() => setStep({ kind: 'types', group: g })}>
+              <button type="button" className="ws-type-card ws-type-card--group" data-ws-group={g} onClick={() => pushStep({ kind: 'types', group: g })}>
                 {/* 그룹 자산은 자체 원을 가진다 — AnimalAvatar 디스크 없이 lg 이미지 크기(설계 검수 F10). 리포 자산만. */}
                 <img className="ws-picker-group-img" src={`/mascots/${GROUP_MASCOT[g]}.svg`} width={96} height={96} alt="" decoding="async" />
                 <span className="ws-t-cta">{COPY.groups[g]}</span>
@@ -187,13 +251,15 @@ export default function AnimalPicker({ close }: { props: LayerProps; close(): vo
         </ul>
       ) : (
         <div className="ws-picker-none" aria-live="polite" data-ws-empty="candidates">
-          <p className="ws-t-body">{COPY.planned.title}</p>
+          {/* MINOR-7: 일치 0건은 "준비 중"이 아니라 "목록에 없음"(팬더·고양이도 나중 지원처럼 읽히지 않게).
+              PLANNED 타입은 클라이언트 데이터에 없으므로(불변식 ⑦·G3) 검색으로 PLANNED 일치를 판별할 수 없다. */}
+          <p className="ws-t-body">{COPY.picker.noMatch}</p>
           <button
             type="button"
             className="ws-btn ws-btn--outline"
             onClick={() => {
               reportUnknown();
-              setStep({ kind: 'groups' });
+              backToGroups();
             }}
           >
             {COPY.picker.backToGroups}

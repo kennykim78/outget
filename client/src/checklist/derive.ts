@@ -2,7 +2,7 @@
 //   입력은 ws-data PublicRequirement 그대로 — priority·orderHint·notNowReason 은 서버 resolve 결과를 읽기만 한다
 //   (재판정·재계산 없음, 불변식 ⑥). 하는 일은 그룹핑·정렬(orderHint)·사용자 체크 상태 결합뿐.
 import { ORDER_HINTS, PRIORITIES, type PublicRequirement } from '@ws/engine';
-import type { ReadySource, SetupV1 } from './setupStore';
+import type { ReadySource, SetupV2, SetupV3 } from './setupStore';
 
 /** ✓ 준비완료 · ! 먼저 준비(REQUIRED 미완료) · △ 확인 필요 · ○ 나중에. */
 export type ItemState = 'READY' | 'FIRST' | 'CHECK' | 'LATER';
@@ -12,6 +12,8 @@ export interface ChecklistRow {
   state: ItemState;
   /** 체크 출처(이벤트 readySource 용, UI 비노출). 미체크 null. */
   source: ReadySource | null;
+  /** 케이지 호환이 △ 를 만들었으면 그 판정(CHECK·FAIL), 아니면 null — 행 아래 이유 meta(DR n-5). */
+  compat: 'CHECK' | 'FAIL' | null;
 }
 
 export interface ChecklistGroup {
@@ -43,16 +45,20 @@ const hintRank = (h: string): number => {
   return i < 0 ? ORDER_HINTS.length : i;
 };
 
-function stateFor(r: PublicRequirement, checked: boolean, compat: DeriveOptions['compat']): ItemState {
+function compatOf(r: PublicRequirement, compat: DeriveOptions['compat']): 'CHECK' | 'FAIL' | null {
   const c = compat && Object.prototype.hasOwnProperty.call(compat, r.supplyItemId) ? compat[r.supplyItemId] : undefined;
-  if (c === 'CHECK' || c === 'FAIL') return 'CHECK';
+  return c === 'CHECK' || c === 'FAIL' ? c : null;
+}
+
+function stateFor(r: PublicRequirement, checked: boolean, compat: DeriveOptions['compat']): ItemState {
+  if (compatOf(r, compat) !== null) return 'CHECK';
   if (checked) return 'READY';
   return r.priority === 'REQUIRED' ? 'FIRST' : 'LATER';
 }
 
 export function deriveChecklist(
   reqs: PublicRequirement[],
-  setup: SetupV1 | null,
+  setup: SetupV2 | SetupV3 | null,
   opts?: DeriveOptions,
 ): ChecklistView {
   const checks = setup?.checks ?? {};
@@ -60,7 +66,12 @@ export function deriveChecklist(
     const c = Object.prototype.hasOwnProperty.call(checks, requirement.supplyItemId)
       ? checks[requirement.supplyItemId]
       : undefined;
-    return { requirement, state: stateFor(requirement, Boolean(c), opts?.compat), source: c ? c.source : null };
+    return {
+      requirement,
+      state: stateFor(requirement, Boolean(c), opts?.compat),
+      source: c ? c.source : null,
+      compat: compatOf(requirement, opts?.compat),
+    };
   });
 
   const groups: ChecklistGroup[] = PRIORITIES.map((priority) => ({

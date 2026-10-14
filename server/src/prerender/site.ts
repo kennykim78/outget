@@ -9,7 +9,7 @@ import { buildRobots } from './robots.js';
 import { buildSitemap, normalizeOrigin } from './sitemap.js';
 import { injectTemplate } from './template.js';
 import { COLOR_SCHEME_META, type PageContext, type RenderedPage } from './pages/common.js';
-import { renderCredits, renderFamily, renderHome, renderNotFound, renderSupplies, renderSupplyItem, renderVet } from './pages/misc.js';
+import { renderCredits, renderFamily, renderHome, renderNotFound, renderPick, renderSave, renderSupplies, renderSupplyItem, renderVet } from './pages/misc.js';
 import { renderSetupPage, renderTypePage } from './pages/type.js';
 
 export interface BuildSiteOptions {
@@ -25,6 +25,8 @@ export interface BuildSiteOptions {
   asOf: string;
   /** 자산 이름 → 정제된 인라인 SVG(mascot.ts loadMascots). 없으면 마스코트 없이 렌더. */
   mascots?: ReadonlyMap<string, string>;
+  /** /vet 지도 레이아웃 예약(G-4): 빌드 시 지도 키가 "있는지"만. 키 값은 받지도 싣지도 않는다. 기본 false(목록 전용). */
+  vetMap?: boolean;
 }
 
 export interface ManifestRoute {
@@ -92,6 +94,10 @@ function render(m: SiteModel, ctx: PageContext): RenderedPage {
       return renderVet(m, ctx);
     case 'CREDITS':
       return renderCredits(m, ctx);
+    case 'SAVE':
+      return renderSave(m, ctx);
+    case 'PICK':
+      return renderPick(m, ctx);
     case 'NOT_FOUND':
       return renderNotFound(m, ctx);
   }
@@ -125,7 +131,7 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
 
   const files = new Map<string, string>();
   const pages: BuiltPage[] = routes.map((route) => {
-    const p = render(model, { origin, route, catalogUrl, mascots });
+    const p = render(model, { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true });
     const json = jsonForScript(p.data);
     const html = injectTemplate(opts.template, {
       head: templateHasColorScheme ? p.head.replace(`${COLOR_SCHEME_META}\n`, '') : p.head,

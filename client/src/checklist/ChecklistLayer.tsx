@@ -4,16 +4,20 @@
 //   - 완료 = REQUIRED ≥ 1 이고 전부 ✓(△ 는 완료 아님)(b). 100% 도달 순간 setup_100_reached 1회(reached100At — 해제·재도달 재발화 없음).
 //   - 저장 불가면 "이 기기에만 저장돼요" 대신 저장 불가 안내 1회(c — 둘은 동시에 나오지 않는다).
 //   - 데이터는 ws-data PublicRequirement 그대로(재판정 없음, 불변식 ⑥). 저장·이벤트에 좌표·이메일 0(⑧).
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import type { PublicRequirement } from '@ws/engine';
 import { COPY } from '@ws/copy';
 import { useLayerPage } from '../app/layerPage';
 import { useAnimalSelection } from '../animal/selection';
 import { track } from '../events/track';
 import { wsStorage } from '../lib/storage';
+import { useSaveLinked } from '../save/useSaveLinked';
 import { copyAt, copyFmt } from '../ui/copyText';
 import { LayerFoot, useLayerChrome } from '../ui/layer/Layer';
-import type { LayerProps } from '../ui/layer/useLayer';
+import { layerStore, useLayer, type LayerProps } from '../ui/layer/useLayer';
+import CageStep from '../context/CageStep';
+import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
+import { useCageCompat } from './cageCompat';
 import ChecklistRowView from './ChecklistRow';
 import { deriveChecklist, type ChecklistRow, type ChecklistView } from './derive';
 import SetupQuestions from './SetupQuestions';
@@ -59,6 +63,7 @@ function NotNowGroup({ rows, render }: { rows: ChecklistRow[]; render(r: Checkli
 }
 
 export default function ChecklistLayer({ props }: { props: LayerProps; close(): void }) {
+  const layer = useLayer();
   const page = useLayerPage();
   const chrome = useLayerChrome();
   const selection = useAnimalSelection(page.data.types);
@@ -71,16 +76,26 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
     () => (type ? page.data.requirements.filter((r) => r.animalTypeId === type.id) : []),
     [page.data.requirements, type],
   );
-  const view = useMemo(() => deriveChecklist(reqs, setup), [reqs, setup]);
+  // 내 케이지(L6 스텝) + 호환 △(F2-3): 케이지가 있을 때만 엔진 requirementCompat, 없으면 영향 0.
+  const cageSchema = useMemo(() => reqs.find((r) => r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null, [reqs]);
+  const { cage } = useCage(type?.id ?? '', { schema: cageSchema });
+  const compat = useCageCompat(type?.id ?? '', reqs, page.catalogUrl, cage);
+  const view = useMemo(() => deriveChecklist(reqs, setup, compat ? { compat } : undefined), [reqs, setup, compat]);
   const answered = setup !== null && setup.answeredAt !== null;
   const [editing, setEditing] = useState(false);
-  const step: 'L3' | 'L2' = !answered || editing ? 'L3' : 'L2';
+  const cageStep = props.step === 'L6' && answered && cageSchema !== null;
+  const step: 'L3' | 'L2' | 'L6' = cageStep ? 'L6' : !answered || editing ? 'L3' : 'L2';
 
+  const linked = useSaveLinked();
   const [notice, setNotice] = useState(false);
   useEffect(() => wsStorage.onUnavailable(() => setNotice(true)), []);
 
   // 머리: L2 = 요약 밴드(제목 id=titleId), L3 = 흰 제목 행.
   useEffect(() => {
+    if (step === 'L6') {
+      chrome.setBand(null); // 제목·뒤로는 CageStep 이 정한다
+      return;
+    }
     chrome.setBack(null);
     if (step === 'L2' && type && reqs.length > 0) chrome.setBand(<SummaryBand view={view} titleId={chrome.titleId} />);
     else {
@@ -100,6 +115,10 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
     }
   }, [type, answered, view.allRequiredReady, setup, markReached100]);
 
+  // L6: 같은 URL 에 L2 + step 'L6' push(C-R5-5) — 뒤로 = 지금 필요한 것.
+  const openCage = useCallback(() => layer.open('L2', { ...props, step: 'L6' }), [layer, props]);
+  const backFromCage = useCallback(() => layerStore.back(), []);
+
   if (!type || reqs.length === 0) {
     return (
       <div className="ws-layer-body">
@@ -109,6 +128,10 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   }
 
   const allRows = view.groups.flatMap((g) => g.rows);
+
+  if (step === 'L6') {
+    return <CageStep typeId={type.id} schema={cageSchema} backLabel={COPY.cage.stepNow} onBack={backFromCage} />;
+  }
 
   if (step === 'L3') {
     return (
@@ -141,11 +164,31 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
     });
   };
   const href = (r: PublicRequirement) => encodeURI(`/${type.slug}/supplies/${r.item.id}`);
+  // › = L4 push(뒤로 = L2).
+  const onOpen = (row: ChecklistRow) =>
+    layer.open('L4', { typeId: type.id, itemId: row.requirement.supplyItemId }, { url: href(row.requirement) });
+  // 케이지 행이 "보유"이거나 케이지가 저장돼 있으면 행 아래 "내 케이지 수정 ›"(저장됨)/"등록 ›"(스펙33 §4 · DR m-3).
+  //   케이지 저장이 행을 보유로 바꾸지는 않는다(체크는 사용자 몫).
+  const cageExtra = (row: ChecklistRow) =>
+    row.requirement.supplyItemId === CAGE_ITEM_ID && (row.source === 'OWNED' || cage !== null) && cageSchema !== null ? (
+      <button type="button" className="ws-check-cage ws-check-fold ws-t-meta" onClick={openCage}>
+        {cage ? COPY.supplyLayer.cageEntryEdit : COPY.supplyLayer.cageEntryRegister}
+      </button>
+    ) : null;
   const renderRow = (row: ChecklistRow) => (
-    <ChecklistRowView key={row.requirement.supplyItemId} row={row} href={href(row.requirement)} onToggle={onToggle} />
+    <ChecklistRowView key={row.requirement.supplyItemId} row={row} href={href(row.requirement)} onToggle={onToggle} onOpen={onOpen}>
+      {cageExtra(row)}
+    </ChecklistRowView>
   );
+  // 꼬리 저장 링크 → L8 push(진입점 2곳 중 하나, 스펙33 §5.9). 보조키·새 탭은 기본 이동.
+  //   save_prompt_view{entry:'l2_footer'} 는 L8(SaveLayer)이 history 깊이로 판정해 보낸다 — 여기서 보내지 않는다(중복 0).
+  const onSave = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    layer.open('L8', {}, { url: '/save' });
+  };
   const memoryOnly = wsStorage.isMemoryOnly();
-  const deviceLine = notice ? COPY.checklist.storageUnavailable : memoryOnly ? null : COPY.homeB.deviceOnly;
+  const deviceLine = notice ? COPY.checklist.storageUnavailable : memoryOnly || linked ? null : COPY.homeB.deviceOnly;
 
   return (
     <>
@@ -170,7 +213,7 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
           </button>
           <p className="ws-t-meta ws-check-muted">
             {deviceLine ? <span data-ws-note={notice ? 'storage-unavailable' : 'device-only'}>{`${deviceLine} · `}</span> : null}
-            <a className="ws-check-save" href="/save">{`${COPY.checklist.saveAsk} ›`}</a>
+            <a className="ws-check-save" href="/save" onClick={onSave}>{linked ? COPY.checklist.saveLinked : `${COPY.checklist.saveAsk} ›`}</a>
           </p>
         </div>
       </LayerFoot>

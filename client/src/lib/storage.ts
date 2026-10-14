@@ -4,6 +4,8 @@
 //     onUnavailable 구독자에게 세션 전체에서 정확히 1회 알린다(PRD US-005 "저장 불가 안내 1회").
 //   - 불변식 ⑧: JSON 값 안에 좌표·지역·이메일·토큰·자유 질의 키가 있으면 쓰기를 거부한다(throw).
 
+import { FORBIDDEN_KEYS, isForbiddenKey } from '@ws/forbidden-keys';
+
 const PREFIX = 'ws.';
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -12,31 +14,18 @@ export function isWsId(x: unknown): x is string {
   return typeof x === 'string' && ID_RE.test(x);
 }
 
-/** 어떤 저장 값에도 들어갈 수 없는 키(대소문자 무시). */
-const FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
-  'lat',
-  'lng',
-  'latitude',
-  'longitude',
-  'coords',
-  'coordinates',
-  'location',
-  'region',
-  'address',
-  'email',
-  'phone',
-  'token',
-  'accesstoken',
-  'refreshtoken',
-  'query',
-]);
+/**
+ * 어떤 저장 값에도 들어갈 수 없는 키(대소문자 무시, **정확 일치** — 'q' 는 'quote' 를 막지 않는다).
+ * 목록·매칭은 서버 저장 검증기와 단일 소스(@ws/forbidden-keys — R-1 드리프트 제거). 소비처 호환을 위해 여기서 다시 내보낸다.
+ */
+export { FORBIDDEN_KEYS };
 
 /** 값(파싱된 JSON) 안 어디든 금지 키가 있으면 true. */
 export function hasForbiddenKey(x: unknown): boolean {
   if (Array.isArray(x)) return x.some(hasForbiddenKey);
   if (x === null || typeof x !== 'object') return false;
   for (const [k, v] of Object.entries(x)) {
-    if (FORBIDDEN_KEYS.has(k.toLowerCase())) return true;
+    if (isForbiddenKey(k)) return true;
     if (hasForbiddenKey(v)) return true;
   }
   return false;
@@ -46,6 +35,8 @@ export interface WsStorage {
   get(key: string): string | null;
   set(key: string, value: string): void;
   remove(key: string): void;
+  /** 현재 보이는 ws.* 키(prefix 로 시작하는 것만, 기본 'ws.'). 메모리 모드의 덮어쓰기·삭제 반영. */
+  keys(prefix?: string): string[];
   /** true = 이 세션은 메모리에만 저장 중. */
   isMemoryOnly(): boolean;
   /** 저장 불가 안내 구독. 이미 실패했고 아직 안내 전이면 즉시 호출. 세션 전체 1회. 반환 = 해제. */
@@ -65,7 +56,7 @@ function assertValue(value: string): void {
   } catch {
     return; // JSON 이 아닌 원시 문자열(ws.animalType 등)
   }
-  if (hasForbiddenKey(parsed)) throw new Error('storage: 저장 금지 키(좌표·지역·이메일·토큰·질의)가 들어 있어요');
+  if (hasForbiddenKey(parsed)) throw new Error('storage: 저장 금지 키(좌표·지역·이메일·토큰·세션·질의)가 들어 있어요');
 }
 
 /** backend 는 지연 접근(접근 자체가 throw 할 수 있다). 테스트는 가짜 Storage 를 넘긴다. */
@@ -127,6 +118,24 @@ export function createStorage(backend: () => Storage): WsStorage {
         }
       }
       memory.set(key, null);
+    },
+    keys(prefix = PREFIX) {
+      const out = new Set<string>();
+      try {
+        const b = backend();
+        for (let i = 0; i < b.length; i++) {
+          const k = b.key(i);
+          if (k !== null && k.startsWith(PREFIX) && k.startsWith(prefix)) out.add(k);
+        }
+      } catch {
+        // 접근 불가 — 메모리 키만.
+      }
+      for (const [k, v] of memory) {
+        if (!k.startsWith(prefix)) continue;
+        if (v === null) out.delete(k);
+        else out.add(k);
+      }
+      return [...out];
     },
     isMemoryOnly: () => memoryOnly,
     onUnavailable(cb) {

@@ -39,6 +39,7 @@ export const COPY = deepFreeze({
     tabSupplies: '용품',
     tabVet: '병원',
     seeAll: '전체',
+    skipToMain: '본문으로 건너뛰기',
   },
   /** UX §3.1 A — 동물 미선택(콜드스타트) 4섹션. */
   homeA: {
@@ -116,6 +117,8 @@ export const COPY = deepFreeze({
     candidateNote: sent('후보 안내일 뿐, 종을 확정하지 않아요'),
     confirm: sent('이 친구가 맞아요'),
     backToGroups: '‹ 그룹 선택',
+    /** P1 MINOR-7 — '잘 모르겠어요' 일치 0건(PLANNED 일치일 때만 planned.title). */
+    noMatch: sent('찾는 친구가 아직 없어요. 지금은 그룹에서 고를 수 있는 친구만 준비를 도와드려요'),
   },
   /** R4 C1 — L3 두 질문(처음 키워요 / 이미 키우고 있어요). */
   setupQ: {
@@ -135,6 +138,8 @@ export const COPY = deepFreeze({
     recommendedNote: sent('권장 항목도 살펴보세요'),
     resetSetup: '내 상황 다시 설정',
     saveAsk: sent('지금 준비 상태를 저장해 둘까요?'),
+    /** 레인 0(51_architect_persona_fix) — 저장 연결 상태 링크. 링크 관례(›, sent 아님)는 compatRegisterLink와 동일. */
+    saveLinked: '이 기기와 메일에 저장되고 있어요 ›',
     storageUnavailable: sent('이 기기에 저장할 수 없어요. 지금 화면에서만 유지돼요'),
     itemDetailAria: '{name} 자세히',
     owned: '보유',
@@ -168,6 +173,62 @@ export const COPY = deepFreeze({
     source: '출처',
     notNow: sent('지금은 필요 없어요'),
     close: '닫기',
+    /** R5 C1 — L4 확장(스펙33 §5.1·§9). 검색 블록 라벨은 findWithCondition 재사용. */
+    searchCopyAria: '검색어 복사',
+    searchCopied: sent('복사했어요'),
+    compatSubLabel: '내 케이지 기준',
+    compatSubNote: sent('용품의 최소 규격을 넣어 본 결과예요'),
+    compatRegisterLink: '내 케이지를 등록하면 맞는지 알려 드려요 ›',
+    cageEntryRegister: '내 케이지 등록 ›',
+    cageEntryEdit: '내 케이지 수정 ›',
+    markReady: '준비했어요',
+  },
+  /** R5 C1 — L5 VerdictCard 판정 표시(스펙33 §3). 판정어는 정보일 뿐 추천 아님. 헤드라인 숫자는 표시 함수가 "최소 {v}{u} · 입력 {a}{u}"로 조립. */
+  verdict: {
+    productLine: '제품 규격',
+    compatLine: '내 환경 호환',
+    resultRegion: '판정 결과',
+    overall: '종합',
+    basisSuffix: '기준',
+    min: '최소',
+    recommended: '권장',
+    input: '입력',
+    productOk: '권장 기준까지 충족',
+    productBelowRecommended: '최소 기준 충족 · 권장 미만',
+    productBelowMin: '최소 규격 미달',
+    productCheck: '판정할 정보가 더 필요해요',
+    compatOk: '현재 케이지에서 사용 가능한 조건',
+    compatCheck: '공간 조건 재확인',
+    compatBelowMin: '현재 케이지 조건에서 최소 요구 미충족',
+    compatNoCage: sent('내 케이지를 등록하면 호환도 알려 드려요'),
+    compatNoCageLink: '내 케이지 등록 ›',
+    compatNoRule: sent('이 용품은 케이지와 따로 맞춰 볼 조건이 없어요'),
+    fixedNote: sent('판정은 입력한 값과 종별 기준을 비교한 결과예요'),
+    moreReasons: '그 밖에 {n}개',
+    yes: '예',
+    no: '아니오',
+  },
+  /** R5 C1 — L6 내 케이지(PRD US-010). 필드 라벨은 cage specSchema(시드)가 정한다. */
+  cage: {
+    title: '내 케이지',
+    basis: '내 케이지 기준',
+    edit: '수정',
+    register: '등록',
+    save: '저장',
+    delete: '등록 지우기',
+    deviceOnly: sent('이 기기에만 저장돼요'),
+    /** DR m-2 — L6 범위 밖 입력 안내. */
+    outOfRange: sent('입력할 수 있는 범위를 벗어났어요'),
+    backTo: '‹ {name}',
+    stepSpecCheck: '규격 확인',
+    stepNow: '지금 필요한 것',
+  },
+  /** R5 C1 — 반응(PRD US-015; 스펙33 §2.3). 숫자는 R5 미표시(키 없음). */
+  reaction: {
+    helpful: '도움됐어요',
+    recheck: '다시 확인해 주세요',
+    recheckThanks: sent('알려 주셔서 고마워요'),
+    like: '마음에 들어요',
   },
   /** UX §4 L5 — 프리렌더는 정적 폼만(판정은 클라이언트). */
   checkLayer: {
@@ -177,6 +238,7 @@ export const COPY = deepFreeze({
     submit: '판정하기',
     /** 스펙22 §4-4 — specSchema optional 필드 라벨 뒤 " · 선택". */
     optional: '선택',
+    unavailable: '지금은 판정할 수 없어요. 잠시 뒤 다시 열어 주세요',
   },
   /** UX §4 L7 · §5 — 가격·판매처 없음, "구매" 단어 없음. */
   product: {
@@ -184,17 +246,65 @@ export const COPY = deepFreeze({
     /** 스펙22 §4-2 — imageAsset 없을 때 대체 타일 라벨(브리프). */
     imagePending: '이미지 준비 중',
     reasonsTitle: 'WithSmall 추천 이유',
-    reasonSpecMet: '규격 충족',
-    reasonProfileMatch: '프로필 일치',
     findWithCondition: '이 조건으로 찾기',
+    /** R5 C1 — L7(스펙33 §5.4). 템플릿: {animal}·{name}(=용품명). */
+    reasonSpecRecommended: '{animal} 권장 규격 충족',
+    reasonSpecMinimum: '{animal} 최소 규격 충족',
+    reasonProfileTpl: '{name} 요구사항과 일치',
+    reasonCageOk: '내 케이지와 호환',
+    reasonCageCheck: '내 케이지 공간 조건 재확인',
+    reasonCageBelowMin: '내 케이지 조건에서 최소 요구 미충족',
+    likeAria: '마음에 들어요',
+    supplyBasisLink: '{name} 기준 보기 ›',
+    priceNote: sent('가격·판매처는 검색 결과에서 확인해요'),
   },
-  /** UX §4 L8 — /save 는 SPA 셸. */
+  /** UX §4 L8 — /save 는 SPA 셸. PRD US-025 고정 문구 3개 + R5 상태 문구(스펙33 §7). */
   save: {
     title: '이메일로 저장해 둘까요?',
     description: sent('선택한 동물과 준비 상태만 저장해요. 비밀번호 없이 메일의 링크로 확인해요.'),
     submit: '인증 메일 보내기',
     later: '나중에 할게요',
     noAds: sent('광고 메일은 보내지 않아요'),
+    emailLabel: '이메일 주소',
+    sending: '보내고 있어요',
+    sentTitle: '메일을 보냈어요',
+    sentBody: sent('메일의 링크를 누르면 저장이 끝나요. 링크는 15분 동안 한 번만 쓸 수 있어요.'),
+    notReceived: '메일이 오지 않았나요?',
+    resend: '다시 보내기',
+    resendWait: '{n}초 뒤 다시 보낼 수 있어요',
+    otherAddress: '다른 주소로 보내기',
+    errorFormat: sent('이메일 주소를 다시 확인해 주세요'),
+    errorNetwork: sent('지금은 보낼 수 없어요. 잠시 뒤 다시 시도해 주세요'),
+    confirmedTitle: '저장했어요',
+    confirmedBody: sent('다른 기기에서도 이메일 링크로 이어서 볼 수 있어요'),
+    mergedLocal: sent('이 기기의 준비 상태로 저장했어요'),
+    mergedServer: sent('저장해 둔 준비 상태를 불러왔어요'),
+    /** P1 MAJOR-1 — 로컬·서버 모두 비어 있는 기기에서 연결: 저장할 준비가 없음(빈 PUT 금지). */
+    connectedEmpty: sent('이 기기를 연결했어요. 아직 저장된 준비가 없어요. 준비하던 기기에서 메일을 다시 받아 링크를 열어 주세요'),
+    /** P1 MAJOR-1 — 보냄 화면: 링크는 이 기기에서 열어야 이 기기의 준비가 저장됨. */
+    sentSameDevice: sent('지금 이 기기에서 메일의 링크를 열어 주세요'),
+    expiredTitle: '링크를 쓸 수 없어요',
+    expiredBody: sent('링크는 15분 동안 한 번만 쓸 수 있어요. 다시 보내 드릴까요?'),
+    resendVerify: '인증 메일 다시 보내기',
+    signedInTitle: '이메일로 저장 중이에요',
+    signedInNote: sent('준비 상태가 자동으로 저장돼요'),
+    disconnect: '이 기기에서 연결 해제',
+    /** PRD US-025 SaveDot 툴팁·sr-only. */
+    dotTitle: '이메일로 저장 중',
+    summaryRemaining: '필수 {n}개 남음',
+    summaryCage: '내 케이지',
+    close: '닫기',
+    unavailable: sent('지금은 이메일로 저장할 수 없어요. 이 기기에는 그대로 남아 있어요'),
+    verifying: '확인하고 있어요',
+    /** SEC-3 M-1 — 매직링크 복귀 시 자동 verify 대신 명시 버튼. */
+    connectCta: '이 기기 연결하기',
+    /** DR M-3 — /save#t= 연결 화면 제목·본문(입력 화면 문구 재사용 금지). */
+    connectTitle: '이 기기를 연결할까요?',
+    /** 코드 리뷰 M4 — 연결(verify) 네트워크·5xx 실패. 토큰은 남아 있어 다시 누르면 된다. */
+    connectError: '지금은 연결할 수 없어요. 잠시 뒤 다시 눌러 주세요',
+    connectBody: sent('연결하면 저장해 둔 준비 상태와 이 기기의 준비 상태를 하나로 맞춰요. 직접 요청한 메일이 아니라면 연결하지 말고 닫아 주세요'),
+    /** SEC-3 M-1 — 마스킹 이메일(k***@e***.com)만. 토큰 규칙상 {name} 슬롯을 쓴다(formatCopy 허용 토큰). */
+    linkedAs: sent('{name}에 저장하고 있어요'),
   },
   /** PRD US-014 · 계획 §4. 의료 판단 없음 — "병원에 문의"까지. */
   vet: {
@@ -205,18 +315,45 @@ export const COPY = deepFreeze({
     nearbyLink: '인접 지역 보기',
     reportedBadge: '제보됨·확인 전',
     regionsTitle: '지역',
+    /** P5 레인 E — 필터 칩 줄 라벨(지역 칩 줄과 구분). */
+    filtersTitle: '조건',
+    /** P5 레인 E — ≤767 지역 칩 줄이 넘칠 때만 보이는 힌트. */
+    regionsMore: sent('옆으로 넘겨 보세요'),
     treats: '진료 동물',
     call: '전화',
     directions: '길찾기',
     night: '야간',
     emergency: '응급',
     visitNote: sent('방문 전에 진료 동물과 시간을 전화로 확인해 주세요'),
+    /** R5 C1 — /vet 페이지(스펙33 §5.8). 병원 제보는 /vet 하단 접힘 섹션(오케스트레이터 조정, K-6). */
+    all: '전체',
+    listTab: '목록',
+    mapTab: '지도',
+    mapAria: '지도',
+    mapHint: sent('지도에서 병원을 눌러 보세요'),
+    filterNoResult: sent('조건에 맞는 병원이 없어요'),
+    /** P3 — 필터 변경 시 결과 갱신 낭독(시각 표시 없음, sr-only live). */
+    filterUpdated: sent('조건에 맞는 병원 목록으로 바꿨어요'),
+    filterClear: '필터 지우기',
+    regionTitle: '{name} · 우리 동네 병원',
+    verifiedBadge: '전화 확인',
+    /** PRD US-013 빈 상태 "이 지역엔 아직 확인된 병원이 없어요 — 제보하기 / 인접 지역 보기"의 두 링크는 reportLink·nearbyLink. */
+    reportTitle: '이 지역에 병원을 알고 계세요?',
+    reportName: '병원명',
+    reportAddress: '주소',
+    reportTreats: '진료 동물',
+    reportPhone: '연락처',
+    reportSubmit: '제보 보내기',
+    reportThanks: sent('제보해 주셔서 고마워요. 확인한 뒤에 보여 드릴게요'),
+    reportError: sent('지금은 보낼 수 없어요. 잠시 뒤 다시 시도해 주세요'),
+    reportInvalid: sent('입력한 내용을 다시 확인해 주세요'),
   },
   supplies: {
     title: '용품으로 찾기',
     intro: sent('용품을 고르면 친구별 기준을 보여 드려요'),
     chooseAnimal: '어떤 친구가 쓰나요?',
     empty: sent('검수를 마친 용품 기준을 준비하고 있어요'),
+    aliasLine: sent('{alias}라고도 불러요'),
   },
   /** PRD US-001 — PLANNED 타입·잘못된 slug. */
   planned: {
@@ -231,6 +368,8 @@ export const COPY = deepFreeze({
     groupSmall: '소동물',
     groupParrot: '앵무새',
     home: '홈으로',
+    /** 레인 0(51_architect_persona_fix) — 404에서 병원 페이지로 잇는 링크 라벨. */
+    vetLink: '동네 병원 찾기',
   },
   setup: {
     itemsTitle: '포함 항목',
@@ -238,6 +377,10 @@ export const COPY = deepFreeze({
     /** estimatedRangeText 옆에 항상(K1). */
     priceNote: sent('참고 범위예요. 실제 가격은 판매처마다 달라요'),
     detailLink: '구성안 자세히 보기',
+    /** R5 C1 — USED_MIX + L3 전 안내(스펙33 §5.7). */
+    usedMixNote: sent('가진 물품을 알려 주면 새로 준비할 것만 보여 드려요'),
+    usedMixLink: '가진 물품 알려 주기 ›',
+    title: '{animal} · 처음 준비한다면',
   },
   credits: {
     title: '사진 출처',

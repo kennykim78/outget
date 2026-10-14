@@ -152,3 +152,43 @@ describe('schema guard', () => {
     expect(hits).toEqual([]);
   });
 });
+
+// R5 B1-1(계약 C-R5-2): 매직링크·세션·저장 스냅샷. 좌표·결제·IP/UA·지역 컬럼 0, 원문 토큰·세션 id 컬럼 0(해시만).
+describe('schema guard — R5 저장(C-R5-2)', () => {
+  const SAVE_MODELS: Record<string, string[]> = {
+    MagicLinkToken: ['tokenHash', 'email', 'createdAt', 'expiresAt', 'consumedAt'],
+    Session: ['sidHash', 'userId', 'createdAt', 'expiresAt', 'revokedAt', 'user'],
+    SaveSnapshot: ['userId', 'v', 'payload', 'updatedAt', 'user'],
+  };
+
+  it('(i) MagicLinkToken·Session·SaveSnapshot 은 계약 필드만 갖는다(+ User 관계)', () => {
+    for (const [name, expected] of Object.entries(SAVE_MODELS)) {
+      const fields = models.get(name);
+      expect(fields, name).toBeDefined();
+      expect([...(fields ?? [])].sort(), name).toEqual([...expected].sort());
+    }
+  });
+
+  it('(j) 저장 모델에 좌표·지역·결제·IP/UA·원문 토큰 필드가 없다(불변식 ④⑧)', () => {
+    const banned =
+      /lat|lng|longitude|coord|geo|gps|position|region|sigungu|address|postcode|zip|pay(?!load)|es(c)row|price|amount|settle|^ip$|ipAddress|^ua$|userAgent|^token$|^sid$|^sessionId$|password|phone/i;
+    const hits: string[] = [];
+    for (const name of Object.keys(SAVE_MODELS)) {
+      for (const f of models.get(name) ?? []) if (banned.test(f)) hits.push(`${name}.${f}`);
+    }
+    expect(hits).toEqual([]);
+    // 패턴 자체 점검: payload 는 허용, payment·payout 은 거부.
+    expect(banned.test('payload')).toBe(false);
+    expect(banned.test('paymentId')).toBe(true);
+  });
+
+  it('(k) MagicLinkToken·Session 의 PK 는 해시 컬럼이다(원문 저장 금지)', () => {
+    expect(SCHEMA).toMatch(/model MagicLinkToken \{[\s\S]*?tokenHash\s+String\s+@id/);
+    expect(SCHEMA).toMatch(/model Session \{[\s\S]*?sidHash\s+String\s+@id/);
+    expect(SCHEMA).toMatch(/model SaveSnapshot \{[\s\S]*?userId\s+String\s+@id/);
+  });
+
+  it('(l) User.passwordHash 는 nullable — 매직링크 사용자는 비밀번호 없음(D2·D20)', () => {
+    expect(SCHEMA).toMatch(/model User \{[\s\S]*?passwordHash\s+String\?/);
+  });
+});

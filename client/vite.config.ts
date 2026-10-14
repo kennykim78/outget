@@ -25,6 +25,7 @@ export default defineConfig({
       '@ws/engine': fromHere('../server/src/engine/index.ts'),
       '@ws/copy': fromHere('../server/src/prerender/copy.ts'),
       '@ws/events': fromHere('../server/src/shared/event-contract.ts'),
+      '@ws/forbidden-keys': fromHere('../server/src/shared/forbidden-keys.ts'),
     },
   },
   plugins: [

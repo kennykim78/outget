@@ -80,7 +80,7 @@ describe('prerender CLI', () => {
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 4 (+404), indexable 1, types 0']);
+    expect(r1.out).toEqual(['prerender — pages 6 (+404), indexable 1, types 0']);
     for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', 'credits/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
       expect(existsSync(join(out, f)), f).toBe(true);
     }
@@ -100,7 +100,7 @@ describe('prerender CLI', () => {
     const out = outDir();
     const r = await run(['--out', out], { SITE_ORIGIN: 'https://example.org', WS_INDEXABLE: '1' });
     expect(r.code).toBe(0);
-    expect(readFileSync(join(out, 'robots.txt'), 'utf8')).toBe('User-agent: *\nAllow: /\n\nSitemap: https://example.org/sitemap.xml\n');
+    expect(readFileSync(join(out, 'robots.txt'), 'utf8')).toBe('User-agent: *\nAllow: /\nDisallow: /save\n\nSitemap: https://example.org/sitemap.xml\n');
     expect(readFileSync(join(out, 'index.html'), 'utf8')).toContain('<link rel="canonical" href="https://example.org/">');
     // --site-origin 이 env 보다 우선, WS_INDEXABLE 이 '1' 이 아니면 Disallow
     const out2 = outDir();
@@ -109,13 +109,27 @@ describe('prerender CLI', () => {
     expect(readFileSync(join(out2, 'index.html'), 'utf8')).toContain('https://b.example/');
   });
 
+  it('G-4: VITE_NAVER_MAP_CLIENT_ID 가 있으면 /vet layout=map, 키 값은 어떤 산출물에도 0 / 없으면 list', async () => {
+    const KEY = 'ncpKeyValueShouldNeverLeak42';
+    const seedDir = tmp('seed');
+    writeSeedDir(seedDir, promoted());
+    const on = outDir();
+    expect((await run(['--out', on, '--seed-dir', seedDir], { VITE_NAVER_MAP_CLIENT_ID: KEY })).code).toBe(0);
+    expect(readFileSync(join(on, 'vet', 'index.html'), 'utf8')).toContain('data-ws-vet-layout="map"');
+    for (const f of walk(on)) expect(readFileSync(f, 'utf8'), f).not.toContain(KEY);
+    const off = outDir();
+    expect((await run(['--out', off, '--seed-dir', seedDir], { VITE_NAVER_MAP_CLIENT_ID: '  ' })).code).toBe(0);
+    expect(readFileSync(join(off, 'vet', 'index.html'), 'utf8')).toContain('data-ws-vet-layout="list"');
+    expect(readFileSync(join(off, 'vet', 'index.html'), 'utf8')).not.toContain('ws-vet-map');
+  });
+
   it('승격 시드 → types 1, 이어서 실시드로 재실행하면 이전 타입 페이지가 남지 않는다', async () => {
     const out = outDir();
     const seedDir = tmp('seed');
     writeSeedDir(seedDir, promoted());
     const r = await run(['--out', out, '--seed-dir', seedDir]);
     expect(r.err).toEqual([]);
-    expect(r.out).toEqual(['prerender — pages 17 (+404), indexable 14, types 1']);
+    expect(r.out).toEqual(['prerender — pages 19 (+404), indexable 14, types 1']);
     expect(existsSync(join(out, 'hamster', 'golden', 'supplies', 'cage', 'index.html'))).toBe(true);
     expect(existsSync(join(out, 'vet', '서울-마포구', 'index.html'))).toBe(true);
     const r2 = await run(['--out', out]);
@@ -133,7 +147,7 @@ describe('prerender CLI', () => {
     const fresh = outDir();
     const r1 = await run(['--out', fresh, '--seed-dir', seedDir, '--now', FIXTURE_LAST_FRESH]);
     expect(r1.err).toEqual([]);
-    expect(r1.out).toEqual(['prerender — pages 17 (+404), indexable 14, types 1']);
+    expect(r1.out).toEqual(['prerender — pages 19 (+404), indexable 14, types 1']);
     const stale = outDir();
     const r2 = await run(['--out', stale, '--seed-dir', seedDir, '--now', FIXTURE_FIRST_STALE]);
     expect(r2.err).toEqual([]);

@@ -9,6 +9,27 @@ export interface VetClinicRepository {
   findById(id: string): Promise<VetClinic | null>;
 }
 
+/**
+ * 사용자 제보 쓰기(US-013, C-R5-4, D15) — 저장만, 비노출. 기록은 status REPORTED·source USER_REPORT·좌표 없음으로 고정되며
+ *   목록·상세·프리렌더는 VERIFIED 만 보므로 운영자 전화 확인 전까지 어디에도 나오지 않는다.
+ */
+export interface VetReportRepository {
+  createReport(rec: VetReportRecord): Promise<void>;
+}
+
+export interface VetReportRecord {
+  id: string;
+  name: string;
+  region: string;
+  address: string;
+  phone: string;
+  treats: string[];
+}
+
+export function reportToStored(r: VetReportRecord): StoredVetClinic {
+  return { ...r, treats: [...r.treats], source: 'USER_REPORT', status: 'REPORTED' };
+}
+
 export function matchesQuery(c: StoredVetClinic, query?: VetQuery): boolean {
   if (query?.region && c.region !== query.region) return false;
   if (query?.q) {
@@ -19,7 +40,7 @@ export function matchesQuery(c: StoredVetClinic, query?: VetQuery): boolean {
   return true;
 }
 
-export class InMemoryVetClinicRepository implements VetClinicRepository {
+export class InMemoryVetClinicRepository implements VetClinicRepository, VetReportRepository {
   private readonly clinics: StoredVetClinic[];
 
   constructor(rows: StoredVetClinic[] = []) {
@@ -35,5 +56,14 @@ export class InMemoryVetClinicRepository implements VetClinicRepository {
   async findById(id: string): Promise<VetClinic | null> {
     const found = this.clinics.find((c) => c.id === id && isVetStatusListed(c.status));
     return found ? toPublicVet(found) : null;
+  }
+
+  async createReport(rec: VetReportRecord): Promise<void> {
+    this.clinics.push(reportToStored(rec));
+  }
+
+  /** 테스트 전용 — 저장 행 사본(비노출 포함). */
+  dump(): StoredVetClinic[] {
+    return this.clinics.map((c) => ({ ...c, treats: [...c.treats] }));
   }
 }

@@ -252,19 +252,63 @@ export function parseCcLicenseUrl(url: unknown): CcLicenseRef | null {
 export const PHOTO_USABLE_STATUSES = ['READY'] as const;
 
 /**
- * 사진 사용 가능(불변식 1, I01·I02·C6): status ∈ PHOTO_USABLE_STATUSES ∧ 허용 라이선스 ∧ 출처·https 원본 URL(점 있는 호스트)
+ * 사진 출처 코드 → 원본 URL 호스트 허용목록(SEC-2 M-1, R5 B3-1). 호스트는 정확 일치(소문자, 하위 도메인 와일드카드 없음).
+ *   이미지-소싱.md §1 의 무료 라이선스 출처 4종만. OWN·SELLER·AFFILIATE 는 사진(photos.json) 쪽 증빙 필드 규칙이
+ *   문서에 없어 사용 불가(fail-closed) — 규칙이 정해지면 여기·seed-exposure.mjs·validate-people.ts 를 함께 바꾼다.
+ *   scripts/lib/seed-exposure.mjs PHOTO_SOURCE_HOSTS · seed/validate-people.ts PHOTO_SOURCE_HOSTS 와 같다(패리티 테스트).
+ */
+export const PHOTO_SOURCE_HOSTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  WIKIMEDIA: Object.freeze(['commons.wikimedia.org', 'upload.wikimedia.org']),
+  UNSPLASH: Object.freeze(['unsplash.com', 'images.unsplash.com']),
+  PEXELS: Object.freeze(['www.pexels.com', 'pexels.com', 'images.pexels.com']),
+  PIXABAY: Object.freeze(['pixabay.com', 'cdn.pixabay.com']),
+});
+
+/** https://<authority>[/?#…] 의 authority(userinfo·포트 포함 원문). */
+const HTTPS_AUTHORITY = /^https:\/\/([^\s/?#]+)(?:[/?#]\S*)?$/;
+
+/**
+ * 원본 URL 이 출처 코드의 허용 호스트인가(M-1): https ∧ authority 가 허용 호스트와 정확히 같다
+ *   (userinfo '@'·포트·대문자·끝 점·백슬래시·퍼센트 인코딩은 authority 가 달라져 거부). 알 수 없는 출처 코드는 false.
+ */
+export function isPhotoSourceUrlAllowed(source: unknown, sourceUrl: unknown): boolean {
+  if (typeof source !== 'string' || typeof sourceUrl !== 'string') return false;
+  if (!Object.prototype.hasOwnProperty.call(PHOTO_SOURCE_HOSTS, source)) return false;
+  const m = HTTPS_AUTHORITY.exec(sourceUrl);
+  if (!m) return false;
+  return PHOTO_SOURCE_HOSTS[source].includes(m[1]);
+}
+
+/**
+ * CC BY-SA 를 쓸 수 있는 슬롯(L8, 이미지-소싱 §1 "히어로·합성 이미지에는 쓰지 않음, 원본 그대로 쓰는 카드에만").
+ *   허용목록 — 현재 장면 리스트의 카드 슬롯만. 새 슬롯(hero 등)은 목록에 추가되기 전까지 CC BY-SA 불가(fail-closed).
+ */
+export const CC_BY_SA_CARD_SLOT_RE = /^(?:intro-[1-9]|group-[a-z0-9]+(?:-[a-z0-9]+)*|review-side|l4-[a-z0-9]+(?:-[a-z0-9]+)*|vet-empty|done)$/;
+
+/** CC BY-SA 사진 배치 조건: 원본 그대로(modified === false) ∧ 카드 슬롯. 다른 라이선스는 true. */
+export function isCcBySaPlacementOk(p: { license?: unknown; slot?: unknown; modified?: unknown }): boolean {
+  if (p.license !== 'CC_BY_SA') return true;
+  return p.modified === false && typeof p.slot === 'string' && CC_BY_SA_CARD_SLOT_RE.test(p.slot);
+}
+
+/**
+ * 사진 사용 가능(불변식 1, I01·I02·I03·C6): status ∈ PHOTO_USABLE_STATUSES ∧ 허용 라이선스 ∧ 출처·https 원본 URL(점 있는 호스트)
  *   ·내려받은 날짜(달력상 YYYY-MM-DD) 기록 ∧ CC0 외엔 저작자
- *   ∧ CC_BY·CC_BY_SA 는 같은 종류의 creativecommons.org 증서 licenseUrl(M-3 — 없으면 표기 불가 → 사용 불가).
+ *   ∧ CC_BY·CC_BY_SA 는 같은 종류의 creativecommons.org 증서 licenseUrl(M-3 — 없으면 표기 불가 → 사용 불가)
+ *   ∧ 출처 코드별 원본 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 는 원본 그대로·카드 슬롯(L8).
  *   scripts/lib/seed-exposure.mjs isPhotoUsableRow 와 정확히 같은 판정(패리티 테스트).
  */
 export function isPhotoUsable(
-  p: Pick<PhotoRec, 'status' | 'license' | 'source' | 'sourceUrl' | 'downloadedAt' | 'author' | 'licenseUrl'>,
+  p: Pick<PhotoRec, 'status' | 'license' | 'source' | 'sourceUrl' | 'downloadedAt' | 'author' | 'licenseUrl'> &
+    Partial<Pick<PhotoRec, 'slot' | 'modified'>>,
 ): boolean {
   if (!(PHOTO_USABLE_STATUSES as readonly unknown[]).includes(p.status)) return false;
   if ((p.license === 'CC_BY' || p.license === 'CC_BY_SA') && parseCcLicenseUrl(p.licenseUrl)?.license !== p.license) return false;
   if (typeof p.license !== 'string' || !PHOTO_LICENSES.includes(p.license)) return false;
   if (!nonEmpty(p.source)) return false;
   if (typeof p.sourceUrl !== 'string' || !HTTPS_URL.test(p.sourceUrl)) return false;
+  if (!isPhotoSourceUrlAllowed(p.source, p.sourceUrl)) return false;
+  if (!isCcBySaPlacementOk(p)) return false;
   if (typeof p.downloadedAt !== 'string' || !ISO_DATE.test(p.downloadedAt) || isoDayNumber(p.downloadedAt) === null) return false;
   return p.license === 'CC0' || nonEmpty(p.author);
 }

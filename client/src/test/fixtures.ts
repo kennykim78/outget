@@ -25,6 +25,7 @@ export const golden: PublicAnimalType = {
 
 export function req(id: string, priority: Priority, name = id): PublicRequirement {
   return {
+    requirementId: `req-${id}`,
     animalTypeId: golden.id,
     supplyItemId: id,
     priority,

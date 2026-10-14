@@ -102,6 +102,58 @@ describe('createStorage', () => {
   });
 });
 
+describe('R5 금지 키 +12(C-R5-1)', () => {
+  const R5 = ['gps', 'geo', 'position', 'sigungu', 'postcode', 'zip', 'password', 'refresh', 'search', 'q', 'token', 'sid'];
+
+  it.each(R5)('"%s" — 깊은 위치·대문자여도 쓰기 throw, 백엔드 0', (k) => {
+    const backend = fakeBackend();
+    const s = createStorage(() => backend);
+    expect(() => s.set('ws.x', JSON.stringify({ v: 1, a: [{ b: { [k]: 1 } }] }))).toThrow();
+    expect(() => s.set('ws.x', JSON.stringify({ [k.toUpperCase()]: 'v' }))).toThrow();
+    expect(backend.length).toBe(0);
+  });
+
+  it('정확 일치만 — 이름에 포함된 정상 키(quote·sidebar·zipper·geometry·positionHint·searchable·tokenizer)는 통과', () => {
+    const s = createStorage(() => fakeBackend());
+    for (const k of ['quote', 'qty', 'sidebar', 'zipper', 'geometry', 'positionHint', 'searchable', 'tokenizer', 'refreshed', 'gpsless']) {
+      expect(() => s.set('ws.x', JSON.stringify({ [k]: 1 }))).not.toThrow();
+    }
+  });
+});
+
+describe('keys', () => {
+  it('ws.* 키만, 메모리 덮어쓰기·삭제 반영', () => {
+    const backend = fakeBackend();
+    backend.setItem('other.key', '1');
+    const s = createStorage(() => backend);
+    s.set('ws.a', '1');
+    s.set('ws.b', '2');
+    expect(s.keys().sort()).toEqual(['ws.a', 'ws.b']);
+    expect(s.keys('ws.a')).toEqual(['ws.a']);
+  });
+
+  it('메모리 모드: 백엔드 키 + 메모리 키, 메모리에서 지운 키는 제외', () => {
+    const backend = fakeBackend({
+      setItem: () => {
+        throw new Error('quota');
+      },
+    });
+    const s = createStorage(() => backend);
+    s.set('ws.mem', '1');
+    expect(s.keys()).toEqual(['ws.mem']);
+    s.remove('ws.mem');
+    expect(s.keys()).toEqual([]);
+  });
+
+  it('접근 자체가 throw 면 메모리 키만', () => {
+    const s = createStorage(() => {
+      throw new Error('denied');
+    });
+    s.set('ws.a', '1');
+    expect(s.keys()).toEqual(['ws.a']);
+  });
+});
+
 describe('hasForbiddenKey', () => {
   it('깊은 키 탐색', () => {
     expect(hasForbiddenKey({ a: { b: [{ c: 1 }] } })).toBe(false);

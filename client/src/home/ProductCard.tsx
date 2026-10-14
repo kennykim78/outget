@@ -1,10 +1,16 @@
-// 상품 카드(스펙22 §2.7). 이미지(운영자 자산 imageAsset 만) 또는 대체 타일 → 상품명 → 규격 한 줄 → "✓ 기준 충족" + ♡(비상호작용, D-7).
-//   가격·판매처·할인·별점·마스코트 없음. 카드 전체 링크 → L7 문서 이동(/{slug}/products/{id}, 23 D4).
+// 상품 카드(스펙22 §2.7). 이미지(운영자 자산 imageAsset 만) 또는 대체 타일 → 상품명 → 규격 한 줄 → "✓ 기준 충족". ♥ 는 링크 형제 button.ws-like(D-38, reaction/LikeToggle — 숫자 없음).
+//   가격·판매처·할인·별점·마스코트 없음. 카드 전체 링크(/{slug}/products/{id}) → app/layerLinks 가 L7 push(C-R5-5), JS 꺼짐이면 딥링크 문서.
 import type { PublicProduct } from '@ws/engine';
 import { COPY } from '@ws/copy';
+import LikeToggle from '../reaction/LikeToggle';
 import Glyph from '../ui/Glyph';
 
 const SAME_ORIGIN_ASSET = /^\/assets\/[A-Za-z0-9._/-]+$/;
+
+/** 운영자 자산(동일 출처 /assets/…)만 — 그 밖은 null(불변식 ①). */
+export function safeProductImage(asset: string | null): string | null {
+  return typeof asset === 'string' && SAME_ORIGIN_ASSET.test(asset) && !asset.includes('..') ? asset : null;
+}
 
 export interface ProductCardProps {
   product: PublicProduct;
@@ -16,7 +22,7 @@ export interface ProductCardProps {
 }
 
 export default function ProductCard({ product, href, specLine, glyph }: ProductCardProps) {
-  const img = typeof product.imageAsset === 'string' && SAME_ORIGIN_ASSET.test(product.imageAsset) && !product.imageAsset.includes('..') ? product.imageAsset : null;
+  const img = safeProductImage(product.imageAsset);
   return (
     <li className="ws-product" data-ws-id={`curatedProducts#${product.id}`}>
       <a href={href}>
@@ -35,11 +41,9 @@ export default function ProductCard({ product, href, specLine, glyph }: ProductC
             <Glyph kind="ready" />
             {COPY.product.badge}
           </span>
-          <span className="ws-heart" aria-hidden="true">
-            {'♡'}
-          </span>
         </span>
       </a>
+      <LikeToggle productId={product.id} />
     </li>
   );
 }

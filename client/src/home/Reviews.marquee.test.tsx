@@ -47,6 +47,27 @@ describe('Reviews marquee', () => {
   });
 });
 
+describe('Reviews marquee focus (WCAG 2.4.7·2.4.11)', () => {
+  it('두 행 모두 카드 링크 포커스 → inert 아닌 묶음 소속 + 행이 정적 배치(--focus)로 전환, 이탈 시 복귀', () => {
+    const list = Array.from({ length: 8 }, (_, i) => testimonial(i + 1));
+    render(<Reviews testimonials={list} types={[golden]} onAction={() => undefined} vetAvailable />);
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('.ws-marquee-row'));
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => {
+      const targets = Array.from(row.querySelectorAll<HTMLElement>('.ws-review-action'));
+      expect(targets.length).toBeGreaterThan(0);
+      for (const el of targets) {
+        if (el.tabIndex === -1) continue;
+        fireEvent.focus(el);
+        expect(el.closest('ul')?.hasAttribute('inert')).toBe(false);
+        expect(row.classList.contains('ws-marquee-row--focus')).toBe(true);
+      }
+      fireEvent.blur(targets[0], { relatedTarget: document.body });
+      expect(row.classList.contains('ws-marquee-row--focus')).toBe(false);
+    });
+  });
+});
+
 describe('K1', () => {
   it('병원 데이터 0 이면 VET 후기의 행동 링크 생략, 다른 행동은 유지', () => {
     const list = Array.from({ length: 4 }, (_, i) => testimonial(i + 1)); // linkedAction 순환에 VET 포함

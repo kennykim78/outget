@@ -1,15 +1,5 @@
 // 페이지 공통 조각(계획 §6-2) — head·헤더·푸터·규격 문장. 모든 시드 텍스트는 escapeHtml/escapeAttr 를 거친다.
-import {
-  optionLabel,
-  splitLabel,
-  type PublicAnimalType,
-  type RuleCond,
-  type SpecField,
-  type SpecRule,
-  type SpecSchema,
-  type SpecValue,
-  type WsPageData,
-} from '../../engine/index.js';
+import { PICK_PATH, naverMapSearchUrl, type PublicAnimalType, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { COPY, GLYPH } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h, jsonForScript } from '../html.js';
 import type { SiteModel } from '../project.js';
@@ -18,6 +8,8 @@ import { encodeSitemapPath } from '../sitemap.js';
 
 export interface PageContext {
   origin: string;
+  /** /vet 지도 레이아웃 예약(G-4) — 빌드 시 지도 키 "존재 여부"만. 키 값은 어디에도 싣지 않는다. */
+  vetMap?: boolean;
   route: RoutePlan;
   catalogUrl: string;
   /** 자산 이름 → 정제된 인라인 SVG(prerender/mascot.ts). 비어 있으면 마스코트 없이 렌더. */
@@ -72,7 +64,8 @@ export function renderHead(
 ): string {
   const { route, origin } = ctx;
   const canonical = urlOf(origin, route.canonicalPath);
-  const noindex = !route.indexable && route.canonicalPath === route.path;
+  // canonical 이 다른 비색인 라우트는 보통 canonical 로 신호를 넘긴다(D11). 예외: PICK 은 canonical / + noindex 둘 다(K1, 51 레인 A).
+  const noindex = !route.indexable && (route.canonicalPath === route.path || route.kind === 'PICK');
   const ld: unknown[] = [
     {
       '@context': 'https://schema.org',
@@ -128,13 +121,21 @@ export function navCurrent(route: Pick<RoutePlan, 'kind'>): NavCurrent {
 const cur = (on: boolean): string => (on ? ' aria-current="page"' : '');
 
 /** 스펙22 §2.1 — header.ws-header > a.ws-logo + a[data-ws-chip] + nav.ws-nav(≥768 표시, 현재 메뉴 aria-current). */
-export function renderHeader(type: Pick<PublicAnimalType, 'slug' | 'displayName'> | null, current: NavCurrent = null): string {
+export function renderHeader(
+  type: Pick<PublicAnimalType, 'slug' | 'displayName'> & { mascot?: string | null } | null,
+  current: NavCurrent = null,
+  ctx?: PageContext,
+): string {
   const caret = '<span class="ws-chip-caret" aria-hidden="true">▾</span>';
+  // React AnimalChip.tsx:27 과 같은 조건·톤: 선택된 타입이 있을 때만 sm 아바타(peach-soft). ctx 없으면 출력 0.
+  const avatar = type && ctx ? mascotAvatar(ctx, type.mascot, 'peach-soft', 'sm') : '';
+  // K1(51 레인 A ③): 칩은 JS 없이도 정적 /pick(홈 A 부모 + L1 정적 본문). 하이드레이션 후엔 client AnimalChip 이 L1 을 연다.
   const chip = type
-    ? `<a data-ws-chip href="${a(hrefOf(`/${type.slug}`))}">${h(type.displayName)} ${caret}</a>`
-    : `<a data-ws-chip href="/">${h(COPY.nav.chooseFriend)} ${caret}</a>`;
+    ? `<a data-ws-chip class="ws-chip ws-chip--selected" href="${PICK_PATH}">${avatar}<span class="ws-chip-name">${h(type.displayName)}</span> ${caret}</a>`
+    : `<a data-ws-chip class="ws-chip" href="${PICK_PATH}"><span class="ws-chip-name">${h(COPY.nav.chooseFriend)}</span> ${caret}</a>`;
   return [
     '<header class="ws-header">',
+    `<a class="ws-skip-link" href="#main">${h(COPY.nav.skipToMain)}</a>`,
     `<a class="ws-logo" href="/">${h(COPY.nav.logo)}</a>`,
     chip,
     '<nav class="ws-nav">',
@@ -200,15 +201,41 @@ export function imageTile(glyph: string | null | undefined): string {
   return `<span class="ws-tile" aria-hidden="true">${g}<span class="ws-tile-label">${h(COPY.product.imagePending)}</span></span>`;
 }
 
-/** 스펙22 §2.16 D-2 — 히어로·컨텍스트 헤더 인라인 마스코트(정제 SVG, aria-hidden). 자산 없으면 빈 디스크. */
-export function mascotAvatar(ctx: PageContext, asset: string | null | undefined, tone: 'brand-soft' | 'peach-soft'): string {
-  const svg = typeof asset === 'string' ? ctx.mascots.get(asset) : undefined;
-  return `<span class="ws-avatar ws-avatar--lg ws-avatar--${tone}" aria-hidden="true">${svg ?? ''}</span>`;
+/** 마스코트 자산 이름(client AnimalAvatar ASSET_RE 와 같은 규칙). */
+const MASCOT_ASSET_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** client AnimalAvatar IMG_PX 와 같은 표. */
+const AVATAR_PX = { lg: 96, md: 40, sm: 24, type: 56 } as const;
+export type AvatarSize = keyof typeof AVATAR_PX;
+
+/**
+ * 마스코트 아바타 — client/src/ui/AnimalAvatar.tsx 와 같은 마크업(O-1, 51 레인 A: 인라인 SVG D-2 결정을 뒤집음):
+ *   span.ws-avatar.ws-avatar--{size}.ws-avatar--{tone}[aria-hidden] > img[src=/mascots/{asset}.svg width height alt="" decoding=async].
+ *   리포 자산만(불변식 ①): 이름 형식 + 빌드 시 docs/design/mascots 에서 읽어 정제 통과한 자산(ctx.mascots)에 있을 때만 img. 없으면 빈 디스크.
+ */
+export function mascotAvatar(
+  ctx: PageContext,
+  asset: string | null | undefined,
+  tone: 'brand-soft' | 'peach-soft' | 'surface',
+  size: AvatarSize = 'lg',
+): string {
+  const ok = typeof asset === 'string' && MASCOT_ASSET_RE.test(asset) && ctx.mascots.has(asset);
+  const px = AVATAR_PX[size];
+  const img = ok ? `<img src="/mascots/${a(asset)}.svg" width="${px}" height="${px}" alt="" decoding="async">` : '';
+  return `<span class="ws-avatar ws-avatar--${size} ws-avatar--${tone}" aria-hidden="true">${img}</span>`;
 }
 
-export function mainOpen(ctx: PageContext, typeId?: string): string {
+/** 정적 레이어 닫기 링크(51 레인 A ⑥) — JS 없이 부모 문서로. 라벨은 기존 supplyLayer.close. */
+export function layerClose(parentPath: string): string {
+  return `<a class="ws-layer-close" href="${a(hrefOf(parentPath))}">${h(COPY.supplyLayer.close)}</a>`;
+}
+
+export function mainOpen(ctx: PageContext, typeId?: string, attrs: Readonly<Record<string, string>> = {}, extraClass?: string): string {
   const t = typeId !== undefined ? ` data-ws-type="${a(typeId)}"` : '';
-  return `<main class="ws-page" data-ws-route="${a(ctx.route.kind)}"${t}>`;
+  const extra = Object.entries(attrs)
+    .map(([k, v]) => ` ${k}="${a(v)}"`)
+    .join('');
+  const cls = extraClass ? `ws-page ${extraClass}` : 'ws-page';
+  return `<main id="main" class="${a(cls)}" data-ws-route="${a(ctx.route.kind)}"${t}${extra}>`;
 }
 
 /** 'YYYY-MM-DD' → 'YYYY.MM'(US-007 "마지막 검수 2026.09"). */
@@ -216,75 +243,97 @@ export function yearMonth(d: string | null | undefined): string | null {
   return typeof d === 'string' && /^\d{4}-\d{2}/.test(d) ? `${d.slice(0, 4)}.${d.slice(5, 7)}` : null;
 }
 
-// ── 규격 문장(시드 specSchema 라벨 + 규칙 값) ───────────────────
-//   enum 값은 engine optionLabel() 단일 헬퍼로만 표시(스펙22 §4-3) — 라벨 없는 값은 원시 코드로 내보내지 않는다.
-function fieldOf(schema: SpecSchema, key: string): SpecField | undefined {
-  return Array.isArray(schema?.fields) ? schema.fields.find((f) => f.key === key) : undefined;
-}
-
-/** 값 표시. enum 라벨이 없으면 null(호출부가 행·항목을 생략). */
-function valueLabel(f: SpecField | undefined, v: SpecValue): string | null {
-  if (f?.type === 'number' && typeof v === 'number') return `${v}${splitLabel(f.label).unit}`;
-  if (f?.type === 'enum') return optionLabel(f, v);
-  if (typeof v === 'boolean') return v ? '' : COPY.spec.none;
-  if (typeof v === 'string' && f === undefined) return null; // 스키마 밖 키의 문자열 값 = 원시 코드일 수 있음
-  return String(v);
-}
-
-function condText(schema: SpecSchema, c: RuleCond): string | null {
-  const f = fieldOf(schema, c.key);
-  const name = f ? splitLabel(f.label).base : c.key;
-  const raw = Array.isArray(c.value) ? c.value : [c.value];
-  const vals = raw.map((v) => valueLabel(f, v));
-  if (vals.some((v) => v === null)) return null;
-  const vs = vals as string[];
-  switch (c.op) {
-    case 'gte':
-      return `${name} ${vs[0]} ${COPY.spec.gte}`;
-    case 'lte':
-      return `${name} ${vs[0]} ${COPY.spec.lte}`;
-    case 'eq':
-      if (typeof raw[0] === 'boolean') return raw[0] ? name : `${name} ${COPY.spec.none}`;
-      return `${name} ${vs[0]}`;
-    case 'in':
-      return `${name} ${vs.join(' · ')}`;
-    case 'not_in':
-      return `${name} ${vs.join(' · ')} ${COPY.spec.notIn}`;
-    default:
-      return name;
-  }
-}
-
-/**
- * 규칙 → "바닥 가로 60cm 이상"(조건부면 "형태 철장일 때 — …").
- *   라벨 없는 enum 값이 규칙·when 어디에든 있으면 null — L4 조건 행을 숨긴다(스펙22 §4-3).
- */
-export function ruleText(schema: SpecSchema, r: SpecRule): string | null {
-  const main = condText(schema, r);
-  if (main === null) return null;
-  const whens = Array.isArray(r.when) ? r.when.map((c) => condText(schema, c)) : [];
-  if (whens.some((w) => w === null)) return null;
-  const when = whens.join(' · ');
-  return when ? `${when}${COPY.spec.when} — ${main}` : main;
-}
-
-/** 상품 규격 한 줄: "지름 30cm · 바닥면 통면 · 설치 스탠드". 라벨 없는 enum 필드·값 없는 필드는 생략. */
-export function specLine(schema: SpecSchema, values: Readonly<Record<string, SpecValue | undefined>>): string {
-  const parts: string[] = [];
-  for (const f of Array.isArray(schema?.fields) ? schema.fields : []) {
-    const v = values[f.key];
-    if (v === undefined) continue;
-    if (f.type === 'boolean') {
-      if (v === true) parts.push(splitLabel(f.label).base);
-      continue;
-    }
-    const shown = valueLabel(f, v);
-    if (shown === null) continue;
-    parts.push(`${splitLabel(f.label).base} ${shown}`);
-  }
-  return parts.join(' · ');
-}
+// ── 규격 문장 — 엔진 단일 소스(C-R5-8, D17). 기존 import 경로 호환용 re-export ──
+export { ruleText, specLine, chipSpecText } from '../../engine/index.js';
 
 export function externalLink(href: string, text: string): string {
   return `<a href="${a(href)}" target="_blank" rel="noopener noreferrer nofollow">${h(text)}</a>`;
 }
+
+// ── 병원 카드(G-4, 스펙33 §4 VetCard) — /vet·/vet/{region}·타입 홈 ④ 공용 ─────────────
+/**
+ * li.ws-vet: 병원명 → 확인 배지(verifiedAt 있을 때 "✓ 전화 확인 YYYY.MM") → 주소 → 전화번호 meta(DR m-5) → 진료 동물(노출 타입 표시명만, 원시 id 0)
+ *   + 야간·응급 칩(true 일 때만) → [전화](tel:) [길찾기](네이버 지도 웹 검색 — engine naverMapSearchUrl 단일 헬퍼, 새 창,
+ *   noopener noreferrer nofollow). 거리·좌표·"진료 가능" 단정 0(불변식 ⑤⑧). 검색어 = 병원명 + 주소(시드 텍스트).
+ */
+export function vetCard(v: PublicVet, typeNames: ReadonlyMap<string, string>, level: 2 | 3 = 3): string {
+  const flags = [v.night ? COPY.vet.night : '', v.emergency ? COPY.vet.emergency : ''].filter((x) => x !== '');
+  const treats = v.treats.map((id) => typeNames.get(id)).filter((x): x is string => typeof x === 'string');
+  const ym = yearMonth(v.verifiedAt);
+  const tel = v.phone.replace(/[^0-9+]/g, '');
+  return [
+    `<li class="ws-vet" data-ws-id="vetClinics#${a(v.id)}">`,
+    // P3 D10(axe heading-order): /vet 페이지는 h2(목록 위 h2 없음), 홈 B 레일은 h3 — client VetCard level prop 과 같게.
+    `<h${level}>${h(v.name)}</h${level}>`,
+    ym ? `<p class="ws-vet-badge">${glyphSpan('ready')}${h(COPY.vet.verifiedBadge)} ${h(ym)}</p>` : '',
+    `<p class="ws-vet-address">${h(v.address)}</p>`,
+    v.phone !== '' ? `<p class="ws-vet-phone">${h(v.phone)}</p>` : '',
+    treats.length ? `<p class="ws-vet-treats">${h(COPY.vet.treats)}: ${h(treats.join(' · '))}</p>` : '',
+    flags.length ? `<p>${flags.map((f) => `<span class="ws-chip">${h(f)}</span>`).join(' ')}</p>` : '',
+    '<p class="ws-vet-actions">',
+    // DR m-5: 버튼 라벨은 "전화"만(줄바꿈 방지), 번호는 접근 이름(aria-label)과 위 meta 줄에.
+    tel ? `<a class="ws-btn ws-btn--outline" href="tel:${a(tel)}" aria-label="${a(`${COPY.vet.call} ${v.phone}`)}" data-ws-action="vet-call">${h(COPY.vet.call)}</a>` : '',
+    `<a class="ws-btn ws-btn--outline" href="${a(naverMapSearchUrl(`${v.name} ${v.address}`))}" target="_blank" rel="noopener noreferrer nofollow" data-ws-action="vet-route">${h(COPY.vet.directions)}</a>`,
+    '</p>',
+    '</li>',
+  ]
+    .filter((x) => x !== '')
+    .join('\n');
+}
+
+/** 노출 병원 정렬: 지역 → 이름 → id(코드 포인트 비교, 결정론). */
+export function sortVets<T extends Pick<PublicVet, 'region' | 'name' | 'id'>>(vs: readonly T[]): T[] {
+  const cmp = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
+  return [...vs].sort((p, q) => cmp(p.region, q.region) || cmp(p.name, q.name) || cmp(p.id, q.id));
+}
+
+/** client home/SplitTitle.tsx 와 같은 마크업 — " — " 기준 제목/부제(구분 기호는 시각적으로 숨김). */
+export function splitTitle(text: string): string {
+  const i = text.indexOf(' — ');
+  if (i < 0) return `<span class="ws-split-title">${h(text)}</span>`;
+  return `<span class="ws-split-title">${h(text.slice(0, i))}</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">${h(text.slice(i + 3))}</span>`;
+}
+
+export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review';
+const RAIL_LIST_CLASS: Record<RailKind, string> = { need: 'ws-chips', bundle: 'ws-bundles', product: 'ws-products', vet: 'ws-vets', review: 'ws-reviews' };
+
+/**
+ * client ui/RailSection.tsx 와 같은 마크업(51 레인 A): section.ws-rail-section.ws-rail-section--{kind}[data-ws-section aria-labelledby]
+ *   > div.ws-rail-head(div.ws-rail-heading(h2#ws-sec-{id}-title.ws-t-section + p.ws-rail-sub) + div.ws-rail-tools(전체 › 링크만))
+ *   + ul.ws-rail.ws-{chips|bundles|products|vets|reviews}[role=list tabindex=0]. ‹ › 화살표는 넘칠 때만(하이드레이션 후) — 정적 0.
+ *   titleHtml 은 이미 이스케이프된 조각, items 는 li 조각들.
+ */
+export function railSection(o: {
+  id: string;
+  kind: RailKind;
+  titleHtml: string;
+  sub?: string | null;
+  more?: { label: string; href: string } | null;
+  attrs?: Readonly<Record<string, string>>;
+  items: readonly string[];
+}): string {
+  const titleId = `ws-sec-${o.id}-title`;
+  const extra = Object.entries(o.attrs ?? {})
+    .map(([k, v]) => ` ${k}="${a(v)}"`)
+    .join('');
+  const more = o.more ? `<a class="ws-rail-more ws-t-meta" href="${a(o.more.href)}">${h(o.more.label)}<span aria-hidden="true"> ›</span></a>` : '';
+  return [
+    `<section class="ws-rail-section ws-rail-section--${o.kind}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
+    '<div class="ws-rail-head">',
+    `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
+    `<div class="ws-rail-tools">${more}</div>`,
+    '</div>',
+    `<ul class="ws-rail ${RAIL_LIST_CLASS[o.kind]}" role="list" tabindex="0" aria-labelledby="${titleId}">`,
+    ...o.items,
+    '</ul>',
+    '</section>',
+  ].join('\n');
+}
+
+/** 레일 빈 상태 li(client li.ws-empty-li > p.ws-t-body.ws-muted). */
+export function emptyLi(text: string): string {
+  return `<li class="ws-empty-li"><p class="ws-t-body ws-muted">${h(text)}</p></li>`;
+}
+
+/** ProductCard ♡ 자리(스펙33 §2.4, D-38): 링크 형제 span, 하이드레이션 후 버튼으로 교체. 숫자 0(프리렌더). */
+export const LIKE_PLACEHOLDER = '<span class="ws-like" aria-hidden="true"><span class="ws-like-glyph" aria-hidden="true">♡</span></span>';

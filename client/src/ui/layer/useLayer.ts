@@ -1,39 +1,152 @@
-// 레이어 열기/닫기(UX v2.3.1 · 스펙22 §2.9). 한 번에 하나, 같은 URL 에 history.state.wsLayer 를 push → 뒤로 = 닫기.
-//   R4 SPA 레이어는 L1·L2 만(L3 은 L2 안 스텝). L4/L5/L7 은 R4 문서 이동 + 딥링크 StaticLayer(D4·D2).
+// 레이어 열기/닫기(UX v2.3.1 · 스펙22 §2.9 · 계약 C-R5-5 · 스펙33 §2.1). 화면에는 한 번에 하나.
+//   history 가 원본: 항목마다 state = {wsLayer, wsLayerProps, wsParent, wsDepth}.
+//   - open: 새 history 항목 push(레이어 위 레이어 = push, 뒤로 = 이전 레이어). url 을 주면 그 URL(L4·L5·L7·L8), 없으면 같은 URL(L1·L2).
+//   - close(✕·ESC·스크림): 스택 전체 닫기 — wsDepth 만큼 go(-n) 로 부모 항목에 돌아간다.
+//     부모 항목이 딥링크(depth 0)면 replaceState(wsParent) — 재로드 없음·history.length 불변(D-55).
+//   - popstate: 도착한 항목의 state 로 현재 레이어를 복원(없으면 닫힘).
+//   L3(L2 안)·L6(L5·L2 안)은 레이어가 아니라 스텝 — wsLayerProps.step.
 //   상태는 모듈 단일 저장소 — LayerHost 가 구독하고 popstate 를 연결한다(Provider 불필요).
 import { useSyncExternalStore } from 'react';
+import { captureMagicToken, hasMagicHash } from '../../save/magicLink';
 
-export type LayerKind = 'L1' | 'L2';
+export const LAYER_KINDS = ['L1', 'L2', 'L4', 'L5', 'L7', 'L8'] as const;
+export type LayerKind = (typeof LAYER_KINDS)[number];
 export type LayerProps = Record<string, unknown>;
 
+/** history 에 남기는 props 키(문자열만). 그 밖의 값(이메일·좌표 등)은 history 에 쓰지 않는다(불변식 ⑧). */
+const HISTORY_PROP_KEYS = ['typeId', 'itemId', 'productId', 'step'] as const;
+export type HistoryLayerProps = Partial<Record<(typeof HISTORY_PROP_KEYS)[number], string>>;
+
+export interface LayerHistoryState {
+  wsLayer: LayerKind;
+  wsLayerProps: HistoryLayerProps;
+  /** 레이어를 모두 닫았을 때의 페이지 경로. */
+  wsParent: string;
+  /** 부모 항목에서 몇 번 push 했는지(딥링크 항목 = 0). */
+  wsDepth: number;
+}
+
+export interface OpenOptions {
+  /** 이 레이어의 URL(L4 /{slug}/supplies/{item} · L5 /check/{item} · L7 /products/{id} · L8 /save). 없으면 현재 URL. */
+  url?: string;
+  /** push 대신 현재 항목 교체(같은 깊이). */
+  replace?: boolean;
+}
+
+export interface DeepLinkOptions {
+  /** 부모가 다른 문서면(예: /save → /{slug}) 닫을 때 location.replace — 그 외엔 replaceState. */
+  documentParent?: boolean;
+  /** 프리렌더 aside 의 data-ws-id(React 패널이 유지). */
+  wsId?: string | null;
+}
+
 export interface LayerControl {
-  open(kind: LayerKind, props?: LayerProps): void;
+  open(kind: LayerKind, props?: LayerProps, opts?: OpenOptions): void;
   close(): void;
 }
 
 export interface OpenLayer {
   kind: LayerKind;
   props: LayerProps;
+  /** 프리렌더 aside 의 data-ws-id(딥링크일 때만). */
+  wsId?: string | null;
 }
 
 type Listener = () => void;
 
+const WS_KEYS = ['wsLayer', 'wsLayerProps', 'wsParent', 'wsDepth'] as const;
+
 let current: OpenLayer | null = null;
-/** 이 저장소가 history 항목을 push 했는지(닫을 때 back 으로 되돌릴지). */
-let pushed = false;
+/** 현재 레이어가 서 있는 history 항목의 state(같은 탭 매직링크 해시 이동 때 다음 항목의 깊이·부모 계산용). */
+let currentState: LayerHistoryState | null = null;
+/** close() 가 go(-n) 을 부른 뒤 도착할 popstate 를 기다리는 중. */
+let closingAll = false;
+const CLOSING_SAFETY_MS = 1000;
+let closingTimer: ReturnType<typeof setTimeout> | null = null;
+/** back() 이 history.back() 을 부른 뒤 도착할 popstate 를 기다리는 중(더블탭 방지). */
+let backPending = false;
+let backTimer: ReturnType<typeof setTimeout> | null = null;
+function clearBackPending(): void {
+  backPending = false;
+  if (backTimer !== null) {
+    clearTimeout(backTimer);
+    backTimer = null;
+  }
+}
+/** 딥링크 부모가 다른 문서인지(이 문서 수명 동안). */
+let deepLinkDocumentParent = false;
+let deepLinkWsId: string | null = null;
 const listeners = new Set<Listener>();
+
+/** 문서 이동(다른 문서 부모). 테스트는 replace 를 바꿔 끼운다(jsdom location 은 교체 불가). */
+export const layerNav = {
+  replace(href: string): void {
+    window.location.replace(href);
+  },
+};
 
 function emit(): void {
   for (const l of listeners) l();
 }
 
-function historyState(): Record<string, unknown> {
-  const s: unknown = window.history.state;
-  return typeof s === 'object' && s !== null ? (s as Record<string, unknown>) : {};
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function hasLayerState(s: unknown): boolean {
-  return typeof s === 'object' && s !== null && typeof (s as { wsLayer?: unknown }).wsLayer === 'string';
+function sanitizeProps(props: LayerProps): HistoryLayerProps {
+  const out: HistoryLayerProps = {};
+  for (const k of HISTORY_PROP_KEYS) {
+    const v = props[k];
+    if (typeof v === 'string' && v !== '') out[k] = v;
+  }
+  return out;
+}
+
+/** history.state → 레이어 state(형식이 아니면 null). */
+export function readLayerState(s: unknown): LayerHistoryState | null {
+  if (!isRecord(s)) return null;
+  const kind = s.wsLayer;
+  if (typeof kind !== 'string' || !(LAYER_KINDS as readonly string[]).includes(kind)) return null;
+  if (typeof s.wsParent !== 'string' || !s.wsParent.startsWith('/')) return null;
+  const depth = s.wsDepth;
+  if (typeof depth !== 'number' || !Number.isInteger(depth) || depth < 0) return null;
+  const props = isRecord(s.wsLayerProps) ? sanitizeProps(s.wsLayerProps) : {};
+  return { wsLayer: kind as LayerKind, wsLayerProps: props, wsParent: s.wsParent, wsDepth: depth };
+}
+
+/** 레이어 키를 뺀 나머지 state(다른 코드가 쓴 값은 보존). 비면 null. */
+function stripLayerKeys(s: unknown): Record<string, unknown> | null {
+  if (!isRecord(s)) return null;
+  const rest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(s)) if (!(WS_KEYS as readonly string[]).includes(k)) rest[k] = v;
+  return Object.keys(rest).length > 0 ? rest : null;
+}
+
+function herePath(): string {
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+function fromState(s: LayerHistoryState): OpenLayer {
+  return s.wsDepth === 0 && deepLinkWsId !== null
+    ? { kind: s.wsLayer, props: { ...s.wsLayerProps }, wsId: deepLinkWsId }
+    : { kind: s.wsLayer, props: { ...s.wsLayerProps } };
+}
+
+/** 딥링크 항목(depth 0)에서 닫기: 부모 경로로 교체(재로드 없음) 또는 다른 문서면 location.replace. */
+function closeDeepLinkEntry(s: LayerHistoryState): void {
+  current = null;
+  currentState = null;
+  closingAll = false;
+  if (deepLinkDocumentParent) {
+    deepLinkDocumentParent = false;
+    deepLinkWsId = null;
+    emit();
+    layerNav.replace(s.wsParent);
+    return;
+  }
+  deepLinkWsId = null;
+  window.history.replaceState(stripLayerKeys(window.history.state), '', s.wsParent);
+  emit();
 }
 
 export const layerStore = {
@@ -46,40 +159,117 @@ export const layerStore = {
       listeners.delete(l);
     };
   },
-  /** 열기. 이미 열려 있으면 교체(history 항목 추가 없음 — 한 번에 하나). */
-  open(kind: LayerKind, props: LayerProps = {}): void {
-    if (current === null) {
-      window.history.pushState({ ...historyState(), wsLayer: kind }, '');
-      pushed = true;
-    } else {
-      window.history.replaceState({ ...historyState(), wsLayer: kind }, '');
-    }
+  /** 열기 — 기본 push(레이어 위 레이어도 push, 뒤로 = 이전 레이어). replace 면 같은 깊이 교체. */
+  open(kind: LayerKind, props: LayerProps = {}, opts: OpenOptions = {}): void {
+    const s = readLayerState(window.history.state);
+    const parent = s ? s.wsParent : herePath();
+    const depth = s ? s.wsDepth : 0;
+    const replace = opts.replace === true && s !== null;
+    const state: LayerHistoryState = {
+      wsLayer: kind,
+      wsLayerProps: sanitizeProps(props),
+      wsParent: parent,
+      wsDepth: replace ? depth : depth + 1,
+    };
+    const next = { ...(stripLayerKeys(window.history.state) ?? {}), ...state };
+    if (replace) window.history.replaceState(next, '', opts.url);
+    else window.history.pushState(next, '', opts.url);
+    closingAll = false;
     current = { kind, props };
+    currentState = state;
     emit();
   },
-  /** 닫기. 직접 push 한 항목이면 history.back() → popstate 에서 실제로 닫힌다(뒤로가기와 같은 경로). */
+  /** 딥링크 진입(프리렌더 레이어 URL·/save): 현재 항목을 depth 0 레이어 항목으로 교체(push 없음). */
+  initDeepLink(kind: LayerKind, props: LayerProps, parentPath: string, opts: DeepLinkOptions = {}): void {
+    deepLinkDocumentParent = opts.documentParent === true;
+    deepLinkWsId = opts.wsId ?? null;
+    const state: LayerHistoryState = { wsLayer: kind, wsLayerProps: sanitizeProps(props), wsParent: parentPath, wsDepth: 0 };
+    window.history.replaceState({ ...(stripLayerKeys(window.history.state) ?? {}), ...state }, '');
+    closingAll = false;
+    current = fromState(state);
+    currentState = state;
+    emit();
+  },
+  /** 문서 부팅 시 딥링크가 아니면: 이전 문서가 남긴 레이어 state 를 지운다(재로드 후 유령 레이어 방지). */
+  clearStaleState(): void {
+    if (readLayerState(window.history.state) !== null) {
+      window.history.replaceState(stripLayerKeys(window.history.state), '');
+    }
+  },
+  /** 닫기(스택 전체). push 한 항목이면 go(-depth) → popstate 에서 실제로 닫힌다(뒤로가기와 같은 경로). */
   close(): void {
-    if (current === null) return;
-    if (pushed && hasLayerState(window.history.state)) {
-      window.history.back();
+    if (current === null || closingAll) return; // 전체 닫기 진행 중 재호출(ESC 반복·더블탭) 무시
+    const s = readLayerState(window.history.state);
+    if (s === null) {
+      current = null;
+      currentState = null;
+      closingAll = false;
+      emit();
       return;
     }
-    current = null;
-    pushed = false;
-    emit();
-  },
-  /** popstate 처리: 레이어 상태가 없는 항목으로 돌아오면 닫는다. */
-  onPopState(e: PopStateEvent): void {
-    if (current !== null && !hasLayerState(e.state)) {
-      current = null;
-      pushed = false;
-      emit();
+    if (s.wsDepth === 0) {
+      closeDeepLinkEntry(s);
+      return;
     }
+    closingAll = true;
+    // popstate 가 끝내 오지 않아도 닫기가 영구히 막히지 않게 안전 해제.
+    if (closingTimer !== null) clearTimeout(closingTimer);
+    closingTimer = setTimeout(() => {
+      closingTimer = null;
+      closingAll = false;
+    }, CLOSING_SAFETY_MS);
+    window.history.go(-s.wsDepth);
+  },
+  /** 한 단계 뒤로(L6 스텝 [뒤로] 등). popstate 도착 전 재호출·전체 닫기 중 호출은 무시. */
+  back(): void {
+    if (backPending || closingAll) return;
+    backPending = true;
+    if (backTimer !== null) clearTimeout(backTimer);
+    backTimer = setTimeout(() => {
+      backTimer = null;
+      backPending = false;
+    }, CLOSING_SAFETY_MS);
+    window.history.back();
+  },
+  /** popstate: 도착한 항목의 state 로 복원. 전체 닫기 중 딥링크 항목에 도착하면 부모로 교체. */
+  onPopState(e: PopStateEvent): void {
+    clearBackPending();
+    const s = readLayerState(e.state);
+    if (closingAll && s !== null && s.wsDepth === 0) {
+      closeDeepLinkEntry(s);
+      return;
+    }
+    // 같은 탭 매직링크(/save#t=): 해시만 바뀐 state=null 항목 — 닫지 않는다. 토큰을 먼저 URL 에서 지우고(captureMagicToken),
+    //   그 항목을 L8 항목으로 교체(이전 레이어 위 1단 — 닫기 go(-n) 이 원래 부모로 돌아간다). 연결 화면 전환은 L8 이 구독으로(D1).
+    if (s === null && !closingAll && hasMagicHash()) {
+      captureMagicToken();
+      const state: LayerHistoryState = {
+        wsLayer: 'L8',
+        wsLayerProps: {},
+        wsParent: currentState?.wsParent ?? '/',
+        wsDepth: currentState ? currentState.wsDepth + 1 : 1,
+      };
+      window.history.replaceState({ ...(stripLayerKeys(window.history.state) ?? {}), ...state }, ''); // URL = captureMagicToken 이 이미 해시를 뗀 /save
+      current = current?.kind === 'L8' ? current : { kind: 'L8', props: {} };
+      currentState = state;
+      emit();
+      return;
+    }
+    closingAll = false;
+    const next = s ? fromState(s) : null;
+    currentState = s;
+    if (next === null && current === null) return;
+    current = next;
+    emit();
   },
   /** 테스트 전용 초기화. */
   resetForTest(): void {
     current = null;
-    pushed = false;
+    currentState = null;
+    closingAll = false;
+    clearBackPending();
+    deepLinkDocumentParent = false;
+    deepLinkWsId = null;
     emit();
   },
 };
@@ -90,7 +280,7 @@ export function useOpenLayer(): OpenLayer | null {
 }
 
 const control: LayerControl = {
-  open: (kind, props) => layerStore.open(kind, props),
+  open: (kind, props, opts) => layerStore.open(kind, props, opts),
   close: () => layerStore.close(),
 };
 

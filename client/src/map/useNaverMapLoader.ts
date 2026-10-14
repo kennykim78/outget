@@ -1,4 +1,4 @@
-// 네이버 지도 JS v3 SDK 동적 로더.
+// 네이버 지도 JS v3 SDK 동적 로더 — /vet 페이지(VetPage)에서만 호출된다(스펙33 §6, CSP 는 /vet 경로에만 SDK 호스트).
 // 불변식 ①(무크롤링): 이 훅은 네이버 지도 SDK 스크립트만 주입한다 —
 //   외부 사이트 본문/이미지를 가져오는 코드는 없다(허용된 지도 도메인 한정).
 // 키는 import.meta.env.VITE_NAVER_MAP_CLIENT_ID(env 전용) — 하드코딩 금지.
@@ -15,17 +15,23 @@ const NAVER_MAPS_SRC =
 // 중복 주입 방지를 위한 스크립트 식별자.
 const SCRIPT_ID = 'naver-maps-sdk';
 
+/** 빌드에 지도 키가 있는가(값은 노출하지 않는다). 없으면 /vet 은 목록 전용 — 지도 DOM·안내 문구 0. */
+export function hasMapKey(): boolean {
+  const k = import.meta.env.VITE_NAVER_MAP_CLIENT_ID;
+  return typeof k === 'string' && k.trim() !== '';
+}
+
 function isSdkReady(): boolean {
   return typeof window !== 'undefined' && !!window.naver?.maps;
 }
 
 /**
  * 네이버 지도 SDK를 동적으로 로드하고 상태를 반환한다.
- * - 키 미설정 → 'no-key' (앱 크래시 금지, 안내만)
+ * - 키 미설정 → 'no-key'(스크립트 주입 0, 호출부는 목록 전용 — 안내 문구 없음)
  * - 이미 로드됨 → 'ready' 재사용(중복 주입 안 함)
  */
-export function useNaverMapLoader(): MapLoadStatus {
-  const clientId = import.meta.env.VITE_NAVER_MAP_CLIENT_ID;
+export function useNaverMapLoader(enabled = true): MapLoadStatus {
+  const clientId = enabled && hasMapKey() ? (import.meta.env.VITE_NAVER_MAP_CLIENT_ID as string).trim() : undefined;
   const [status, setStatus] = useState<MapLoadStatus>(() => {
     if (!clientId) return 'no-key';
     if (isSdkReady()) return 'ready';
@@ -78,9 +84,12 @@ export function useNaverMapLoader(): MapLoadStatus {
     const script = document.createElement('script');
     script.id = SCRIPT_ID;
     script.async = true;
+    script.setAttribute('referrerpolicy', 'origin'); // SEC-3 I-1: 전역 no-referrer 여도 NCP 도메인 인증용 출처만(경로·쿼리 0) 보낸다.
     script.src = NAVER_MAPS_SRC + encodeURIComponent(clientId);
     script.addEventListener('load', handleReady);
     script.addEventListener('error', handleError);
+    // SDK 인증 실패(키·도메인 미등록)는 load 뒤 전역 콜백으로 온다 → 목록 전용 폴백.
+    (window as unknown as { navermap_authFailure?: () => void }).navermap_authFailure = handleError;
     document.head.appendChild(script);
 
     return () => {

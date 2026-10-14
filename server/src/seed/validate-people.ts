@@ -1,4 +1,4 @@
-// 사람·장소·사진 규칙 T01~T03·VC01·VC02·I01·I02 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
+// 사람·장소·사진 규칙 T01~T03·VC01·VC02·I01~I03 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
 import { PHOTO_USABLE_STATUSES, isoDayNumber, parseCcLicenseUrl } from '../engine/index.js';
 import { asRec, isIsoDate, isNonEmptyStr, isSlotRow } from './common.js';
 import type { Ctx } from './context.js';
@@ -10,6 +10,37 @@ export const REVIEWER_IMAGE_RE = /^\/assets\/reviewers\/[a-z0-9][a-z0-9-]*\.(web
 /** 대한민국 대략 경계(VC02). 병원 고정 주소 좌표만 — 사용자 위치는 어디에도 두지 않는다(불변식 8). */
 /** I01 사진 원본 URL — engine exposure.ts HTTPS_URL 과 같은 식(https + 점 있는 호스트). 패리티: seed.validate.test.ts. */
 export const PHOTO_SOURCE_URL_RE = /^https:\/\/[^\s/?#]+\.[^\s/?#]+(?:[/?#]\S*)?$/;
+/**
+ * I01 출처 코드 → 원본 호스트 허용목록(SEC-2 M-1, 세 번째 독립 구현) — engine PHOTO_SOURCE_HOSTS ·
+ *   scripts/lib/seed-exposure.mjs PHOTO_SOURCE_HOSTS 와 같다(패리티: engine.exposure.photo-host.test.ts).
+ *   OWN·SELLER·AFFILIATE 는 사진 증빙 필드 규칙이 문서에 없어 사용 불가(fail-closed, 오류로 보고).
+ */
+export const PHOTO_SOURCE_HOSTS: Readonly<Record<string, readonly string[]>> = {
+  WIKIMEDIA: ['commons.wikimedia.org', 'upload.wikimedia.org'],
+  UNSPLASH: ['unsplash.com', 'images.unsplash.com'],
+  PEXELS: ['www.pexels.com', 'pexels.com', 'images.pexels.com'],
+  PIXABAY: ['pixabay.com', 'cdn.pixabay.com'],
+};
+
+/** 원본 URL 호스트 문제(없으면 null): authority = 'https://' 뒤 첫 '/'·'?'·'#' 전까지 원문, 허용 호스트와 정확히 같아야 한다. */
+export function photoSourceHostIssue(source: unknown, sourceUrl: unknown): string | null {
+  if (typeof source !== 'string' || !Object.prototype.hasOwnProperty.call(PHOTO_SOURCE_HOSTS, source)) {
+    return `출처 ${JSON.stringify(source)} 는 사진에 쓸 수 없다 — ${Object.keys(PHOTO_SOURCE_HOSTS).join('/')} 만(OWN·SELLER·AFFILIATE 증빙 규칙 미정)`;
+  }
+  if (typeof sourceUrl !== 'string' || !sourceUrl.startsWith('https://')) return '원본 URL 은 https';
+  const tail = sourceUrl.slice('https://'.length);
+  const cut = tail.search(/[/?#]/);
+  const authority = cut < 0 ? tail : tail.slice(0, cut);
+  if (authority.includes('@')) return '원본 URL 에 userinfo(@) 금지';
+  if (!PHOTO_SOURCE_HOSTS[source].includes(authority)) {
+    return `${source} 원본 호스트는 ${PHOTO_SOURCE_HOSTS[source].join('|')} 만 (현재 ${JSON.stringify(authority)})`;
+  }
+  return null;
+}
+
+/** I03(L8) CC BY-SA 카드 슬롯 — 히어로·합성 금지, 원본 그대로 쓰는 카드만(이미지-소싱 §1). 패리티 테스트로 engine 과 같은 집합. */
+export const CC_BY_SA_SLOTS_RE = /^(?:intro-[1-9]|group-[a-z0-9]+(?:-[a-z0-9]+)*|l4-[a-z0-9]+(?:-[a-z0-9]+)*|review-side|vet-empty|done)$/;
+
 export const KR_BOUNDS ={ latMin: 33, latMax: 39, lngMin: 124, lngMax: 132 } as const;
 
 function checkTestimonials(ctx: Ctx): void {
@@ -71,6 +102,17 @@ function checkPhotos(ctx: Ctx): void {
     // engine isPhotoUsable 과 같은 엄격도(검증 통과 ↔ 노출 가능 일치 — 통과했는데 조용히 안 보이는 사진 금지).
     if (typeof rec.sourceUrl !== 'string' || !PHOTO_SOURCE_URL_RE.test(rec.sourceUrl)) {
       out.error('I01', 'photos', id, 'sourceUrl', '원본 URL 필요 — https 이고 점 있는 호스트(engine isPhotoUsable 과 같음)');
+    } else if (isNonEmptyStr(rec.source)) {
+      // M-1: 출처 코드 ↔ 원본 호스트 허용목록 + userinfo 거부(engine isPhotoSourceUrlAllowed 와 같음).
+      const hostIssue = photoSourceHostIssue(rec.source, rec.sourceUrl);
+      if (hostIssue) out.error('I01', 'photos', id, 'sourceUrl', hostIssue);
+    }
+    // I03(L8): CC BY-SA 는 원본 그대로(modified=false) 카드 슬롯에만 — 히어로·합성 결과물 동일 라이선스 공개 의무 회피.
+    if (rec.license === 'CC_BY_SA') {
+      if (rec.modified !== false) out.error('I03', 'photos', id, 'modified', 'CC_BY_SA 는 자르기·합성 없이 원본 그대로만(modified=false)');
+      if (typeof rec.slot !== 'string' || !CC_BY_SA_SLOTS_RE.test(rec.slot)) {
+        out.error('I03', 'photos', id, 'slot', `CC_BY_SA 는 원본을 쓰는 카드 슬롯에만 — 히어로·합성 슬롯 금지 (현재 ${JSON.stringify(rec.slot)})`);
+      }
     }
     if (isoDayNumber(rec.downloadedAt) === null) out.error('I01', 'photos', id, 'downloadedAt', '내려받은 날짜 필요(달력상 YYYY-MM-DD)');
     if (rec.license !== 'CC0' && !isNonEmptyStr(rec.author)) out.error('I01', 'photos', id, 'author', 'CC0 외에는 저작자 기록 필요');

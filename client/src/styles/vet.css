@@ -1,0 +1,419 @@
+/* /vet · VetCard · VetMap(스펙33 §2.5 FilterChip · §4 VetCard · §5.8 · §6). 토큰 변수만, 그라디언트·그림자 0.
+   브레이크포인트: ≤1023 목록⇄지도 전환 · ≥1024 목록 + 지도 나란히(DR m-7). 프리렌더 /vet 마크업(li.ws-vet …)도 같은 규칙. */
+
+/* DR m-6: 목록 전용(지도 없음 — 프리렌더 data-ws-vet-layout=list · 런타임 폴백 동일)이면 본문 전체를 reading 폭 가운데로. */
+@media (min-width: 768px) {
+  main.ws-page[data-ws-vet-layout='list'] {
+    max-width: calc(var(--ws-modal-w) + 2 * var(--ws-gutter-wide));
+    margin-inline: auto;
+  }
+}
+
+/* 파생 토큰(스펙33 §1 D-33): 지도 없는 /vet 목록 최대 폭. tokens.css 는 생성 파일이라 여기서 범위 한정 정의. */
+.ws-vet-page,
+main.ws-page[data-ws-route='VET'],
+main.ws-page[data-ws-route='VET_REGION'] {
+  --ws-reading-w: var(--ws-modal-w);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+  padding-top: var(--ws-space-8);
+}
+
+.ws-vet-page h1,
+main.ws-page:is([data-ws-route='VET'], [data-ws-route='VET_REGION']) h1 {
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+  letter-spacing: var(--ws-type-title-tracking);
+}
+
+/* 지역 칩(링크) — 가로 스크롤, ≤767 full-bleed. */
+.ws-region-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--ws-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ws-region-chips::-webkit-scrollbar {
+  display: none;
+}
+.ws-region-chips > li {
+  flex: none;
+}
+.ws-region-chips a,
+.ws-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-4);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-cta-weight);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* 레인 E: 지역(이동, 채움 brand) vs 필터(토글, 연한 brand-soft) 선택 상태 분리. */
+.ws-region-chips a[aria-current='page'] {
+  background: var(--ws-brand);
+  border-color: var(--ws-brand);
+  color: var(--ws-on-brand);
+}
+.ws-filter-chip[aria-pressed='true'] {
+  background: var(--ws-brand-soft);
+  border-color: var(--ws-brand-text);
+  color: var(--ws-brand-text);
+}
+/* DR M-4: 선택 상태를 색만으로 말하지 않는다 — "✓" 접두(대체 텍스트 ""). */
+.ws-region-chips a[aria-current='page']::before,
+.ws-filter-chip[aria-pressed='true']::before {
+  content: '✓';
+  content: '✓' / '';
+  margin-right: var(--ws-space-1);
+}
+
+/* 칩 줄 라벨(지역 / 조건) + 가로 스크롤 힌트. */
+.ws-vet-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.ws-vet-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ws-space-2);
+}
+.ws-vet-row-label {
+  margin: 0;
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+  letter-spacing: var(--ws-type-label-tracking);
+  color: var(--ws-ink-muted);
+}
+.ws-vet-row-hint {
+  margin: 0;
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+  font-weight: var(--ws-type-meta-weight);
+  color: var(--ws-ink-muted);
+}
+.ws-vet-row-hint[hidden] {
+  display: none;
+}
+@media (max-width: 767px) {
+  .ws-region-chips {
+    margin-inline: calc(-1 * var(--ws-gutter-mobile));
+    padding-inline: var(--ws-gutter-mobile);
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: var(--ws-gutter-mobile);
+  }
+  .ws-region-chips > li {
+    scroll-snap-align: start;
+  }
+}
+@media (min-width: 768px) {
+  .ws-region-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .ws-vet-row-hint {
+    display: none;
+  }
+}
+
+.ws-vet-filters,
+.ws-vet-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-2);
+}
+
+.ws-vet-clear {
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-2);
+  background: none;
+  border: 0;
+  color: var(--ws-brand-text);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+  font-weight: var(--ws-type-label-weight);
+  cursor: pointer;
+}
+
+/* 목록: 페이지 안에서는 레일이 아니라 1열(app.css ul.ws-vets 레일 규칙을 이 범위에서만 덮는다). */
+.ws-vet-page ul.ws-vets,
+main.ws-page[data-ws-route^='VET'] ul.ws-vets {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--ws-space-3);
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ws-vet-page ul.ws-vets > li,
+main.ws-page[data-ws-route^='VET'] ul.ws-vets > li {
+  width: auto;
+}
+
+/* VetCard(공용 — 홈 B 레일 폭은 app.css). */
+li.ws-vet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-4);
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-md);
+}
+li.ws-vet--selected {
+  border-color: var(--ws-line-strong);
+  background: var(--ws-brand-soft);
+}
+li.ws-vet :is(h2, h3) {
+  margin: 0;
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-cta-weight);
+}
+.ws-vet-name {
+  min-height: var(--ws-touch);
+  margin-block: calc((var(--ws-type-cta-lh) - var(--ws-touch)) / 2);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+li.ws-vet p {
+  margin: 0;
+}
+.ws-vet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  color: var(--ws-status-ready);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+}
+.ws-vet-address,
+.ws-vet-phone,
+.ws-vet-treats,
+.ws-vet-note,
+.ws-vet-hint {
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+.ws-vet-phone {
+  font-variant-numeric: tabular-nums;
+}
+.ws-vet-flags {
+  display: flex;
+  gap: var(--ws-space-1);
+}
+.ws-vet-flags .ws-chip,
+li.ws-vet .ws-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--ws-space-2);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-pill);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+}
+li.ws-vet .ws-vet-actions {
+  /* DR n-9: 레일(홈 B)에서 카드 높이가 달라도 버튼 줄은 카드 아래쪽에. (n-9′: li.ws-vet p 의 margin:0 보다 구체도 높게) */
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ws-space-2);
+}
+.ws-vet-actions > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-2);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-md);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  text-decoration: none;
+}
+
+.ws-vet-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.ws-vet-empty-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-4);
+}
+.ws-vet-empty-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+}
+
+/* 지도 — 로딩·미준비 블록은 bg-100 빈 상자(글자·스피너 0). */
+.ws-vet-map {
+  width: 100%;
+  min-height: 360px;
+  height: calc(100dvh - var(--ws-header-h) - var(--ws-tabbar-h) - 2 * var(--ws-touch) - var(--ws-space-8));
+  background: var(--ws-bg-100);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-md);
+  overflow: hidden;
+}
+.ws-vet-mapcol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+}
+
+/* 지도 없는 목록: 가운데 reading 폭. */
+.ws-vet-single {
+  width: 100%;
+  max-width: var(--ws-reading-w);
+  margin-inline: auto;
+}
+.ws-vet-page[data-ws-vet-layout='map'] .ws-vet-single {
+  max-width: none;
+}
+
+@media (min-width: 1024px) {
+  .ws-vet-grid {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    column-gap: var(--ws-col-gap);
+    align-items: start;
+  }
+  .ws-vet-grid .ws-vet-mapcol {
+    position: sticky;
+    top: calc(var(--ws-header-h) + var(--ws-space-6));
+  }
+  .ws-vet-grid .ws-vet-map {
+    height: calc(100dvh - var(--ws-header-h) - 2 * var(--ws-space-6));
+  }
+}
+
+/* 제보 — 하단 접힘 섹션. */
+.ws-vet-report {
+  border-top: 1px solid var(--ws-line);
+  padding-top: var(--ws-space-4);
+}
+/* DR n-6: 제보 섹션(페이지 마지막 블록) 아래 여백을 space-12 → space-6 으로(/vet 범위만, 푸터 전역 규칙은 그대로). */
+main.ws-page[data-ws-route^='VET'] ~ .ws-footer {
+  margin-top: var(--ws-space-6);
+}
+.ws-vet-report > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  list-style: none;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-label-weight);
+  cursor: pointer;
+}
+/* DR n-6: 펼침 표시 — 접힘 "›", 펼침 아래로 회전. */
+.ws-vet-report > summary::-webkit-details-marker {
+  display: none;
+}
+.ws-vet-report > summary::after {
+  content: '›';
+  content: '›' / '';
+  display: inline-block;
+  transition: transform var(--ws-motion);
+}
+.ws-vet-report[open] > summary::after {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-vet-report > summary::after {
+    transition: none;
+  }
+}
+.ws-vet-report-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  max-width: var(--ws-reading-w);
+  padding-top: var(--ws-space-3);
+}
+.ws-vet-report-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  margin: 0;
+}
+.ws-vet-report-field label,
+.ws-vet-report-treats legend {
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+}
+.ws-vet-report-field input {
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font: inherit;
+}
+.ws-vet-report-field input[aria-invalid='true'] {
+  border-color: var(--ws-status-fail);
+}
+.ws-vet-report-treats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ws-vet-report-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: var(--ws-touch);
+}
+.ws-vet-report-actions {
+  margin: 0;
+}
+.ws-vet-report-note--fail {
+  color: var(--ws-status-fail);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+.ws-vet-report-status {
+  margin: 0;
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+.ws-vet-report-status:empty {
+  display: none;
+}

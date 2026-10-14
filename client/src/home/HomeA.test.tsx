@@ -1,9 +1,12 @@
 // 홈 A(F4): ① 섹션 순서 [hero, reviews?, intro, start] + 후기 사다리 0/2/4/8 + reduced-motion ② /save 링크 0 ③ 금지어 0.
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COPY } from '@ws/copy';
 import App from '../App';
+import { nav } from '../animal/navigate';
+import { runPickHandler } from '../animal/pickHandler';
 import { NO_CAPTURE } from '../app/staticCapture';
-import { pageOf, testimonial } from '../test/fixtures';
+import { golden, pageOf, req, testimonial } from '../test/fixtures';
 import { layerStore } from '../ui/layer/useLayer';
 import { reviewLadder } from './Reviews';
 
@@ -94,6 +97,30 @@ describe('홈 A 섹션', () => {
     expect(layerStore.get()?.kind).toBe('L1');
   });
 
+  it('K1: 친구 선택 CTA 2개 = a[data-ws-action=pick-animal][href="/pick"] — 일반 클릭 L1(defaultPrevented), 수정 키·중클릭은 기본 동작', () => {
+    render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
+    const ctas = Array.from(document.querySelectorAll('main a[data-ws-action="pick-animal"][href="/pick"]'));
+    expect(ctas).toHaveLength(2);
+    expect(document.querySelectorAll('main button[data-ws-action="pick-animal"]')).toHaveLength(0);
+    // 접근 이름 유지(링크 역할).
+    expect(screen.getAllByRole('link', { name: COPY.homeA.heroCta })).toEqual(ctas);
+    for (const a of ctas) {
+      for (const mod of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
+        expect(fireEvent.click(a, mod)).toBe(true); // defaultPrevented=false
+        expect(layerStore.get()).toBeNull();
+      }
+      let ev: MouseEvent | null = null;
+      a.addEventListener('click', (e) => (ev = e as MouseEvent), { once: true });
+      act(() => {
+        fireEvent.click(a);
+      });
+      expect(ev).not.toBeNull();
+      expect((ev as unknown as MouseEvent).defaultPrevented).toBe(true);
+      expect(layerStore.get()?.kind).toBe('L1');
+      act(() => layerStore.resetForTest());
+    }
+  });
+
   it('소개: 모바일 세로 4장 article#ws-intro-1..4(제목·본문), ≥1024 sticky 목록 aria-expanded 하나', () => {
     const { unmount } = render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
     const ids = Array.from(document.querySelectorAll('[data-ws-section="intro"] article')).map((a) => a.id);
@@ -109,6 +136,80 @@ describe('홈 A 섹션', () => {
     fireEvent.click(heads[2]);
     expect(heads[2]).toHaveAttribute('aria-expanded', 'true');
     expect(heads[0]).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  describe('후기 행동 의도 보존', () => {
+    const specReq = (() => {
+      const r = req('cage-1', 'REQUIRED');
+      return { ...r, item: { ...r.item, specSchema: { fields: [{ key: 'w' }] } } } as unknown as typeof r;
+    })();
+    const page = () => pageOf('HOME', { testimonials: [1, 2, 4].map(testimonial), requirements: [specReq] });
+    // testimonial(1)=SPEC_CHECK · (2)=SETUP · (4)=CHECKLIST
+    const TARGETS: ReadonlyArray<[string, string]> = [
+      ['규격 확인해보기', '/hamster/golden/check/cage-1'],
+      ['처음 준비 구성안 보기', '/hamster/golden/setup'],
+      ['내 준비 확인해보기', '/hamster/golden'],
+    ];
+
+    function pickGolden(): void {
+      const d = screen.getByRole('dialog');
+      fireEvent.click(d.querySelector(`[data-ws-group="${golden.group}"]`) as Element);
+      fireEvent.click(screen.getByRole('dialog').querySelector(`[data-ws-type="${golden.id}"]`) as Element);
+    }
+
+    it.each(TARGETS)('동물 선택됨: "%s" → %s 로 바로 이동, L1 안 열림', (label, href) => {
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      render(<App page={page()} captured={NO_CAPTURE} storedTypeId={golden.id} />);
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
+      expect(assign).toHaveBeenCalledWith(href);
+      expect(layerStore.get()).toBeNull();
+      assign.mockRestore();
+    });
+
+    it.each(TARGETS)('미선택: "%s" → L1 열림, 선택하면 %s 로 이동', (label, href) => {
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      render(<App page={page()} captured={NO_CAPTURE} />);
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
+      expect(layerStore.get()?.kind).toBe('L1');
+      expect(assign).not.toHaveBeenCalled();
+      pickGolden();
+      expect(assign).toHaveBeenCalledTimes(1);
+      expect(assign).toHaveBeenCalledWith(href);
+      expect(assign).not.toHaveBeenCalledWith('/hamster/golden/');
+      assign.mockRestore();
+    });
+
+    it('의도 없이 L1 에서 선택(히어로 CTA) → 기본 이동(typeHome) 정확히 1회', () => {
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      render(<App page={page()} captured={NO_CAPTURE} />);
+      fireEvent.click(document.querySelector('[data-ws-section="hero"] .ws-btn--fill') as Element);
+      expect(layerStore.get()?.kind).toBe('L1');
+      pickGolden();
+      expect(assign).toHaveBeenCalledTimes(1);
+      expect(assign).toHaveBeenCalledWith('/hamster/golden');
+      assign.mockRestore();
+    });
+
+    it('미선택: L1 을 선택 없이 닫으면 의도 폐기·핸들러 해제 — 이후 선택은 기본 이동(typeHome)', () => {
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      render(<App page={page()} captured={NO_CAPTURE} />);
+      fireEvent.click(screen.getByRole('button', { name: /구성안/ }));
+      expect(layerStore.get()?.kind).toBe('L1');
+      act(() => layerStore.resetForTest());
+      expect(assign).not.toHaveBeenCalled();
+      expect(runPickHandler(golden, 'picker')).toBe(false);
+      assign.mockRestore();
+    });
+
+    it('언마운트 시 핸들러 해제', () => {
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      const { unmount } = render(<App page={page()} captured={NO_CAPTURE} />);
+      fireEvent.click(screen.getByRole('button', { name: /구성안/ }));
+      unmount();
+      expect(runPickHandler(golden, 'picker')).toBe(false);
+      expect(assign).not.toHaveBeenCalled();
+      assign.mockRestore();
+    });
   });
 
   it('/save 링크 0 · 금지어 0 · 시작 배너 "가입 없이 바로 시작해요"', () => {

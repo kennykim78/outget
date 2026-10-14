@@ -39,6 +39,7 @@ function evaluateCompat(
   supplyItemId: string,
   input: SpecValues,
   ctx: UserContext | undefined,
+  unknown: 'CHECK' | 'SKIP' = 'CHECK',
 ): SpecCheckResult['compat'] {
   const reasons: Reason[] = [];
   const checkedRuleIds: string[] = [];
@@ -59,7 +60,8 @@ function evaluateCompat(
     const aSchema = cat.supplyItems.get(rule.a)?.specSchema ?? { fields: [] };
     const bSchema = cat.supplyItems.get(rule.b)?.specSchema ?? { fields: [] };
     const env = { a: sanitizeSpecValues(aSchema, aRaw ?? {}), b: sanitizeSpecValues(bSchema, bRaw ?? {}) };
-    checkedRuleIds.push(rule.id);
+    let decided = 0;
+    const ruleReasons: Reason[] = [];
 
     (Array.isArray(rule.rules) ? rule.rules : []).forEach((entry, i) => {
       let result: ReturnType<typeof evalExpr>;
@@ -69,10 +71,16 @@ function evaluateCompat(
         if (!(e instanceof ExprSyntaxError)) throw e;
         result = 'UNKNOWN';
       }
+      if (result === 'UNKNOWN' && unknown === 'SKIP') return;
+      decided++;
       if (result === true) return;
       const verdict: Verdict = result === false && entry.onFail === 'BELOW_MIN' ? 'BELOW_MIN' : 'CHECK';
-      reasons.push({ stage: 'COMPAT', kind: 'RULE', verdict, ruleId: `${rule.id}#${i}`, message: entry.message });
+      ruleReasons.push({ stage: 'COMPAT', kind: 'RULE', verdict, ruleId: `${rule.id}#${i}`, message: entry.message });
     });
+    // SKIP 모드에서 판정된 항목이 하나도 없으면 그 규칙은 확인하지 않은 것으로 본다(근거 없는 OK 방지).
+    if (unknown === 'SKIP' && decided === 0) continue;
+    checkedRuleIds.push(rule.id);
+    reasons.push(...ruleReasons);
   }
 
   if (checkedRuleIds.length === 0) return { verdict: 'NONE', reasons, checkedRuleIds };
@@ -108,6 +116,39 @@ export function specCheck(
     reasons: [...product.reasons, ...compat.reasons],
     alternatives: verdict === 'OK' ? [] : alternativesFor(cat, r),
   };
+}
+
+/**
+ * 최소 규격 제품 기준 호환(스펙33 G-2, K-4 가정): 이 동물의 요구사항 minSpec 에서 when 없는 gte·eq(단일 값) 기준값을
+ *   가상의 "최소 규격 제품" 입력으로 삼아 호환 단계만 계산한다(L4 서브카드·L2 △·홈 칩). 순수·결정적.
+ *   가상 입력에 없는 키 때문에 UNKNOWN 인 항목은 건너뛴다(최소 규격이 정하지 않은 속성은 판정 근거가 아님);
+ *   판정된 항목이 없는 규칙은 checkedRuleIds 에서 빠지고, 남은 규칙이 없으면 NONE.
+ *   상품 노출·순서에는 쓰지 않는다(불변식 ③). 요구사항 없음 → EngineLookupError.
+ */
+export function requirementCompat(
+  cat: EngineCatalog,
+  animalTypeId: string,
+  supplyItemId: string,
+  userContext?: UserContext,
+): SpecCheckResult['compat'] {
+  const r = resolveRequirement(cat, animalTypeId, supplyItemId);
+  if (!r) throw new EngineLookupError(`no requirement for ${animalTypeId} × ${supplyItemId}`);
+  return evaluateCompat(cat, r.careProfileId, supplyItemId, minSpecBaseline(r), userContext, 'SKIP');
+}
+
+/** minSpec 기준값 → 가상 입력. gte 는 같은 키 중 가장 큰 값(가장 엄격한 하한), eq 는 단일 값만. */
+export function minSpecBaseline(r: Pick<ResolvedRequirement, 'minSpec'>): SpecValues {
+  const out: Record<string, number | boolean | string> = {};
+  for (const rule of Array.isArray(r.minSpec?.rules) ? r.minSpec.rules : []) {
+    if (!rule || (Array.isArray(rule.when) && rule.when.length > 0) || Array.isArray(rule.value)) continue;
+    if (rule.op === 'gte' && typeof rule.value === 'number' && Number.isFinite(rule.value)) {
+      const prev = out[rule.key];
+      out[rule.key] = typeof prev === 'number' ? Math.max(prev, rule.value) : rule.value;
+    } else if (rule.op === 'eq' && !(rule.key in out)) {
+      out[rule.key] = rule.value;
+    }
+  }
+  return out;
 }
 
 export interface MinSpecResult {
@@ -167,6 +208,7 @@ export interface Engine {
   resolveRequirement(animalTypeId: string, supplyItemId: string): ResolvedRequirement | null;
   listResolvedRequirements(animalTypeId: string): ResolvedRequirement[];
   specCheck(animalTypeId: string, supplyItemId: string, input: SpecValues, userContext?: UserContext): SpecCheckResult;
+  requirementCompat(animalTypeId: string, supplyItemId: string, userContext?: UserContext): SpecCheckResult['compat'];
   /** animalType: id 또는 { displayName }. 알 수 없는 id → EngineLookupError. */
   buildSearchKeyword(animalType: string | Pick<AnimalTypeRec, 'displayName'>, r: ResolvedRequirement): string;
 }
@@ -177,6 +219,7 @@ export function createEngine(cat: EngineCatalog): Engine {
     resolveRequirement: (a, s) => resolveRequirement(cat, a, s),
     listResolvedRequirements: (a) => listResolvedRequirements(cat, a),
     specCheck: (a, s, input, ctx) => specCheck(cat, a, s, input, ctx),
+    requirementCompat: (a, s, ctx) => requirementCompat(cat, a, s, ctx),
     buildSearchKeyword: (a, r) => {
       if (typeof a !== 'string') return buildSearchKeyword(a, r);
       const at = cat.animalTypes.get(a);

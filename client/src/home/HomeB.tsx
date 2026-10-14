@@ -8,17 +8,23 @@ import { COPY, formatCopy } from '@ws/copy';
 import { useAnimalSelection } from '../animal/selection';
 import { productSpecLines } from '../app/staticText';
 import { deriveChecklist, type ItemState } from '../checklist/derive';
+import { useCageCompat } from '../checklist/cageCompat';
 import { useSetup } from '../checklist/setupStore';
+import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
 import { track } from '../events/track';
 import AnimalAvatar from '../ui/AnimalAvatar';
+import { useSaveLinked } from '../save/useSaveLinked';
+import { PICK_PATH, pickLinkClick } from '../shell/pickLink';
 import { copyAt, copyFmt } from '../ui/copyText';
 import RailSection from '../ui/RailSection';
 import BundleCard from './BundleCard';
-import NeedChip, { type NeedState } from './NeedChip';
+import NeedChip, { needChipSpec, type NeedState } from './NeedChip';
 import ProductCard from './ProductCard';
+import VetCard from '../vet/VetCard';
 
 const STATE_OF: Record<ItemState, NeedState> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
 // 칩 정렬(D-5): 미완료(! → △) → ✓. 같은 순위는 deriveChecklist 순서(orderHint → 입력 순서) 유지.
+const MAX_VETS = 20;
 const CHIP_RANK: Record<NeedState, number> = { first: 0, check: 1, later: 2, neutral: 2, ready: 3 };
 
 export interface HomeBProps {
@@ -27,9 +33,11 @@ export interface HomeBProps {
   capturedMain: string | null;
   onOpenL1(): void;
   onOpenL2(): void;
+  /** 저장 배너 텍스트 링크 → L8(진입점 1/2, 스펙33 §5.9). */
+  onOpenL8(): void;
 }
 
-export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: HomeBProps) {
+export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, onOpenL8 }: HomeBProps) {
   const { setup } = useSetup(type.id);
   const selection = useAnimalSelection(page.data.types);
   const answered = setup !== null && setup.answeredAt !== null;
@@ -43,7 +51,11 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: 
   }, [selection, type.id]);
 
   const reqs: PublicRequirement[] = useMemo(() => page.data.requirements.filter((r) => r.animalTypeId === type.id), [page.data.requirements, type.id]);
-  const view = useMemo(() => deriveChecklist(reqs, setup), [reqs, setup]);
+  // △(F2-3 · DR #38): 내 케이지가 있을 때만 엔진 requirementCompat(카탈로그 로드도 그때만) — ChecklistLayer 와 같은 경로.
+  const cageSchema = useMemo(() => reqs.find((r) => r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null, [reqs]);
+  const { cage } = useCage(type.id, { schema: cageSchema });
+  const compat = useCageCompat(type.id, reqs, page.catalogUrl, cage);
+  const view = useMemo(() => deriveChecklist(reqs, setup, compat ? { compat } : undefined), [reqs, setup, compat]);
   const requiredRows = view.groups.find((g) => g.priority === 'REQUIRED')?.rows ?? [];
 
   const chips = requiredRows
@@ -62,6 +74,8 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: 
   const alias = type.aliases[0] ? copyFmt('homeB.aliasLine', { alias: type.aliases[0] }) : null;
 
   const products = page.data.products; // ws-data 순서 그대로(재정렬 금지).
+  const vets = page.data.vets.slice(0, MAX_VETS); // ws-data 순서 그대로.
+  const typeNames = useMemo(() => new Map(page.data.types.map((t) => [t.id, t.displayName] as const)), [page.data.types]);
   const specLines = useMemo(() => productSpecLines(capturedMain), [capturedMain]);
   const itemOf = (supplyItemId: string) => reqs.find((r) => r.supplyItemId === supplyItemId)?.item;
 
@@ -93,11 +107,12 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: 
   const prev = copyAt('rail.prev');
   const next = copyAt('rail.next');
   const deviceOnly = copyAt('homeB.deviceOnly');
+  const linked = useSaveLinked();
   const doneTitle = copyAt('homeB.doneTitle');
   const doneCta = copyAt('homeB.doneCta');
 
   return (
-    <main ref={mainRef} className="ws-page ws-home-b" data-ws-route={page.route.kind} data-ws-type={type.id}>
+    <main id="main" ref={mainRef} className="ws-page ws-home-b" data-ws-route={page.route.kind} data-ws-type={type.id}>
       <section className="ws-context" data-ws-id={`animalTypes#${type.id}`} aria-labelledby="ws-context-title">
         <AnimalAvatar asset={type.mascot} size="lg" tone="peach-soft" alt="" />
         <h1 id="ws-context-title" className="ws-t-display">
@@ -105,9 +120,9 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: 
         </h1>
         {alias ? <p className="ws-t-meta ws-muted">{alias}</p> : null}
         {statusLine ? <p className="ws-t-body ws-muted ws-context-status">{statusLine}</p> : null}
-        <button type="button" className="ws-btn ws-btn--outline" data-ws-action="change-animal" onClick={onOpenL1}>
+        <a className="ws-btn ws-btn--outline" data-ws-action="change-animal" href={PICK_PATH} onClick={pickLinkClick(onOpenL1)}>
           {COPY.nav.changeFriend}
-        </button>
+        </a>
       </section>
 
       {/* ① 지금 필요한 것 */}
@@ -143,6 +158,7 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: 
                 itemId={row.requirement.supplyItemId}
                 name={row.requirement.item.name}
                 state={state}
+                spec={needChipSpec(row.requirement)}
                 href={encodeURI(`/${type.slug}/supplies/${row.requirement.item.id}`)}
               />
             ))
@@ -193,29 +209,53 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2 }: 
         )}
       </RailSection>
 
-      {/* ④ 우리 동네 병원 — R4 는 링크만 */}
-      <section className="ws-vet-link" data-ws-section="vet" aria-labelledby="ws-sec-vet-title">
-        <h2 id="ws-sec-vet-title" className="ws-t-section">
-          {COPY.homeB.vetTitle}
-        </h2>
-        <p>
-          <a className="ws-rail-more ws-t-meta" href="/vet">
-            {COPY.homeB.vetLink}
-            <span aria-hidden="true"> ›</span>
-          </a>
-        </p>
-      </section>
+      {/* ④ 우리 동네 병원 — ws-data.vets(서버가 treats∋타입·노출 병원 ≤20 으로 거름, D16) 레일 + /vet 링크. 0 이면 링크만. */}
+      {vets.length > 0 ? (
+        <RailSection
+          id="vet"
+          kind="vet"
+          title={COPY.homeB.vetTitle}
+          more={{ label: COPY.homeB.vetLink, href: '/vet' }}
+          prevLabel={prev}
+          nextLabel={next}
+        >
+          {vets.map((v) => (
+            <VetCard key={v.id} vet={v} typeNames={typeNames} />
+          ))}
+        </RailSection>
+      ) : (
+        <section className="ws-vet-link" data-ws-section="vet" aria-labelledby="ws-sec-vet-title">
+          <h2 id="ws-sec-vet-title" className="ws-t-section">
+            {COPY.homeB.vetTitle}
+          </h2>
+          <p>
+            <a className="ws-rail-more ws-t-meta" href="/vet">
+              {COPY.homeB.vetLink}
+              <span aria-hidden="true"> ›</span>
+            </a>
+          </p>
+        </section>
+      )}
 
       {/* ⑤ 저장 배너 — 채운 CTA 페이지 유일, /save 는 텍스트 링크 */}
       <section className="ws-band ws-band--save" data-ws-section="save" aria-labelledby="ws-save-title">
         <h2 id="ws-save-title" className="ws-t-title">
           {formatCopy(COPY.homeB.saveTitle, { animal: type.displayName })}
         </h2>
-        {deviceOnly ? <p className="ws-t-meta ws-muted">{deviceOnly}</p> : null}
+        {deviceOnly && !linked ? <p className="ws-t-meta ws-muted">{deviceOnly}</p> : null}
         <button type="button" className="ws-btn ws-btn--fill" onClick={onOpenL2}>
           {COPY.homeB.saveCta}
         </button>
-        <a className="ws-save-link ws-t-meta" href="/save">
+        <a
+          className="ws-save-link ws-t-meta"
+          href="/save"
+          onClick={(e) => {
+            // 진입점 1/2(home_band): L8 레이어(push, URL /save). href 는 JS 꺼짐·새 탭용 딥링크 문서.
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            onOpenL8();
+          }}
+        >
           {COPY.homeB.saveLink}
         </a>
       </section>

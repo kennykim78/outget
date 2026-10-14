@@ -9,6 +9,9 @@ import {
   checkProfileMinSpec,
   createCatalog,
   listResolvedRequirements,
+  minSpecBaseline,
+  requirementCompat,
+  resolveRequirement,
   specCheck,
 } from '../engine/index.js';
 import type {
@@ -178,5 +181,39 @@ describe('F9 golden REQUIRED search keywords', () => {
       ...specCheck(cat, G, 'water', {}).reasons,
     ].map((x) => x.message);
     for (const m of msgs) for (const re of banned) expect(m).not.toMatch(re);
+  });
+});
+
+describe('G-2 requirementCompat — 최소 규격 제품 기준(스펙33 K-4 가정, 현재 시드 수치 동작 고정)', () => {
+  const box35 = { ownedItems: { cage: { type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35 } } };
+  it('wheel 최소 기준값 = 지름 28 + 막힌 판', () => {
+    expect(minSpecBaseline(resolveRequirement(cat, G, 'wheel')!)).toEqual({ diameterCm: 28, surface: 'SOLID' });
+  });
+  it('LIVING_BOX h35 + wheel min 28 → CHECK via cr-wheel-cage#1(28+15>35), mount 미정 항목(#2)은 건너뜀', () => {
+    const c = requirementCompat(cat, G, 'wheel', box35);
+    expect(c.verdict).toBe('CHECK');
+    expect(c.checkedRuleIds).toEqual(['cr-wheel-cage']);
+    expect(ruleIds(c.reasons)).toEqual(['cr-wheel-cage#1']);
+  });
+  it('h45 → OK, h30 → BELOW_MIN(#0)', () => {
+    const at = (h: number) => requirementCompat(cat, G, 'wheel', { ownedItems: { cage: { ...box35.ownedItems.cage, heightCm: h } } });
+    expect(at(45).verdict).toBe('OK');
+    const low = at(30);
+    expect(low.verdict).toBe('BELOW_MIN');
+    expect(ruleIds(low.reasons)).toContain('cr-wheel-cage#0');
+  });
+  it('컨텍스트 없음 → NONE; 판정 가능한 항목이 없는 규칙(급수기 mount 미정)은 NONE', () => {
+    expect(requirementCompat(cat, G, 'wheel').verdict).toBe('NONE');
+    const water = requirementCompat(cat, G, 'water', box35);
+    expect(water).toEqual({ verdict: 'NONE', reasons: [], checkedRuleIds: [] });
+  });
+  it('결정적 — 같은 입력 같은 결과, 입력 불변', () => {
+    const ctx = JSON.parse(JSON.stringify(box35));
+    expect(requirementCompat(cat, G, 'wheel', ctx)).toEqual(requirementCompat(cat, G, 'wheel', ctx));
+    expect(ctx).toEqual(box35);
+  });
+  it('specCheck(minSpecBaseline) 와 같은 규칙에서 같은 BELOW_MIN/CHECK 이유(판정된 항목 한정)', () => {
+    const full = specCheck(cat, G, 'wheel', { ...minSpecBaseline(resolveRequirement(cat, G, 'wheel')!), mount: 'STAND' }, box35);
+    expect(ruleIds(full.compat.reasons)).toEqual(['cr-wheel-cage#1']);
   });
 });

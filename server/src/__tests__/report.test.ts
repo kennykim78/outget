@@ -7,28 +7,26 @@ const REFRESH_SECRET = 'test-refresh-secret-do-not-use-in-prod';
 process.env.JWT_ACCESS_SECRET = ACCESS_SECRET;
 process.env.JWT_REFRESH_SECRET = REFRESH_SECRET;
 
+// R5 D4: /api/reports 는 createApp 에서 언마운트(소스 유지). 이 스위트는 라우터를 직접 마운트해
+//   거버넌스 로직(즉시 블라인드·fail-closed 이의·운영자 복구/삭제)을 계속 잠근다. 언마운트 404 는 auth.test.ts.
 let app: Express;
-let repos: ReturnType<typeof import('../db/repos.js').makeInMemoryRepos>;
 
 beforeAll(async () => {
-  const { createApp } = await import('../app.js');
-  const { makeInMemoryRepos } = await import('../db/repos.js');
-  repos = makeInMemoryRepos();
-  app = createApp(repos);
+  const express = (await import('express')).default;
+  const { createReportRouter } = await import('../governance/report.routes.js');
+  const { InMemoryReportRepository } = await import('../governance/report.repo.js');
+  const { InMemoryNotificationRepository } = await import('../notification/notification.repo.js');
+  const { errorHandler } = await import('../middleware/error-handler.js');
+  app = express();
+  app.use(express.json());
+  app.use('/api', createReportRouter(new InMemoryReportRepository(), new InMemoryNotificationRepository()));
+  app.use(errorHandler);
 });
 
+// 이메일별 고정 sub 로 정상 서명 access 토큰(가입·로그인 경로 없이 — 역할만 시험 대상).
 async function tokenFor(email: string, role: string): Promise<string> {
-  if (role === 'OPERATOR') {
-    // register 는 role 을 무시(USER 고정) — OPERATOR 는 repo 로 직접 생성 후 로그인.
-    const { hashPassword } = await import('../auth/user.repo.js');
-    await repos.user.create(email, await hashPassword('pw-12345'), 'OPERATOR');
-    const login = await request(app).post('/auth/login').send({ email, password: 'pw-12345' });
-    return login.body.accessToken as string;
-  }
-  const reg = await request(app)
-    .post('/auth/register')
-    .send({ email, password: 'pw-12345', role });
-  return reg.body.accessToken as string;
+  const { signAccess } = await import('../auth/jwt.js');
+  return signAccess({ sub: `u-${email}`, role: role as 'USER' | 'OPERATOR' });
 }
 
 // 메시지 대상 신고 1건 생성 → report id.

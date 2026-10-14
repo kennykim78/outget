@@ -26,6 +26,8 @@ declare global {
       setZoom(zoom: number): void;
       getZoom(): number;
       getBounds(): LatLngBounds;
+      panTo(center: LatLng): void;
+      fitBounds(bounds: LatLngBounds): void;
       destroy(): void;
     }
 
@@ -48,6 +50,8 @@ declare global {
 
     // 지도 가시 영역(클러스터 컬링 등에 사용).
     class LatLngBounds {
+      constructor(sw: LatLng, ne: LatLng);
+      extend(latlng: LatLng): LatLngBounds;
       hasLatLng(latlng: LatLng): boolean;
       getMin(): LatLng;
       getMax(): LatLng;

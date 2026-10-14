@@ -326,14 +326,58 @@ model ReactionSignal {
   @@index([targetType, targetId, kind])
 }
 
-// 사용자 계정
+// 사용자 계정. R5(D2·D20): 매직링크 사용자는 verify 때 생성되고 비밀번호가 없다(passwordHash null).
+//   비밀번호 로그인은 OPERATOR 전용(D3, B1-4).
 model User {
-  id           String @id
-  email        String @unique
-  nickname     String @default("집사")
-  passwordHash String
-  role         String @default("USER")
-  createdAt    String @default("")
+  id           String  @id
+  email        String  @unique
+  nickname     String  @default("집사")
+  passwordHash String?
+  role         String  @default("USER")
+  createdAt    String  @default("")
+
+  sessions     Session[]
+  saveSnapshot SaveSnapshot?
+}
+
+// ─────────────────────────────────────────────────────────────
+// R5 저장(계약 C-R5-2, 결정 D1·D2·D5·D20) — 이메일 매직링크 + 불투명 세션 쿠키 + 검증된 스냅샷.
+//   원문 토큰·세션 id 는 저장하지 않는다(sha256 hex 만). 좌표·지역·IP·UA·결제 컬럼 0(불변식 ④⑧).
+//   시각은 ISO 문자열(toISOString, 사전순 = 시간순).
+// ─────────────────────────────────────────────────────────────
+
+// 1회용 15분 매직링크 토큰. User 는 아직 없을 수 있어(D20) email 텍스트만 갖는다.
+model MagicLinkToken {
+  tokenHash  String  @id // sha256(base64url 32B) hex
+  email      String // trim·NFKC·소문자 정규화
+  createdAt  String
+  expiresAt  String
+  consumedAt String?
+
+  @@index([email])
+}
+
+// 불투명 세션(ws_sid 쿠키, 90일). JWT 아님(D2).
+model Session {
+  sidHash   String  @id // sha256(base64url 32B) hex
+  userId    String
+  createdAt String
+  expiresAt String
+  revokedAt String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// 사용자당 저장 스냅샷 1개(SaveV1 검증 통과분 JSON). 병합은 클라이언트(D5).
+model SaveSnapshot {
+  userId    String @id
+  v         Int
+  payload   String // JSON SaveV1(≤32KB)
+  updatedAt String // 서버 수신 시각 ISO
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Auth — refresh 토큰 회전 추적(jti 단위 단건 활성/폐기).

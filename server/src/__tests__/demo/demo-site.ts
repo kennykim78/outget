@@ -13,7 +13,7 @@ import { loadMascots } from '../../prerender/mascot.js';
 import { buildSite } from '../../prerender/site.js';
 import { BODY_MARKER, HEAD_MARKER } from '../../prerender/template.js';
 import { mountSpa } from '../../middleware/spa.js';
-import { FIXTURE_AS_OF, promoted } from '../fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, V, promoted } from '../fixtures/prerender-seed.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..', '..', '..');
@@ -43,7 +43,7 @@ function parseArgs(argv: string[]): { out: string | null; port: number; now: str
   return a;
 }
 
-/** 메모리 확장: 후기 8건("[데모] 후기 자리 N")·병원 3건("[데모] 병원 N"). 실제 문장·병원 사실 창작 없음. */
+/** 메모리 확장: 후기 8건("[데모] 후기 자리 N")·병원 3건("데모 동물병원 N", 좌표·가짜 번호 02-000-0000), 호환 규칙 3건 승격. 실제 문장·병원 사실 창작 없음. */
 function demoSeed(): SeedBundle {
   const s = promoted();
   const base = s.testimonials.slice(0, 8);
@@ -55,18 +55,26 @@ function demoSeed(): SeedBundle {
     verifiedUsage: true,
     consentAt: '2026-09-26',
   }));
+  // R5 SD-2: 시드의 호환 규칙 3건(wheel/water/tubes ↔ cage)을 메모리에서만 VERIFIED 로 승격(디스크 시드 불변).
+  s.compatibilityRules = s.compatibilityRules.map((r) => ({ ...r, ...V }));
+  if (s.compatibilityRules.length < 3) throw new Error('demo: 호환 규칙이 3건 미만');
   const regions = ['서울 마포구', '서울 강남구', '서울 서초구'];
+  const coords: Array<[number, number]> = [
+    [37.5663, 126.9019],
+    [37.4979, 127.0276],
+    [37.4837, 127.0324],
+  ];
   s.vetClinics = regions.map((region, i) => ({
     id: `vc-demo-0${i + 1}`,
-    name: `[데모] 병원 ${i + 1}`,
+    name: `데모 동물병원 ${i + 1}`,
     region,
     treats: ['hamster-golden'],
-    night: null,
-    emergency: null,
-    phone: '[데모] 전화 자리',
-    address: '[데모] 주소 자리',
-    lat: null,
-    lng: null,
+    night: i === 1,
+    emergency: i === 2,
+    phone: '02-000-0000',
+    address: `[데모] ${region} 주소 자리`,
+    lat: coords[i][0],
+    lng: coords[i][1],
     verification: { status: 'VERIFIED', method: 'PHONE_CALL', verifiedAt: '2026-09-28', note: null },
   }));
   return s;

@@ -9,10 +9,13 @@ export interface RobotsInput {
 }
 
 const DISALLOW_ALL = 'User-agent: *\nDisallow: /\n';
+/** 색인 허용 시에도 막는 경로(R5 D11). */
+export const ROBOTS_DISALLOW: readonly string[] = ['/save'];
 
 export function buildRobots(input: RobotsInput = {}): string {
   if (input.indexable !== true) return DISALLOW_ALL;
   if (input.origin === undefined) throw new Error('robots: indexable 이면 origin 이 필요하다');
   const origin = normalizeOrigin(input.origin);
-  return `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`;
+  // R5 D11: /save(L8 매직링크 복귀)는 색인 허용 사이트에서도 크롤 제외.
+  return `User-agent: *\nAllow: /\n${ROBOTS_DISALLOW.map((p) => `Disallow: ${p}\n`).join('')}\nSitemap: ${origin}/sitemap.xml\n`;
 }
