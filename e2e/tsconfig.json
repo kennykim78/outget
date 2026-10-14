@@ -1,0 +1,13 @@
+{
+  // E2E 타입 검사 전용(npm run typecheck:e2e). 플레이라이트가 읽는 *.ts 는 CJS(루트 package.json type 없음),
+  // 서버 모듈을 import 하는 serve.mts·demo-seed.mts 는 ESM — NodeNext 가 파일별로 구분한다.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "**/*.mts", "../playwright.config.ts"]
+}

@@ -12,11 +12,17 @@
 //   M5 세대 — 연결·해제(이 탭·다른 탭 ws.save 변화)마다 gen+1. 응답 시 세대가 바뀌었으면 그 응답은 버린다.
 //      다른 탭이 해제 → 서버본 폐기·PUT 중지, 다시 연결 → 서버본을 새로 받은 뒤에만 PUT.
 //   M6 백오프 — PUT 이 네트워크·409·429·5xx 로 실패하면 5s·10s·20s·40s·80s 최대 5회 재시도(간격 상한 5분). lastSyncAt 은 성공 때만.
+//   R6 D1 — buildLocal 은 서버와 같은 검증기(@ws/save-validate)로 레코드 단위 사전 검증(무효 레코드는 버림, merge.ts sanitizeSnapshot).
+//      PUT 직전 fitSnapshot 으로 32KB·타입 20 상한에 맞춘다(tombstone → 반응 → 다른 동물 순으로 오래된 것부터). 다 잘라도 넘치면 PUT 0.
+//      맞춘 본문이 마지막 서버본과 같으면 보내지 않는다.
+//   R6 D2 (SEC-4 L-1(c)) 첫 PUT 보류 — link(verify 성공) 직후엔 GET·병합(서버 승 레코드 로컬 쓰기)까지만 하고 PUT 0,
+//      ws.save 도 아직 연결로 쓰지 않는다(구독 0 · 새로고침해도 PUT 0). 결과 {confirm:true} → L8 이 마스킹 주소 확인 화면을 띄우고
+//      [이 주소로 저장하기] → confirm() 에서 처음 연결 기록·구독·PUT. 로컬·서버 모두 빈 기기(empty)는 예전대로 바로 연결(PUT 0).
 import { track as defaultTrack } from '../events/track';
 import { wsStorage, type WsStorage } from '../lib/storage';
 import { fetchSaveApi, type SaveApi } from './api';
 import type { SaveMergeWinner, SaveStateV1, SaveV1 } from './contract';
-import { mergeSnapshots, type MergeResult } from './merge';
+import { fitSnapshot, mergeSnapshots, sanitizeSnapshot, type MergeResult } from './merge';
 import { defaultSlices, type SaveSlices } from './saveables';
 import { clearSaveState, readSaveState, subscribeSaveState, writeSaveState } from './saveStateStore';
 
@@ -51,9 +57,12 @@ function sameJson(a: unknown, b: unknown): boolean {
   return ka.every((k) => sameJson((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
-/** link 결과. linked.empty = 로컬·서버 모두 비어 있어 PUT 하지 않음(P1 MAJOR-1 — 확인 화면은 connectedEmpty). */
+/**
+ * link 결과. linked.empty = 로컬·서버 모두 비어 있어 PUT 하지 않음(P1 MAJOR-1 — 확인 화면은 connectedEmpty).
+ * linked.confirm = 첫 PUT 보류 중(R6 D2) — confirm() 전까지 연결 기록·구독·PUT 0.
+ */
 export type LinkOutcome =
-  | { kind: 'linked'; winner: SaveMergeWinner | null; maskedEmail?: string; empty?: true }
+  | { kind: 'linked'; winner: SaveMergeWinner | null; maskedEmail?: string; empty?: true; confirm?: true }
   | { kind: 'expired' }
   | { kind: 'error' };
 
@@ -71,6 +80,13 @@ export interface SaveSyncDeps {
 
 export interface SaveSync {
   link(token: string): Promise<LinkOutcome>;
+  /**
+   * R6 D2: 보류한 첫 저장을 사용자가 확인([이 주소로 저장하기]) — 연결 기록 → 구독 → PUT(필요 시). 반환 = 끝난 뒤 연결 상태.
+   * 보류 중이 아니면 네트워크 0, 지금 연결 상태만 돌려준다.
+   */
+  confirm(): Promise<boolean>;
+  /** 첫 저장 확인을 기다리는 중인지. */
+  isAwaitingConfirm(): boolean;
   resume(): Promise<void>;
   /** 부팅 1회: (이 기기가 연결 기록을 가질 때만) GET /auth/session → 연결이면 resume, 서버가 아니라 하면 로컬 해제. */
   boot(): Promise<void>;
@@ -119,15 +135,18 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
   let failures = 0;
   /** P1 MAJOR-1: 마지막 pullMerge 의 병합본이 비어 있었는지(로컬·서버 모두 저장 대상 0) — link 결과 표시용. */
   let lastPullEmpty = false;
+  /** R6 D2: 첫 PUT 보류 중(verify 성공 → 확인 화면 → confirm 전). */
+  let awaitingConfirm = false;
 
+  /** 로컬 스냅샷 — 서버 검증기로 레코드 단위 사전 검증(무효 레코드는 버림 — 동기화 정지 방지, R6 D1). */
   function buildLocal(): SaveV1 {
-    return {
+    return sanitizeSnapshot({
       v: 1,
       animalTypeId: slices.animalType.export(),
       setups: slices.setups.export(),
       cages: slices.cages.export(),
       reactions: slices.reactions.export(),
-    };
+    }).value;
   }
 
   function markSynced(): void {
@@ -151,6 +170,7 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
   function localUnlink(): void {
     stopSync();
     newGeneration();
+    awaitingConfirm = false;
     knownLinked = false;
     clearSaveState(storage);
   }
@@ -204,6 +224,18 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
   async function putWithBase(g: number, first: SaveV1): Promise<PutOutcome> {
     let snapshot = first;
     for (let attempt = 0; ; attempt++) {
+      // R6 D1: 32KB·타입 상한에 맞춘 사본만 보낸다. 다 잘라도 넘치면 보내지 않는다(같은 본문은 서버도 거절 — 재시도 0).
+      const fitted = fitSnapshot(snapshot);
+      if (fitted === null) {
+        failures = 0;
+        return 'fail';
+      }
+      snapshot = fitted;
+      // 맞춘 본문이 이미 서버에 있는 것과 같으면(잘린 부분만 다름) 보내지 않는다.
+      if (lastServer && sameJson(snapshot, lastServer)) {
+        succeeded();
+        return 'ok';
+      }
       const res = await api.putSave(snapshot, lastServerAt);
       if (g !== gen) return 'stale';
       if (res.status === 401) {
@@ -232,8 +264,11 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
     }
   }
 
-  /** GET → 병합 → 로컬 쓰기 → PUT(필요 시). null = 실패(네트워크·서버) 또는 그새 연결이 바뀜. */
-  async function pullMerge(retryOnFail: boolean): Promise<SaveMergeWinner | null> {
+  /**
+   * GET → 병합 → 로컬 쓰기 → PUT(필요 시). null = 실패(네트워크·서버) 또는 그새 연결이 바뀜.
+   * push=false(R6 D2 첫 PUT 보류) = GET·병합·로컬 쓰기까지만.
+   */
+  async function pullMerge(retryOnFail: boolean, push = true): Promise<SaveMergeWinner | null> {
     const g = gen;
     const got = await api.getSave();
     if (g !== gen) return null;
@@ -248,6 +283,7 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
     const m = applyServer(got.body.snapshot, got.body.updatedAt);
     // P1 MAJOR-1: 로컬·서버 모두 비어 있음(병합본 = 빈 스냅샷) → PUT 0(빈 행 생성 금지). 첫 로컬 변경 때 디바운스 PUT 이 행을 만든다.
     lastPullEmpty = isEmptySnapshot(m.merged);
+    if (!push) return m.winner;
     if (m.pushNeeded && !lastPullEmpty) {
       const o = await putWithBase(g, m.merged);
       return o === 'gone' || o === 'stale' ? null : m.winner;
@@ -266,7 +302,7 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
     }
     // 로컬 우선 병합: 서버 전용 레코드(다른 기기분)는 살리고, 같은 레코드는 시각이 같거나 로컬이 새것.
     const merged = mergeSnapshots(buildLocal(), lastServer).merged;
-    // NIT-2: 동기화 자신의 import(409 병합 등)가 건 디바운스 — 서버에 이미 있는 본문이면 보내지 않는다.
+    // NIT-2: 동기화 자신의 import(409 병합 등)가 건 디바운스 — 서버에 이미 있는 본문이면 보내지 않는다(크기 맞춤 후 비교는 putWithBase).
     if (lastServer && sameJson(merged, lastServer)) return;
     await putWithBase(g, merged);
   }
@@ -342,16 +378,48 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
     if (v.status !== 200) return { kind: 'error' };
     watch();
     newGeneration();
-    writeOwn({ linked: true, lastSyncAt: readSaveState(storage).lastSyncAt });
+    awaitingConfirm = false;
     deps.track('save_link_confirm', {});
     lastPullEmpty = false;
-    const winner = await serial(() => pullMerge(false));
+    const g = gen;
+    // R6 D2: GET·병합·서버 승 레코드 로컬 쓰기까지만 — PUT·연결 기록·구독은 확인(confirm) 뒤.
+    const winner = await serial(() => pullMerge(false, false));
+    if (g !== gen) return { kind: 'error' }; // GET 401(세션 없음) 또는 그새 다른 탭 연결·해제
     if (winner !== null) deps.track('save_merge', { winner });
-    if (readSaveState(storage).linked) start();
     const out: Extract<LinkOutcome, { kind: 'linked' }> = { kind: 'linked', winner };
     if (v.maskedEmail) out.maskedEmail = v.maskedEmail;
-    if (winner !== null && lastPullEmpty) out.empty = true;
+    if (winner !== null && lastPullEmpty) {
+      // P1 MAJOR-1 빈 기기: 보낼 것이 없다 — 예전대로 바로 연결(PUT 0, 첫 로컬 변경 때 디바운스 PUT).
+      writeOwn({ linked: true, lastSyncAt: readSaveState(storage).lastSyncAt });
+      markSynced();
+      start();
+      out.empty = true;
+      return out;
+    }
+    awaitingConfirm = true;
+    out.confirm = true;
     return out;
+  }
+
+  async function doConfirm(): Promise<boolean> {
+    if (!awaitingConfirm) return readSaveState(storage).linked;
+    awaitingConfirm = false;
+    writeOwn({ linked: true, lastSyncAt: readSaveState(storage).lastSyncAt });
+    start();
+    // 서버본을 받았으면 link 때와 같은 판정(로컬 기여 pushNeeded · 빈 병합본 PUT 0)으로 첫 PUT, 못 받았으면(GET 실패) GET 부터.
+    await serial(async () => {
+      if (!readSaveState(storage).linked) return;
+      const g = gen;
+      if (!pulled) {
+        const winner = await pullMerge(true);
+        if (winner !== null && g === gen) deps.track('save_merge', { winner });
+        return;
+      }
+      const m = mergeSnapshots(buildLocal(), lastServer);
+      if (m.pushNeeded && !isEmptySnapshot(m.merged)) await putWithBase(g, m.merged);
+      else succeeded();
+    });
+    return readSaveState(storage).linked;
   }
 
   /** 미전송 로그아웃 재시도. 서버가 받았거나(2xx) 이미 세션 없음(401)이면 기록 삭제. true = 끝남. */
@@ -382,6 +450,8 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
       inflightLinks.set(token, p);
       return p;
     },
+    confirm: () => doConfirm(),
+    isAwaitingConfirm: () => awaitingConfirm,
     resume() {
       if (!readSaveState(storage).linked) return Promise.resolve();
       if (unsubs.length > 0) return Promise.resolve();
@@ -438,6 +508,7 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
     async adopt() {
       watch();
       newGeneration();
+      awaitingConfirm = false; // [이 기기 연결하기] 클릭 = 사용자 확인
       writeOwn({ linked: true, lastSyncAt: null });
       await self.resume();
     },
@@ -445,6 +516,7 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
       stopSync();
       newGeneration();
       resumeOnRelink = false;
+      awaitingConfirm = false;
       // 먼저 "해제 중" 기록(이메일·토큰 0) — 요청이 실패하거나 탭이 닫혀도 다음 부팅에 다시 보낸다.
       writeOwn({ linked: false, lastSyncAt: null, pendingLogout: true });
       await retryLogout();

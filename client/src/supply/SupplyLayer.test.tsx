@@ -138,7 +138,7 @@ describe('L4 SupplyLayer', () => {
   it('머천트 버튼: 쿠팡 → 네이버 순서 고정, 새 창 nofollow, external_product_clicked{animalTypeId, supplyItemId, merchant}', () => {
     const d = openL4(pageWith([wheel()]));
     const links = Array.from(d.querySelectorAll('[data-ws-merchant]')) as HTMLAnchorElement[];
-    expect(links.map((a) => a.textContent)).toEqual([COPY.supplyLayer.findCoupang, COPY.supplyLayer.findNaver]);
+    expect(links.map((a) => a.textContent)).toEqual([`${COPY.supplyLayer.findCoupang} ${COPY.a11y.newWindow}`, `${COPY.supplyLayer.findNaver} ${COPY.a11y.newWindow}`]);
     for (const a of links) {
       expect(a).toHaveAttribute('target', '_blank');
       expect(a.getAttribute('rel')).toContain('nofollow');

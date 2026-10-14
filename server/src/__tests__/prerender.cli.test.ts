@@ -218,3 +218,55 @@ describe('prerender CLI', () => {
     expect(r.code).toBe(0);
   });
 });
+
+// R6 N-2: 운영(NODE_ENV=production) 프리렌더는 SITE_ORIGIN 폴백 없음 — canonical·sitemap 이 localhost 로 굽히지 않게.
+describe('R6 N-2 운영 SITE_ORIGIN 가드', () => {
+  const today = (): string => FIXTURE_AS_OF;
+
+  it('미설정·빈 값·localhost·loopback·http·경로 포함 → exit 2 + 변수명 SITE_ORIGIN, 산출물 0', async () => {
+    const bad: Array<Record<string, string>> = [
+      {},
+      { SITE_ORIGIN: '' },
+      { SITE_ORIGIN: '   ' },
+      { SITE_ORIGIN: 'http://localhost:3001' },
+      { SITE_ORIGIN: 'https://localhost' },
+      { SITE_ORIGIN: 'https://127.0.0.1:8443' },
+      { SITE_ORIGIN: 'https://[::1]' },
+      { SITE_ORIGIN: 'https://app.localhost' },
+      { SITE_ORIGIN: 'http://staging.example' },
+      { SITE_ORIGIN: 'https://staging.example/sub' },
+      { SITE_ORIGIN: 'not a url' },
+    ];
+    for (const env of bad) {
+      const out = outDir();
+      const r = await run(['--out', out], { NODE_ENV: 'production', ...env }, today);
+      expect(r.code, JSON.stringify(env)).toBe(2);
+      expect(r.err.join('\n'), JSON.stringify(env)).toMatch(/SITE_ORIGIN/);
+      expect(existsSync(join(out, 'prerender-manifest.json')), JSON.stringify(env)).toBe(false);
+    }
+    // --site-origin 도 같은 검사(env 가 유효해도 플래그가 우선).
+    const r = await run(['--out', outDir(), '--site-origin', 'http://localhost:3001'], { NODE_ENV: 'production', SITE_ORIGIN: 'https://ok.example' }, today);
+    expect(r.code).toBe(2);
+  });
+
+  it('https 공개 오리진 → 통과, canonical·sitemap 에 localhost 0건(끝 슬래시는 제거)', async () => {
+    const out = outDir();
+    const r = await run(['--out', out], { NODE_ENV: 'production', SITE_ORIGIN: 'https://staging.example/' }, today);
+    expect(r.err).toEqual([]);
+    expect(r.code).toBe(0);
+    const html = readFileSync(join(out, 'index.html'), 'utf8');
+    expect(html).toContain('https://staging.example/');
+    expect(html).not.toContain('https://staging.example//');
+    for (const f of walk(out).filter((p) => /\.(html|xml|txt)$/.test(p))) {
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/localhost:3001/);
+    }
+    const viaFlag = await run(['--out', outDir(), '--site-origin', 'https://www.example.kr'], { NODE_ENV: 'production' }, today);
+    expect(viaFlag.code).toBe(0);
+  });
+
+  it('비운영은 기존 의미 유지(미설정 → http://localhost:3001 기본값)', async () => {
+    const out = outDir();
+    expect((await run(['--out', out])).code).toBe(0);
+    expect(readFileSync(join(out, 'index.html'), 'utf8')).toContain('http://localhost:3001');
+  });
+});

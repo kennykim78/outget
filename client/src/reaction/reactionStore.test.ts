@@ -13,9 +13,9 @@ import {
 } from './reactionStore';
 
 /**
- * 서버 SaveV1 reactions 검증 규칙의 거울(server/src/save/validate.ts — 클라 eslint 가 server/ 직접 import 를 막아 복제):
- *   :12 MAX_REACTIONS 500 · :26 SLUG_RE(like 키) · :27 HELPFUL_KEY_RE · :28 ISO_RE + :105-108 iso()(Date.parse 유한) ·
- *   :186-203 reactions = exactKeys(like, helpful, updatedAt), record(..., MAX_REACTIONS, key, iso), updatedAt isoOrNull.
+ * 서버 SaveV1 reactions 검증 규칙의 거울(server/src/shared/save-validate.ts = 별칭 @ws/save-validate — 독립 복제본으로 교차 확인):
+ *   MAX_REACTIONS 500 · SLUG_RE(like 키) · HELPFUL_KEY_RE · ISO_RE + iso()(시각 유효) ·
+ *   saveV1() reactions = exactKeys(like, helpful, updatedAt), record(..., MAX_REACTIONS, key, iso), updatedAt isoOrNull.
  */
 function serverAcceptsReactions(r: unknown): boolean {
   const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -99,7 +99,7 @@ describe('reactionStore', () => {
     off();
   });
 
-  it('QA-M D2: 손상 레코드는 export 에서 빠지고, 결과는 서버 검증기 규칙(validate.ts reactions)을 통과한다', () => {
+  it('QA-M D2: 손상 레코드는 export 에서 빠지고, 결과는 서버 검증기 규칙(save-validate.ts reactions)을 통과한다', () => {
     const { storage, m } = memStorage();
     const T = '2026-10-02T00:00:00.000Z';
     m.set(

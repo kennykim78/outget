@@ -116,7 +116,10 @@ describe('홈 B 마크업 = React HomeB(빈 저장소)', () => {
     expect(main).toContain('<section class="ws-context" data-ws-id="animalTypes#hamster-golden" aria-labelledby="ws-context-title">');
     expect(main).toContain('<h1 id="ws-context-title" class="ws-t-display">');
     expect(main).toContain(`<a class="ws-btn ws-btn--outline" data-ws-action="change-animal" href="/pick">${COPY.nav.changeFriend}</a>`);
-    expect(main).toMatch(/<span class="ws-avatar ws-avatar--lg ws-avatar--peach-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="96" height="96" alt="" decoding="async"><\/span>/);
+    expect(main).toMatch(/<span class="ws-avatar ws-avatar--lg ws-avatar--peach-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="96" height="96" alt="" fetchpriority="high"><\/span>/);
+    // R6 F2b ②: LCP 마스코트는 이 하나뿐 — 페이지 전체에서 fetchpriority 1회, 헤더 칩 등 나머지는 decoding=async 유지.
+    expect(page.match(/fetchpriority=/g)).toHaveLength(1);
+    expect(page).toMatch(/<span class="ws-avatar ws-avatar--sm ws-avatar--peach-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="24" height="24" alt="" decoding="async"><\/span>/);
   });
 
   it('① ② ③ 레일 섹션 = RailSection 클래스, ① neutral 칩, ④ 링크 섹션, ⑤ 저장 배너', () => {

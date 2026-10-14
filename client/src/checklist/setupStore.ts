@@ -4,10 +4,17 @@
 //     (L2 열기만으로 레코드가 '새것'이 되지 않게 — 병합은 항목 단위라 updatedAt 을 판정에 쓰지 않는다, merge.ts).
 //   - 해제 = checks 에서 키 삭제 + uncheckedAt[id] = 해제 시각(tombstone). L3 재답변으로 빠지는 OWNED ✓ 도 같다.
 //     쓰기 시 정리(tidySetup): 같은 id 의 더 새 체크가 있으면 tombstone 제거, 90일 초과 제거, 200 상한 초과 시 오래된 것부터.
+//   - R6 D1 상한: checks·owned·uncheckedAt 각 ≤200(서버 검증기 @ws/save-validate MAX_CHECKS·MAX_OWNED·MAX_UNCHECKED 와 같은 값).
+//     초과 시 오래된 것부터 정리(checks = at 오래된 것, owned = 배열 앞쪽, uncheckedAt = 시각 오래된 것) — 넘친 레코드 1개로 PUT 전체가
+//     400 이 되어 동기화가 멈추지 않게.
+//   - R6 D2 reset tombstone(D23): reset 은 키 삭제가 아니라 '리셋 레코드'를 쓴다 — 모든 체크를 uncheckedAt=now 로 내리고
+//     answeredAt=now · firstTime null · owned [](= L3 건너뛰기와 같은 모양). 항목 단위 병합(merge.ts)에서 다른 기기의 옛 체크·답이
+//     되살아나지 않는다. 한계: 리셋 뒤 L3 를 다시 묻지 않는다(완전한 'L3 전' 리셋은 SetupV3 새 필드 = 서버 계약 변경이 필요).
 //   - PURCHASED = L4 [준비했어요](purchase).
 //   - 이벤트는 여기서 보내지 않는다(priority 등 문맥은 호출부 L2/L3/L4 가 안다).
 //   - Saveable(C-R5-9): createSetupSaveable — export/import/subscribe.
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import { MAX_CHECKS, MAX_OWNED, MAX_UNCHECKED } from '@ws/save-validate';
 import { FORBIDDEN_KEYS, isWsId, wsStorage, type WsStorage } from '../lib/storage';
 import type { ReadySource, Saveable, SavePayloads, SetupV2, SetupV3 } from '../save/contract';
 
@@ -38,6 +45,7 @@ export interface SetupHandle {
   toggle(itemId: string): void;
   /** L4 [준비했어요] — 미체크면 PURCHASED ✓, 이미 ✓ 면 그대로. */
   purchase(itemId: string): void;
+  /** 리셋 레코드를 쓴다(D23 tombstone — 키 삭제 아님). 레코드가 없으면 아무것도 안 한다. */
   reset(): void;
   /** 답 없이 시작(L3 건너뛰기) — setup 이 없을 때만 L3 전 상태(answeredAt null)로 만든다. */
   start(): void;
@@ -48,7 +56,10 @@ export interface SetupHandle {
 const SETUP_VERSION = 3;
 /** tombstone 보존 기간·상한(F 계약). */
 export const TOMBSTONE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
-export const TOMBSTONE_MAX = 200;
+export const TOMBSTONE_MAX = MAX_UNCHECKED;
+/** R6 D1: 클라 쓰기 상한(서버 검증기와 같은 값 — 단일 소스 @ws/save-validate). */
+export const SETUP_MAX_CHECKS = MAX_CHECKS;
+export const SETUP_MAX_OWNED = MAX_OWNED;
 const SETUP_PREFIX = 'ws.setup.';
 const READY_SOURCES: readonly ReadySource[] = ['OWNED', 'PURCHASED', 'UNKNOWN'];
 
@@ -132,9 +143,10 @@ const msOf = (t: string): number => {
  *   ① 같은 id 에 체크와 tombstone 이 함께 있으면 더 새 쪽만 남긴다(체크가 엄밀히 새것일 때만 체크, 동률 = 해제).
  *   ② now 가 주어지면 90일 초과 tombstone 제거(쓰기 시점만 — 병합은 시각 의존 없이 결정적).
  *   ③ 200 상한 초과 시 오래된 것부터 버린다(동률은 id 순).
+ *   ④ R6 D1: checks 200 상한(at 오래된 것부터, 동률 id 순) · owned 200 상한(배열 앞쪽 = 먼저 답한 것부터). 시각 무관 — 병합 결정적.
  */
 export function tidySetup(s: SetupV3, now?: string): SetupV3 {
-  const checks: SetupV3['checks'] = { ...s.checks };
+  const checks: SetupV3['checks'] = capChecks(s.checks);
   let tombs = Object.entries(s.uncheckedAt).filter(([id, t]) => {
     const c = Object.prototype.hasOwnProperty.call(checks, id) ? checks[id] : undefined;
     if (!c) return true;
@@ -153,7 +165,20 @@ export function tidySetup(s: SetupV3, now?: string): SetupV3 {
   }
   const uncheckedAt: Record<string, string> = {};
   for (const [id, t] of tombs.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) uncheckedAt[id] = t;
-  return buildV3({ ...s, checks }, uncheckedAt, s.updatedAt);
+  const owned = s.owned.length > SETUP_MAX_OWNED ? s.owned.slice(s.owned.length - SETUP_MAX_OWNED) : s.owned;
+  return buildV3({ ...s, owned, checks }, uncheckedAt, s.updatedAt);
+}
+
+const byId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** checks 200 상한 — 넘치면 at 이 새로운 것부터 남긴다(남은 항목의 원래 키 순서 유지). */
+function capChecks(c: SetupV3['checks']): SetupV3['checks'] {
+  const ids = Object.keys(c);
+  if (ids.length <= SETUP_MAX_CHECKS) return { ...c };
+  const keep = new Set([...ids].sort((a, b) => msOf(c[b].at) - msOf(c[a].at) || byId(a, b)).slice(0, SETUP_MAX_CHECKS));
+  const out: SetupV3['checks'] = {};
+  for (const id of ids) if (keep.has(id)) out[id] = c[id];
+  return out;
 }
 
 function normalizeV3(x: Record<string, unknown>): SetupV3 | null {
@@ -240,9 +265,9 @@ export function readSetup(storage: WsStorage, typeId: string): SetupV3 | null {
   return raw === null ? null : parseRaw(storage, key, raw);
 }
 
-/** 쓰기는 항상 v3 — v2 가 들어오면(테스트·이전 호출부) 승격해서 쓴다(uncheckedAt {}). */
+/** 쓰기는 항상 v3 — v2 가 들어오면(테스트·이전 호출부) 승격해서 쓴다(uncheckedAt {}). 상한(R6 D1)은 쓰기 시점에 다시 적용. */
 export function writeSetup(storage: WsStorage, typeId: string, s: SetupV2 | SetupV3): void {
-  const rec: SetupV3 = s.v === 3 ? s : buildV3(s, {}, s.updatedAt);
+  const rec: SetupV3 = tidySetup(s.v === 3 ? s : buildV3(s, {}, s.updatedAt));
   storage.set(setupKey(typeId), JSON.stringify(rec));
 }
 
@@ -317,6 +342,18 @@ export function applyPurchased(prev: SetupV3 | null, itemId: string, now: string
     },
     now,
   );
+}
+
+/**
+ * R6 D2 리셋(D23 tombstone): 모든 체크를 해제(uncheckedAt = now)하고 답을 '빈 답'(answeredAt = now, firstTime null, owned [])으로.
+ *   answeredAt = now 라서 답 단위 LWW 에서 다른 기기의 옛 답을 이기고, 항목 tombstone 이 옛 체크를 이긴다(merge.ts mergeSetup).
+ *   startedAt·reached100At 은 그대로(병합 규칙이 최솟값이라 지워도 되살아난다). prev 없음 = null(쓸 것 없음).
+ */
+export function applyReset(prev: SetupV3 | null, now: string): SetupV3 | null {
+  if (!prev) return null;
+  const uncheckedAt: SetupV3['uncheckedAt'] = { ...prev.uncheckedAt };
+  for (const id of Object.keys(prev.checks)) uncheckedAt[id] = now;
+  return tidySetup({ ...prev, firstTime: null, owned: [], answeredAt: now, checks: {}, uncheckedAt, updatedAt: now }, now);
 }
 
 /** REQUIRED 100% 도달 기록 — updatedAt 은 건드리지 않는다(F 계약: L2 열기만으로 레코드가 '새것'이 되지 않게). */
@@ -397,8 +434,8 @@ export function useSetup(typeId: string, opts: UseSetupOptions = {}): SetupHandl
       },
       reset: () => {
         if (!key) return;
-        storage.remove(key);
-        emit(key);
+        const next = applyReset(current(), nowIso());
+        if (next) commit(next);
       },
       start: () => {
         if (key && current() === null) commit(fresh(nowIso()));

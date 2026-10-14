@@ -15,6 +15,19 @@ describe('AnimalAvatar', () => {
       expect(container.querySelector('img')).toBeNull();
     }
   });
+
+  it('컨텍스트 헤더(lg·peach-soft)만 LCP 우선: fetchpriority=high, decoding 없음 — 다른 조합은 decoding=async 그대로(R6 F2b ②)', () => {
+    const { container, rerender } = render(<AnimalAvatar asset="hamster-golden" size="lg" tone="peach-soft" alt="" />);
+    const lcp = container.querySelector('img');
+    expect(lcp).toHaveAttribute('fetchpriority', 'high');
+    expect(lcp).not.toHaveAttribute('decoding');
+    for (const [size, tone] of [['lg', 'brand-soft'], ['sm', 'peach-soft'], ['md', 'peach-soft'], ['md', 'surface'], ['type', 'brand-soft']] as const) {
+      rerender(<AnimalAvatar asset="hamster-golden" size={size} tone={tone} alt="" />);
+      const img = container.querySelector('img');
+      expect(img).not.toHaveAttribute('fetchpriority');
+      expect(img).toHaveAttribute('decoding', 'async');
+    }
+  });
 });
 
 describe('Glyph', () => {

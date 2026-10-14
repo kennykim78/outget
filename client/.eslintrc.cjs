@@ -17,7 +17,7 @@ module.exports = {
         patterns: [
           {
             group: ['**/server/**', '**/server'],
-            message: '서버 모듈은 @ws/engine · @ws/copy · @ws/events · @ws/forbidden-keys 별칭으로만 import 하세요.',
+            message: '서버 모듈은 @ws/engine · @ws/copy · @ws/events · @ws/forbidden-keys · @ws/save-validate 별칭으로만 import 하세요.',
           },
         ],
       },

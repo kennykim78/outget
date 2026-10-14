@@ -27,6 +27,7 @@ import {
   type PageContext,
   type RenderedPage,
 } from './common.js';
+import { familyName } from './family.js';
 import { layerL4 } from './type.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
@@ -78,6 +79,18 @@ export const HOME_VETS_MAX = 20;
  */
 function homeVets(m: SiteModel): SiteModel['vets'] {
   return sortVets(m.vets).slice(0, HOME_VETS_MAX);
+}
+
+/**
+ * 홈 ws-data types(R6 G3b) — 노출 타입 전체 + 타입별 specCheckItemId: 노출 요구사항(t.requirements — 이미 엔진 순서
+ *   orderHint → priority → 시드 순) 중 specSchema.fields 가 있는 첫 항목 id. 요구사항 전체는 싣지 않는다(LCP·ws-data 크기).
+ *   없으면 키 없음(클라이언트는 /{slug} 폴백).
+ */
+function homeTypes(m: SiteModel): WsPageData['data']['types'] {
+  return m.types.map((t) => {
+    const r = t.requirements.find((x) => x.item.specSchema.fields.length > 0);
+    return r ? { ...t.pub, specCheckItemId: r.item.id } : t.pub;
+  });
 }
 
 /** 홈 A — ① 친구 선택 ② 실제 이용 후기(0개면 섹션 없음) ③ 소개 ④ 시작 배너. */
@@ -190,8 +203,14 @@ function homeParts(m: SiteModel, ctx: PageContext): { main: string[]; mainClass:
       '</section>',
     ].filter((x) => x !== ''),
     mainClass: 'ws-home-a',
-    data: { ...emptyData(), types: allTypes(m), vets, testimonials: m.testimonials },
+    data: { ...emptyData(), types: homeTypes(m), vets, testimonials: m.testimonials },
   };
+}
+
+/** 타입 카드 li — /pick(L1 정적 본문)·/{group} 공유 단일 헬퍼(56 G3 D4). */
+function typeCard(ctx: PageContext, t: TypeModel): string {
+  const alias = t.pub.aliases[0] ? `<span class="ws-t-meta ws-picker-muted">${h(formatCopy(COPY.homeB.aliasLine, { alias: t.pub.aliases[0] }))}</span>` : '';
+  return `<li><a class="ws-type-card" href="${a(hrefOf(`/${t.slug}`))}" data-ws-id="animalTypes#${a(t.id)}">${mascotAvatar(ctx, t.pub.mascot, 'brand-soft', 'type')}<span class="ws-t-cta">${h(t.pub.displayName)}</span>${alias}</a></li>`;
 }
 
 /**
@@ -200,10 +219,7 @@ function homeParts(m: SiteModel, ctx: PageContext): { main: string[]; mainClass:
  *   "잘 모르겠어요"(검색)는 JS 필요 — 정적으로는 별명 목록을 같은 링크로 보여 준다(후보 안내 문구 포함, 종 확정 아님).
  */
 export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
-  const card = (t: TypeModel): string => {
-    const alias = t.pub.aliases[0] ? `<span class="ws-t-meta ws-picker-muted">${h(formatCopy(COPY.homeB.aliasLine, { alias: t.pub.aliases[0] }))}</span>` : '';
-    return `<li><a class="ws-type-card" href="${a(hrefOf(`/${t.slug}`))}" data-ws-id="animalTypes#${a(t.id)}">${mascotAvatar(ctx, t.pub.mascot, 'brand-soft', 'type')}<span class="ws-t-cta">${h(t.pub.displayName)}</span>${alias}</a></li>`;
-  };
+  const card = (t: TypeModel): string => typeCard(ctx, t);
   const groups = ANIMAL_GROUPS.flatMap((g) => {
     const ts = m.types.filter((t) => t.pub.group === g);
     if (ts.length === 0) return [];
@@ -245,15 +261,21 @@ export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
   });
 }
 
-/** /{family} — 같은 첫 세그먼트를 쓰는 노출 타입 목록(D3). */
+/** /{family} — 그룹 표시명 h1 + 안내 + 같은 첫 세그먼트를 쓰는 노출 타입 카드(시드 순, 56 G3). */
 export function renderFamily(m: SiteModel, ctx: PageContext): RenderedPage {
   const ts = m.types.filter((t) => t.family === ctx.route.family);
-  const name = ts.map((t) => t.pub.displayName).join(' · ');
+  const name = familyName(ctx.route.family ?? '');
   return page(ctx, {
     title: `${name}${COPY.site.titleSuffix}`,
     description: COPY.site.description,
     crumbs: [HOME, { name, path: ctx.route.path }],
-    main: [`<h1>${h(name)}</h1>`, `<ul class="ws-types">`, ...ts.map(typeLink), '</ul>'],
+    main: [
+      `<h1>${h(name)}</h1>`,
+      `<p class="ws-t-body ws-family-intro">${h(COPY.group.intro)}</p>`,
+      '<ul class="ws-picker-grid ws-family-grid">',
+      ...ts.map((t) => typeCard(ctx, t)),
+      '</ul>',
+    ],
     data: { ...emptyData(), types: allTypes(m) },
   });
 }
@@ -335,7 +357,7 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
  */
 export function renderVet(m: SiteModel, ctx: PageContext): RenderedPage {
   const region = ctx.route.region;
-  const vets = region === undefined ? m.vets : m.vets.filter((v) => v.region === region);
+  const vets = sortVets(region === undefined ? m.vets : m.vets.filter((v) => v.region === region));
   const regions = [...new Set(m.vets.map((v) => v.region))].sort();
   const typeNames = new Map(m.types.map((t) => [t.id, t.pub.displayName]));
   const layout = ctx.vetMap === true ? 'map' : 'list';
@@ -428,8 +450,7 @@ export function renderNotFound(m: SiteModel, ctx: PageContext): RenderedPage {
       `<p>${h(COPY.notFound.body)}</p>`,
       '<ul class="ws-groups">',
       ...families.map((f) => {
-        const names = m.types.filter((t) => t.family === f).map((t) => t.pub.displayName).join(' · ');
-        return `<li><a href="${a(hrefOf(`/${f}`))}">${h(names)}</a></li>`;
+        return `<li><a href="${a(hrefOf(`/${f}`))}">${h(familyName(f))}</a></li>`;
       }),
       ...singles.map(typeLink),
       '</ul>',

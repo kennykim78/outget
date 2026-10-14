@@ -1,9 +1,25 @@
 // 레이어 호스트 — 저장소(useLayer)의 현재 레이어를 registry 로 찾아 <Layer> 안에 그린다. 한 번에 하나.
 //   popstate 를 연결한다(뒤로 = 이전 레이어 또는 닫기). 내용 컴포넌트가 throw 해도 페이지 전체가 무너지지 않게 레이어만 닫는다.
 //   내용은 React.lazy 일 수 있다(L5·L8 등 다른 레인 모듈) — Suspense 대기 중에도 레이어 껍데기(제목·✕)는 그대로.
-import { Component, Suspense, useEffect, type ComponentType, type ErrorInfo, type ReactNode } from 'react';
+//   document.title(R6 G1): 열리면 "<레이어 제목> — WithSmall"(프리렌더 titleSuffix 와 같은 형식), 스텝·setTitle 로 제목이 바뀌면 갱신,
+//   다 닫히면 연 직전 제목으로 복원. 딥링크(depth 0)로 시작한 레이어는 직전 제목이 레이어 자신의 프리렌더 제목이라 홈 제목으로 복원.
+import { Component, Suspense, useEffect, useLayoutEffect, useRef, type ComponentType, type ErrorInfo, type ReactNode } from 'react';
+import { COPY } from '@ws/copy';
 import { Layer } from './Layer';
-import { layerStore, useOpenLayer, type LayerKind, type LayerProps } from './useLayer';
+import { layerStore, readLayerState, useOpenLayer, type LayerKind, type LayerProps } from './useLayer';
+
+/** 지금 열린 레이어 패널의 제목 텍스트(aria-labelledby 대상 — 흰 제목 행·L2 밴드 모두). 없으면 ''. */
+function openLayerHeading(doc: Document): string {
+  const panel = doc.querySelector('.ws-layer-root [role="dialog"]');
+  const id = panel?.getAttribute('aria-labelledby');
+  const el = id ? doc.getElementById(id) : null;
+  return (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/** 레이어 문서 제목 — 프리렌더 page title 과 같은 접미사(COPY.site.titleSuffix). */
+export function layerDocumentTitle(heading: string): string {
+  return `${heading}${COPY.site.titleSuffix}`;
+}
 
 export interface LayerContentProps {
   props: LayerProps;
@@ -57,6 +73,33 @@ export default function LayerHost({ registry, wsIdFor }: LayerHostProps) {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // 문서 제목: Layer 의 포털·제목은 자식 layout effect 에서 붙으므로 여기(부모 layout effect)에서 읽을 수 있다.
+  const baseTitle = useRef<string | null>(null);
+  const entryTitle = open ? registry[open.kind]?.title ?? '' : '';
+  useLayoutEffect(() => {
+    if (open === null) {
+      if (baseTitle.current !== null) {
+        document.title = baseTitle.current;
+        baseTitle.current = null;
+      }
+      return;
+    }
+    if (baseTitle.current === null) {
+      baseTitle.current = readLayerState(window.history.state)?.wsDepth === 0 ? COPY.site.homeTitle : document.title;
+    }
+    const sync = (): void => {
+      const heading = openLayerHeading(document) || entryTitle;
+      if (heading === '') return;
+      const next = layerDocumentTitle(heading);
+      if (document.title !== next) document.title = next;
+    };
+    sync();
+    if (typeof MutationObserver !== 'function') return;
+    const mo = new MutationObserver(sync); // 스텝 전환·setTitle·L2 밴드 교체·대안 L4 교체
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return () => mo.disconnect();
+  }, [open, entryTitle]);
 
   if (open === null) return null;
   const entry = registry[open.kind];

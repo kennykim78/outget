@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PHOTO_USABLE_STATUSES, STALE_DAYS, isPhotoUsable, isoDayNumber, parseCcLicenseUrl, type SeedBundle } from '../engine/index.js';
 import { SEED_FILES } from '../seed/common.js';
 import { projectSite } from '../prerender/project.js';
-import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, patch, promoted } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, SECOND, V, patch, promoted, promotedTwo } from './fixtures/prerender-seed.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const mjs = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'seed-exposure.mjs')).href)) as {
@@ -140,6 +140,30 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
     const after = engineIds(s, FIXTURE_AS_OF);
     expect(after).toEqual(mjsIds(s, FIXTURE_AS_OF));
     expect(after).not.toEqual(before); // 주입이 실제로 무언가를 숨겼다
+  });
+
+  // M4(감사 54 #5): 프로필 범위 호환 규칙 — 엔진 projectCatalog ↔ mjs computeExposure 같은 집합.
+  it('프로필 범위 호환 규칙: 노출 프로필만 남고 비노출(DRAFT)·미존재 프로필 규칙은 양쪽 모두 0', () => {
+    const s = promotedTwo();
+    patch(s, 'compatibilityRules', 'cr-wheel-cage', { ...V });
+    const src = s.compatibilityRules.find((c) => c.id === 'cr-wheel-cage');
+    if (!src) throw new Error('fixture: cr-wheel-cage 없음');
+    const scoped = (id: string, careProfileId: string) => ({ ...JSON.parse(JSON.stringify(src)), id, careProfileId, ...V });
+    s.careProfiles.push({ ...JSON.parse(JSON.stringify(s.careProfiles[0])), id: 'cp-fixture-draft', reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null });
+    s.compatibilityRules.push(
+      scoped('cr-scope-a', 'cp-hamster-syrian'),
+      scoped('cr-scope-b', SECOND.careProfileId),
+      scoped('cr-scope-draft', 'cp-fixture-draft'),
+      scoped('cr-scope-ghost', 'cp-fixture-ghost'),
+    );
+    const want = ['cr-scope-a', 'cr-scope-b', 'cr-wheel-cage'];
+    expect(engineIds(s, FIXTURE_AS_OF).compatibilityRules).toEqual(want);
+    expect(mjsIds(s, FIXTURE_AS_OF).compatibilityRules).toEqual(want);
+    // B 타입이 내려가면(프로필 비노출) B 범위 규칙도 양쪽에서 빠진다.
+    patch(s, 'animalTypes', SECOND.typeId, { reviewStatus: 'DRAFT' });
+    const want2 = ['cr-scope-a', 'cr-wheel-cage'];
+    expect(engineIds(s, FIXTURE_AS_OF).compatibilityRules).toEqual(want2);
+    expect(mjsIds(s, FIXTURE_AS_OF).compatibilityRules).toEqual(want2);
   });
 
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {

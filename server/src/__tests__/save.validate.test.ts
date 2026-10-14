@@ -5,7 +5,7 @@ import {
   SAVE_MAX_BYTES,
   findForbiddenKey,
   validateSaveV1,
-} from '../save/validate.js';
+} from '../shared/save-validate.js';
 import { ISO, sampleSave, type LooseSave } from './fixtures/save-sample.js';
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
@@ -260,5 +260,50 @@ describe('공용 금지 키 목록 전수(R-1)', () => {
       nested.setups['hamster-golden'].checks.cage[key.toUpperCase()] = 1;
       expect(validateSaveV1(nested), `nested ${key}`).toEqual({ ok: false, error: 'forbidden_key' });
     }
+  });
+});
+
+// R6 C1: 검증기를 shared(순수, 클라 @ws/save-validate)로 옮기며 런타임 API(V8 시각 파서·Node 바이트 길이)를
+//   순수 함수로 바꿨다 — 이동 전 판정과 같음을 ISO_RE 범위 전체·대표 문자열로 대조한다(동작 변화 0 증거).
+describe('R6 C1 순수 대체 동치(이동 전 런타임 판정과 같음)', () => {
+  const OLD_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+  const oldIsIso = (s: string): boolean => OLD_ISO_RE.test(s) && Number.isFinite(Date.parse(s));
+  const p = (n: number, w = 2): string => String(n).padStart(w, '0');
+
+  it('isIsoTime: 날짜 필드(연·월 00–99·일 00–99) 전수', async () => {
+    const { isIsoTime } = await import('../shared/save-validate.js');
+    for (const y of [0, 1, 1900, 2000, 2023, 2024, 9999])
+      for (let mo = 0; mo < 100; mo++)
+        for (let d = 0; d < 100; d++) {
+          const s = `${p(y, 4)}-${p(mo)}-${p(d)}T00:00:00Z`;
+          if (isIsoTime(s) !== oldIsIso(s)) expect.fail(s);
+        }
+  });
+
+  it('isIsoTime: 시각 필드(시 경계값 × 분·초 00–99 전수) + 밀리초 변형', async () => {
+    const { isIsoTime } = await import('../shared/save-validate.js');
+    const msVariants = ['', '.0', '.00', '.000', '.5', '.001', '.999', '.10', '.100'];
+    for (const h of [0, 1, 12, 22, 23, 24, 25, 30, 60, 99])
+      for (let mi = 0; mi < 100; mi++)
+        for (let se = 0; se < 100; se++) {
+          const base = `2024-02-29T${p(h)}:${p(mi)}:${p(se)}`;
+          const variants = h === 24 || (h === 23 && mi === 59 && se === 59) || (h === 0 && mi === 0 && se === 0) ? msVariants : [''];
+          for (const ms of variants) {
+            const s = `${base}${ms}Z`;
+            if (isIsoTime(s) !== oldIsIso(s)) expect.fail(s);
+          }
+        }
+  });
+
+  it('isIsoTime: 형식 밖·비문자열은 false', async () => {
+    const { isIsoTime } = await import('../shared/save-validate.js');
+    for (const x of ['2024-01-01T00:00:00', '2024-01-01T00:00:00.0000Z', '2024-01-01 00:00:00Z', '２０２４-01-01T00:00:00Z', '', null, 0, {}])
+      expect(isIsoTime(x), String(x)).toBe(false);
+  });
+
+  it('utf8ByteLength: Node 바이트 길이와 같음(한글·이모지·짝 없는 서로게이트)', async () => {
+    const { utf8ByteLength } = await import('../shared/save-validate.js');
+    const samples = ['', 'abc', 'é', '햄스터', '😀', 'a😀b', '\ud83d', '\ude00', '\ude00\ud83d', 'x\ud83dy', '߿ࠀ￿', JSON.stringify(sampleSave())];
+    for (const s of samples) expect(utf8ByteLength(s), JSON.stringify(s)).toBe(Buffer.byteLength(s, 'utf8'));
   });
 });

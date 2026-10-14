@@ -61,6 +61,7 @@
     "id": "cr-tubes-cage",
     "a": "tubes",
     "b": "cage",
+    "careProfileId": "cp-hamster-syrian",
     "rules": [
       {
         "expr": "a.innerDiameterCm >= 6",

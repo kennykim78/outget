@@ -50,4 +50,27 @@ describe('boot: 매직링크 토큰 선제거', () => {
     for (const h of hashAtFetch) expect(h).toBe('');
     expect(window.location.href).not.toContain(TOKEN);
   });
+
+  it('R6 D2: 부팅 뒤 같은 탭 hashchange(/save 외 경로 포함) → 즉시 #t= 제거, 경로·state 유지, 토큰 URL 잔존 0', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('network disabled in test'))));
+    window.history.replaceState(null, '', '/hamster/golden');
+    const page = pageOf('TYPE', {}, { path: '/hamster/golden' });
+    document.body.innerHTML =
+      '<div id="root" data-ws-prerendered="1"><main class="ws-page" data-ws-route="TYPE"></main></div>' +
+      `<script id="ws-data" type="application/json">${JSON.stringify(page)}</script>`;
+    root = boot(document, window.location);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    for (const path of ['/hamster/golden', '/supplies', '/']) {
+      window.history.replaceState({ keep: path }, '', `${path}#t=${TOKEN}`);
+      act(() => {
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      });
+      expect(window.location.hash).toBe('');
+      expect(window.location.pathname).toBe(path);
+      expect(window.location.href).not.toContain(TOKEN);
+      expect((window.history.state as { keep?: string } | null)?.keep).toBe(path);
+    }
+  });
 });

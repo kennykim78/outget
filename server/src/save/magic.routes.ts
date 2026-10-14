@@ -18,7 +18,15 @@ import { OPAQUE_RE, randomOpaque, sha256Hex } from './crypto.js';
 import { normalizeEmail } from './email.js';
 import { maskEmail } from './mail.js';
 import type { MagicTokenRepository, SessionRepository } from './save.repo.js';
-import { currentUserId, noStore, type Clock } from './session.js';
+import {
+  currentUserId,
+  MAGIC_TOKEN_RETENTION_MS,
+  MAX_SESSIONS_PER_USER,
+  noStore,
+  retentionCutoff,
+  SESSION_RETENTION_MS,
+  type Clock,
+} from './session.js';
 
 export const MAGIC_TTL_MS = 15 * 60 * 1000;
 export const MAGIC_ENTRIES = ['home', 'checklist', 'direct'] as const;
@@ -111,6 +119,8 @@ export function createMagicRouter(deps: MagicDeps): Router {
         res.status(429).json({ error: 'rate_limited' });
         return;
       }
+      // R6 C2: 발급할 때마다 만료 토큰 정리(이메일과 무관한 같은 작업 — 존재 분기 0 유지).
+      await tokens.deleteExpired(retentionCutoff(t, MAGIC_TOKEN_RETENTION_MS));
       const token = randomOpaque();
       await tokens.insert({
         tokenHash: sha256Hex(token),
@@ -157,13 +167,17 @@ export function createMagicRouter(deps: MagicDeps): Router {
       const prev = readSessionId(req);
       if (prev !== null) await sessions.revoke(sha256Hex(prev), nowIso);
       const sid = randomOpaque();
+      const sidHash = sha256Hex(sid);
       await sessions.insert({
-        sidHash: sha256Hex(sid),
+        sidHash,
         userId: user.id,
         createdAt: nowIso,
         expiresAt: new Date(t.getTime() + SESSION_MAX_AGE_S * 1000).toISOString(),
         revokedAt: null,
       });
+      // R6 C2: 사용자별 활성 세션 상한(새 세션 제외 가장 오래된 것부터 폐기) → 만료·폐기 행 정리.
+      await sessions.enforceCap(user.id, sidHash, MAX_SESSIONS_PER_USER, nowIso);
+      await sessions.deleteInactive(retentionCutoff(t, SESSION_RETENTION_MS));
       res.setHeader('Set-Cookie', serializeSessionCookie(sid, config.secureCookie));
       res.status(200).json({ linked: true, maskedEmail: maskEmail(user.email) });
     } catch (err) {

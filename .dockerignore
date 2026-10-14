@@ -26,6 +26,21 @@ _bmad
 docs/bmad
 _workspace
 _workspace*
+.claude
+.mcp.json
+.playwright-mcp
+harness-config
+
+# 이미지에 불필요한 산출물·문서(빌드는 docs/design/mascots 만 COPY — 그 디렉터리는 제외하지 않는다).
+docs/legacy
+e2e
+playwright-report
+test-results
+coverage
+**/coverage
+# 루트의 스크린샷만(패턴은 루트 기준 — client/public 등 하위 png 는 그대로 포함).
+*.png
+**/*.log
 
 # VCS / CI / 메타.
 .git

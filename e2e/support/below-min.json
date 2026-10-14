@@ -1,0 +1,6 @@
+{
+  "_comment": "E2E 데모 전용 최소 규격 미달 상품 자리표시(R6 E2, X2 불변식 3). demo-seed.mts 가 메모리 시드에 더하고 invariants.ts 가 DOM 0 을 단언한다. 실제 상품 사실 아님.",
+  "id": "cp-e2e-below-min",
+  "title": "[데모] 기준 미달 쳇바퀴 자리",
+  "diameterCm": 20
+}

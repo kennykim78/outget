@@ -10,6 +10,7 @@ import { hasMapKey, useNaverMapLoader, type MapLoadStatus } from '../map/useNave
 import { copyAt, copyFmt } from '../ui/copyText';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { applyVetFilter, isFiltered, NO_FILTER, parseVetFilter, treatChoices, vetFilterSearch, type VetFilter } from './filters';
+import { sortVets } from './order';
 import { chipsFromCaptured, chipsFromVets, type RegionChip } from './regionChips';
 import VetCard from './VetCard';
 import VetReportForm, { VET_REPORT_SECTION_ID } from './VetReportForm';
@@ -40,7 +41,7 @@ function FilterChip({ pressed, label, onClick }: { pressed: boolean; label: stri
 
 export default function VetPage({ page, capturedMain }: VetPageProps) {
   const { kind, region } = page.route;
-  const vets = page.data.vets;
+  const vets = useMemo(() => sortVets(page.data.vets), [page.data.vets]); // 홈 B ④ 와 같은 순서(vet/order.ts 단일 출처)
   const types = page.data.types;
   const typeNames = useMemo(() => new Map(types.map((t) => [t.id, t.displayName])), [types]);
   const choices = useMemo(() => treatChoices(types, vets), [types, vets]);

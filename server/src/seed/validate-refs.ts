@@ -1,5 +1,6 @@
 // 참조 규칙 R01~R10 — 마스터 데이터 사슬(AnimalType→Taxon→CareProfile→SupplyRequirement→SupplyItem) 무결성.
 import { ORDER_HINTS, PRIORITIES } from '../engine/domain.js';
+import { exprRefs, parseExpr } from '../engine/expr.js';
 import { asRec, has, isNonEmptyStr, isSlotRow, type Rec } from './common.js';
 import type { Ctx } from './context.js';
 import { checkRuleSet } from './validate-structure.js';
@@ -36,6 +37,15 @@ function checkAnimalTypes(ctx: Ctx): void {
     }
     if (rec.status === 'ACTIVE' && (!isNonEmptyStr(rec.taxonId) || !isNonEmptyStr(rec.careProfileId))) {
       out.error('R01', 'animalTypes', id, 'status', 'ACTIVE 동물은 taxonId·careProfileId 둘 다 필요');
+    }
+    // R01b(K-1 안 A): ACTIVE 동물의 대표 종(taxonId)은 그 CareProfile.taxonIds 안이어야 한다(법·사육 사슬 일치).
+    //   Taxon 없음(R01)·taxonIds 비었거나 전부 미존재(R04)는 그 규칙이 보고 — 연쇄 오류를 내지 않는다.
+    if (rec.status === 'ACTIVE' && isNonEmptyStr(rec.taxonId) && isNonEmptyStr(rec.careProfileId) && ctx.byId.taxa.has(rec.taxonId)) {
+      const profile = ctx.byId.careProfiles.get(rec.careProfileId);
+      const taxonIds = profile ? strArr(profile.taxonIds).filter((t) => ctx.byId.taxa.has(t)) : [];
+      if (taxonIds.length > 0 && !taxonIds.includes(rec.taxonId)) {
+        out.error('R01b', 'animalTypes', id, 'taxonId', `Taxon "${rec.taxonId}" 가 ${rec.careProfileId}.taxonIds 에 없다(대표 종은 프로필의 종 중 하나)`);
+      }
     }
     // R02
     if (!Array.isArray(rec.aliases) || rec.aliases.length === 0) {
@@ -136,7 +146,7 @@ function checkProfilesAndItems(ctx: Ctx): void {
   }
 }
 
-/** R07 구조 부분(엔진 비의존). expr 파싱·참조·enum 리터럴은 validate-expr.ts(R2-6). */
+/** R07 구조 부분. expr 파싱·참조·enum 리터럴 오류는 validate-engine.ts checkExprs(R2-6). R07b 는 순수 파서(engine/expr.ts)만 쓴다. */
 function checkCompat(ctx: Ctx): void {
   const { out } = ctx;
   for (const { rec, id } of ctx.rows.compatibilityRules) {
@@ -160,6 +170,51 @@ function checkCompat(ctx: Ctx): void {
       if (!isNonEmptyStr(r.message)) out.error('R07', 'compatibilityRules', id, `${p}.message`, 'message 가 비었다');
       for (const k of Object.keys(r)) if (!['expr', 'onFail', 'message'].includes(k)) out.warn('S09', 'compatibilityRules', id, `${p}.${k}`, '알 수 없는 키');
     });
+    if (!isNonEmptyStr(rec.careProfileId)) checkUnscopedCompat(ctx, id, rec.rules);
+  }
+}
+
+/**
+ * R07b(감사 54 #4): careProfileId 없는 호환 규칙은 모든 프로필에 적용된다 —
+ *   (1) message 에 특정 동물 표시명·별칭이 있으면 ERROR(다른 동물에게 그 동물 문구가 노출된다),
+ *   (2) 모든 expr 이 a.* 또는 b.* 한쪽만 참조하면 WARN(쌍 규칙이 아니라 단일 용품 기준 — 최소 규격으로 옮길 것).
+ *   expr 문법 오류는 checkExprs(R07)가 보고하므로 여기선 건너뛴다.
+ */
+function checkUnscopedCompat(ctx: Ctx, id: string, rules: unknown[]): void {
+  const { out } = ctx;
+  const names: Array<{ name: string; owner: string }> = [];
+  for (const { rec: t, id: owner } of ctx.rows.animalTypes) {
+    for (const n of [t.displayName, ...(Array.isArray(t.aliases) ? t.aliases : [])]) {
+      if (isNonEmptyStr(n)) names.push({ name: n.trim().toLowerCase(), owner });
+    }
+  }
+  const sides = new Set<'a' | 'b'>();
+  let parsedAll = true;
+  rules.forEach((x, i) => {
+    const r = asRec(x);
+    if (!r) return;
+    if (isNonEmptyStr(r.message)) {
+      const msg = r.message.toLowerCase();
+      const hit = names.find((n) => msg.includes(n.name));
+      if (hit) {
+        out.error('R07b', 'compatibilityRules', id, `rules[${i}].message`, `프로필 범위 없는 규칙의 문구에 동물명 "${hit.name}"(${hit.owner}) — careProfileId 로 범위를 지정할 것`);
+      }
+    }
+    if (!isNonEmptyStr(r.expr)) {
+      parsedAll = false;
+      return;
+    }
+    try {
+      const refs = exprRefs(parseExpr(r.expr));
+      if (refs.a.length > 0) sides.add('a');
+      if (refs.b.length > 0) sides.add('b');
+    } catch {
+      parsedAll = false;
+    }
+  });
+  if (parsedAll && sides.size === 1) {
+    const only = [...sides][0];
+    out.warn('R07b', 'compatibilityRules', id, 'rules', `모든 expr 이 ${only}.* 만 참조 — 쌍 규칙이 아니라 단일 용품 기준이다(최소 규격으로 옮길 것)`);
   }
 }
 

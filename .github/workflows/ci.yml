@@ -19,10 +19,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node 20
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install (npm ci)
@@ -42,6 +42,9 @@ jobs:
 
       - name: Seed validate
         run: npm run seed:validate --workspace server -- --now "$(TZ=Asia/Seoul date +%F)"
+
+      - name: Seed equivalence (draft vs server seed)
+        run: node scripts/seed-equivalence.mjs
 
       - name: Lint
         run: npm run lint
@@ -69,3 +72,80 @@ jobs:
 
       - name: Test (scripts)
         run: npm run test:scripts
+
+  docker:
+    name: docker build + boot smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker build (no push)
+        run: docker build --build-arg SITE_ORIGIN=https://ci.example -t ws-ci .
+
+      - name: Boot smoke (/health)
+        run: |
+          set -eu
+          VOL="$(mktemp -d)"
+          chmod 777 "$VOL"
+          JWT_ACCESS_SECRET="$(openssl rand -hex 32)"
+          JWT_REFRESH_SECRET="$(openssl rand -hex 32)"
+          REACTION_KEY_SECRET="$(openssl rand -hex 32)"
+          docker run -d --name ws-ci-smoke -p 3001:3001 \
+            -e NODE_ENV=production \
+            -e PORT=3001 \
+            -e PUBLIC_ORIGIN=https://ci.example \
+            -e JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET" \
+            -e JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET" \
+            -e REACTION_KEY_SECRET="$REACTION_KEY_SECRET" \
+            -e TRUST_PROXY=0 \
+            -e DATABASE_URL=file:/data/prod.db \
+            -v "$VOL:/data" \
+            ws-ci
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/health | grep -q '"ok":true'; then ok=1; break; fi
+            sleep 2
+          done
+          if [ "$ok" != "1" ]; then
+            docker logs ws-ci-smoke || true
+            docker rm -f ws-ci-smoke || true
+            exit 1
+          fi
+          docker rm -f ws-ci-smoke
+
+  e2e:
+    name: e2e (playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Prisma generate
+        run: npm run prisma:generate --workspace server
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E (default seed)
+        run: npm run e2e
+
+      - name: E2E (real seed)
+        run: npm run e2e
+        env:
+          E2E_SEED: real

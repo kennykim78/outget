@@ -257,8 +257,8 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(l7aside).not.toMatch(/가격|판매처|원\b/);
     // 찾기 버튼은 PRD US-012 문구 2개, "이 조건으로 찾기"는 소제목뿐(K1)
     expect(l7aside.match(/<a href="https:/g)).toHaveLength(2);
-    expect(l7aside).toContain('>이 조건으로 쿠팡에서 찾기</a>');
-    expect(l7aside).toContain('>이 조건으로 네이버에서 찾기</a>');
+    expect(l7aside).toContain('>이 조건으로 쿠팡에서 찾기<span class="ws-visually-hidden"> (새 창)</span></a>');
+    expect(l7aside).toContain('>이 조건으로 네이버에서 찾기<span class="ws-visually-hidden"> (새 창)</span></a>');
     expect(l7aside).toContain('<h3>이 조건으로 찾기</h3>');
     // 구성안 참고 범위 옆 안내(K1)
     expect(page('/hamster/golden')).toContain('참고 범위예요. 실제 가격은 판매처마다 달라요');
@@ -388,7 +388,7 @@ describe('R4 A2 프리렌더 보강', () => {
     const li = /<li class="ws-credit" data-ws-id="photos#ph-01">([\s\S]*?)<\/li>/.exec(html)?.[1] as string;
     expect(li).toBeTruthy();
     expect(li).toContain('<span class="ws-credit-author">Fixture Author</span>');
-    expect(li).toContain('<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer nofollow">CC BY 4.0</a>');
+    expect(li).toContain('<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer nofollow">CC BY 4.0<span class="ws-visually-hidden"> (새 창)</span></a>');
     expect(li).toContain(`${COPY.credits.modified}: ${COPY.credits.modifiedYes}`);
     expect(li).toContain('href="https://commons.wikimedia.org/wiki/File:Fixture.jpg"');
     patch(s, 'photos', 'ph-01', { modified: false });

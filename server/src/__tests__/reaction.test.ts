@@ -43,19 +43,30 @@ const countOf = async (app: express.Express, id = 'cp-wheel-01') =>
 
 const LIKE = { targetType: 'PRODUCT', targetId: 'cp-wheel-01', kind: 'LIKE' };
 
-describe('ipPrefix(IPv4 /24, IPv6 /64)', () => {
+describe('ipPrefix(IPv4 /24, IPv6 /56 — R6 B3)', () => {
   it.each([
     ['203.0.113.7', 'v4:203.0.113'],
     ['203.0.113.250', 'v4:203.0.113'],
     ['::ffff:203.0.113.7', 'v4:203.0.113'],
-    ['2001:db8:abcd:12:1:2:3:4', 'v6:2001:db8:abcd:12'],
-    ['2001:db8:abcd:12::99', 'v6:2001:db8:abcd:12'],
-    ['2001:DB8:ABCD:0012:ffff::1', 'v6:2001:db8:abcd:12'],
-    ['fe80::1%eth0', 'v6:fe80:0:0:0'],
-    ['::1', 'v6:0:0:0:0'],
+    ['2001:db8:abcd:12:1:2:3:4', 'v6/56:2001:db8:abcd:0'],
+    ['2001:db8:abcd:12::99', 'v6/56:2001:db8:abcd:0'],
+    ['2001:DB8:ABCD:0012:ffff::1', 'v6/56:2001:db8:abcd:0'],
+    ['2001:db8:abcd:12ff::1', 'v6/56:2001:db8:abcd:1200'],
+    ['fe80::1%eth0', 'v6/56:fe80:0:0:0'],
+    ['::1', 'v6/56:0:0:0:0'],
     ['', 'unknown'],
     ['not-an-ip', 'unknown'],
   ])('%s → %s', (ip, want) => expect(ipPrefix(ip)).toBe(want));
+
+  it('같은 /56 의 다른 /64 → 같은 프리픽스·같은 키, 다른 /56 → 다른 키', () => {
+    const a = ipPrefix('2001:db8:1:200::1');
+    const b = ipPrefix('2001:db8:1:2ff:ffff:ffff:ffff:ffff');
+    const c = ipPrefix('2001:db8:1:300::1');
+    expect(a).toBe(b);
+    expect(c).not.toBe(a);
+    expect(anonKey(SECRET, '2026-10-02', a)).toBe(anonKey(SECRET, '2026-10-02', b));
+    expect(anonKey(SECRET, '2026-10-02', c)).not.toBe(anonKey(SECRET, '2026-10-02', a));
+  });
 });
 
 describe('anonKey', () => {
@@ -105,11 +116,13 @@ describe('M-3: 위조·취소', () => {
     expect(repo.dump()).toHaveLength(1);
     expect(await countOf(app)).toBeNull();
   });
-  it('같은 /24 의 다른 호스트 10개 → 1(IPv4 /24 묶음), 같은 /64 의 IPv6 10개 → 1', async () => {
+  it('같은 /24 의 다른 호스트 10개 → 1(IPv4 /24 묶음), 같은 /56 안 서로 다른 /64 의 IPv6 10개 → 1, 다른 /56 → +1', async () => {
     const { app, repo } = appWith();
     for (let i = 0; i < 10; i++) await post(app, LIKE, UA, `203.0.113.${i + 1}`);
-    for (let i = 0; i < 10; i++) await post(app, LIKE, UA, `2001:db8:1:2::${i + 1}`);
+    for (let i = 0; i < 10; i++) await post(app, LIKE, UA, `2001:db8:1:2${i}::${i + 1}`);
     expect(repo.dump()).toHaveLength(2);
+    await post(app, LIKE, UA, '2001:db8:1:300::1');
+    expect(repo.dump()).toHaveLength(3);
   });
   it('1일차 ♥ → 30일차 취소(다른 UA) → 0행·count null', async () => {
     const { app, repo, c } = appWith();

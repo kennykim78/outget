@@ -33,6 +33,7 @@ import {
   type PageContext,
   type RenderedPage,
 } from './common.js';
+import { familyName } from './family.js';
 
 const LINK_TEXT = { COUPANG: COPY.supplyLayer.findCoupang, NAVER: COPY.supplyLayer.findNaver } as const;
 
@@ -40,11 +41,10 @@ function base(t: TypeModel): string {
   return `/${t.slug}`;
 }
 
-function crumbsOf(m: SiteModel, t: TypeModel): Crumb[] {
+function crumbsOf(t: TypeModel): Crumb[] {
   const out: Crumb[] = [{ name: COPY.site.name, path: '/' }];
   if (t.family) {
-    const fam = m.types.filter((x) => x.family === t.family).map((x) => x.pub.displayName);
-    out.push({ name: fam.join(' · '), path: `/${t.family}` });
+    out.push({ name: familyName(t.family), path: `/${t.family}` });
   }
   out.push({ name: t.pub.displayName, path: base(t) });
   return out;
@@ -334,7 +334,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
   const seoDesc = typeof t.rec.seoDescription === 'string' && t.rec.seoDescription.trim() !== '' ? t.rec.seoDescription : null;
   let title = seoTitle ?? formatCopy(COPY.site.typeTitle, { animal: t.pub.displayName }) + COPY.site.titleSuffix;
   let description = seoDesc ?? formatCopy(COPY.site.typeDescription, { animal: t.pub.displayName });
-  const crumbs = crumbsOf(m, t);
+  const crumbs = crumbsOf(t);
   if (layer && (layer.kind === 'L4' || layer.kind === 'L5')) {
     const r = t.requirements.find((x) => x.item.id === layer.itemId);
     if (!r) throw new Error(`pages: ${t.id} 에 노출 요구사항 ${layer.itemId} 없음`);
@@ -370,7 +370,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
 
 /** /{slug}/setup — 구성안 3안 상세(노출 번들 ≥ 1 일 때만 생성). */
 export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): RenderedPage {
-  const crumbs = [...crumbsOf(m, t), { name: COPY.homeB.bundlesTitle, path: ctx.route.path }];
+  const crumbs = [...crumbsOf(t), { name: COPY.homeB.bundlesTitle, path: ctx.route.path }];
   const cards = t.bundles.map((b) =>
     [
       `<section class="ws-bundle" data-ws-id="setupBundles#${a(b.id)}">`,

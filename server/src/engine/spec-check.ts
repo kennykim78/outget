@@ -87,11 +87,16 @@ function evaluateCompat(
   return { verdict: worstVerdict(reasons.map((r) => r.verdict)) as CompatVerdict, reasons, checkedRuleIds };
 }
 
+/**
+ * 대안 = 항목의 compatibleAlternativeIds 중 이 동물의 CareProfile 요구사항에 있는 것만(감사 54 #6).
+ *   SupplyItem 은 종 공용이라 다른 프로필 전용 항목을 가리킬 수 있다 — 그 프로필 기준을 이 동물에 권하지 않는다.
+ */
 function alternativesFor(cat: EngineCatalog, r: ResolvedRequirement): Alternative[] {
   const out: Alternative[] = [];
+  const profileReqs = cat.requirementsByProfile.get(r.careProfileId);
   for (const id of r.item.compatibleAlternativeIds) {
     const it = cat.supplyItems.get(id);
-    if (it && id !== r.supplyItemId) out.push({ supplyItemId: it.id, name: it.name });
+    if (it && id !== r.supplyItemId && profileReqs?.has(id) === true) out.push({ supplyItemId: it.id, name: it.name });
   }
   return out;
 }

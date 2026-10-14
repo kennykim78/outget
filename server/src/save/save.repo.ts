@@ -14,6 +14,8 @@ export interface MagicTokenRepository {
   insert(row: MagicTokenRow): Promise<void>;
   /** 미사용 ∧ now < expiresAt 이면 원자적으로 consumedAt=now 기록 후 email, 아니면 null(1회용). */
   consume(tokenHash: string, nowIso: string): Promise<string | null>;
+  /** R6 C2: expiresAt ≤ cutoffIso 인 행(소비 여부 무관) 삭제, 삭제 수. 만료 행은 consume 이 어차피 null 이라 판정 불변. */
+  deleteExpired(cutoffIso: string): Promise<number>;
 }
 
 export interface SessionRow {
@@ -29,6 +31,14 @@ export interface SessionRepository {
   /** 미폐기 ∧ now < expiresAt 인 세션의 userId, 아니면 null. */
   findActiveUserId(sidHash: string, nowIso: string): Promise<string | null>;
   revoke(sidHash: string, nowIso: string): Promise<void>;
+  /**
+   * R6 C2 사용자별 세션 상한: userId 의 활성 세션(미폐기 ∧ now < expiresAt) 중 keepSidHash 를 빼고
+   *   createdAt 최신순(동시각은 sidHash 사전순)으로 max-1 개만 남기고 나머지를 폐기(revokedAt=now). 폐기 수.
+   *   keepSidHash(방금 발급한 세션)는 절대 폐기하지 않는다.
+   */
+  enforceCap(userId: string, keepSidHash: string, max: number, nowIso: string): Promise<number>;
+  /** R6 C2: expiresAt ≤ cutoffIso 이거나 revokedAt ≤ cutoffIso 인 행 삭제, 삭제 수. 비활성 행만 지우므로 판정 불변. */
+  deleteInactive(cutoffIso: string): Promise<number>;
 }
 
 export interface SaveSnapshotRow {
@@ -66,6 +76,17 @@ export class InMemoryMagicTokenRepository implements MagicTokenRepository {
     return r.email;
   }
 
+  async deleteExpired(cutoffIso: string): Promise<number> {
+    let n = 0;
+    for (const [k, r] of this.rows) {
+      if (r.expiresAt <= cutoffIso) {
+        this.rows.delete(k);
+        n++;
+      }
+    }
+    return n;
+  }
+
   /** 테스트 관찰용. */
   size(): number {
     return this.rows.size;
@@ -74,6 +95,12 @@ export class InMemoryMagicTokenRepository implements MagicTokenRepository {
   dump(): MagicTokenRow[] {
     return [...this.rows.values()].map((r) => ({ ...r }));
   }
+}
+
+/** 세션 상한 순서(InMemory·Prisma 동일): createdAt 내림차순, 같으면 sidHash 오름차순. */
+export function newestFirst(a: Pick<SessionRow, 'createdAt' | 'sidHash'>, b: Pick<SessionRow, 'createdAt' | 'sidHash'>): number {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  return a.sidHash < b.sidHash ? -1 : a.sidHash > b.sidHash ? 1 : 0;
 }
 
 export class InMemorySessionRepository implements SessionRepository {
@@ -92,6 +119,26 @@ export class InMemorySessionRepository implements SessionRepository {
   async revoke(sidHash: string, nowIso: string): Promise<void> {
     const r = this.rows.get(sidHash);
     if (r && r.revokedAt === null) r.revokedAt = nowIso;
+  }
+
+  async enforceCap(userId: string, keepSidHash: string, max: number, nowIso: string): Promise<number> {
+    const others = [...this.rows.values()]
+      .filter((r) => r.userId === userId && r.sidHash !== keepSidHash && r.revokedAt === null && nowIso < r.expiresAt)
+      .sort(newestFirst);
+    const victims = others.slice(Math.max(0, max - 1));
+    for (const r of victims) r.revokedAt = nowIso;
+    return victims.length;
+  }
+
+  async deleteInactive(cutoffIso: string): Promise<number> {
+    let n = 0;
+    for (const [k, r] of this.rows) {
+      if (r.expiresAt <= cutoffIso || (r.revokedAt !== null && r.revokedAt <= cutoffIso)) {
+        this.rows.delete(k);
+        n++;
+      }
+    }
+    return n;
   }
 
   dump(): SessionRow[] {

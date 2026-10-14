@@ -8,7 +8,7 @@ import type { Saveable, SaveReactions, SaveV1, SetupV3 } from './contract';
 import { emptyReactions } from './merge';
 import { defaultSlices, type SaveSlices } from './saveables';
 import { SAVE_STATE_KEY, clearSaveState, readSaveState, writeSaveState } from './saveStateStore';
-import { SAVE_RETRY_BASE_MS, SAVE_RETRY_MAX_ATTEMPTS, createSaveSync, type SaveSyncDeps } from './sync';
+import { SAVE_RETRY_BASE_MS, SAVE_RETRY_MAX_ATTEMPTS, createSaveSync, type LinkOutcome, type SaveSync, type SaveSyncDeps } from './sync';
 
 const T1 = '2026-10-01T00:00:00.000Z';
 const T2 = '2026-10-02T00:00:00.000Z';
@@ -54,7 +54,8 @@ function fakeSlice<P>(key: Saveable<P>['key'], initial: P): Saveable<P> & { valu
     export: () => s.value,
     import: (p: P) => {
       s.imported.push(p);
-      s.value = p;
+      // 계약(C-R5-9): setups·cages 는 받은 레코드만 쓰고 없는 레코드는 그대로(D23) — 실제 스토어와 같게 합친다.
+      s.value = key === 'setups' || key === 'cages' ? ({ ...(s.value as object), ...(p as object) } as P) : p;
     },
     subscribe: (fn: () => void) => {
       ls.add(fn);
@@ -131,6 +132,13 @@ function deps(api: SaveApi, slices: SaveSlices): SaveSyncDeps {
   return { api, storage: store, slices, track: (n, p) => void events.push([n, p]), now: () => NOW };
 }
 
+/** R6 D2: link → (첫 PUT 보류면) 사용자 확인까지 — 연결 이후 동작을 보는 테스트용. */
+async function linkC(sync: SaveSync, token: string): Promise<LinkOutcome> {
+  const r = await sync.link(token);
+  if (r.kind === 'linked' && r.confirm) await sync.confirm();
+  return r;
+}
+
 beforeEach(() => {
   const b = memBackend();
   store = createStorage(() => b);
@@ -141,14 +149,24 @@ afterEach(() => {
 });
 
 describe('link', () => {
-  it('verify → GET → (로컬 승) PUT 순서, save_link_confirm · save_merge{local}, ws.save linked + lastSyncAt', async () => {
+  it('verify → GET → (로컬 승) 확인 전 PUT 0 · 연결 기록 0 → confirm → PUT, save_link_confirm · save_merge{local}, ws.save linked + lastSyncAt', async () => {
     const { api, order, puts } = fakeApi();
     const slices = fakeSlices();
     slices.animalType.value = 'hamster-golden';
     slices.setups.value = { 'hamster-golden': setup(T2, ['cage']) };
     const sync = createSaveSync(deps(api, slices));
     const r = await sync.link(TOKEN);
-    expect(r).toEqual({ kind: 'linked', winner: 'local' });
+    expect(r).toEqual({ kind: 'linked', winner: 'local', confirm: true });
+    // R6 D2(SEC-4 L-1(c)): verify 성공 직후 PUT 0 · ws.save 연결 기록 0 · 구독 0 — 변경이 생겨도 PUT 0.
+    expect(order).toEqual(['verify', 'get']);
+    expect(sync.isAwaitingConfirm()).toBe(true);
+    expect(readSaveState(store).linked).toBe(false);
+    expect(sync.isRunning()).toBe(false);
+    slices.setups.fire();
+    await sync.flush();
+    expect(order).toEqual(['verify', 'get']);
+    expect(await sync.confirm()).toBe(true);
+    expect(sync.isAwaitingConfirm()).toBe(false);
     expect(order).toEqual(['verify', 'get', 'put']);
     expect(api.verify).toHaveBeenCalledWith(TOKEN);
     expect(puts[0].setups['hamster-golden'].checks.cage).toBeDefined();
@@ -166,11 +184,37 @@ describe('link', () => {
     setServer({ v: 1, animalTypeId: 'hamster-golden', setups: { 'hamster-golden': setup(T2, ['wheel']) }, cages: {}, reactions: emptyReactions() });
     const slices = fakeSlices();
     const sync = createSaveSync(deps(api, slices));
-    expect(await sync.link(TOKEN)).toEqual({ kind: 'linked', winner: 'server' });
+    expect(await sync.link(TOKEN)).toEqual({ kind: 'linked', winner: 'server', confirm: true });
     expect(order).toEqual(['verify', 'get']);
+    // GET 병합(서버 승 레코드 로컬 쓰기)은 확인 전에 끝난다.
     expect(slices.setups.imported).toHaveLength(1);
     expect(slices.animalType.imported).toEqual(['hamster-golden']);
     expect(events.at(-1)).toEqual(['save_merge', { winner: 'server' }]);
+    expect(readSaveState(store).linked).toBe(false);
+    // 확인 → 연결·구독, 서버본이 이미 다 가졌으니 PUT 0.
+    expect(await sync.confirm()).toBe(true);
+    expect(order).toEqual(['verify', 'get']);
+    expect(readSaveState(store)).toEqual({ v: 1, linked: true, lastSyncAt: NOW });
+    expect(sync.isRunning()).toBe(true);
+  });
+
+  it('보류 중이 아니면 confirm 은 네트워크 0(지금 연결 상태만)', async () => {
+    const { api, order } = fakeApi();
+    const sync = createSaveSync(deps(api, fakeSlices()));
+    expect(await sync.confirm()).toBe(false);
+    expect(order).toEqual([]);
+  });
+
+  it('보류 중 새로고침(새 인스턴스) — 연결 기록이 없어 boot·resume 모두 네트워크 0', async () => {
+    const { api, order } = fakeApi();
+    const slices = fakeSlices();
+    slices.setups.value = { a: setup(T2, ['cage']) };
+    await createSaveSync(deps(api, slices)).link(TOKEN);
+    order.length = 0;
+    const again = createSaveSync(deps(api, slices));
+    await again.boot();
+    await again.resume();
+    expect(order).toEqual([]);
   });
 
   it.each([401, 400])('verify %i → expired, GET 0, 연결 안 됨', async (status) => {
@@ -204,12 +248,16 @@ describe('link', () => {
     const slices = fakeSlices();
     slices.setups.value = { a: setup(T2) };
     const sync = createSaveSync(deps(api, slices));
-    expect(await sync.link(TOKEN)).toEqual({ kind: 'linked', winner: null });
+    expect(await sync.link(TOKEN)).toEqual({ kind: 'linked', winner: null, confirm: true });
     expect(order).toEqual(['verify']);
     expect(events).toEqual([['save_link_confirm', {}]]);
+    // 확인 시점에도 서버본이 없다 → GET 부터(또 실패 → PUT 0, 백오프)
+    await sync.confirm();
+    expect(api.getSave).toHaveBeenCalledTimes(2);
+    expect(order).toEqual(['verify']);
     fail = false;
     slices.setups.fire();
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_BASE_MS);
     expect(order).toEqual(['verify', 'get', 'put']);
     expect(events.at(-1)).toEqual(['save_merge', { winner: 'local' }]);
   });
@@ -221,7 +269,7 @@ describe('연결 후 자동 저장', () => {
     const { api, puts } = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(api, slices));
-    await sync.link(TOKEN); // 로컬·서버 모두 빈 상태 → none, PUT 0
+    await linkC(sync, TOKEN); // 로컬·서버 모두 빈 상태 → none, PUT 0
     expect(puts).toHaveLength(0);
     expect(events.at(-1)).toEqual(['save_merge', { winner: 'none' }]);
 
@@ -245,7 +293,7 @@ describe('연결 후 자동 저장', () => {
     const slices = fakeSlices();
     slices.setups.import = () => undefined; // 로컬 쓰기가 거절된 경우
     const sync = createSaveSync(deps(api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     slices.setups.value = { mine: setup(T2) };
     slices.setups.fire();
     await vi.advanceTimersByTimeAsync(2000);
@@ -257,7 +305,7 @@ describe('연결 후 자동 저장', () => {
     const { api } = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     api.putSave = vi.fn(async () => ({ status: 401 }));
     slices.setups.value = { a: setup(T2) };
     slices.setups.fire();
@@ -274,7 +322,7 @@ describe('연결 해제 · resume', () => {
     const slices = fakeSlices();
     slices.setups.value = { a: setup(T2) };
     const sync = createSaveSync(deps(api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     const putsBefore = puts.length;
     await sync.unlink();
     expect(order.at(-1)).toBe('logout');
@@ -332,9 +380,9 @@ describe('H1 다기기 — 낙관적 동시성(baseUpdatedAt · 409 병합 1회 
     const A = device(srv.api);
     const B = device(srv.api);
     A.slices.setups.value = { a: setup(T1) };
-    await A.sync.link(TOKEN); // 서버 = {a}
+    await linkC(A.sync, TOKEN); // 서버 = {a}
     B.slices.setups.value = { b: setup(T1) };
-    await B.sync.link(`${TOKEN.slice(0, 42)}B`); // B: GET {a} → 병합 {a,b} PUT
+    await linkC(B.sync, `${TOKEN.slice(0, 42)}B`); // B: GET {a} → 병합 {a,b} PUT
     expect(Object.keys(srv.getServer().snapshot?.setups ?? {}).sort()).toEqual(['a', 'b']);
     expect(B.slices.setups.imported.at(-1)).toHaveProperty('a');
 
@@ -359,9 +407,9 @@ describe('H1 다기기 — 낙관적 동시성(baseUpdatedAt · 409 병합 1회 
     const A = device(srv.api);
     const B = device(srv.api);
     A.slices.setups.value = { a: setup(T1) };
-    await A.sync.link(TOKEN);
+    await linkC(A.sync, TOKEN);
     B.slices.setups.value = { b: setup(T1) };
-    await B.sync.link(`${TOKEN.slice(0, 42)}B`);
+    await linkC(B.sync, `${TOKEN.slice(0, 42)}B`);
     // 실제 조각처럼 import 도 구독자를 깨운다.
     const rawImport = A.slices.setups.import;
     A.slices.setups.import = (p) => {
@@ -389,9 +437,9 @@ describe('H1 다기기 — 낙관적 동시성(baseUpdatedAt · 409 병합 1회 
     const B = device(srv.api);
     const start = setup(T1, ['cage']);
     A.slices.setups.value = { a: start };
-    await A.sync.link(TOKEN); // 서버 = {a: cage ✓}
+    await linkC(A.sync, TOKEN); // 서버 = {a: cage ✓}
     B.slices.setups.value = { a: structuredClone(start) };
-    await B.sync.link(`${TOKEN.slice(0, 42)}B`); // 같은 내용 → PUT 없음
+    await linkC(B.sync, `${TOKEN.slice(0, 42)}B`); // 같은 내용 → PUT 없음
 
     const tB = '2026-10-03T00:00:00.000Z';
     const tA = '2026-10-04T00:00:00.000Z'; // A 가 더 늦게 바꿨다 — 레코드 LWW 였다면 B 의 해제가 되돌려진다
@@ -420,7 +468,7 @@ describe('H1 다기기 — 낙관적 동시성(baseUpdatedAt · 409 병합 1회 
     const slices = fakeSlices();
     slices.setups.value = { a: setup(T1) };
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     expect(srv.bases).toEqual([null]);
     const at1 = srv.getServer().updatedAt;
     slices.setups.value = { a: setup(T2) };
@@ -434,7 +482,7 @@ describe('H1 다기기 — 낙관적 동시성(baseUpdatedAt · 409 병합 1회 
     const srv = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     let n = 0;
     srv.api.putSave = vi.fn(async () => {
       n++;
@@ -490,7 +538,7 @@ describe('M3 PUT 직렬화', () => {
     const srv = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     const real = srv.api.putSave;
     const gates: Array<ReturnType<typeof deferred<void>>> = [];
     let inFlight = 0;
@@ -578,8 +626,8 @@ describe('M4 link 실패', () => {
   it('연결 성공은 캐시 — 같은 토큰 재호출에 verify 1회', async () => {
     const { api } = fakeApi();
     const sync = createSaveSync(deps(api, fakeSlices()));
-    await sync.link(TOKEN);
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
+    await linkC(sync, TOKEN);
     expect(api.verify).toHaveBeenCalledTimes(1);
   });
 });
@@ -591,7 +639,7 @@ describe('M5 다른 탭 해제·재연결(세대)', () => {
     const slices = fakeSlices();
     slices.setups.value = { a: setup(T1) };
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     expect(sync.isRunning()).toBe(true);
     clearSaveState(store); // 다른 탭: 연결 해제
     expect(sync.isRunning()).toBe(false);
@@ -615,7 +663,7 @@ describe('M5 다른 탭 해제·재연결(세대)', () => {
     const srv = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     const real = srv.api.putSave;
     const g = deferred<void>();
     srv.api.putSave = vi.fn(async (s: SaveV1, b: string | null) => {
@@ -636,7 +684,7 @@ describe('M5 다른 탭 해제·재연결(세대)', () => {
     const srv = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     const real = srv.api.putSave;
     const g = deferred<void>();
     srv.api.putSave = vi.fn(async (s: SaveV1, b: string | null) => {
@@ -732,7 +780,7 @@ describe('M6 PUT 실패 백오프', () => {
     const srv = fakeApi();
     const slices = fakeSlices();
     const sync = createSaveSync(deps(srv.api, slices));
-    await sync.link(TOKEN);
+    await linkC(sync, TOKEN);
     srv.api.putSave = vi.fn(async () => ({ status: 400 }));
     slices.setups.value = { a: setup(T2) };
     slices.setups.fire();
@@ -787,7 +835,7 @@ describe('퍼즈: 연결·병합·변경 반복 후 ws.* 에 토큰·이메일·
           reactions: poison({ like: { p1: T2 }, helpful: {}, updatedAt: T2 }) as never,
         });
         await sync.unlink();
-        await sync.link(`${TOKEN.slice(0, 40)}${i.toString().padStart(3, '0')}`);
+        await linkC(sync, `${TOKEN.slice(0, 40)}${i.toString().padStart(3, '0')}`);
       } else if (op === 1) {
         slices.setups.import({ [t]: applyToggle(readSetup(store, t), pick(['cage', 'wheel', 'water']), new Date(Date.UTC(2026, 9, 5, i)).toISOString()) });
         await vi.advanceTimersByTimeAsync(2000);
@@ -964,27 +1012,37 @@ describe('P1 MAJOR-1 빈 기기 연결 — 빈 행 생성 금지', () => {
   it('로컬 비어 있음 + 서버 저장본 있음 → 불러오기(winner server), empty 없음, PUT 0', async () => {
     const { api, order, setServer } = fakeApi();
     setServer({ v: 1, animalTypeId: 'hamster-golden', setups: {}, cages: {}, reactions: emptyReactions() });
-    const r = await createSaveSync(deps(api, fakeSlices())).link(TOKEN);
-    expect(r).toEqual({ kind: 'linked', winner: 'server' });
+    const sync = createSaveSync(deps(api, fakeSlices()));
+    const r = await sync.link(TOKEN);
+    // 서버본이 있으면 빈 기기가 아니다 — 확인 화면을 거친다(이후 로컬 변경이 그 계정에 저장되므로).
+    expect(r).toEqual({ kind: 'linked', winner: 'server', confirm: true });
+    expect(order).toEqual(['verify', 'get']);
+    await sync.confirm();
     expect(order).toEqual(['verify', 'get']);
   });
 
-  it('로컬 있음(동물만 선택) + 서버 행 없음 → 기존대로 PUT, empty 없음', async () => {
+  it('로컬 있음(동물만 선택) + 서버 행 없음 → 확인 뒤 PUT, empty 없음', async () => {
     const { api, order, puts } = fakeApi();
     const slices = fakeSlices();
     slices.animalType.value = 'hamster-golden';
-    const r = await createSaveSync(deps(api, slices)).link(TOKEN);
-    expect(r).toEqual({ kind: 'linked', winner: 'local' });
+    const sync = createSaveSync(deps(api, slices));
+    const r = await sync.link(TOKEN);
+    expect(r).toEqual({ kind: 'linked', winner: 'local', confirm: true });
+    expect(order).toEqual(['verify', 'get']);
+    await sync.confirm();
     expect(order).toEqual(['verify', 'get', 'put']);
     expect(puts[0].animalTypeId).toBe('hamster-golden');
   });
 
-  it('반응만 있는 기기(키 1개)도 비어 있지 않다 → PUT', async () => {
+  it('반응만 있는 기기(키 1개)도 비어 있지 않다 → 확인 뒤 PUT', async () => {
     const { api, puts } = fakeApi();
     const slices = fakeSlices();
     slices.reactions.value = { like: { p1: T1 }, helpful: {}, updatedAt: T1 };
-    const r = await createSaveSync(deps(api, slices)).link(TOKEN);
+    const sync = createSaveSync(deps(api, slices));
+    const r = await sync.link(TOKEN);
     expect(r).not.toHaveProperty('empty');
+    expect(puts).toHaveLength(0);
+    await sync.confirm();
     expect(puts).toHaveLength(1);
   });
 });

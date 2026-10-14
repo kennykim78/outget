@@ -88,6 +88,7 @@ export default function SpecSearch({ animalTypeId, supplyItemId, keyword, links 
                 }
               >
                 {MERCHANT_TEXT[l.provider]}
+                <span className="ws-visually-hidden">{` ${COPY.a11y.newWindow}`}</span>
               </a>
             ))}
           </div>

@@ -516,6 +516,8 @@ ul.ws-bundles,
 ul.ws-products,
 ul.ws-vets,
 ul.ws-reviews {
+  /* E2-D1: 레일 안 sr-only(position:absolute) 요소의 포함 블록 — 없으면 body 기준으로 빠져 문서 폭을 늘린다(390 → 694). */
+  position: relative;
   display: flex;
   flex-wrap: nowrap;
   gap: var(--ws-rail-gap);
@@ -900,6 +902,18 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
 main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND']) a:not([class]) {
   color: var(--ws-brand-text);
   font-weight: var(--ws-type-cta-weight);
+}
+
+/* G3 그룹 페이지(56) — 읽기 폭 = 모달 폭, 카드 격자 간격 */
+main.ws-page[data-ws-route='FAMILY'] {
+  --ws-reading-w: var(--ws-modal-w);
+  width: 100%;
+  max-width: var(--ws-reading-w);
+  margin-inline: auto;
+}
+
+.ws-family-grid {
+  margin-top: var(--ws-space-3);
 }
 
 /* m-9 정적 /setup · /supplies 행 (프리렌더 마크업 셀렉터) */

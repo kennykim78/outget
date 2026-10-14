@@ -2,11 +2,17 @@
 //   미지 v·깨진 JSON → null + .bak, 전이(모든 변경 updatedAt 갱신, PURCHASED 쓰기), useSetup, Saveable(C-R5-9).
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MAX_CHECKS, MAX_OWNED, MAX_UNCHECKED, validateSaveV1 } from '@ws/save-validate';
 import { createStorage, type WsStorage } from '../lib/storage';
+import { mergeSetup } from '../save/merge';
 import {
+  SETUP_MAX_CHECKS,
+  SETUP_MAX_OWNED,
+  TOMBSTONE_MAX,
   applyAnswer,
   applyPurchased,
   applyReached100,
+  applyReset,
   applyToggle,
   createSetupSaveable,
   migrateSetup,
@@ -304,9 +310,10 @@ describe('useSetup', () => {
     expect(c.result.current.setup?.answeredAt).toBe(T0);
     expect(c.result.current.setup?.v).toBe(3);
     expect(Object.keys(c.result.current.setup?.checks ?? {}).sort()).toEqual(['cage', 'wheel']);
+    // R6 D2: reset = 키 삭제가 아니라 리셋 레코드(D23 tombstone) — 체크 0, 모든 체크 해제 시각, 빈 답(answeredAt = 지금).
     act(() => c.result.current.reset());
-    expect(c.result.current.setup).toBeNull();
-    expect(backend.getItem('ws.setup.hamster-golden')).toBeNull();
+    expect(c.result.current.setup).toMatchObject({ v: 3, firstTime: null, owned: [], answeredAt: T0, checks: {}, uncheckedAt: { cage: T0, wheel: T0 } });
+    expect(JSON.parse(backend.getItem('ws.setup.hamster-golden') as string).checks).toEqual({});
   });
 
   it('purchase: PURCHASED 저장, updatedAt = 지금', () => {
@@ -447,5 +454,87 @@ describe('Saveable(setups)', () => {
     const h = renderHook(() => useSetup('hamster-golden', { storage: store }));
     act(() => createSetupSaveable(store).import({ 'hamster-golden': base({ checks: { cage: { source: 'PURCHASED', at: T1 } } }) }));
     expect(h.result.current.setup?.checks.cage?.source).toBe('PURCHASED');
+  });
+});
+
+describe('R6 D1 클라 상한 — checks·owned·uncheckedAt 각 200(서버 검증기와 같은 값)', () => {
+  const at = (i: number): string => new Date(Date.parse(T0) + i * 1000).toISOString();
+  const many = (n: number): SetupV3['checks'] =>
+    Object.fromEntries(Array.from({ length: n }, (_, i) => [`i${i}`, { source: 'UNKNOWN' as const, at: at(i) }]));
+
+  it('상수는 @ws/save-validate 와 같다', () => {
+    expect(SETUP_MAX_CHECKS).toBe(MAX_CHECKS);
+    expect(SETUP_MAX_OWNED).toBe(MAX_OWNED);
+    expect(TOMBSTONE_MAX).toBe(MAX_UNCHECKED);
+    expect([SETUP_MAX_CHECKS, SETUP_MAX_OWNED, TOMBSTONE_MAX]).toEqual([200, 200, 200]);
+  });
+
+  it('토글로 201번째 체크 → 200 개, at 가장 오래된 것부터 빠진다', () => {
+    const s = applyToggle(base({ checks: many(200) }), 'new-one', at(500));
+    expect(Object.keys(s.checks)).toHaveLength(200);
+    expect(s.checks['new-one']).toBeDefined();
+    expect(s.checks.i0).toBeUndefined();
+    expect(s.checks.i1).toBeDefined();
+  });
+
+  it('writeSetup(쓰기 시점) — 250 체크·250 owned·250 tombstone 레코드도 각 200 으로 저장, 서버 검증기 통과', () => {
+    const b = memBackend();
+    const st = createStorage(() => b);
+    const owned = Array.from({ length: 250 }, (_, i) => `o${i}`);
+    const tombs = Object.fromEntries(Array.from({ length: 250 }, (_, i) => [`t${i}`, at(i)]));
+    writeSetup(st, 'hamster-golden', base({ checks: many(250), owned, uncheckedAt: tombs }));
+    const saved = JSON.parse(b.getItem('ws.setup.hamster-golden') as string) as SetupV3;
+    expect(Object.keys(saved.checks)).toHaveLength(200);
+    expect(saved.checks.i49).toBeUndefined();
+    expect(saved.checks.i50).toBeDefined();
+    expect(saved.owned).toHaveLength(200);
+    expect(saved.owned[0]).toBe('o50'); // 배열 앞쪽(먼저 답한 것)부터 정리
+    expect(Object.keys(saved.uncheckedAt)).toHaveLength(200);
+    expect(saved.uncheckedAt.t49).toBeUndefined();
+    const v = validateSaveV1({ v: 1, animalTypeId: null, setups: { 'hamster-golden': saved }, cages: {}, reactions: { like: {}, helpful: {}, updatedAt: null } });
+    expect(v.ok).toBe(true);
+  });
+
+  it('applyAnswer: owned 250 → 마지막 200', () => {
+    const s = applyAnswer(null, { firstTime: false, owned: Array.from({ length: 250 }, (_, i) => `o${i}`) }, T1);
+    expect(s.owned).toHaveLength(200);
+    expect(s.owned.at(-1)).toBe('o249');
+    expect(Object.keys(s.checks)).toHaveLength(200);
+  });
+});
+
+describe('R6 D2 reset tombstone(D23)', () => {
+  it('applyReset: 레코드 없음 → null(쓸 것 없음)', () => {
+    expect(applyReset(null, T2)).toBeNull();
+  });
+
+  it('리셋 레코드 = 체크 0 · 모든 체크 tombstone(now) · 빈 답(answeredAt now) · startedAt 유지', () => {
+    const prev = base({ firstTime: true, owned: ['cage'], answeredAt: T0, checks: { cage: { source: 'OWNED', at: T0 }, wheel: { source: 'UNKNOWN', at: T1 } }, uncheckedAt: { bath: T0 } });
+    const r = applyReset(prev, T2) as SetupV3;
+    expect(r).toMatchObject({ firstTime: null, owned: [], answeredAt: T2, checks: {}, startedAt: T0, updatedAt: T2 });
+    expect(r.uncheckedAt).toEqual({ bath: T0, cage: T2, wheel: T2 });
+  });
+
+  it('다른 기기의 옛 레코드와 병합해도(로컬·서버 어느 쪽이든) 체크·답이 되살아나지 않는다', () => {
+    const old = base({ firstTime: true, owned: ['cage'], answeredAt: T0, checks: { cage: { source: 'OWNED', at: T0 }, wheel: { source: 'UNKNOWN', at: T1 } }, updatedAt: T1 });
+    const reset = applyReset(old, T2) as SetupV3;
+    for (const m of [mergeSetup(reset, old), mergeSetup(old, reset)]) {
+      expect(m.checks).toEqual({});
+      expect(m.owned).toEqual([]);
+      expect(m.firstTime).toBeNull();
+      expect(m.answeredAt).toBe(T2);
+    }
+    // 리셋 뒤 다른 기기에서 새로 체크한 것(더 새 시각)은 살아난다.
+    const later = { ...old, checks: { ...old.checks, wheel: { source: 'UNKNOWN' as const, at: '2026-10-02T01:00:00.000Z' } } };
+    expect(Object.keys(mergeSetup(reset, later).checks)).toEqual(['wheel']);
+  });
+
+  it('useSetup.reset: 레코드 없으면 그대로 null(키 생성 0)', () => {
+    const b = memBackend();
+    const st = createStorage(() => b);
+    const h = renderHook(() => useSetup('hamster-golden', { storage: st }));
+    act(() => h.result.current.reset());
+    expect(h.result.current.setup).toBeNull();
+    expect(b.getItem('ws.setup.hamster-golden')).toBeNull();
   });
 });

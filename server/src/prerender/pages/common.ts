@@ -211,6 +211,8 @@ export type AvatarSize = keyof typeof AVATAR_PX;
  * 마스코트 아바타 — client/src/ui/AnimalAvatar.tsx 와 같은 마크업(O-1, 51 레인 A: 인라인 SVG D-2 결정을 뒤집음):
  *   span.ws-avatar.ws-avatar--{size}.ws-avatar--{tone}[aria-hidden] > img[src=/mascots/{asset}.svg width height alt="" decoding=async].
  *   리포 자산만(불변식 ①): 이름 형식 + 빌드 시 docs/design/mascots 에서 읽어 정제 통과한 자산(ctx.mascots)에 있을 때만 img. 없으면 빈 디스크.
+ *   R6 F2b ②: lg·peach-soft(컨텍스트 헤더 — 유일 조합, /{group}/{type} LCP)만 decoding 대신 fetchpriority="high".
+ *   AnimalAvatar.tsx isLcpAvatar 와 같은 규칙.
  */
 export function mascotAvatar(
   ctx: PageContext,
@@ -220,7 +222,8 @@ export function mascotAvatar(
 ): string {
   const ok = typeof asset === 'string' && MASCOT_ASSET_RE.test(asset) && ctx.mascots.has(asset);
   const px = AVATAR_PX[size];
-  const img = ok ? `<img src="/mascots/${a(asset)}.svg" width="${px}" height="${px}" alt="" decoding="async">` : '';
+  const extra = size === 'lg' && tone === 'peach-soft' ? 'fetchpriority="high"' : 'decoding="async"';
+  const img = ok ? `<img src="/mascots/${a(asset)}.svg" width="${px}" height="${px}" alt="" ${extra}>` : '';
   return `<span class="ws-avatar ws-avatar--${size} ws-avatar--${tone}" aria-hidden="true">${img}</span>`;
 }
 
@@ -247,7 +250,7 @@ export function yearMonth(d: string | null | undefined): string | null {
 export { ruleText, specLine, chipSpecText } from '../../engine/index.js';
 
 export function externalLink(href: string, text: string): string {
-  return `<a href="${a(href)}" target="_blank" rel="noopener noreferrer nofollow">${h(text)}</a>`;
+  return `<a href="${a(href)}" target="_blank" rel="noopener noreferrer nofollow">${h(text)}<span class="ws-visually-hidden">${h(` ${COPY.a11y.newWindow}`)}</span></a>`;
 }
 
 // ── 병원 카드(G-4, 스펙33 §4 VetCard) — /vet·/vet/{region}·타입 홈 ④ 공용 ─────────────
@@ -273,7 +276,7 @@ export function vetCard(v: PublicVet, typeNames: ReadonlyMap<string, string>, le
     '<p class="ws-vet-actions">',
     // DR m-5: 버튼 라벨은 "전화"만(줄바꿈 방지), 번호는 접근 이름(aria-label)과 위 meta 줄에.
     tel ? `<a class="ws-btn ws-btn--outline" href="tel:${a(tel)}" aria-label="${a(`${COPY.vet.call} ${v.phone}`)}" data-ws-action="vet-call">${h(COPY.vet.call)}</a>` : '',
-    `<a class="ws-btn ws-btn--outline" href="${a(naverMapSearchUrl(`${v.name} ${v.address}`))}" target="_blank" rel="noopener noreferrer nofollow" data-ws-action="vet-route">${h(COPY.vet.directions)}</a>`,
+    `<a class="ws-btn ws-btn--outline" href="${a(naverMapSearchUrl(`${v.name} ${v.address}`))}" target="_blank" rel="noopener noreferrer nofollow" data-ws-action="vet-route">${h(COPY.vet.directions)}<span class="ws-visually-hidden">${h(` ${COPY.a11y.newWindow}`)}</span></a>`,
     '</p>',
     '</li>',
   ]

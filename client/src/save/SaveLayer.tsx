@@ -4,6 +4,8 @@
 //   - 이메일은 이 컴포넌트 state(메모리)에만 — localStorage·history·이벤트 0(불변식 ⑧ / K4). 마케팅 동의·비밀번호·소셜 0.
 //   - /save#t= : 렌더 첫 단계에서 captureMagicToken(즉시 replaceState). verify 는 [이 기기 연결하기] 클릭 때만
 //     (SEC-3 M-1 — 링크 스캐너가 토큰을 소진하거나 남의 링크로 자동 연결되는 로그인 CSRF 방지). 연결 후 마스킹 주소 표시(저장 0).
+//   - R6 D2(SEC-4 L-1(c)): 연결(verify) 직후 PUT 0 — 저장할 준비가 있으면 확인 화면(confirmSave: COPY.save.confirmMasked
+//     마스킹 주소 + [이 주소로 저장하기])을 거친 뒤 sync.confirm() 이 첫 PUT. 빈 기기(connectedEmpty)는 예전대로 바로 연결.
 //   - 연결 안 된 채 열면 GET /auth/session 1회(미전송 로그아웃이 있으면 그것부터 재시도 — SEC-3 L-3).
 //   - 마스코트는 요약 줄 AnimalAvatar sm 하나(L8 유일). L3 전 숫자 0(D-34). 채운 CTA ≤ 1.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -32,7 +34,7 @@ export const RESEND_COOLDOWN_S = 60;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL = 254;
 
-type View = 'input' | 'sending' | 'sent' | 'connect' | 'verifying' | 'confirmed' | 'expired' | 'linked' | 'serverLinked';
+type View = 'input' | 'sending' | 'sent' | 'connect' | 'verifying' | 'confirmSave' | 'saving' | 'confirmed' | 'expired' | 'linked' | 'serverLinked';
 type PromptEntry = 'home_band' | 'l2_footer' | 'deeplink';
 
 const SERVER_ENTRY: Record<PromptEntry, MagicEntry> = { home_band: 'home', l2_footer: 'checklist', deeplink: 'direct' };
@@ -109,9 +111,11 @@ export default function SaveLayer({ close }: LayerContentProps) {
           ? COPY.save.expiredTitle
           : view === 'linked'
             ? COPY.save.signedInTitle
-            : view === 'verifying' || view === 'connect'
-              ? COPY.save.connectTitle
-              : COPY.save.title;
+            : view === 'confirmSave' || view === 'saving'
+              ? COPY.save.confirmTitle
+              : view === 'verifying' || view === 'connect'
+                ? COPY.save.connectTitle
+                : COPY.save.title;
   useLayoutEffect(() => {
     chrome.setTitle(title);
   }, [chrome, title]);
@@ -123,7 +127,8 @@ export default function SaveLayer({ close }: LayerContentProps) {
   useEffect(() => {
     if (prevView.current === view) return;
     prevView.current = view;
-    if (view !== 'sent' && view !== 'confirmed' && view !== 'expired') return;
+    // confirmSave: 같은 제목이라도 본문이 저장 확인(마스킹 주소)으로 바뀌었다 — 제목으로 옮겨 처음부터 읽히게.
+    if (view !== 'sent' && view !== 'confirmed' && view !== 'expired' && view !== 'confirmSave') return;
     let live = true;
     queueMicrotask(() => {
       if (live) document.getElementById(chrome.titleId)?.focus();
@@ -185,8 +190,21 @@ export default function SaveLayer({ close }: LayerContentProps) {
           setWinner(r.winner);
           setLinkedEmpty(r.empty === true);
           setMaskedEmail(r.maskedEmail);
-          setView('confirmed');
+          setView(r.confirm ? 'confirmSave' : 'confirmed'); // R6 D2: 저장할 준비가 있으면 첫 PUT 전에 주소 확인
         } else setView(linked ? 'linked' : 'expired'); // 이미 연결된 기기에서 쓰인 링크 → 연결 상태(DR-2 m-12)
+      });
+  };
+
+  // R6 D2: [이 주소로 저장하기] — 여기서 처음 연결 기록·자동 저장·PUT. 세션이 그새 끊겼으면(401) 만료 화면.
+  const onConfirmSave = () => {
+    if (view !== 'confirmSave') return;
+    setView('saving');
+    void saveLayerDeps
+      .sync()
+      .confirm()
+      .then((ok) => {
+        if (!alive.current) return;
+        setView((v) => (v === 'saving' ? (ok ? 'confirmed' : 'expired') : v));
       });
   };
 
@@ -305,6 +323,35 @@ export default function SaveLayer({ close }: LayerContentProps) {
             {/* D6: disabled 대신 aria-disabled — 포커스 유지(onConnect 는 verifying 중 무시). */}
             <button type="button" className="ws-btn ws-btn--fill" aria-disabled={busy ? true : undefined} aria-busy={busy ? true : undefined} onClick={onConnect}>
               {busy ? COPY.save.verifying : COPY.save.connectCta}
+            </button>
+            <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+              {COPY.save.later}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'confirmSave' || view === 'saving') {
+    const busy = view === 'saving';
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="confirm-save">
+            {maskedEmail ? (
+              <p className="ws-t-body" data-ws-save="confirm-masked">
+                {formatCopy(COPY.save.confirmMasked, { name: maskedEmail })}
+              </p>
+            ) : null}
+            {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            {/* D6: disabled 대신 aria-disabled — 포커스 유지(onConfirmSave 는 saving 중 무시). */}
+            <button type="button" className="ws-btn ws-btn--fill" aria-disabled={busy ? true : undefined} aria-busy={busy ? true : undefined} onClick={onConfirmSave}>
+              {COPY.save.confirmCta}
             </button>
             <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
               {COPY.save.later}

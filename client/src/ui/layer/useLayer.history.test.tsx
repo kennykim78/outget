@@ -2,7 +2,10 @@
 //   닫기(✕·ESC) = 스택 전체 닫기(go(-depth)), 딥링크(depth 0) 닫기 = replaceState(wsParent) · history.length 불변.
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import LayerHost, { type LayerRegistry } from './LayerHost';
+import { useLayoutEffect } from 'react';
+import { COPY } from '@ws/copy';
+import LayerHost, { layerDocumentTitle, type LayerRegistry } from './LayerHost';
+import { useLayerChrome } from './Layer';
 import { captureMagicToken, clearMagicToken } from '../../save/magicLink';
 import { layerNav, layerStore, readLayerState } from './useLayer';
 
@@ -17,6 +20,9 @@ const registry: LayerRegistry = {
   L7: { title: 'L7 제목', Component: Body },
   L8: { title: 'L8 제목', Component: Body },
 };
+
+/** jsdom history 이동(go/back)의 popstate 는 타이머로 온다 — 첫 테스트 콜드 스타트 부하에서 기본 1s 가 모자랄 수 있다. */
+const WAIT = { timeout: 5000 };
 
 function host() {
   return render(<LayerHost registry={registry} />);
@@ -271,7 +277,7 @@ describe('useLayer history (C-R5-5)', () => {
       const go = vi.spyOn(window.history, 'go');
       act(() => layerStore.close());
       expect(go).toHaveBeenCalledWith(-2);
-      await waitFor(() => expect(dialogKind()).toBeNull());
+      await waitFor(() => expect(dialogKind()).toBeNull(), WAIT);
       expect(window.location.pathname).toBe('/hamster/golden');
     });
 
@@ -292,5 +298,88 @@ describe('useLayer history (C-R5-5)', () => {
       pasteHash('/hamster/golden', `#t=${TOKEN}`);
       expect(dialogKind()).toBeNull();
     });
+  });
+});
+
+// R6 G1 ① 레이어 document.title — "<레이어 제목> — WithSmall"(프리렌더 titleSuffix), 스텝 전환 갱신, 닫으면 복원.
+function StepBody({ props }: { props: Record<string, unknown> }) {
+  const { setTitle } = useLayerChrome();
+  const step = typeof props.step === 'string' ? props.step : '';
+  useLayoutEffect(() => {
+    if (step === 'species') setTitle('종 고르기');
+  }, [step, setTitle]);
+  return <p>{step}</p>;
+}
+const stepRegistry: LayerRegistry = { ...registry, L1: { title: '친구 고르기', Component: StepBody } };
+
+describe('레이어 document.title (R6 G1)', () => {
+  const PAGE_TITLE = `골든햄스터 페이지${COPY.site.titleSuffix}`;
+  beforeEach(() => {
+    document.title = PAGE_TITLE;
+  });
+
+  it('열면 "<제목> — WithSmall", 스텝 전환(setTitle) 시 갱신, 닫으면 이전 제목 복원', async () => {
+    render(<LayerHost registry={stepRegistry} />);
+    act(() => layerStore.open('L1', { step: 'group' }));
+    expect(document.title).toBe(layerDocumentTitle('친구 고르기'));
+    expect(document.title).toBe('친구 고르기 — WithSmall');
+    act(() => layerStore.open('L1', { step: 'species' }));
+    await waitFor(() => expect(document.title).toBe('종 고르기 — WithSmall'), WAIT);
+    act(() => layerStore.open('L4', { itemId: 'cage' }, { url: '/hamster/golden/supplies/cage' }));
+    expect(document.title).toBe('L4 제목 — WithSmall');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(dialogKind()).toBeNull(), WAIT);
+    expect(document.title).toBe(PAGE_TITLE);
+  });
+
+  it('딥링크(depth 0)로 시작한 레이어를 닫으면 홈 제목(직전 제목 = 레이어 자신의 프리렌더 제목)', async () => {
+    document.title = `골든햄스터 케이지${COPY.site.titleSuffix}`;
+    host();
+    act(() => layerStore.initDeepLink('L4', { typeId: 't', itemId: 'cage' }, '/hamster/golden'));
+    expect(document.title).toBe('L4 제목 — WithSmall');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(dialogKind()).toBeNull(), WAIT);
+    expect(document.title).toBe(COPY.site.homeTitle);
+  });
+});
+
+// R6 G1 ② 스크롤 복원 점프(P3 N1): 열려 있는 동안만 scrollRestoration=manual, 닫으면 연 순간 scrollY 로(차이 ≤1px).
+describe('레이어 스크롤 유지 (R6 G1)', () => {
+  let y = 0;
+  beforeEach(() => {
+    y = 0;
+    vi.spyOn(window, 'scrollY', 'get').mockImplementation(() => y);
+    vi.spyOn(window, 'scrollTo').mockImplementation(((a: number | ScrollToOptions, b?: number) => {
+      y = typeof a === 'number' ? (b ?? 0) : (a.top ?? y);
+    }) as typeof window.scrollTo);
+    window.history.scrollRestoration = 'auto';
+  });
+
+  it('열 때 scrollY 저장 → 브라우저가 2556 으로 점프해도 ESC 닫힘 뒤 원래 위치(≤1px), 모드는 열린 동안만 manual', async () => {
+    host();
+    y = 1200;
+    act(() => layerStore.open('L1'));
+    expect(window.history.scrollRestoration).toBe('manual');
+    y = 2556; // 브라우저 자동 복원이 부모 항목의 옛 위치로 튀는 상황
+    // popstate 리스너(LayerHost 보다 먼저 등록되지 않았으므로 뒤에 돈다) — 닫힘 처리 직후 같은 태스크에서 다시 2556 으로 튀김
+    window.addEventListener('popstate', () => (y = 2556), { once: true });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(dialogKind()).toBeNull(), WAIT);
+    await waitFor(() => expect(window.history.scrollRestoration).toBe('auto'), WAIT); // 한 틱 뒤 원복 + 위치 재확인
+    expect(Math.abs(window.scrollY - 1200)).toBeLessThanOrEqual(1);
+  });
+
+  it('닫힌 직후 다시 열면 원래 모드(auto)를 이어 받고, 최종 닫힘 뒤 auto', async () => {
+    host();
+    y = 300;
+    act(() => layerStore.open('L2'));
+    act(() => layerStore.close());
+    await waitFor(() => expect(dialogKind()).toBeNull(), WAIT);
+    act(() => layerStore.open('L2')); // 원복 타이머 전에 재열기
+    expect(window.history.scrollRestoration).toBe('manual');
+    act(() => layerStore.close());
+    await waitFor(() => expect(dialogKind()).toBeNull(), WAIT);
+    await waitFor(() => expect(window.history.scrollRestoration).toBe('auto'), WAIT);
+    expect(Math.abs(window.scrollY - 300)).toBeLessThanOrEqual(1);
   });
 });

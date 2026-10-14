@@ -84,12 +84,12 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 16 = W-EXPOSURE-ZERO 1 · L03 9(caution 7 + 번들 note 단위 2) · L02 2 · L05 4 · W-OPTLABEL 0(CU 라벨 입력 후) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 14 = W-EXPOSURE-ZERO 1 · L03 9(caution 7 + 번들 note 단위 2) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 9, L02: 2, L05: 4 });
-    expect(res.warnings).toHaveLength(16);
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 9, L05: 4 });
+    expect(res.warnings).toHaveLength(14);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(7);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(2);
   });

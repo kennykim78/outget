@@ -1,7 +1,30 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// R6 F2b ③ 첫 화면 글꼴 preload(빌드 전용). Pretendard dynamic-subset 중 첫 화면 제목·헤더·히어로 글자의 대부분이
+//   들어 있는 조각 90(한글 최빈)·91(라틴+한글 최빈) 둘만 — 빌드 산출 해시명을 번들에서 찾아 head 에 주입.
+//   프리렌더는 이 index.html 을 템플릿으로 쓰므로 모든 정적 페이지에 그대로 실린다. font-display: swap 유지(CSS 원본 불변).
+//   조각 번호는 pretendard 패키지 unicode-range 기준(1.3.x) — 패키지 판이 바뀌면 재측정(scratch subsets.mjs).
+const PRELOAD_FONT_SUBSETS = /^assets\/PretendardVariable\.subset\.(?:90|91)-[A-Za-z0-9_-]+\.woff2$/;
+function preloadFirstScreenFonts(): Plugin {
+  return {
+    name: 'ws-preload-first-screen-fonts',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        const files = Object.keys(ctx.bundle ?? {}).filter((f) => PRELOAD_FONT_SUBSETS.test(f)).sort();
+        return files.map((f) => ({
+          tag: 'link',
+          attrs: { rel: 'preload', href: `/${f}`, as: 'font', type: 'font/woff2', crossorigin: '' },
+          injectTo: 'head' as const,
+        }));
+      },
+    },
+  };
+}
 
 // 리포 기준 상대 경로 → 절대 파일 경로(node 타입 없이 — 클라 tsconfig 에 node 전역을 들이지 않는다).
 // Windows 의 '/C:/...' 앞 슬래시를 떼어 낸다.
@@ -26,12 +49,17 @@ export default defineConfig({
       '@ws/copy': fromHere('../server/src/prerender/copy.ts'),
       '@ws/events': fromHere('../server/src/shared/event-contract.ts'),
       '@ws/forbidden-keys': fromHere('../server/src/shared/forbidden-keys.ts'),
+      '@ws/save-validate': fromHere('../server/src/shared/save-validate.ts'),
     },
   },
   plugins: [
     react(),
+    preloadFirstScreenFonts(),
     VitePWA({
       registerType: 'autoUpdate',
+      // R6 F2b ①: registerSW.js 를 defer 로 — head 동기 스크립트가 첫 렌더를 막지 않게(F1 렌더 차단 306ms).
+      //   등록 자체는 registerSW.js 안에서 window load 이후라 동작 동일.
+      injectRegister: 'script-defer',
       manifest: {
         name: 'WithSmall',
         short_name: 'WithSmall',

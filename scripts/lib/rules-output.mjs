@@ -7,6 +7,7 @@
 //                typeId?, family?, itemId?, productId?, region?, layer?: { kind, typeId, itemId?|productId? } }] }
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
@@ -35,7 +36,8 @@ function bannedIn(text, rel, line, where, add, bw) {
   for (const h of lintText(text, bw)) {
     if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, line, `${where}: 금지어 "${h.term}"`);
     else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, line, `${where}: 공백 제거 후 2자 금지어 "${h.term}"`);
-    else add('C4-STEM', 'WARN', rel, line, `${where}: 금지어 어간 "${h.term}"`);
+    // R6 B1(SEC-4 L-4): 산출물은 사용자에게 보이는 결과물 — 어간도 FAIL.
+    else add('C4-STEM', 'FAIL', rel, line, `${where}: 금지어 어간 "${h.term}"`);
   }
 }
 
@@ -326,6 +328,25 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput }) 
     }
     checkCatalog(c, rel, ex, digest, add);
     jsonStrings(c, '', (t, k) => bannedIn(t, rel, null, `JSON ${k}`, add, bw));
+  }
+
+  // R6 F2a: 사전 압축본(.br/.gz)은 위 텍스트 스캔 대상이 아니다(확장자 필터) — 대신 같은 이름 원본의 무손실 사본인지만 본다
+  //   (해제 = 원본 바이트). 서빙되는 바이트가 스캔한 원본과 다를 수 없게.
+  for (const abs of all.filter((f) => f.endsWith('.br') || f.endsWith('.gz'))) {
+    const rel = relPosix(root, abs);
+    const orig = abs.slice(0, -3);
+    if (!existsSync(orig)) {
+      add('C8-OUT-SAFE', 'FAIL', rel, null, '원본 없는 압축 사본');
+      continue;
+    }
+    let same = false;
+    try {
+      const buf = readFileSync(abs);
+      same = (abs.endsWith('.br') ? brotliDecompressSync(buf) : gunzipSync(buf)).equals(readFileSync(orig));
+    } catch {
+      same = false;
+    }
+    if (!same) add('C8-OUT-SAFE', 'FAIL', rel, null, '압축 사본 ≠ 원본 — node scripts/precompress.mjs 재실행');
   }
   return 'RUN';
 }

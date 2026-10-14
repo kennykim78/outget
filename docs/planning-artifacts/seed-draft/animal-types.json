@@ -1,6 +1,7 @@
 [
   {
     "id": "hamster-golden",
+    "slug": "hamster/golden",
     "group": "SMALL_MAMMAL",
     "displayName": "골든햄스터",
     "status": "ACTIVE",
@@ -32,6 +33,7 @@
   },
   {
     "id": "hamster-dwarf",
+    "slug": "hamster/dwarf",
     "group": "SMALL_MAMMAL",
     "displayName": "드워프햄스터",
     "status": "PLANNED",
@@ -54,6 +56,7 @@
   },
   {
     "id": "gerbil-mongolian",
+    "slug": "gerbil",
     "group": "SMALL_MAMMAL",
     "displayName": "몽골리안저빌",
     "status": "PLANNED",
@@ -65,7 +68,7 @@
     "taxonId": null,
     "careProfileId": null,
     "careOverrides": {},
-    "mascot": "gerbil-mongolian",
+    "mascot": "gerbil",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -75,6 +78,7 @@
   },
   {
     "id": "guinea-pig",
+    "slug": "guinea-pig",
     "group": "SMALL_MAMMAL",
     "displayName": "기니피그",
     "status": "PLANNED",
@@ -95,6 +99,7 @@
   },
   {
     "id": "budgie",
+    "slug": "parrot/budgie",
     "group": "PARROT",
     "displayName": "사랑앵무",
     "status": "PLANNED",
@@ -115,6 +120,7 @@
   },
   {
     "id": "cockatiel",
+    "slug": "parrot/cockatiel",
     "group": "PARROT",
     "displayName": "왕관앵무",
     "status": "PLANNED",

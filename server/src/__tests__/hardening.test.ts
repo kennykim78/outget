@@ -166,21 +166,26 @@ describe('SEC-3 M-2 · L-5 · L-7', () => {
     expect((await ask(a, '198.51.100.9', 6)).status).toBe(202);
   });
 
-  it('hops=1: 같은 IPv6 /64 는 한 버킷, 다른 /64 는 별도', async () => {
+  it('hops=1: 같은 IPv6 /56 은 한 버킷(다른 /64 여도), 다른 /56 은 별도 (R6 B3)', async () => {
     const a = await magicApp(1);
-    for (let i = 0; i < 5; i++) expect((await ask(a, `2001:db8:1:2::${i + 1}`, i)).status).toBe(202);
-    expect((await ask(a, '2001:db8:1:2:ffff:ffff:ffff:ffff', 5)).status).toBe(429);
-    expect((await ask(a, '2001:db8:1:3::1', 6)).status).toBe(202);
+    // 2001:db8:1:200::/56 안의 서로 다른 /64 다섯 개(…:2xx::)
+    for (let i = 0; i < 5; i++) expect((await ask(a, `2001:db8:1:2${i}${i}::${i + 1}`, i)).status).toBe(202);
+    expect((await ask(a, '2001:db8:1:2ff:ffff:ffff:ffff:ffff', 5)).status).toBe(429);
+    expect((await ask(a, '2001:db8:1:300::1', 6)).status).toBe(202);
   });
 
-  it('ipKey: IPv4·IPv4-mapped·IPv6 /64·압축·존 id·이상값', async () => {
+  it('ipKey: IPv4·IPv4-mapped·IPv6 /56·압축·존 id·이상값', async () => {
     const { ipKey } = await import('../middleware/rate-limit.js');
     expect(ipKey('203.0.113.7')).toBe('203.0.113.7');
     expect(ipKey('::ffff:203.0.113.7')).toBe('203.0.113.7');
-    expect(ipKey('2001:db8::1')).toBe('2001:0db8:0000:0000::/64');
-    expect(ipKey('2001:DB8:0:0:abcd::1')).toBe('2001:0db8:0000:0000::/64');
-    expect(ipKey('fe80::1%eth0')).toBe('fe80:0000:0000:0000::/64');
-    expect(ipKey('::1')).toBe('0000:0000:0000:0000::/64');
+    expect(ipKey('2001:db8::1')).toBe('2001:0db8:0000:0000::/56');
+    expect(ipKey('2001:DB8:0:0:abcd::1')).toBe('2001:0db8:0000:0000::/56');
+    expect(ipKey('2001:db8:1:2ab::1')).toBe('2001:0db8:0001:0200::/56');
+    expect(ipKey('2001:db8:1:2ff:ffff::9')).toBe(ipKey('2001:db8:1:200::1'));
+    expect(ipKey('2001:db8:1:300::1')).not.toBe(ipKey('2001:db8:1:2ff::1'));
+    expect(ipKey('2001:db8:1:12::1')).toBe('2001:0db8:0001:0000::/56'); // 2-hex 그룹 = 0x0012 → 상위 8비트 00
+    expect(ipKey('fe80::1%eth0')).toBe('fe80:0000:0000:0000::/56');
+    expect(ipKey('::1')).toBe('0000:0000:0000:0000::/56');
     expect(ipKey(undefined)).toBe('unknown');
     expect(ipKey('garbage')).toBe('garbage');
   });

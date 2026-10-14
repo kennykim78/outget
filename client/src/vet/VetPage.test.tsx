@@ -288,7 +288,7 @@ describe('VetCard', () => {
     const tel = within(li).getByRole('link', { name: `${COPY.vet.call} 02-123-4567` });
     expect(tel).toHaveAttribute('href', 'tel:021234567');
     expect(tel.textContent).toBe(COPY.vet.call);
-    const route = within(li).getByRole('link', { name: COPY.vet.directions });
+    const route = within(li).getByRole('link', { name: new RegExp(`^${COPY.vet.directions} ?[(]새 창[)]$`) });
     expect(route).toHaveAttribute('href', naverMapSearchUrl(`${v.name} ${v.address}`));
     expect(route).toHaveAttribute('target', '_blank');
     expect(route).toHaveAttribute('rel', 'noopener noreferrer nofollow');
@@ -304,7 +304,7 @@ describe('VetCard', () => {
     const call = screen.getByRole('link', { name: new RegExp(COPY.vet.call) });
     call.addEventListener('click', (e) => e.preventDefault());
     fireEvent.click(call);
-    const route = screen.getByRole('link', { name: COPY.vet.directions });
+    const route = screen.getByRole('link', { name: new RegExp(`^${COPY.vet.directions} ?[(]새 창[)]$`) });
     route.addEventListener('click', (e) => e.preventDefault());
     fireEvent.click(route);
     expect(calls).toEqual([

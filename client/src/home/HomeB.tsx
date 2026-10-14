@@ -21,6 +21,7 @@ import BundleCard from './BundleCard';
 import NeedChip, { needChipSpec, type NeedState } from './NeedChip';
 import ProductCard from './ProductCard';
 import VetCard from '../vet/VetCard';
+import { sortVets } from '../vet/order';
 
 const STATE_OF: Record<ItemState, NeedState> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
 // 칩 정렬(D-5): 미완료(! → △) → ✓. 같은 순위는 deriveChecklist 순서(orderHint → 입력 순서) 유지.
@@ -74,7 +75,7 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, on
   const alias = type.aliases[0] ? copyFmt('homeB.aliasLine', { alias: type.aliases[0] }) : null;
 
   const products = page.data.products; // ws-data 순서 그대로(재정렬 금지).
-  const vets = page.data.vets.slice(0, MAX_VETS); // ws-data 순서 그대로.
+  const vets = useMemo(() => sortVets(page.data.vets).slice(0, MAX_VETS), [page.data.vets]); // /vet 과 같은 순서(vet/order.ts 단일 출처).
   const typeNames = useMemo(() => new Map(page.data.types.map((t) => [t.id, t.displayName] as const)), [page.data.types]);
   const specLines = useMemo(() => productSpecLines(capturedMain), [capturedMain]);
   const itemOf = (supplyItemId: string) => reqs.find((r) => r.supplyItemId === supplyItemId)?.item;
@@ -256,7 +257,7 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, on
             onOpenL8();
           }}
         >
-          {COPY.homeB.saveLink}
+          {linked ? COPY.homeB.saveLinked : COPY.homeB.saveLink}
         </a>
       </section>
     </main>

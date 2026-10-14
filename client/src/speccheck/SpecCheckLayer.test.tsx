@@ -470,8 +470,8 @@ describe('L5 화면 규칙', () => {
     fireEvent.click(within(r).getByRole('button', { name: COPY.supplyLayer.findWithCondition }));
     expect(within(r).getByText('골든햄스터 쳇바퀴 30cm')).toBeInTheDocument();
     const links = [
-      within(r).getByRole('link', { name: COPY.supplyLayer.findCoupang }),
-      within(r).getByRole('link', { name: COPY.supplyLayer.findNaver }),
+      within(r).getByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findCoupang} ?[(]새 창[)]$`) }),
+      within(r).getByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findNaver} ?[(]새 창[)]$`) }),
     ];
     expect(links[0].getAttribute('href')).toMatch(/^https:\/\/www\.coupang\.com\/np\/search\?q=/);
     expect(links[1].getAttribute('href')).toMatch(/^https:\/\/search\.shopping\.naver\.com\/search\/all\?query=/);
@@ -503,8 +503,8 @@ describe('L5 화면 규칙', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: COPY.supplyLayer.findWithCondition }));
-    expect(screen.queryByRole('link', { name: COPY.supplyLayer.findCoupang })).toBeNull();
-    expect(screen.getByRole('link', { name: COPY.supplyLayer.findNaver })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findCoupang} ?[(]새 창[)]$`) })).toBeNull();
+    expect(screen.getByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findNaver} ?[(]새 창[)]$`) })).toBeInTheDocument();
   });
 
   it('카탈로그 실패 → 폼 비활성 + 안내, 판정 0', async () => {

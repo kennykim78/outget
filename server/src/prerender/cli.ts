@@ -2,6 +2,7 @@
 //   사용: node scripts/prerender.mjs [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now]
 //   순서: validateSeed(오류 → exit 1) → seedDigest → buildSite → 이전 산출물 정리 → 쓰기 → 검사(ws-data ≤ 32KB, /assets/* 실재).
 //   SITE_ORIGIN(env, 기본 http://localhost:3001) · WS_INDEXABLE=1 일 때만 robots Allow(Kenny 항목 §8-1).
+//   NODE_ENV=production(도커 빌드)은 SITE_ORIGIN(또는 --site-origin) 필수·https·비 loopback·경로 없는 오리진(R6 N-2) — 아니면 exit 2.
 //   exit 0 = 성공, 1 = 시드 오류·산출물 검사 실패, 2 = 사용법·입력 오류. 빌드 시각은 어떤 파일에도 쓰지 않는다.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -88,6 +89,31 @@ function parseArgs(argv: readonly string[]): Args | string {
   return args;
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '[::]']);
+
+/**
+ * R6 N-2: 운영 프리렌더의 오리진 검사 — canonical·sitemap·OG·robots Sitemap 이 localhost 로 굽히지 않게.
+ *   null = 통과, 문자열 = 오류(변수명 SITE_ORIGIN 포함). 기본값(http://localhost:3001)으로의 폴백은 운영에서 없다.
+ */
+export function productionOriginProblem(origin: string | null | undefined): string | null {
+  const raw = (origin ?? '').trim();
+  const hint = '— 도커: --build-arg SITE_ORIGIN=https://<도메인>';
+  if (raw === '') return `SITE_ORIGIN 미설정: NODE_ENV=production 프리렌더는 SITE_ORIGIN(또는 --site-origin) 필수 ${hint}`;
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return `SITE_ORIGIN 형식 오류(URL 아님): ${raw} ${hint}`;
+  }
+  if (u.protocol !== 'https:') return `SITE_ORIGIN 은 https 만(NODE_ENV=production): ${raw} ${hint}`;
+  const host = u.hostname.toLowerCase();
+  if (LOOPBACK_HOSTS.has(host) || host.endsWith('.localhost') || /^127\./.test(host)) {
+    return `SITE_ORIGIN 이 localhost/loopback(NODE_ENV=production): ${raw} ${hint}`;
+  }
+  if (u.origin !== raw.replace(/\/$/, '')) return `SITE_ORIGIN 은 경로·쿼리·자격증명 없는 오리진만: ${raw} ${hint}`;
+  return null;
+}
+
 const hasMarkers = (html: string): boolean => html.includes(HEAD_MARKER) && html.includes(BODY_MARKER);
 
 /** 템플릿: 새 client 빌드면 index.html(마커 있음), 이미 프리렌더됐으면 shell.html. */
@@ -150,9 +176,20 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
     io.stderr(USAGE);
     return 2;
   }
-  const origin = args.origin ?? io.env.SITE_ORIGIN ?? DEFAULT_ORIGIN;
+  const explicitOrigin = args.origin ?? io.env.SITE_ORIGIN;
   const indexable = io.env.WS_INDEXABLE === '1';
   const production = io.env.NODE_ENV === 'production';
+
+  // N-2(R6): 운영 빌드는 오리진 폴백 없음 — 미설정·localhost·비 https 면 입력 오류.
+  if (production) {
+    const problem = productionOriginProblem(explicitOrigin);
+    if (problem !== null) {
+      io.stderr(`prerender: ${problem}`);
+      return 2;
+    }
+  }
+  // 비운영은 기존 의미 그대로(미설정 → 기본값). 운영은 검사 통과 값(끝 슬래시 제거).
+  const origin = production ? (explicitOrigin ?? '').trim().replace(/\/$/, '') : (explicitOrigin ?? DEFAULT_ORIGIN);
 
   // L-B(S-R4): 운영 빌드는 오늘(서울)만 — 과거·미래 --now 로 강등을 늦추지 못하게. 테스트·재현은 --allow-past-now.
   if (production && args.now !== null && !args.allowPastNow && args.now !== io.today()) {

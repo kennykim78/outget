@@ -14,7 +14,7 @@
 //                        t.careProfileId ∈ careProfileIds ∧ (t,item) 노출 ∧ minSpec(base ⊕ override, (key,op) 교체) 전부 충족
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
 //   setupBundle        = verified ∧ ∃ 노출 type t: careProfileId 일치 ∧ itemIds 비어있지 않고 전부 (t,item) 노출
-//   compatibilityRule  = verified ∧ a·b 둘 다 노출 item
+//   compatibilityRule  = verified ∧ a·b 둘 다 노출 item ∧ (careProfileId 없음 ∨ 노출 타입의 프로필)
 //   taxon              = verified ∧ 노출 type 이 참조
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
@@ -374,7 +374,11 @@ export function computeExposure(seed, asOf) {
     careProfiles: idsWhere(rows('careProfiles'), (x) => ok(x) && typeProfiles.has(x.id)),
     supplyItems: idsWhere(rows('supplyItems'), (x) => ok(x) && exposedItemIds.has(x.id)),
     supplyRequirements: exposedReqIds,
-    compatibilityRules: idsWhere(rows('compatibilityRules'), (x) => ok(x) && exposedItemIds.has(x.a) && exposedItemIds.has(x.b)),
+    // M4: 프로필 범위 규칙은 노출 타입의 프로필일 때만(엔진 projectCatalog 와 같은 조건).
+    compatibilityRules: idsWhere(
+      rows('compatibilityRules'),
+      (x) => ok(x) && exposedItemIds.has(x.a) && exposedItemIds.has(x.b) && (!x.careProfileId || typeProfiles.has(x.careProfileId)),
+    ),
     setupBundles: bundleIds,
     curatedProducts: productIds,
     // F5: 노출 타입(types)의 후기만 — 비노출 동물 후기는 산출물에 있으면 C3-OUT-ID.

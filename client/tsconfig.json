@@ -11,7 +11,8 @@
       "@ws/engine": ["../server/src/engine/index.ts"],
       "@ws/copy": ["../server/src/prerender/copy.ts"],
       "@ws/events": ["../server/src/shared/event-contract.ts"],
-      "@ws/forbidden-keys": ["../server/src/shared/forbidden-keys.ts"]
+      "@ws/forbidden-keys": ["../server/src/shared/forbidden-keys.ts"],
+      "@ws/save-validate": ["../server/src/shared/save-validate.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

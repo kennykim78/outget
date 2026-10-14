@@ -136,6 +136,32 @@ describe('E10 alternatives', () => {
     expect(r.alternatives).toEqual([{ supplyItemId: 'disc', name: '원반' }]);
     expect(specCheck(cat, 'critter-plain', 'box', { type: 'BOX', widthCm: 60 }).alternatives).toEqual([]);
   });
+
+  // 감사 54 #6(M3): 대안은 이 동물의 CareProfile 요구사항에 있는 항목만. 다른 프로필 전용 항목은 0.
+  it('profile-scoped: alternatives limited to the animal’s CareProfile requirements', () => {
+    const b = makeBundle();
+    b.supplyItems.push({ ...b.supplyItems.find((i) => i.id === 'disc')!, id: 'pad', name: '받침' });
+    b.supplyRequirements.push({ ...b.supplyRequirements.find((r) => r.careProfileId === 'pf-other')!, id: 'rq-pf-other-pad', supplyItemId: 'pad' });
+    for (const it of b.supplyItems) {
+      if (it.id === 'spinner') it.compatibleAlternativeIds = ['disc', 'pad', 'nope'];
+      if (it.id === 'box') it.compatibleAlternativeIds = ['pad', 'disc'];
+    }
+    b.animalTypes.push({ ...b.animalTypes.find((a) => a.id === 'critter-plain')!, id: 'critter-other', careProfileId: 'pf-other' });
+    const c2 = createCatalog(b);
+
+    // pf-test: disc(같은 프로필) 유지, pad(pf-other 전용) 제외.
+    const s = specCheck(c2, 'critter-plain', 'spinner', { ...GOOD_SPINNER, sizeCm: 10 });
+    expect(s.verdict).toBe('BELOW_MIN');
+    expect(s.alternatives).toEqual([{ supplyItemId: 'disc', name: '원반' }]);
+    const bx = specCheck(c2, 'critter-plain', 'box', { type: 'BOX', widthCm: 20, heightCm: 30 });
+    expect(bx.verdict).toBe('BELOW_MIN');
+    expect(bx.alternatives).toEqual([{ supplyItemId: 'disc', name: '원반' }]);
+
+    // pf-other: pad(같은 프로필) 유지, disc(pf-test 전용) 제외.
+    const o = specCheck(c2, 'critter-other', 'box', { type: 'BOX', widthCm: 20, heightCm: 30 });
+    expect(o.verdict).toBe('BELOW_MIN');
+    expect(o.alternatives).toEqual([{ supplyItemId: 'pad', name: '받침' }]);
+  });
 });
 
 describe('checkProfileMinSpec (meetsMinSpec source)', () => {

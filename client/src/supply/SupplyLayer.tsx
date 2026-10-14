@@ -278,6 +278,7 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
                       {/^https:\/\//.test(s.url) ? (
                         <a href={s.url} target="_blank" rel="noopener noreferrer nofollow">
                           {s.title}
+                          <span className="ws-visually-hidden">{` ${COPY.a11y.newWindow}`}</span>
                         </a>
                       ) : (
                         s.title

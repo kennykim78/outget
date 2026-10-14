@@ -17,12 +17,26 @@ export interface AnimalAvatarProps {
   alt: string;
 }
 
+/**
+ * R6 F2b ②: lg·peach-soft = 홈 선택 컨텍스트 헤더 마스코트(유일 조합, /{group}/{type} LCP 요소).
+ *   그 img 만 fetchpriority=high + decoding 생략(동기 디코드로 첫 페인트에 바로). 다른 마스코트는 decoding=async 그대로.
+ *   프리렌더 server/src/prerender/pages/common.ts mascotAvatar 와 같은 규칙(하이드레이션 골격 일치).
+ */
+function isLcpAvatar(size: AvatarSize, tone: AvatarTone): boolean {
+  return size === 'lg' && tone === 'peach-soft';
+}
+
+// React 18 은 fetchPriority 카멜 prop 을 모른다(경고) — 소문자 HTML 속성으로 그대로 내보낸다.
+const LCP_IMG_ATTRS = { fetchpriority: 'high' } as const;
+const LAZY_IMG_ATTRS = { decoding: 'async' } as const;
+
 export default function AnimalAvatar({ asset, size, tone, alt }: AnimalAvatarProps) {
   const ok = typeof asset === 'string' && ASSET_RE.test(asset);
   const px = IMG_PX[size];
+  const extra = isLcpAvatar(size, tone) ? LCP_IMG_ATTRS : LAZY_IMG_ATTRS;
   return (
     <span className={`ws-avatar ws-avatar--${size} ws-avatar--${tone}`} aria-hidden={ok && alt !== '' ? undefined : true}>
-      {ok ? <img src={`/mascots/${asset}.svg`} width={px} height={px} alt={alt} decoding="async" /> : null}
+      {ok ? <img src={`/mascots/${asset}.svg`} width={px} height={px} alt={alt} {...extra} /> : null}
     </span>
   );
 }

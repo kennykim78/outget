@@ -139,11 +139,8 @@ describe('홈 A 섹션', () => {
   });
 
   describe('후기 행동 의도 보존', () => {
-    const specReq = (() => {
-      const r = req('cage-1', 'REQUIRED');
-      return { ...r, item: { ...r.item, specSchema: { fields: [{ key: 'w' }] } } } as unknown as typeof r;
-    })();
-    const page = () => pageOf('HOME', { testimonials: [1, 2, 4].map(testimonial), requirements: [specReq] });
+    // R6 G3b: 홈 ws-data 는 요구사항 없이 types[].specCheckItemId 만 싣는다(서버 homeTypes).
+    const page = () => pageOf('HOME', { testimonials: [1, 2, 4].map(testimonial), types: [{ ...golden, specCheckItemId: 'cage-1' }] });
     // testimonial(1)=SPEC_CHECK · (2)=SETUP · (4)=CHECKLIST
     const TARGETS: ReadonlyArray<[string, string]> = [
       ['규격 확인해보기', '/hamster/golden/check/cage-1'],
@@ -176,6 +173,24 @@ describe('홈 A 섹션', () => {
       expect(assign).toHaveBeenCalledTimes(1);
       expect(assign).toHaveBeenCalledWith(href);
       expect(assign).not.toHaveBeenCalledWith('/hamster/golden/');
+      assign.mockRestore();
+    });
+
+    it('SPEC_CHECK: specCheckItemId·요구사항 둘 다 없으면 /{slug} 폴백', () => {
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      render(<App page={pageOf('HOME', { testimonials: [testimonial(1)] })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
+      fireEvent.click(screen.getByRole('button', { name: /규격 확인해보기/ }));
+      expect(assign).toHaveBeenCalledWith('/hamster/golden');
+      assign.mockRestore();
+    });
+
+    it('SPEC_CHECK: 요구사항이 실린 문서는 규격 필드가 있는 첫 요구사항으로(타입 데이터 폴백)', () => {
+      const r = req('cage-2', 'REQUIRED');
+      const specReq = { ...r, item: { ...r.item, specSchema: { fields: [{ key: 'w' }] } } } as unknown as typeof r;
+      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+      render(<App page={pageOf('HOME', { testimonials: [testimonial(1)], requirements: [specReq] })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
+      fireEvent.click(screen.getByRole('button', { name: /규격 확인해보기/ }));
+      expect(assign).toHaveBeenCalledWith('/hamster/golden/check/cage-2');
       assign.mockRestore();
     });
 

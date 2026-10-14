@@ -1,4 +1,4 @@
-// 저장 금지 키 단일 소스(불변식 ⑧, 계약 C-R5-1·C-R5-2) — 서버 저장 검증기(save/validate.ts)와
+// 저장 금지 키 단일 소스(불변식 ⑧, 계약 C-R5-1·C-R5-2) — 서버 저장 검증기(shared/save-validate.ts)와
 //   클라이언트 localStorage 어댑터(client/src/lib/storage.ts, 별칭 @ws/forbidden-keys)가 같은 목록·같은 매칭을 쓴다.
 //   R-1(QA-M 재시험): 서버 30 · 클라 26 으로 갈라져 id 가 sessionid·ws_sid·ip·useragent 인 값이 클라는 통과·서버는 400 이던 드리프트 제거.
 // 매칭 규칙(양쪽 동일): 객체 키 이름 **정확 일치, 대소문자 무시**('q' 는 'quote' 를 막지 않는다). 순회(깊이 상한 등)는 각자.

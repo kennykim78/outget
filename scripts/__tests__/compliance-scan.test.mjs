@@ -8,6 +8,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCANNER = resolve(HERE, '..', 'compliance-scan.mjs');
@@ -394,6 +395,84 @@ test('C1-LIB: jsdom 은 devDependencies 만', async () => {
   expectFail(scan(await makeRoot({ source: (s) => { s['client/package.json'] = JSON.stringify(pkg); } })), 'C1-LIB');
 });
 
+// R6 B4(Kenny: Resend): C1-FETCH 허용목록 api.resend.com 은 server/src/save/mail.ts 한 파일만.
+const RESEND_HOST = j('api.re', 'send.com');
+const MAIL_FILE = 'server/src/save/mail.ts';
+const resendSrc = (url) => j("export const RESEND_ENDPOINT = '", url, "';\nawait ", FETCH, "(RESEND_ENDPOINT, { method: 'POST' });\n");
+const resendInline = (url) => j('await ', FETCH, "('", url, "', { method: 'POST' });\n");
+
+test('C1-FETCH 허용: mail.ts 에서 https://api.resend.com 상수·인라인 호출 → 통과', async () => {
+  const res = scan(await makeRoot({
+    source: (s) => {
+      s[MAIL_FILE] = j(resendSrc(j(HTTPS, RESEND_HOST, '/emails')), resendInline(j(HTTPS, RESEND_HOST, '/emails')));
+    },
+  }));
+  expectClean(res);
+  assert.ok(!rulesOf(res).includes('C1-FETCH'));
+});
+
+test('C1-FETCH 허용 밖: 다른 파일(테스트·클라·save 형제 파일 포함)에서 api.resend.com 호출 → FAIL', async () => {
+  for (const rel of ['server/src/save/mail2.ts', 'server/src/app.ts', 'client/src/x.ts', 'scripts/x.mjs', 'e2e/support/x.ts', 'server/src/save/__tests__/mail.ts']) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[rel] = resendSrc(j(HTTPS, RESEND_HOST, '/emails')); } })), 'C1-FETCH');
+  }
+});
+
+test('C1-FETCH 허용 밖: mail.ts 라도 다른 외부 호스트·http·하위/위장 도메인·포트·userinfo → FAIL', async () => {
+  for (const url of [
+    j(HTTPS, 'api.sendgrid.com/v3/mail/send'),
+    j('htt', 'p://', RESEND_HOST, '/emails'),
+    j(HTTPS, 'x.', RESEND_HOST, '/emails'),
+    j(HTTPS, RESEND_HOST, '.evil.example/emails'),
+    j(HTTPS, RESEND_HOST, ':8443/emails'),
+    j(HTTPS, RESEND_HOST, '@evil.example/emails'),
+  ]) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[MAIL_FILE] = resendSrc(url); } })), 'C1-FETCH');
+    expectFail(scan(await makeRoot({ source: (s) => { s[MAIL_FILE] = resendInline(url); } })), 'C1-FETCH');
+  }
+});
+
+// R6 오케스트레이터 결정: @playwright/test 좁은 예외(루트 devDependencies · e2e/** · 루트 playwright.config.ts 만).
+const PW_TEST = j('@play', 'wright/test');
+const pwImport = (name = PW_TEST) => j("import { test } from '", name, "';\n");
+const rootPkg = (sec, name = PW_TEST) => JSON.stringify({ name: 'fx', private: true, [sec]: { [name]: '^1.64.0' } });
+
+test('C1-LIB 예외: @playwright/test 루트 devDependencies + e2e/** · playwright.config.ts import → 통과', async () => {
+  const res = scan(await makeRoot({
+    source: (s) => {
+      s['package.json'] = rootPkg('devDependencies');
+      s['playwright.config.ts'] = j("import { defineConfig } from '", PW_TEST, "';\nexport default defineConfig({});\n");
+      s['e2e/smoke.spec.ts'] = pwImport();
+      s['e2e/support/fixtures.ts'] = pwImport();
+    },
+  }));
+  expectClean(res);
+  assert.ok(!rulesOf(res).includes('C1-LIB'));
+});
+
+test('C1-LIB 예외 밖: @playwright/test 를 server/src·client/src·scripts·루트 다른 파일에서 import → FAIL', async () => {
+  for (const rel of ['server/src/x.ts', 'client/src/x.ts', 'scripts/x.mjs', 'vite.e2e.ts', 'server/src/__tests__/x.test.ts']) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[rel] = pwImport(); } })), 'C1-LIB');
+  }
+});
+
+test('C1-LIB 예외 밖: @playwright/test 가 dependencies·워크스페이스 package.json 에 → FAIL', async () => {
+  for (const mut of [
+    (s) => { s['package.json'] = rootPkg('dependencies'); },
+    (s) => { s['package.json'] = rootPkg('optionalDependencies'); },
+    (s) => { s['server/package.json'] = rootPkg('devDependencies'); },
+    (s) => { s['client/package.json'] = rootPkg('devDependencies'); },
+  ]) {
+    expectFail(scan(await makeRoot({ source: mut })), 'C1-LIB');
+  }
+});
+
+test('C1-LIB 예외 밖: 다른 playwright·puppeteer 패키지는 e2e·루트 devDependencies 여도 FAIL', async () => {
+  for (const name of [j('play', 'wright'), j('play', 'wright-core'), j('@play', 'wright/test/reporter'), j('@play', 'wright/browser-chromium'), j('puppe', 'teer')]) {
+    expectFail(scan(await makeRoot({ source: (s) => { s['e2e/smoke.spec.ts'] = pwImport(name); } })), 'C1-LIB');
+    expectFail(scan(await makeRoot({ source: (s) => { s['package.json'] = rootPkg('devDependencies', name); } })), 'C1-LIB');
+  }
+});
+
 test('C1-SDK: 지도 SDK 호스트가 허용 파일 밖', async () => {
   const src = j("const s = document.createElement('script'); s.src = '", HTTPS, MAP_HOST, "/maps.js';\n");
   expectFail(scan(await makeRoot({ source: (s) => { s['client/src/home/x.ts'] = src; } })), 'C1-SDK');
@@ -567,6 +646,47 @@ test('C3-OUT-ID: 카탈로그에 비노출 id', async () => {
   expectFail(res, 'C3-OUT-ID');
 });
 
+// M4(감사 54 #5): 프로필 범위 호환 규칙 — 노출 타입의 프로필이면 노출, 비노출·미존재 프로필이면 카탈로그에 있으면 실패.
+const scopedRule = (id, careProfileId) => ({
+  id, a: 'cage', b: 'cage', careProfileId,
+  rules: [{ expr: 'a.floorWcm <= b.floorWcm', onFail: 'CHECK', message: '바닥을 넓게 써요' }],
+  ...meta(),
+});
+const withCatalogRule = (id) => (o) => {
+  const c = JSON.parse(o['data/catalog.v1.abcd1234.json']);
+  c.compatibilityRules.push({ id });
+  o['data/catalog.v1.abcd1234.json'] = JSON.stringify(c);
+};
+
+test('M4 clean: 노출 프로필 범위 호환 규칙은 카탈로그에 있어도 통과', async () => {
+  const res = scan(await makeRoot({
+    seed: (d) => { d['compatibility-rules.json'].push(scopedRule('cr-scoped-ok', 'cp-syrian')); },
+    output: withCatalogRule('cr-scoped-ok'),
+  }));
+  expectClean(res);
+});
+
+test('C3-OUT-ID: 비노출(DRAFT) 프로필 범위 호환 규칙이 카탈로그에', async () => {
+  const res = scan(await makeRoot({
+    seed: (d) => {
+      d['care-profiles.json'].push({ id: 'cp-dwarf', name: '드워프 기본', taxonIds: [], facts: {}, careNotes: [], ...meta({ contentKind: 'CARE', reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null }) });
+      d['compatibility-rules.json'].push(scopedRule('cr-scoped-draft', 'cp-dwarf'));
+    },
+    output: withCatalogRule('cr-scoped-draft'),
+  }));
+  expectFail(res, 'C3-OUT-ID');
+  assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /compatibilityRules#cr-scoped-draft/.test(f.message)));
+});
+
+test('C3-OUT-ID: 미존재 프로필 범위 호환 규칙이 카탈로그에', async () => {
+  const res = scan(await makeRoot({
+    seed: (d) => { d['compatibility-rules.json'].push(scopedRule('cr-scoped-ghost', 'cp-ghost')); },
+    output: withCatalogRule('cr-scoped-ghost'),
+  }));
+  expectFail(res, 'C3-OUT-ID');
+  assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /compatibilityRules#cr-scoped-ghost/.test(f.message)));
+});
+
 test('C3-OUT-ID: 알 수 없는 시드 키 접두사도 실패(fail-closed)', async () => {
   const res = scan(await makeRoot({
     output: (o) => { o['index.html'] = o['index.html'].replace('</main>', '<p data-ws-id="widgets#w1">x</p></main>'); },
@@ -727,6 +847,44 @@ test('C4-BANNED: 2자 금지어 공백 분리는 WARN 만(exit 0)', async () => 
   const res = scan(await makeRoot({ seed: (d) => { d['supply-items.json'][0].description = j('가', KO.purchase[0], ' ', KO.purchase[1], '장'); } }));
   expectClean(res);
   assert.ok(rulesOf(res, 'WARN').includes('C4-BANNED'));
+});
+
+// R6 B1(SEC-4 L-4): 어간은 산출물·승격된 시드 행에서 FAIL, DRAFT 시드에서 WARN.
+const STEM_TEXT = j(KO.safeStem, '망을 둘러요');
+
+test('C4-STEM: VERIFIED 시드 행의 어간 → FAIL(exit 1)', async () => {
+  const res = scan(await makeRoot({ seed: (d) => { d['supply-items.json'][0].description = STEM_TEXT; } }));
+  expectFail(res, 'C4-STEM');
+});
+
+test('C4-STEM: AI_DRAFT 를 VERIFIED 로 위장한 행·VERIFIED 병원·APPROVED 후기도 FAIL', async () => {
+  for (const mut of [
+    (d) => { Object.assign(d['supply-items.json'][1], { reviewStatus: 'VERIFIED', description: STEM_TEXT }); },
+    (d) => { d['vet-clinics.json'][0].name = STEM_TEXT; },
+    (d) => { Object.assign(d['testimonials.json'][0], { status: 'APPROVED', quote: STEM_TEXT }); },
+  ]) {
+    expectFail(scan(await makeRoot({ seed: mut })), 'C4-STEM');
+  }
+});
+
+test('C4-STEM: DRAFT·SLOT 시드 행의 어간은 WARN 만(exit 0)', async () => {
+  const res = scan(await makeRoot({
+    seed: (d) => {
+      d['supply-items.json'][1].description = STEM_TEXT; // DRAFT
+      d['testimonials.json'][0].quote = STEM_TEXT; // SLOT
+    },
+  }));
+  expectClean(res);
+  assert.ok(rulesOf(res, 'WARN').includes('C4-STEM'));
+});
+
+test('C4-STEM: 산출물 가시 텍스트·JSON 의 어간 → FAIL(exit 1)', async () => {
+  for (const mut of [
+    (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${STEM_TEXT}</p></main>`); },
+    (o) => { o['index.html'] = o['index.html'].replace('"data":{', `"note":"${STEM_TEXT}","data":{`); },
+  ]) {
+    expectFail(scan(await makeRoot({ output: mut })), 'C4-STEM');
+  }
 });
 
 test('C4-BANNED: 제외 필드(id·url·source.title·verifiedBy·photos.query)는 검사 안 함', async () => {
@@ -1152,4 +1310,32 @@ test('C9-COOKIE 플래그: cookie.ts·auth.routes.ts 템플릿에 HttpOnly·Same
   // 발급 줄에 secure=false 리터럴(조건부 Secure 무력화)
   await failsWith('C9-COOKIE', 'server/src/save/magic.routes.ts', j("export const f = (res, sid) => res.setHeader('", SET_COOKIE, "', serializeSessionCookie(sid, false));\n"));
   await cleanOf('C9-COOKIE', 'server/src/save/magic.routes.ts', j("export const f = (res, sid, cfg) => res.setHeader('", SET_COOKIE, "', serializeSessionCookie(sid, cfg.secureCookie));\n"));
+});
+
+// ── R6 F2a: 사전 압축 사본(.br/.gz) — 텍스트 스캔 제외, 대신 해제 = 원본 바이트 ─────────────
+test('C8-OUT-SAFE 압축 사본: 원본과 같은 .br/.gz 는 깨끗, 다른 내용·고아·손상은 FAIL', async () => {
+  const dist = (root) => join(root, 'client', 'dist');
+  const ok = await makeRoot({ output: noop });
+  for (const f of ['index.html', 'hamster/golden/index.html', 'data/catalog.v1.abcd1234.json']) {
+    const src = readFileSync(join(dist(ok), ...f.split('/')));
+    writeFileSync(join(dist(ok), ...f.split('/')) + '.br', brotliCompressSync(src));
+    writeFileSync(join(dist(ok), ...f.split('/')) + '.gz', gzipSync(src));
+  }
+  expectClean(scan(ok, '--require-output'));
+
+  // 사본만 다른 내용(금지어 포함) — 서빙될 수 있는 바이트가 스캔한 원본과 다름 → FAIL
+  const forged = await makeRoot({ output: noop });
+  const idx = join(dist(forged), 'index.html');
+  writeFileSync(`${idx}.br`, brotliCompressSync(Buffer.from(readFileSync(idx, 'utf8').replace('지금 필요한 것', j('최저', '가 모음')))));
+  const r1 = scan(forged, '--require-output');
+  expectFail(r1, 'C8-OUT-SAFE');
+  assert.match(JSON.stringify(r1.json.findings), /index\.html\.br/);
+
+  const orphan = await makeRoot({ output: noop });
+  writeFileSync(join(dist(orphan), 'ghost.html.gz'), gzipSync(Buffer.from('<p>x</p>')));
+  expectFail(scan(orphan, '--require-output'), 'C8-OUT-SAFE');
+
+  const broken = await makeRoot({ output: noop });
+  writeFileSync(join(dist(broken), 'robots.txt.gz'), 'not gzip');
+  expectFail(scan(broken, '--require-output'), 'C8-OUT-SAFE');
 });

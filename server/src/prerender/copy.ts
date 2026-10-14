@@ -99,6 +99,8 @@ export const COPY = deepFreeze({
     saveTitle: sent('{animal} 준비, 이어서 할까요?'),
     saveCta: '지금 필요한 것 보기',
     saveLink: '다른 기기에서도 이어서 — 이메일로 저장',
+    /** DR-5 MINOR-2 — 연결 상태 저장 배너 링크(홈 B 링크 관례: › 없음). */
+    saveLinked: '이 기기와 메일에 저장되고 있어요',
     nowEmpty: sent('검수를 마친 준비 목록을 정리하고 있어요'),
     bundlesEmpty: sent('검수를 마친 구성안을 준비하고 있어요'),
     productsEmpty: sent('기준을 확인한 준비물을 정리하고 있어요'),
@@ -300,11 +302,16 @@ export const COPY = deepFreeze({
     connectCta: '이 기기 연결하기',
     /** DR M-3 — /save#t= 연결 화면 제목·본문(입력 화면 문구 재사용 금지). */
     connectTitle: '이 기기를 연결할까요?',
+    /** DR-5 MINOR-1 — 첫 PUT 보류 확인 화면 제목(verify 완료 상태). 질문은 confirmMasked 본문 하나. */
+    confirmTitle: '이 기기를 연결했어요',
     /** 코드 리뷰 M4 — 연결(verify) 네트워크·5xx 실패. 토큰은 남아 있어 다시 누르면 된다. */
     connectError: '지금은 연결할 수 없어요. 잠시 뒤 다시 눌러 주세요',
     connectBody: sent('연결하면 저장해 둔 준비 상태와 이 기기의 준비 상태를 하나로 맞춰요. 직접 요청한 메일이 아니라면 연결하지 말고 닫아 주세요'),
     /** SEC-3 M-1 — 마스킹 이메일(k***@e***.com)만. 토큰 규칙상 {name} 슬롯을 쓴다(formatCopy 허용 토큰). */
     linkedAs: sent('{name}에 저장하고 있어요'),
+    /** R6 레인 0.2 — 첫 PUT 보류 확인(마스킹 이메일 {name}). */
+    confirmMasked: sent('{name}에 저장할까요?'),
+    confirmCta: '이 주소로 저장하기',
   },
   /** PRD US-014 · 계획 §4. 의료 판단 없음 — "병원에 문의"까지. */
   vet: {
@@ -435,6 +442,18 @@ export const COPY = deepFreeze({
   footer: {
     identity: sent('WithSmall은 쇼핑몰이 아니라 준비 도우미예요'),
     health: sent('건강이 걱정되면 병원에 문의해 주세요'),
+    /** R6 레인 0.2 — 푸터 개인정보 처리방침 링크 라벨. */
+    privacy: '개인정보 처리방침',
+  },
+  /** R6 레인 0.2 — 접근성 보조 문구(sr-only). */
+  a11y: {
+    newWindow: '(새 창)',
+  },
+  /** R6 레인 0.2 — 그룹 페이지: UI 안내만(사실 값 없음). */
+  group: {
+    intro: sent('어떤 친구인지 골라 주세요. 지금 준비를 도와드릴 수 있는 친구만 보여 드려요'),
+    /** 그룹 표시명(slug 첫 세그먼트 키) — 56 G3 D1. */
+    names: { hamster: '햄스터', parrot: '앵무새' },
   },
 });
 

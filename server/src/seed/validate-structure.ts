@@ -1,4 +1,5 @@
-// 구조 규칙 S01~S09 — 파일·id·enum/타입·부록 B·specSchema·규칙 세트·날짜·금지 키(상품·후기는 허용목록)·미지 키.
+// 구조 규칙 S01~S10 — 파일·id·enum/타입·부록 B·specSchema·규칙 세트·날짜·금지 키(상품·후기는 허용목록)·미지 키·
+//   id/참조 키 예약어(S10, R6 B2).
 import {
   ANIMAL_GROUPS,
   ANIMAL_TYPE_STATUSES,
@@ -34,6 +35,7 @@ import {
   type SeedKey,
 } from './common.js';
 import type { Ctx } from './context.js';
+import { isForbiddenKey } from '../shared/forbidden-keys.js';
 
 // ── 필드 타입 표(S03 타입 + S09 알려진 키의 단일 출처) ─────────
 // 'string' | 'string|null' | 'boolean' | 'boolean|null' | 'number|null' | 'array' | 'object' | 'any', 끝 '?' = 생략 가능.
@@ -162,6 +164,54 @@ function forbiddenKeys(key: SeedKey, r: Rec): string[] {
   const allowed = S08_ALLOWED_KEYS[key];
   if (allowed) return keys.filter((k) => !allowed.has(k));
   return [];
+}
+
+// ── S10 id·참조 키 예약어(R6 B2, SEC-5 I-2) ──────────────────
+// 엔티티 id 는 저장 페이로드·클라 상태에서 객체 키로 쓰인다(체크리스트 itemId → 상태 등). id 가 저장 금지 키
+//   (shared/forbidden-keys.ts 단일 출처 — 서버 저장 검증기가 400 으로 거부)이거나 JS 프로토타입 속성명이면
+//   저장 거부·프로토타입 오염·평문 객체 조회 오탐이 생긴다. 행 id·id 를 담는 참조 필드·id 를 키로 쓰는 맵 키 전부.
+export const PROTO_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** 파일별 id 참조 필드(문자열 또는 문자열 배열). */
+const ID_REF_FIELDS: Readonly<Record<SeedKey, readonly string[]>> = {
+  animalTypes: ['taxonId', 'careProfileId'],
+  taxa: ['revisionOf'],
+  careProfiles: ['taxonIds'],
+  supplyItems: ['compatibleAlternativeIds'],
+  supplyRequirements: ['careProfileId', 'supplyItemId'],
+  compatibilityRules: ['a', 'b', 'careProfileId'],
+  setupBundles: ['careProfileId', 'itemIds'],
+  curatedProducts: ['supplyItemId', 'careProfileIds'],
+  testimonials: ['animalTypeId'],
+  vetClinics: ['treats'],
+  photos: ['slot'],
+};
+
+/** id 로 쓸 수 없는 이름인가. 문제면 사유, 아니면 null. 대소문자 무시(forbidden-keys 매칭과 동일). */
+export function reservedIdProblem(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  if (PROTO_KEYS.has(v.toLowerCase())) return `"${v}" 는 JS 프로토타입 속성명 — id·참조 키로 쓸 수 없다`;
+  if (isForbiddenKey(v)) return `"${v}" 는 저장 금지 키(shared/forbidden-keys.ts) — id·참조 키로 쓸 수 없다`;
+  return null;
+}
+
+function checkReservedIds(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
+  const report = (path: string, v: unknown): void => {
+    const prob = reservedIdProblem(v);
+    if (prob) ctx.out.error('S10', key, id, path, prob);
+  };
+  report('id', r.id);
+  for (const f of ID_REF_FIELDS[key]) {
+    // 자기 소유 속성만(상속 속성 'constructor' 등을 필드로 읽지 않는다).
+    if (!has(r, f)) continue;
+    const v = r[f];
+    if (Array.isArray(v)) v.forEach((x, i) => report(`${f}[${i}]`, x));
+    else report(f, v);
+  }
+  if (key === 'animalTypes') {
+    const reqs = asRec(asRec(r.careOverrides)?.requirements);
+    if (reqs) for (const k of Object.keys(reqs)) report(`careOverrides.requirements.${k}`, k);
+  }
 }
 
 // ── 규격 조건(S06) ───────────────────────────────────────────
@@ -343,6 +393,9 @@ export function checkStructure(ctx: Ctx): void {
         ctx.out.error('S02', key, id, 'id', `id 중복 (행 ${index})`);
       }
       if (isNonEmptyStr(rec.id)) seen.add(rec.id);
+
+      // S10 — SLOT 행 포함(자리표시도 id 는 키로 쓰인다).
+      checkReservedIds(ctx, key, id, rec);
 
       const slot = isSlotRow(key, rec);
 

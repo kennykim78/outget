@@ -10,7 +10,7 @@
 import express, { Router, type RequestHandler } from 'express';
 import type { SaveSnapshotRepository, SaveSnapshotRow, SessionRepository } from './save.repo.js';
 import { noStore, requireSession, type Clock } from './session.js';
-import { SAVE_MAX_BYTES, findForbiddenKey, isIsoTime, validateSaveV1 } from './validate.js';
+import { SAVE_MAX_BYTES, findForbiddenKey, isIsoTime, validateSaveV1 } from '../shared/save-validate.js';
 
 /** 새 행 시각: 지금, 단 base 이하이면 base+1ms(단조 증가). */
 function nextUpdatedAt(nowIso: string, base: string | null): string {

@@ -83,6 +83,7 @@ export default function SearchBlock({ requirement, headingId }: SearchBlockProps
               }
             >
               {LABEL[l.provider]}
+              <span className="ws-visually-hidden">{` ${COPY.a11y.newWindow}`}</span>
             </a>
           ))}
         </div>

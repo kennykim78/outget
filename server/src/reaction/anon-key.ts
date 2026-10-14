@@ -1,7 +1,8 @@
 // 익명 반응 키(C-R5-3, SEC-3 M-3 재설계). IP·UA 원문은 어디에도 저장하지 않는다(불변식 ⑧).
 //   anonKey(day) = HMAC-SHA256(secret, seoulDate + "|" + ipPrefix) hex.
 //   - UA 제외: UA 회전으로 같은 사람이 여러 번 세는 것(♥ 임계 10 위조)을 막는다.
-//   - ipPrefix: IPv4 /24, IPv6 /64(IPv4-mapped IPv6 는 IPv4 로). 같은 /24 의 여러 사람은 1명으로 묶인다 — 과소 집계 쪽으로
+//   - ipPrefix: IPv4 /24, IPv6 /56(R6 B3, SEC-4 L-3 — 한 가입자의 /56 위임 안에서 /64 를 돌려 ♥ 부풀리기 차단;
+//     IPv4-mapped IPv6 는 IPv4 로). 같은 /24 의 여러 사람은 1명으로 묶인다 — 과소 집계 쪽으로
 //     안전(♥ 수는 표시 전용, 노출·순서 영향 0). 프리픽스 원문도 저장하지 않는다(HMAC 입력일 뿐).
 //   - 날짜 솔트: 저장 키가 날마다 바뀌어 DB 만으로는 날짜 간 연결 불가(시크릿 보유 서버는 재계산 가능 — 서버 전용 방식의 한계).
 //   - 중복·취소: 서버가 오늘부터 REACTION_KEY_WINDOW_DAYS 일 전까지의 키를 재계산해(HMAC 400회, 수 ms) 그 안에 같은 대상·종류
@@ -43,7 +44,10 @@ function expandIpv6(ip: string): number[] | null {
   return groups;
 }
 
-/** IP → 집계 프리픽스 문자열. IPv4 /24 "v4:a.b.c", IPv6 /64 "v6:g0:g1:g2:g3", 해석 불가 "unknown". */
+/**
+ * IP → 집계 프리픽스 문자열. IPv4 /24 "v4:a.b.c", IPv6 /56 "v6/56:g0:g1:g2:g3"(g3 하위 8비트 0), 해석 불가 "unknown".
+ *   v6 태그에 /56 을 넣어 이전 /64 형식("v6:…")과 키 공간이 섞이지 않게 한다(Phase 0, 운영 반응 행 없음).
+ */
 export function ipPrefix(ip: string): string {
   const raw = typeof ip === 'string' ? ip.trim() : '';
   const kind = isIP(raw.split('%')[0]);
@@ -55,7 +59,8 @@ export function ipPrefix(ip: string): string {
     if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) {
       return `v4:${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}`;
     }
-    return `v6:${g.slice(0, 4).map((x) => x.toString(16)).join(':')}`;
+    const p = [g[0], g[1], g[2], g[3] & 0xff00];
+    return `v6/56:${p.map((x) => x.toString(16)).join(':')}`;
   }
   return 'unknown';
 }

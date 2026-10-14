@@ -2,7 +2,8 @@
 //   createApp 마다 makeAppLimiters() 로 새 인스턴스를 만든다(앱 간 카운터 공유 없음 — 테스트·다중 앱 안전).
 //   test env 기본은 꺼짐(패스스루) — 빠른 다수 요청 테스트 보호. 리미터 자체 테스트는 enabled=true 로 켠다.
 //   (R5 B1-4: Outget 잔재 search·submit·report 리미터 삭제, magic·save·reaction·vetReport 추가.)
-//   IP 키 = ipKey(req.ip): IPv4 그대로, IPv6 는 /64 접두(한 가입자가 주소를 돌려 쓰는 우회 차단), IPv4-mapped 는 IPv4.
+//   IP 키 = ipKey(req.ip): IPv4 그대로, IPv6 는 /56 접두(R6 B3, SEC-4 L-3 — 가정용 위임 단위가 흔히 /56 이라 한 가입자가
+//   /64 여러 개를 돌려 쓰는 우회 차단), IPv4-mapped 는 IPv4. 키는 프로세스 메모리 창에만 있다(영속 0).
 //   req.ip 는 app.ts 의 'trust proxy' 정수 홉 수(TRUST_PROXY, 기본 0)로 정해진다(SEC-3 M-2).
 //   express-rate-limit 7.5 에는 ipKeyGenerator 가 없어(8.x 부터) 작은 헬퍼를 둔다.
 import { isIPv4, isIPv6 } from 'node:net';
@@ -30,7 +31,10 @@ function expandIPv6(addr: string): string[] | null {
   return groups.map((g) => g.padStart(4, '0'));
 }
 
-/** 리미터 키: IPv4 원문, IPv4-mapped IPv6 → IPv4, IPv6 → "/64 접두::/64", 그 밖(없음·이상값) → 원문 또는 'unknown'. */
+/** IPv6 리미터 접두 길이(비트). 4번째 그룹의 상위 8비트까지. */
+export const IPV6_LIMIT_PREFIX = 56;
+
+/** 리미터 키: IPv4 원문, IPv4-mapped IPv6 → IPv4, IPv6 → "/56 접두::/56"(4번째 그룹 하위 8비트 0), 그 밖(없음·이상값) → 원문 또는 'unknown'. */
 export function ipKey(ip: string | undefined): string {
   if (!ip) return 'unknown';
   if (isIPv4(ip)) return ip;
@@ -41,7 +45,8 @@ export function ipKey(ip: string | undefined): string {
     const n = (h: string) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2), 16)];
     return [...n(g[6]), ...n(g[7])].join('.');
   }
-  return `${g.slice(0, 4).join(':')}::/64`;
+  const g3 = `${g[3].slice(0, 2)}00`; // /56 = 48비트(그룹 0~2) + 그룹 3 상위 8비트
+  return `${g.slice(0, 3).join(':')}:${g3}::/${IPV6_LIMIT_PREFIX}`;
 }
 
 const keyGenerator = (req: Request): string => ipKey(req.ip);

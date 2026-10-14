@@ -44,7 +44,7 @@ describe('resolveSaveConfig', () => {
     ).toThrow(/console/);
   });
 
-  it('알 수 없는 MAIL_TRANSPORT → throw(공급자 미구현, K2)', () => {
+  it('알 수 없는 MAIL_TRANSPORT → throw(console·resend 만)', () => {
     expect(() => resolveSaveConfig({ NODE_ENV: 'development', MAIL_TRANSPORT: 'smtp' })).toThrow(/MAIL_TRANSPORT/);
   });
 

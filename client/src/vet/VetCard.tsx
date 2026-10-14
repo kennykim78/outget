@@ -4,6 +4,7 @@
 //   "제보됨" 배지 없음(D15 — 제보 병원은 애초에 목록에 오지 않는다). 거리·좌표·"진료 가능" 단정 0(불변식 ⑤⑧). 마스코트 0.
 //   onSelect 가 있으면(/vet) 병원명이 선택 버튼 — 지도 이동용, 전화·길찾기는 선택하지 않는다.
 import { naverMapSearchUrl, type PublicVet } from '@ws/engine';
+import { COPY } from '@ws/copy';
 import { track } from '../events/track';
 import Glyph from '../ui/Glyph';
 import { copyAt } from '../ui/copyText';
@@ -109,6 +110,7 @@ export default function VetCard({ vet, typeNames, selected = false, onSelect, le
             onClick={() => track('vet_clicked', { clinicId: vet.id, action: 'route' })}
           >
             {route}
+            <span className="ws-visually-hidden">{` ${COPY.a11y.newWindow}`}</span>
           </a>
         ) : null}
       </p>

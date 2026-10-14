@@ -59,7 +59,7 @@
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 리빙박스 대형 케이지 80x50",
+    "searchKeyword": "{animal} 리빙박스 대형 케이지 80x50",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -114,7 +114,7 @@
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 쳇바퀴 30cm 무소음",
+    "searchKeyword": "{animal} 쳇바퀴 30cm 무소음",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -170,12 +170,12 @@
             "ASPEN",
             "HEMP"
           ],
-          "reason": "굴 유지력·안전"
+          "reason": "굴 유지력·먼지가 적음"
         }
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 종이 베딩 무향 대용량",
+    "searchKeyword": "{animal} 종이 베딩 무향 대용량",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -202,7 +202,7 @@
     "orderHint": "BEFORE_ARRIVAL",
     "why": "항상 신선한 물이 있어야 해요.",
     "caution": "물병은 매일 흐르는지 확인, 물그릇은 얕고 무거운 것으로.",
-    "avoid": "—",
+    "avoid": null,
     "minSpec": {
       "rules": []
     },
@@ -210,7 +210,7 @@
       "rules": []
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 급수기 스탠드형",
+    "searchKeyword": "{animal} 급수기 스탠드형",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -245,7 +245,7 @@
       "rules": []
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 도자기 사료 그릇",
+    "searchKeyword": "{animal} 도자기 사료 그릇",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -299,7 +299,7 @@
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "골든햄스터 사료 주식",
+    "searchKeyword": "{animal} 사료 주식",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -346,7 +346,7 @@
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 다중 은신처 나무",
+    "searchKeyword": "{animal} 다중 은신처 나무",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -392,12 +392,12 @@
           "key": "sandType",
           "op": "eq",
           "value": "CHINCHILLA_SAND",
-          "reason": "안전·세척 용이"
+          "reason": "먼지가 적은 모래·세척 용이"
         }
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 목욕 모래 친칠라 샌드",
+    "searchKeyword": "{animal} 목욕 모래 친칠라 샌드",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -432,7 +432,7 @@
       "rules": []
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 갉기 나무 무처리",
+    "searchKeyword": "{animal} 갉기 나무 무처리",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -526,7 +526,7 @@
     "careProfileId": "cp-hamster-syrian",
     "supplyItemId": "scale",
     "priority": "OPTIONAL",
-    "orderHint": "AFTER_SETTLING",
+    "orderHint": "AFTER_ADAPTATION",
     "why": "체중 변화가 가장 빠른 이상 신호예요. 주 1회 재요.",
     "caution": "1g 단위면 충분.",
     "avoid": null,
@@ -561,7 +561,7 @@
     "careProfileId": "cp-hamster-syrian",
     "supplyItemId": "tubes",
     "priority": "OPTIONAL",
-    "orderHint": "AFTER_SETTLING",
+    "orderHint": "AFTER_ADAPTATION",
     "why": "환경을 풍부하게 해요. 필수는 아니에요.",
     "caution": "성체 골든은 내경 6cm 이상.",
     "avoid": "내경 5cm 이하 튜브",
@@ -579,7 +579,7 @@
       "rules": []
     },
     "notNowReason": null,
-    "searchKeyword": "햄스터 터널 대형",
+    "searchKeyword": "{animal} 터널 대형",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,

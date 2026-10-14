@@ -4,8 +4,11 @@
 //   3) 결과는 알려진 필드만 새 객체로 재조립(원본 참조·프로토타입 키 미유입).
 //   케이지 수치는 형태·상식 범위(0 < cm ≤ 1000, 0 < mm ≤ 100)만 본다 — specSchema min/max 정규화는 클라이언트
 //   sanitizeSpecValues(C-R5-1) 몫이고, 서버 저장값은 판정·노출에 쓰이지 않는다(엔진 입력 아님).
+// R6 C1: server/src/save/validate.ts 에서 이동 — 서버(save.routes)와 클라(별칭 @ws/save-validate)가 같은 소스를 쓴다.
+//   순수 모듈(engine.purity 'shared purity' 검사 대상): Node·DOM 전역 0. 그래서 시각 문자열 유효성과 UTF-8 바이트 길이는
+//   런타임 API 대신 아래 순수 함수로 계산한다 — 기존(V8 시각 파서·Node 바이트 길이)과 결과 동일, 동치 테스트는 save.validate.test.ts.
 
-import { FORBIDDEN_KEYS, isForbiddenKey } from '../shared/forbidden-keys.js';
+import { FORBIDDEN_KEYS, isForbiddenKey } from './forbidden-keys.js';
 
 export const SAVE_MAX_BYTES = 32 * 1024;
 export const MAX_TYPES = 20;
@@ -21,11 +24,41 @@ export const SAVE_FORBIDDEN_KEYS: ReadonlySet<string> = FORBIDDEN_KEYS;
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HELPFUL_KEY_RE = /^(SUPPLY_ITEM|BUNDLE|PRODUCT):[a-z0-9][a-z0-9-]{0,63}$/;
-const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/;
 
-/** ISO 시각 문자열(Z, 밀리초 ≤3자리) — PUT /api/save baseUpdatedAt 검사(H1). */
+/**
+ * ISO 시각 문자열(Z, 밀리초 ≤3자리) — PUT /api/save baseUpdatedAt 검사(H1).
+ *   형식(ISO_RE) + 필드 범위: 월 1–12, 일 1–31(월별 말일은 보지 않음 — V8 파서도 2월 30일을 받아 넘긴다),
+ *   시 0–23·분 0–59·초 0–59, 또는 하루 끝 24:00:00(밀리초 0). 이 규칙은 이동 전 서버의 V8 시각 파서 유효 판정과
+ *   ISO_RE 범위 전체에서 같다(save.validate.test.ts 동치 테스트).
+ */
 export function isIsoTime(x: unknown): x is string {
-  return typeof x === 'string' && ISO_RE.test(x) && Number.isFinite(Date.parse(x));
+  if (typeof x !== 'string') return false;
+  const m = ISO_RE.exec(x);
+  if (m === null) return false;
+  const [mo, d, h, mi, s] = [m[2], m[3], m[4], m[5], m[6]].map(Number);
+  const ms = m[7] === undefined ? 0 : Number(m[7]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  if (h === 24) return mi === 0 && s === 0 && ms === 0;
+  return h < 24 && mi < 60 && s < 60;
+}
+
+/** UTF-8 바이트 길이(순수) — 짝 없는 서로게이트는 U+FFFD(3바이트)로 센다(Node 바이트 길이 계산과 같음). */
+export function utf8ByteLength(str: string): number {
+  let n = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < str.length) {
+      const c2 = str.charCodeAt(i + 1);
+      if (c2 >= 0xdc00 && c2 <= 0xdfff) {
+        n += 4;
+        i++;
+      } else n += 3;
+    } else n += 3;
+  }
+  return n;
 }
 const READY_SOURCES = ['OWNED', 'PURCHASED', 'UNKNOWN'] as const;
 const CAGE_TYPES = ['LIVING_BOX', 'WIRE', 'ACRYLIC', 'OTHER'] as const;
@@ -111,8 +144,7 @@ function obj(x: unknown): Obj {
 }
 
 function iso(x: unknown): string {
-  if (typeof x !== 'string' || !ISO_RE.test(x) || !Number.isFinite(Date.parse(x))) fail();
-  return x as string;
+  return isIsoTime(x) ? x : fail();
 }
 
 const isoOrNull = (x: unknown): string | null => (x === null ? null : iso(x));
@@ -231,7 +263,7 @@ export function validateSaveV1(x: unknown): SaveValidation {
   if (forbidden !== null) return { ok: false, error: 'forbidden_key' };
   try {
     const value = saveV1(x);
-    if (Buffer.byteLength(JSON.stringify(value), 'utf8') > SAVE_MAX_BYTES) return { ok: false, error: 'invalid_snapshot' };
+    if (utf8ByteLength(JSON.stringify(value)) > SAVE_MAX_BYTES) return { ok: false, error: 'invalid_snapshot' };
     return { ok: true, value };
   } catch (e) {
     if (e instanceof Invalid) return { ok: false, error: 'invalid_snapshot' };

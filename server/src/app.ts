@@ -115,7 +115,7 @@ export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOpt
   app.put('/api/save', limiters.save);
   app.use('/api/save', createSaveRouter({ sessions: repos.session, snapshots: repos.saveSnapshot, now }));
 
-  // 익명 반응(C-R5-3, D8·D9, SEC-3 M-3): anonKey = HMAC(시크릿, 서울 날짜|IP 접두) — 접두는 IPv4 /24·IPv6 /64,
+  // 익명 반응(C-R5-3, D8·D9, SEC-3 M-3): anonKey = HMAC(시크릿, 서울 날짜|IP 접두) — 접두는 IPv4 /24·IPv6 /56(R6 B3),
   //   UA 미사용, 400일 창. 원문 IP 저장 0. 변경 분당 20/IP. LIKE 만 10 이상 수 공개.
   //   대상은 knownTargetIds(노출 상품·SupplyItem·Bundle 상위집합) 밖이면 400(L-7). 노출·정렬·엔진은 반응을 읽지 않는다(불변식 ③).
   app.use(

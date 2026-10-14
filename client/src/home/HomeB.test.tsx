@@ -5,11 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { NO_CAPTURE } from '../app/staticCapture';
 import { setupKey } from '../checklist/setupStore';
+import { COPY } from '@ws/copy';
 import type { PublicVet } from '@ws/engine';
 import { bundle, golden, pageOf, product, req } from '../test/fixtures';
 import { wsStorage } from '../lib/storage';
 import { writeSaveState } from '../save/saveStateStore';
 import { layerStore } from '../ui/layer/useLayer';
+import { sortVets } from '../vet/order';
+import VetPage from '../vet/VetPage';
 
 const T = '2026-10-02T00:00:00.000Z';
 
@@ -116,6 +119,14 @@ describe('홈 B', () => {
     expect(document.querySelectorAll('a[href="/save"]')).toHaveLength(1);
   });
 
+  it('DR-5 MINOR-2: 연결 시 저장 링크 텍스트 = saveLinked(› 없음), href /save 유지', () => {
+    writeSaveState(wsStorage, { linked: true, lastSyncAt: null });
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
+    const a = document.querySelector('a[href="/save"]');
+    expect(a?.textContent).toBe(COPY.homeB.saveLinked);
+    expect(a?.textContent).not.toContain('›');
+  });
+
   it('K1: L3 후 REQUIRED 0 이면 "필수 준비 끝"·완료 블록·숫자 줄 없음', () => {
     localStorage.setItem(
       setupKey(golden.id),
@@ -176,6 +187,23 @@ describe('홈 B', () => {
     expect(layerStore.get()?.kind).toBe('L1');
   });
 
+  it('R6 G1 ④ 병원 순서 = /vet 목록 순서(같은 sortVets: 지역 → 이름 → id) — ws-data 가 섞여 와도', () => {
+    const p = typePage();
+    const mk = (id: string, name: string, region: string): PublicVet => ({ ...vet(id), name, region });
+    // 섞인 입력: 기대 순서 = v1(마포·가) → v2(마포·나) → v3(은평·가)
+    const vets = [mk('v2', '나 병원', 'seoul-mapo'), mk('v3', '가 병원', 'seoul-yeongdeungpo'), mk('v1', '가 병원', 'seoul-mapo')];
+    const home = render(<App page={{ ...p, data: { ...p.data, vets } }} captured={NO_CAPTURE} />);
+    const railIds = Array.from(document.querySelectorAll('[data-ws-section="vet"] li.ws-vet')).map((li) => li.getAttribute('data-ws-id'));
+    home.unmount();
+    const vp = pageOf('VET', { types: [golden], vets }, { path: '/vet' });
+    window.history.replaceState(null, '', '/vet');
+    render(<VetPage page={vp} capturedMain={null} />);
+    const listIds = Array.from(document.querySelectorAll('li.ws-vet')).map((li) => li.getAttribute('data-ws-id'));
+    window.history.replaceState(null, '', '/');
+    expect(railIds).toEqual(['vetClinics#v1', 'vetClinics#v2', 'vetClinics#v3']);
+    expect(listIds).toEqual(railIds);
+  });
+
   it('F1-4 ④ vets 0: 레일 없이 /vet 링크만(섹션 순서 불변)', () => {
     render(<App page={typePage()} captured={NO_CAPTURE} />);
     const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
@@ -192,7 +220,9 @@ describe('홈 B', () => {
     expect(sections()).toEqual(['context', 'now', 'bundles', 'products', 'vet', 'save']);
     const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
     const ids = Array.from(v.querySelectorAll('li.ws-vet')).map((li) => li.getAttribute('data-ws-id'));
-    expect(ids).toEqual(vets.slice(0, 20).map((x) => `vetClinics#${x.id}`));
+    // R6 G1: 순서 = vet/order.ts sortVets(지역 → 이름 → id, /vet·프리렌더와 같은 규칙) 후 ≤20.
+    expect(ids).toEqual(sortVets(vets).slice(0, 20).map((x) => `vetClinics#${x.id}`));
+    expect(ids.slice(0, 3)).toEqual(['vetClinics#v0', 'vetClinics#v1', 'vetClinics#v10']); // 코드 포인트 비교
     expect(v.querySelector('a[href="/vet"]')).not.toBeNull();
     expect(v.textContent).toContain(golden.displayName);
     expect(v.textContent).not.toContain(golden.id);

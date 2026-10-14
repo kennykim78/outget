@@ -18,7 +18,8 @@ import {
   photoSourceUrlAllowed,
 } from './seed-exposure.mjs';
 
-export const SCAN_DIRS = ['client/src', 'server/src', 'server/prisma', 'server/seed', 'scripts'];
+// e2e: R6 — 데모 E2E 하네스도 스캔(@playwright/test 외 금지 라이브러리·외부 fetch·시크릿 등은 그대로 적용).
+export const SCAN_DIRS = ['client/src', 'server/src', 'server/prisma', 'server/seed', 'scripts', 'e2e'];
 
 // 스캐너 자신(규칙 패턴을 담고 있음) — 코드 규칙(C1-FETCH/SDK, C2, C5)만 면제, C1-LIB·C7 은 적용.
 export const SELF_FILES = new Set([
@@ -48,10 +49,29 @@ const SHOP_API_RE = /openapi\.naver\.com/i;
 const BANNED_LIBS = ['puppeteer', 'puppeteer-core', 'playwright', 'playwright-core', 'cheerio', 'crawlee', 'node-cron', 'undici', 'axios', 'got'];
 const BANNED_SCOPES = ['@playwright/', '@crawlee/', '@puppeteer/'];
 const isBannedLib = (name) => BANNED_LIBS.includes(name) || BANNED_SCOPES.some((s) => name.startsWith(s)) || BANNED_LIBS.some((b) => name.startsWith(`${b}/`));
+// R6 오케스트레이터 결정(레인 E 데모 E2E): 불변식 1 규칙은 유지하되 좁은 예외 하나 —
+//   '@playwright/test'(정확 일치) 는 루트 package.json devDependencies 와, import 는 e2e/** · 루트 playwright.config.ts 에서만.
+//   client/src·server/src·scripts·dependencies 등 그 밖은 FAIL. playwright·playwright-core·puppeteer 등 다른 패키지는 예외 없음.
+const E2E_LIB = '@playwright/test';
+const E2E_IMPORT_OK = (rel) => rel === 'playwright.config.ts' || rel.startsWith('e2e/');
+const isBannedImport = (name, rel) => isBannedLib(name) && !(name === E2E_LIB && E2E_IMPORT_OK(rel));
+const isBannedDep = (name, sec, rel) => isBannedLib(name) && !(name === E2E_LIB && sec === 'devDependencies' && rel === 'package.json');
 
 const NET_CALL_RE = /\b(?:fetch|axios(?:\.\w+)?|got(?:\.\w+)?|request|undici\.\w+|https?\.(?:get|request)|sendBeacon)\s*\(|\bnew\s+(?:XMLHttpRequest|WebSocket|EventSource)\s*\(|\.open\s*\(/;
 const ABS_URL_RE = /\b((?:https?|wss?):\/\/([^\s/'"`?#:]+))/gi;
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/i;
+// C1-FETCH 외부 호스트 허용목록(R6 B4 — Kenny 결정: 메일 공급자 Resend). 호스트 → 허용 파일(정확 경로).
+//   https 만, 호스트 정확 일치(대소문자 구분 — 대문자 표기·하위/상위 도메인은 불허, fail-closed), 포트·userinfo 붙으면 불허.
+//   그 파일 밖에서 같은 호스트로 호출하거나, 그 파일에서 다른 외부 호스트로 호출하면 여전히 FAIL. 상품·외부 사이트 본문·이미지 수집과 무관(불변식 1).
+const FETCH_HOST_ALLOW = Object.freeze({ 'api.resend.com': Object.freeze(['server/src/save/mail.ts']) });
+/** ABS_URL_RE 매치 m(문자열 txt 안)이 허용목록 호출인가. */
+function fetchHostAllowed(rel, txt, m) {
+  const files = Object.prototype.hasOwnProperty.call(FETCH_HOST_ALLOW, m[2]) ? FETCH_HOST_ALLOW[m[2]] : null;
+  if (!files || !files.includes(rel)) return false;
+  if (!m[1].startsWith('https://')) return false;
+  const next = txt.charAt(m.index + m[0].length);
+  return next === '' || next === '/' || next === '?' || next === '#' || /[\s'"`]/.test(next);
+}
 
 const TRADE_ROUTE_RE = /\/(adopt|adoption|applications?|match(?:es|ing)?|payments?|escrow|settle|refunds?|payouts?|checkout|orders?|cart|listings?)\b/i;
 const TRADE_PARTS = new Set(['escrow', 'escrows', 'payout', 'payouts', 'settlement', 'settlements', 'refund', 'refunds', 'checkout']);
@@ -132,7 +152,7 @@ function scanCode(rel, text, ctx) {
     const re = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
     let m;
     while ((m = re.exec(l)) !== null) {
-      if (isBannedLib(m[1])) add('C1-LIB', 'FAIL', rel, i + 1, `수집·크롤·스케줄 라이브러리 import: ${m[1]}`);
+      if (isBannedImport(m[1], rel)) add('C1-LIB', 'FAIL', rel, i + 1, `수집·크롤·스케줄 라이브러리 import: ${m[1]}`);
     }
   });
 
@@ -147,7 +167,11 @@ function scanCode(rel, text, ctx) {
       const out = [];
       ABS_URL_RE.lastIndex = 0;
       let m;
-      while ((m = ABS_URL_RE.exec(txt)) !== null) if (!LOCAL_HOST.test(m[2])) out.push(m[1]);
+      while ((m = ABS_URL_RE.exec(txt)) !== null) {
+        if (LOCAL_HOST.test(m[2])) continue;
+        if (fetchHostAllowed(rel, txt, m)) continue;
+        out.push(m[1]);
+      }
       return out;
     };
     const urlConsts = new Map();
@@ -403,7 +427,7 @@ function scanPackage(rel, text, ctx) {
     const deps = pkg?.[sec];
     if (!deps || typeof deps !== 'object') continue;
     for (const name of Array.isArray(deps) ? deps : Object.keys(deps)) {
-      if (isBannedLib(name)) ctx.add('C1-LIB', 'FAIL', rel, null, `${sec} 에 금지 라이브러리: ${name}`);
+      if (isBannedDep(name, sec, rel)) ctx.add('C1-LIB', 'FAIL', rel, null, `${sec} 에 금지 라이브러리: ${name}`);
       if (name === 'jsdom' && sec !== 'devDependencies') ctx.add('C1-LIB', 'FAIL', rel, null, `jsdom 은 devDependencies 만(현재 ${sec})`);
     }
   }
@@ -426,6 +450,18 @@ const lastKey = (path) => {
   const m = /(?:^|\.)([^.[\]]+)(?:\[\d+\])*$/.exec(path);
   return m ? m[1] : '';
 };
+
+/**
+ * R6 B1(SEC-4 L-4): C4-STEM 을 FAIL 로 올리는 시드 행 — 노출 후보(승격된) 상태.
+ *   reviewStatus=VERIFIED(reviewerType 무관 — AI_DRAFT 위장도 포함) · vet verification.status=VERIFIED ·
+ *   후기 status=APPROVED. 그 외(DRAFT·SLOT·IN_REVIEW 등)는 WARN 유지(운영자 검토 대상).
+ */
+function stemFailRow(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
+  if (row.reviewStatus === 'VERIFIED') return true;
+  if (row.verification && typeof row.verification === 'object' && row.verification.status === 'VERIFIED') return true;
+  return row.status === 'APPROVED';
+}
 
 function scanSeedFile(rel, text, ctx) {
   const { add, bw } = ctx;
@@ -466,7 +502,7 @@ function scanSeedFile(rel, text, ctx) {
       for (const h of lintText(n.value, bw)) {
         if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, null, `${where} ${n.path}: 금지어 "${h.term}"`);
         else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, null, `${where} ${n.path}: 공백 제거 후 2자 금지어 "${h.term}"`);
-        else add('C4-STEM', 'WARN', rel, null, `${where} ${n.path}: 금지어 어간 "${h.term}"`);
+        else add('C4-STEM', stemFailRow(row) ? 'FAIL' : 'WARN', rel, null, `${where} ${n.path}: 금지어 어간 "${h.term}"`);
       }
     });
 

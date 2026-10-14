@@ -170,7 +170,7 @@
             "ASPEN",
             "HEMP"
           ],
-          "reason": "굴 유지력·안전"
+          "reason": "굴 유지력·먼지가 적음"
         }
       ]
     },
@@ -392,7 +392,7 @@
           "key": "sandType",
           "op": "eq",
           "value": "CHINCHILLA_SAND",
-          "reason": "안전·세척 용이"
+          "reason": "먼지가 적은 모래·세척 용이"
         }
       ]
     },

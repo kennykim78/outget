@@ -71,6 +71,56 @@ export function promoted(opts: { typeDraft?: boolean } = {}): SeedBundle {
   return s;
 }
 
+/** promotedTwo() 의 합성 두 번째 타입 식별자(다동물 감사 54 M1). 실제 시드 행(hamster-dwarf 등)이 아니다. */
+export const SECOND = {
+  typeId: 'fixture-second',
+  slug: 'hamster/fixture',
+  careProfileId: 'cp-fixture-second',
+  requirementIds: ['req-fixture-cage', 'req-fixture-wheel'],
+  productId: 'cp-fixture-2',
+  bundleId: 'sb-fixture-second',
+} as const;
+
+/**
+ * 2타입 픽스처(메모리, 감사 54 M1): promoted()(골든) + 합성 두 번째 타입.
+ *   두 번째 타입은 골든 행을 복제해 id·slug·표시명만 바꾼 자리표시다 — 드워프 등 실제 종의 사실값을 만들지 않고,
+ *   실제 PLANNED 행(hamster-dwarf)을 승격하지도 않는다. 요구사항 2행(cage·wheel)은 골든 행을 id·careProfileId 만 바꿔 복제.
+ *   상품 cp-fixture-2(B 프로필 전용)·번들 sb-fixture-second(B 프로필) 추가. 골든 쪽은 promoted() 그대로.
+ */
+export function promotedTwo(): SeedBundle {
+  const s = promoted();
+  const golden = s.animalTypes.find((x) => x.id === 'hamster-golden');
+  const profile = s.careProfiles.find((x) => x.id === 'cp-hamster-syrian');
+  if (!golden || !profile) throw new Error('fixture: 골든 체인 없음');
+  s.animalTypes.push({
+    ...clone(golden),
+    id: SECOND.typeId,
+    slug: SECOND.slug,
+    displayName: '픽스처 두번째',
+    aliases: ['픽스처 별칭'],
+    careProfileId: SECOND.careProfileId,
+    careOverrides: {},
+    mascot: null,
+    oneLiner: null,
+    seoTitle: null,
+    seoDescription: null,
+    ...V,
+  });
+  s.careProfiles.push({ ...clone(profile), id: SECOND.careProfileId, name: '픽스처 두번째 프로필', ...V });
+  const reqSrc: Record<string, string> = { 'req-fixture-cage': 'req-syrian-cage', 'req-fixture-wheel': 'req-syrian-wheel' };
+  for (const id of SECOND.requirementIds) {
+    const src = s.supplyRequirements.find((x) => x.id === reqSrc[id]);
+    if (!src) throw new Error(`fixture: supplyRequirements#${reqSrc[id]} 없음`);
+    s.supplyRequirements.push({ ...clone(src), id, careProfileId: SECOND.careProfileId, ...V });
+  }
+  const prod = s.curatedProducts.find((x) => x.id === 'cp-001');
+  const bundle = s.setupBundles.find((x) => x.id === 'sb-syrian-budget');
+  if (!prod || !bundle) throw new Error('fixture: cp-001·sb-syrian-budget 없음');
+  s.curatedProducts.push({ ...clone(prod), id: SECOND.productId, title: '픽스처 쳇바퀴 B', careProfileIds: [SECOND.careProfileId] });
+  s.setupBundles.push({ ...clone(bundle), id: SECOND.bundleId, name: '픽스처 세트 B', careProfileId: SECOND.careProfileId });
+  return s;
+}
+
 
 /**
  * enum 표시 라벨(메모리, W-OPTLABEL 게이트 통과용) — 자리표시 "픽스처 라벨 N". 표기일 뿐 규격 사실이 아니다.

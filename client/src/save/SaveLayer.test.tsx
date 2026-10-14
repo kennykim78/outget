@@ -116,6 +116,23 @@ function expectNoBanned(el: HTMLElement): void {
   for (const w of BANNED) expect(el.textContent ?? '').not.toContain(w);
 }
 
+/**
+ * R6 D2(SEC-4 L-1(c)): 연결 직후 확인 화면 — 마스킹 주소 "{name}에 저장할까요?" + [이 주소로 저장하기](채움 1) · [나중에 할게요].
+ *   확인 전 PUT 0 · ws.save 연결 기록 0 → 클릭.
+ */
+async function confirmSave(masked: string | null = MASKED): Promise<void> {
+  const btn = await screen.findByRole('button', { name: COPY.save.confirmCta }, { timeout: 15000 });
+  const d = screen.getByRole('dialog', { name: COPY.save.confirmTitle });
+  if (masked) expect(d).toHaveTextContent(formatCopy(COPY.save.confirmMasked, { name: masked }));
+  expect(btn).toHaveClass('ws-btn--fill');
+  expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
+  expect(screen.getByRole('button', { name: COPY.save.later })).toHaveClass('ws-btn--outline');
+  await act(async () => undefined);
+  expect(fetchLog.some((f) => f.method === 'PUT')).toBe(false);
+  expect(window.localStorage.getItem(SAVE_STATE_KEY)).toBeNull();
+  fireEvent.click(btn);
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, '', '/hamster/golden');
@@ -363,6 +380,7 @@ describe('/save#t= 매직링크 복귀', () => {
     expect(connect.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
     expect(connect.querySelectorAll('.ws-save-foot > .ws-btn')).toHaveLength(2);
     fireEvent.click(btn);
+    await confirmSave();
     const d = await screen.findByRole('dialog', { name: COPY.save.confirmedTitle }, { timeout: 15000 });
     expect(fetchLog.filter((f) => f.path === '/auth/magic/verify')).toHaveLength(1);
     // hash 제거 replaceState 가 첫 fetch 보다 먼저
@@ -437,6 +455,7 @@ describe('/save#t= 매직링크 복귀', () => {
     expect(screen.getByRole('button', { name: COPY.save.later })).toBeInTheDocument();
     expect(window.location.hash).toBe('');
     release();
+    await confirmSave();
     expect(await screen.findByRole('dialog', { name: COPY.save.confirmedTitle })).toBeInTheDocument();
   });
 
@@ -473,6 +492,7 @@ describe('/save#t= 매직링크 복귀', () => {
     expectNoSecretsStored();
     routes['POST /auth/magic/verify'] = { status: 200, body: { linked: true, maskedEmail: MASKED } };
     fireEvent.click(screen.getByRole('button', { name: COPY.save.connectCta }));
+    await confirmSave();
     expect(await screen.findByRole('dialog', { name: COPY.save.confirmedTitle }, { timeout: 15000 })).toBeInTheDocument();
     const verifies = fetchLog.filter((f) => f.path === '/auth/magic/verify');
     expect(verifies).toHaveLength(2);
@@ -540,6 +560,7 @@ describe('같은 탭 매직링크(P2 D1) — 해시만 바뀐 popstate', () => {
     await act(async () => undefined);
     expect(verifyCalls()).toBe(0);
     fireEvent.click(btn);
+    await confirmSave();
     await screen.findByRole('dialog', { name: COPY.save.confirmedTitle }, { timeout: 15000 });
     expect(verifyCalls()).toBe(1);
     expect(fetchLog.find((f) => f.path === '/auth/magic/verify')?.body).toEqual({ token: TOKEN });
@@ -699,10 +720,11 @@ describe('P1 MAJOR-1 빈 기기 연결 · 보냄 화면 안내', () => {
     expect(fetchLog.some((f) => f.method === 'PUT')).toBe(false);
   });
 
-  it('빈 기기 + 서버 저장본 있음 → 불러오기(mergedServer, 저장했어요), connectedEmpty 0, PUT 0', async () => {
+  it('빈 기기 + 서버 저장본 있음 → 불러오기 → 확인 화면 → 저장했어요(mergedServer), connectedEmpty 0, PUT 0', async () => {
     routes['GET /api/save'] = { status: 200, body: { snapshot: { v: 1, animalTypeId: golden.id, setups: {}, cages: {}, reactions: { like: {}, helpful: {}, updatedAt: null } }, updatedAt: T1 } };
     arriveEmpty();
     fireEvent.click(await screen.findByRole('button', { name: COPY.save.connectCta }, { timeout: 15000 }));
+    await confirmSave();
     const d = await screen.findByRole('dialog', { name: COPY.save.confirmedTitle }, { timeout: 15000 });
     expect(d).toHaveTextContent(COPY.save.mergedServer);
     expect(d).not.toHaveTextContent(COPY.save.connectedEmpty);
@@ -865,9 +887,43 @@ describe('P3 D6 포커스 · D7 카운트다운 낭독', () => {
     const cta = await screen.findByRole('button', { name: COPY.save.connectCta }, { timeout: 15000 });
     cta.focus();
     fireEvent.click(cta);
+    // R6 D2: 확인 화면으로 바뀌면 제목(h2)으로 포커스 — 새 본문(마스킹 주소)이 처음부터 읽힌다.
+    await screen.findByRole('button', { name: COPY.save.confirmCta }, { timeout: 15000 });
+    const c = screen.getByRole('dialog', { name: COPY.save.confirmTitle });
+    await waitFor(() => expect(document.activeElement).toBe(c.querySelector('h2')));
+    await confirmSave();
     const d = await screen.findByRole('dialog', { name: COPY.save.confirmedTitle }, { timeout: 15000 });
     await waitFor(() => expect(document.activeElement).toBe(d.querySelector('h2')));
     expect(document.activeElement).toHaveTextContent(COPY.save.confirmedTitle);
+  });
+
+  it('R6 D2: 확인 화면에서 [나중에 할게요] → 닫힘, PUT 0, ws.save 연결 기록 0(다시 열어도 자동 저장 0)', async () => {
+    window.localStorage.setItem('ws.animalType', golden.id);
+    window.history.replaceState(null, '', `/save#t=${TOKEN}`);
+    mount(pageOf('SAVE', {}, { path: '/save' }));
+    act(() => layerStore.initDeepLink('L8', {}, '/'));
+    fireEvent.click(await screen.findByRole('button', { name: COPY.save.connectCta }, { timeout: 15000 }));
+    await screen.findByRole('button', { name: COPY.save.confirmCta }, { timeout: 15000 });
+    fireEvent.click(screen.getByRole('button', { name: COPY.save.later }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(fetchLog.some((f) => f.method === 'PUT')).toBe(false);
+    expect(window.localStorage.getItem(SAVE_STATE_KEY)).toBeNull();
+    expectNoSecretsStored();
+  });
+
+  it('R6 D2: 확인 클릭 중 세션이 끊김(PUT 401) → 만료 화면, 연결 기록 0', async () => {
+    window.localStorage.setItem('ws.animalType', golden.id);
+    routes['PUT /api/save'] = { status: 401 };
+    window.history.replaceState(null, '', `/save#t=${TOKEN}`);
+    mount(pageOf('SAVE', {}, { path: '/save' }));
+    act(() => layerStore.initDeepLink('L8', {}, '/'));
+    fireEvent.click(await screen.findByRole('button', { name: COPY.save.connectCta }, { timeout: 15000 }));
+    await confirmSave();
+    await screen.findByRole('dialog', { name: COPY.save.expiredTitle }, { timeout: 15000 });
+    expect(window.localStorage.getItem(SAVE_STATE_KEY)).toBeNull();
   });
 
   it('만료(401) 후 activeElement = 만료 제목(h2)', async () => {

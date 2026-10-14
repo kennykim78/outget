@@ -89,6 +89,57 @@ function emit(): void {
   for (const l of listeners) l();
 }
 
+// 스크롤 유지(R6 G1, P3 N1): 레이어가 열려 있는 동안만 history.scrollRestoration='manual' + 열 때 scrollX/Y 저장, 다 닫히면 복원.
+//   브라우저 자동 복원은 popstate 직후(같은 태스크) 도착 항목의 모드로 돌므로, 모드 원복은 한 틱 뒤로 미룬다.
+//   push 는 현재 항목 모드를 복사한다 — 그래서 push 전에 manual 로 바꿔야 부모 항목으로 돌아올 때도 manual.
+interface ScrollHold {
+  x: number;
+  y: number;
+  mode: ScrollRestoration | null;
+}
+let scrollHold: ScrollHold | null = null;
+/** 닫힘 뒤 모드 원복 대기(그 사이 다시 열리면 취소 — 원래 모드를 이어 받는다). */
+let scrollRelease: { timer: ReturnType<typeof setTimeout>; mode: ScrollRestoration | null } | null = null;
+
+function setRestoration(mode: ScrollRestoration | null): void {
+  if (mode === null) return;
+  try {
+    window.history.scrollRestoration = mode;
+  } catch {
+    // 일부 환경은 쓰기 불가 — 위치 복원(scrollTo)만으로 충분
+  }
+}
+
+function holdScroll(): void {
+  if (scrollHold !== null) return;
+  let mode: ScrollRestoration | null = 'scrollRestoration' in window.history ? window.history.scrollRestoration : null;
+  if (scrollRelease !== null) {
+    clearTimeout(scrollRelease.timer);
+    mode = scrollRelease.mode;
+    scrollRelease = null;
+  }
+  scrollHold = { x: window.scrollX, y: window.scrollY, mode };
+  setRestoration('manual');
+}
+
+function releaseScroll(): void {
+  const hold = scrollHold;
+  if (hold === null) return;
+  scrollHold = null;
+  const put = (): void => {
+    if (Math.abs(window.scrollY - hold.y) > 1 || Math.abs(window.scrollX - hold.x) > 1) window.scrollTo(hold.x, hold.y);
+  };
+  put();
+  scrollRelease = {
+    mode: hold.mode,
+    timer: setTimeout(() => {
+      scrollRelease = null;
+      put(); // 레이어 껍데기 해제(overflow 원복) 뒤 한 번 더
+      setRestoration(hold.mode);
+    }, 0),
+  };
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
@@ -134,6 +185,7 @@ function fromState(s: LayerHistoryState): OpenLayer {
 
 /** 딥링크 항목(depth 0)에서 닫기: 부모 경로로 교체(재로드 없음) 또는 다른 문서면 location.replace. */
 function closeDeepLinkEntry(s: LayerHistoryState): void {
+  releaseScroll();
   current = null;
   currentState = null;
   closingAll = false;
@@ -172,6 +224,7 @@ export const layerStore = {
       wsDepth: replace ? depth : depth + 1,
     };
     const next = { ...(stripLayerKeys(window.history.state) ?? {}), ...state };
+    if (current === null) holdScroll(); // push 전에(새 항목이 manual 을 복사)
     if (replace) window.history.replaceState(next, '', opts.url);
     else window.history.pushState(next, '', opts.url);
     closingAll = false;
@@ -185,6 +238,7 @@ export const layerStore = {
     deepLinkWsId = opts.wsId ?? null;
     const state: LayerHistoryState = { wsLayer: kind, wsLayerProps: sanitizeProps(props), wsParent: parentPath, wsDepth: 0 };
     window.history.replaceState({ ...(stripLayerKeys(window.history.state) ?? {}), ...state }, '');
+    holdScroll();
     closingAll = false;
     current = fromState(state);
     currentState = state;
@@ -201,6 +255,7 @@ export const layerStore = {
     if (current === null || closingAll) return; // 전체 닫기 진행 중 재호출(ESC 반복·더블탭) 무시
     const s = readLayerState(window.history.state);
     if (s === null) {
+      releaseScroll();
       current = null;
       currentState = null;
       closingAll = false;
@@ -250,6 +305,7 @@ export const layerStore = {
         wsDepth: currentState ? currentState.wsDepth + 1 : 1,
       };
       window.history.replaceState({ ...(stripLayerKeys(window.history.state) ?? {}), ...state }, ''); // URL = captureMagicToken 이 이미 해시를 뗀 /save
+      if (current === null) holdScroll();
       current = current?.kind === 'L8' ? current : { kind: 'L8', props: {} };
       currentState = state;
       emit();
@@ -259,6 +315,8 @@ export const layerStore = {
     const next = s ? fromState(s) : null;
     currentState = s;
     if (next === null && current === null) return;
+    if (next === null) releaseScroll();
+    else if (current === null) holdScroll(); // 앞으로 가기로 레이어 항목 재진입
     current = next;
     emit();
   },
@@ -270,6 +328,10 @@ export const layerStore = {
     clearBackPending();
     deepLinkDocumentParent = false;
     deepLinkWsId = null;
+    if (scrollRelease !== null) clearTimeout(scrollRelease.timer);
+    setRestoration(scrollRelease?.mode ?? scrollHold?.mode ?? null);
+    scrollRelease = null;
+    scrollHold = null;
     emit();
   },
 };

@@ -23,6 +23,19 @@ export const golden: PublicAnimalType = {
   review: { verifiedAt: '2026-09-01', reviewerType: 'EXPERIENCED_KEEPER' },
 };
 
+// 두 번째 합성 타입(다동물 격리 테스트용 — 실제 데이터 아님, 드워프 사실 창작 없음).
+export const second: PublicAnimalType = {
+  id: 'fixture-second',
+  slug: 'hamster/fixture',
+  group: 'SMALL_MAMMAL',
+  displayName: '픽스처햄스터',
+  aliases: [],
+  oneLiner: '합성 두 번째 타입',
+  mascot: 'hamster-golden',
+  careProfileId: 'cp-fixture-second',
+  review: { verifiedAt: '2026-09-01', reviewerType: 'EXPERIENCED_KEEPER' },
+};
+
 export function req(id: string, priority: Priority, name = id): PublicRequirement {
   return {
     requirementId: `req-${id}`,
@@ -43,6 +56,17 @@ export function req(id: string, priority: Priority, name = id): PublicRequiremen
     lastVerifiedAt: '2026-09-30',
   };
 }
+
+/** second 타입의 요구사항 — 골든 req 를 animalTypeId·requirementId 만 바꿔 복제. */
+export function secondReq(id: string, priority: Priority, name = id): PublicRequirement {
+  return { ...req(id, priority, name), requirementId: `req-${second.id}-${id}`, animalTypeId: second.id };
+}
+
+export const secondRequirements: PublicRequirement[] = [
+  secondReq('cage', 'REQUIRED', '픽스처케이지'),
+  secondReq('wheel', 'REQUIRED', '픽스처바퀴'),
+  secondReq('bath', 'REQUIRED', '픽스처목욕통'),
+];
 
 export function product(id: string, supplyItemId: string, title = `상품 ${id}`): PublicProduct {
   return {

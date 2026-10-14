@@ -399,7 +399,14 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
       searchKeyword: r.searchKeyword,
     }));
   const compatibilityRules: CompatibilityRuleRec[] = cat.compatibilityRules
-    .filter((c) => isCompatRuleExposable(c, asOf) && exposedItems.has(c.a) && exposedItems.has(c.b))
+    // M4(감사 54 #5): 프로필 범위 규칙은 그 프로필이 노출 타입의 프로필일 때만(비노출·미존재 프로필 규칙 0 — 불변식 7).
+    .filter(
+      (c) =>
+        isCompatRuleExposable(c, asOf) &&
+        exposedItems.has(c.a) &&
+        exposedItems.has(c.b) &&
+        (!c.careProfileId || profileIds.has(c.careProfileId)),
+    )
     .map((c) => ({
       ...publicMeta(c),
       id: c.id,

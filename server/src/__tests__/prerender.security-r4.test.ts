@@ -54,8 +54,10 @@ describe('L-A seoulToday — Asia/Seoul 날짜(러너 시간대 무관)', () => 
   });
 });
 
+// R6 N-2: 운영 프리렌더는 SITE_ORIGIN(https, 비 loopback) 필수 — 운영 경로 테스트는 유효 오리진을 함께 준다.
+const PROD = { NODE_ENV: 'production', SITE_ORIGIN: 'https://staging.example' };
+
 describe('L-B 운영 빌드의 --now', () => {
-  const PROD = { NODE_ENV: 'production' };
   it('production + --now ≠ 오늘(서울) → exit 2', async () => {
     const r = await run(['--now', '2026-09-30'], PROD);
     expect(r.code).toBe(2);
@@ -78,8 +80,8 @@ describe('L-B 운영 빌드의 --now', () => {
 describe('L-F 마스코트', () => {
   it('운영: 원본 디렉터리 없음·svg 0개 → exit 2, 비운영은 빈 맵으로 통과', async () => {
     const missing = join(tmp('m'), 'nope');
-    expect((await run([], { NODE_ENV: 'production' }, { mascotDir: missing })).code).toBe(2);
-    expect((await run([], { NODE_ENV: 'production' }, { mascotDir: tmp('empty') })).code).toBe(2);
+    expect((await run([], PROD, { mascotDir: missing })).code).toBe(2);
+    expect((await run([], PROD, { mascotDir: tmp('empty') })).code).toBe(2);
     expect((await run([], {}, { mascotDir: missing })).code).toBe(0);
     expect(() => loadMascots(missing, { required: true })).toThrow(/원본 디렉터리 없음/);
     expect(loadMascots(missing).size).toBe(0);
@@ -87,7 +89,7 @@ describe('L-F 마스코트', () => {
   it('운영: 정제 실패 svg 가 있으면 exit 2', async () => {
     const d = tmp('bad');
     writeFileSync(join(d, 'x.svg'), '<svg viewBox="0 0 9 9"><script>1</script></svg>');
-    expect((await run([], { NODE_ENV: 'production' }, { mascotDir: d })).code).toBe(2);
+    expect((await run([], PROD, { mascotDir: d })).code).toBe(2);
   });
   it('본문의 <! · <? 는 무엇이든 throw', () => {
     for (const body of ['<!x>', '<!DOCTYPE x>', '<!---->', '<![CDATA[x]]>', '<?pi x?>', '<?xml version="1.0"?>']) {

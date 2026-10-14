@@ -9,6 +9,7 @@ import type {
   SessionRepository,
   SessionRow,
 } from './save.repo.js';
+import { newestFirst } from './save.repo.js';
 
 export class PrismaMagicTokenRepository implements MagicTokenRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -26,6 +27,11 @@ export class PrismaMagicTokenRepository implements MagicTokenRepository {
     if (count !== 1) return null;
     const row = await this.prisma.magicLinkToken.findUnique({ where: { tokenHash }, select: { email: true } });
     return row?.email ?? null;
+  }
+
+  async deleteExpired(cutoffIso: string): Promise<number> {
+    const { count } = await this.prisma.magicLinkToken.deleteMany({ where: { expiresAt: { lte: cutoffIso } } });
+    return count;
   }
 }
 
@@ -46,6 +52,30 @@ export class PrismaSessionRepository implements SessionRepository {
 
   async revoke(sidHash: string, nowIso: string): Promise<void> {
     await this.prisma.session.updateMany({ where: { sidHash, revokedAt: null }, data: { revokedAt: nowIso } });
+  }
+
+  async enforceCap(userId: string, keepSidHash: string, max: number, nowIso: string): Promise<number> {
+    // 조회·폐기를 한 트랜잭션으로(SQLite 쓰기 직렬화) — 같은 사용자의 동시 연결이 상한을 넘겨 남기지 않게.
+    return this.prisma.$transaction(async (tx) => {
+      const others = await tx.session.findMany({
+        where: { userId, sidHash: { not: keepSidHash }, revokedAt: null, expiresAt: { gt: nowIso } },
+        select: { sidHash: true, createdAt: true },
+      });
+      const victims = others.sort(newestFirst).slice(Math.max(0, max - 1)).map((r) => r.sidHash);
+      if (victims.length === 0) return 0;
+      const { count } = await tx.session.updateMany({
+        where: { sidHash: { in: victims }, revokedAt: null },
+        data: { revokedAt: nowIso },
+      });
+      return count;
+    });
+  }
+
+  async deleteInactive(cutoffIso: string): Promise<number> {
+    const { count } = await this.prisma.session.deleteMany({
+      where: { OR: [{ expiresAt: { lte: cutoffIso } }, { revokedAt: { lte: cutoffIso } }] },
+    });
+    return count;
   }
 }
 

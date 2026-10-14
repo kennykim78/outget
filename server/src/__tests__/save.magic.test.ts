@@ -325,3 +325,80 @@ describe('GET/DELETE /auth/session', () => {
     expect((await request(app).get('/auth/session').set('Cookie', `ws_sid=${sid}`)).body).toEqual({ linked: true, maskedEmail: 'k***@e***.com' });
   });
 });
+
+// R6 C2: 만료 매직 토큰 정리(발급 시) · 사용자별 활성 세션 상한(verify 시) · 만료/폐기 세션 정리. 스키마 변경 없음.
+describe('R6 C2 토큰·세션 정리와 상한', () => {
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it('발급(request) 때 만료 토큰 삭제 — expiresAt ≤ now 는 삭제, 만료 전·소비됨(미만료)은 유지', async () => {
+    const { app, repos, clock } = setup();
+    const tokens = repos.magicToken as InMemoryMagicTokenRepository;
+    await tokens.insert({ tokenHash: 'a'.repeat(64), email: 'old@example.com', createdAt: iso(T0 - 20 * 60_000), expiresAt: iso(T0 - 1), consumedAt: null });
+    await tokens.insert({ tokenHash: 'b'.repeat(64), email: 'edge@example.com', createdAt: iso(T0 - 15 * 60_000), expiresAt: iso(T0), consumedAt: null });
+    await tokens.insert({ tokenHash: 'c'.repeat(64), email: 'live@example.com', createdAt: iso(T0), expiresAt: iso(T0 + 1), consumedAt: null });
+    await tokens.insert({ tokenHash: 'd'.repeat(64), email: 'used@example.com', createdAt: iso(T0), expiresAt: iso(T0 + 60_000), consumedAt: iso(T0) });
+    expect((await requestLink(app)).status).toBe(202);
+    expect(tokens.dump().map((r) => r.email).sort()).toEqual(['kenny@example.com', 'live@example.com', 'used@example.com']);
+    // 15분 뒤 다음 발급 → 앞선 행 전부 만료라 새 행 1개만 남는다(누적 0).
+    clock.t += 15 * 60_000;
+    expect((await requestLink(app, 'next@example.com')).status).toBe(202);
+    expect(tokens.dump().map((r) => r.email)).toEqual(['next@example.com']);
+  });
+
+  it('사용자당 활성 세션 상한 10 — 11번째 연결 시 가장 오래된 1개 무효, 새 세션·나머지 9개 유지, 다른 사용자 무관', async () => {
+    const { app, mail, repos } = setup();
+    const sessions = repos.session as InMemorySessionRepository;
+    const u = await repos.user.upsertByEmail('kenny@example.com');
+    const other = await repos.user.upsertByEmail('other@example.com');
+    const far = iso(T0 + 90 * 24 * 3600_000);
+    for (let i = 0; i < 10; i++) {
+      await sessions.insert({ sidHash: sha(`s${i}`), userId: u.id, createdAt: iso(T0 - (10 - i) * 1000), expiresAt: far, revokedAt: null });
+    }
+    await sessions.insert({ sidHash: sha('o0'), userId: other.id, createdAt: iso(T0 - 99_000), expiresAt: far, revokedAt: null });
+    await requestLink(app);
+    const res = await request(app).post('/auth/magic/verify').send({ token: tokenFrom(mail.sent[0]) });
+    expect(res.status).toBe(200);
+    const nowIso = iso(T0);
+    const mine: string[] = [];
+    for (const r of sessions.dump()) {
+      if (r.userId === u.id && (await sessions.findActiveUserId(r.sidHash, nowIso)) === u.id) mine.push(r.sidHash);
+    }
+    expect(mine).toHaveLength(10);
+    expect(mine).toContain(sha(sidFrom(res)));
+    expect(mine).not.toContain(sha('s0')); // 가장 오래된 것
+    for (let i = 1; i < 10; i++) expect(mine).toContain(sha(`s${i}`));
+    expect(await sessions.findActiveUserId(sha('o0'), nowIso)).toBe(other.id);
+    // 폐기된 s0 는 보존 0 이라 같은 verify 에서 행까지 삭제
+    expect(sessions.dump().some((r) => r.sidHash === sha('s0'))).toBe(false);
+    // 무효가 된 s0 쿠키는 unlinked
+    expect((await request(app).get('/auth/session').set('Cookie', `ws_sid=s0`)).body).toEqual({ linked: false });
+  });
+
+  it('상한 이하이면 아무것도 폐기하지 않는다(10개째 연결)', async () => {
+    const { app, mail, repos } = setup();
+    const sessions = repos.session as InMemorySessionRepository;
+    const u = await repos.user.upsertByEmail('kenny@example.com');
+    for (let i = 0; i < 9; i++) {
+      await sessions.insert({ sidHash: sha(`s${i}`), userId: u.id, createdAt: iso(T0 - (10 - i) * 1000), expiresAt: iso(T0 + 3600_000), revokedAt: null });
+    }
+    await requestLink(app);
+    await request(app).post('/auth/magic/verify').send({ token: tokenFrom(mail.sent[0]) });
+    expect(sessions.dump().filter((r) => r.revokedAt === null)).toHaveLength(10);
+  });
+
+  it('verify 때 만료·폐기 세션 행 삭제(활성 행은 유지)', async () => {
+    const { app, mail, repos } = setup();
+    const sessions = repos.session as InMemorySessionRepository;
+    const u = await repos.user.upsertByEmail('z@example.com');
+    await sessions.insert({ sidHash: sha('exp'), userId: u.id, createdAt: iso(T0 - 2000), expiresAt: iso(T0), revokedAt: null });
+    await sessions.insert({ sidHash: sha('rev'), userId: u.id, createdAt: iso(T0 - 2000), expiresAt: iso(T0 + 3600_000), revokedAt: iso(T0 - 1) });
+    await sessions.insert({ sidHash: sha('live'), userId: u.id, createdAt: iso(T0 - 2000), expiresAt: iso(T0 + 1), revokedAt: null });
+    await requestLink(app);
+    await request(app).post('/auth/magic/verify').send({ token: tokenFrom(mail.sent[0]) });
+    const hashes = sessions.dump().map((r) => r.sidHash);
+    expect(hashes).not.toContain(sha('exp'));
+    expect(hashes).not.toContain(sha('rev'));
+    expect(hashes).toContain(sha('live'));
+    expect(hashes).toHaveLength(2);
+  });
+});

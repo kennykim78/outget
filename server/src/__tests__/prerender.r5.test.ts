@@ -6,7 +6,7 @@ import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { COPY } from '../prerender/copy.js';
 import { renderHeader, type PageContext } from '../prerender/pages/common.js';
 import { TYPE_VETS_MAX } from '../prerender/pages/type.js';
-import { FIXTURE_AS_OF, patch, promoted } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, patch, promoted, realSeed } from './fixtures/prerender-seed.js';
 
 const TEMPLATE = '<!doctype html><html><head><!--ws:head--></head><body><div id="root"><!--ws:body--></div></body></html>';
 const ORIGIN = 'http://localhost:3001';
@@ -121,7 +121,7 @@ describe('/vet(G-4)', () => {
     expect(card).toContain(`aria-label="${COPY.vet.call} ${phone?.[1]}" data-ws-action="vet-call">${COPY.vet.call}</a>`);
     const href = naverMapSearchUrl('병원 vc-1 서울 마포구 vc-1로 1').replace(/&/g, '&amp;');
     expect(card).toContain(
-      `<a class="ws-btn ws-btn--outline" href="${href}" target="_blank" rel="noopener noreferrer nofollow" data-ws-action="vet-route">${COPY.vet.directions}</a>`,
+      `<a class="ws-btn ws-btn--outline" href="${href}" target="_blank" rel="noopener noreferrer nofollow" data-ws-action="vet-route">${COPY.vet.directions}<span class="ws-visually-hidden"> ${COPY.a11y.newWindow}</span></a>`,
     );
     expect(card.match(/data-ws-action="vet-route"/g)).toHaveLength(1);
     expect(card).not.toMatch(/km|거리|진료 가능/);
@@ -253,5 +253,40 @@ describe("renderHeader 칩 아바타", () => {
     expect(renderHeader(null, null, ctx)).not.toContain("ws-avatar");
     expect(renderHeader({ ...t, mascot: "nope" }, null, ctx)).not.toContain("<img");
     expect(renderHeader(t)).not.toContain("ws-avatar");
+  });
+});
+
+describe('홈 ws-data types[].specCheckItemId(R6 G3b)', () => {
+  const HOME_PATHS = ['/', '/pick', '/save'];
+  it('승격 픽스처: HOME·PICK·SAVE 의 골든 타입에 규격 필드가 있는 첫 노출 요구사항 id, 요구사항은 싣지 않는다', () => {
+    const b = build(promoted());
+    const typeReqs = data(b, '/hamster/golden').data.requirements;
+    const expected = typeReqs.find((r) => r.item.specSchema.fields.length > 0)?.supplyItemId;
+    expect(expected).toBe('cage');
+    for (const p of HOME_PATHS) {
+      const d = data(b, p).data;
+      expect(d.types.map((t) => [t.id, t.specCheckItemId]), p).toEqual([['hamster-golden', expected]]);
+      expect(d.requirements, p).toEqual([]);
+      expect(Object.keys(d)).toEqual([...WS_DATA_KEYS]);
+    }
+    // 딥링크 대상 라우트가 실재(L5).
+    expect(b.pages.some((x) => x.route.path === `/hamster/golden/check/${expected}`)).toBe(true);
+  });
+  it('홈 외 페이지 types 에는 키 없음', () => {
+    const b = build(promoted());
+    for (const p of b.pages.filter((x) => !HOME_PATHS.includes(x.route.path))) {
+      for (const t of p.data.data.types) expect(Object.prototype.hasOwnProperty.call(t, 'specCheckItemId'), p.route.path).toBe(false);
+    }
+  });
+  it('규격 필드가 있는 노출 요구사항이 0이면 키 없음(fail-closed)', () => {
+    const s = promoted();
+    for (const it of s.supplyItems) (it as { specSchema: unknown }).specSchema = { fields: [] };
+    const b = build(s);
+    for (const p of HOME_PATHS) for (const t of data(b, p).data.types) expect('specCheckItemId' in t, p).toBe(false);
+  });
+  it('DRAFT 실시드: 노출 타입 0 → 홈 types 비어 있음, 산출물 어디에도 specCheckItemId 없음', () => {
+    const b = build(realSeed());
+    for (const p of HOME_PATHS) expect(data(b, p).data.types, p).toEqual([]);
+    expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('specCheckItemId');
   });
 });

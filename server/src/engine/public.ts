@@ -53,6 +53,12 @@ export interface PublicAnimalType {
   mascot: string | null;
   careProfileId: string;
   review: PublicReview;
+  /**
+   * R6 G3b — 홈(HOME·PICK·SAVE) ws-data 에서만: 이 타입의 "규격 확인 가능한 첫 항목" SupplyItem id
+   *   (노출 요구사항 중 item.specSchema.fields.length > 0, 엔진 순서 orderHint → priority → 시드 순 첫 항목, 불변식 7).
+   *   후기 행동 SPEC_CHECK → /{slug}/check/{id}. 해당 항목이 없거나 홈이 아닌 페이지면 키 자체가 없다.
+   */
+  specCheckItemId?: string;
 }
 
 export interface PublicRequirement {

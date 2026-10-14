@@ -122,8 +122,8 @@ export function useReaction(kind: ReactionKind, targetType: ReactionTarget, id: 
 // ── Saveable(C-R5-9) — 스냅샷 조각 'reactions' = {like, helpful, updatedAt}(recheck 제외, D22) ─────────────
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
-// 서버 저장 검증기와 같은 규칙(server/src/save/validate.ts — :26 SLUG_RE · :27 HELPFUL_KEY_RE · :28 ISO_RE · :105-108 iso() ·
-//   :12 MAX_REACTIONS · :186-203 reactions). 규칙 밖 레코드는 export 에서 뺀다 — 손상 레코드 1개로 PUT 전체가 400 이 되지 않게(QA-M D2).
+// 서버 저장 검증기와 같은 규칙(server/src/shared/save-validate.ts = 별칭 @ws/save-validate — SLUG_RE · HELPFUL_KEY_RE · ISO_RE · iso() ·
+//   MAX_REACTIONS · saveV1() reactions). 규칙 밖 레코드는 export 에서 뺀다 — 손상 레코드 1개로 PUT 전체가 400 이 되지 않게(QA-M D2).
 const LIKE_KEY_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HELPFUL_KEY_RE = /^(SUPPLY_ITEM|BUNDLE|PRODUCT):[a-z0-9][a-z0-9-]{0,63}$/;
 export const MAX_SAVED_REACTIONS = 500;

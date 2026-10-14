@@ -46,6 +46,11 @@ export function checkProducts(ctx: Ctx, recompute: MeetsMinSpecFn | null): void 
         if (expected !== rec.meetsMinSpec) {
           out.error('P01', 'curatedProducts', id, 'meetsMinSpec', `시드 ${String(rec.meetsMinSpec)} ≠ 재계산 ${String(expected)} (specCheck, 불변식 3)`);
         }
+        // P03b(감사 54 #7): 다프로필 상품의 프로필별 판정이 다르면 단일 boolean(AND)이 충족 프로필까지 숨긴다 → 행 분리 권고.
+        if (profiles.length > 1 && new Set(results).size > 1) {
+          const detail = profiles.map((p, i) => `${p}=${String(results[i])}`).join(', ');
+          out.warn('P03b', 'curatedProducts', id, 'careProfileIds', `프로필별 최소 규격 판정이 다르다(${detail}) — 프로필별 행 분리`);
+        }
       }
     }
 

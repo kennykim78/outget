@@ -93,7 +93,8 @@ describe('engine purity', () => {
 describe('shared purity (R4 B1 — @ws/events)', () => {
   it('has the planned modules', () => {
     // R-1: forbidden-keys.ts(금지 키 단일 소스, 클라 @ws/forbidden-keys) 추가 — 아래 순수성 검사도 같이 받는다.
-    expect(sharedFiles.sort()).toEqual(['event-contract.ts', 'forbidden-keys.ts']);
+    // R6 C1: save-validate.ts(SaveV1 검증기, 클라 @ws/save-validate) 추가 — 같은 순수성 검사를 받는다.
+    expect(sharedFiles.sort()).toEqual(['event-contract.ts', 'forbidden-keys.ts', 'save-validate.ts']);
   });
 
   it.each(sharedFiles)('%s imports only ./x.js siblings', (file) => {
