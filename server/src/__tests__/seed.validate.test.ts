@@ -470,6 +470,8 @@ describe('seed:validate — 규칙별 주입', () => {
     else unlabelEnums(row(s, 'supplyItems', 'cage'));
     verify(row(s, 'careProfiles', 'cp-hamster-syrian'));
     if (opts.animalType) verify(row(s, 'animalTypes', 'hamster-golden'));
+    // K-4(R7 A6): 타입 노출은 Taxon(LEGAL) 검수도 요구 — LEGAL 정확 등급 OFFICIAL_SOURCE(V03). 사실값은 디스크 그대로.
+    if (opts.animalType) verify(row(s, 'taxa', 'mesocricetus-auratus'), 'OFFICIAL_SOURCE');
     const p = row(s, 'curatedProducts', 'cp-004');
     Object.assign(p, {
       status: 'ACTIVE',

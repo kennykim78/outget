@@ -43,8 +43,8 @@
       "캠벨",
       "드햄"
     ],
-    "taxonId": null,
-    "careProfileId": null,
+    "taxonId": "phodopus-sungorus",
+    "careProfileId": "cp-hamster-dwarf",
     "careOverrides": {},
     "mascot": "hamster-dwarf",
     "reviewStatus": "DRAFT",

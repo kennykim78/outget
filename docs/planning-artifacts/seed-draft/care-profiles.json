@@ -47,5 +47,21 @@
         "accessedAt": "2026-09-30"
       }
     ]
+  },
+  {
+    "id": "cp-hamster-dwarf",
+    "name": "드워프햄스터 기본",
+    "taxonIds": [
+      "phodopus-sungorus",
+      "phodopus-campbelli"
+    ],
+    "facts": {},
+    "careNotes": [],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "CARE",
+    "source": []
   }
 ]

@@ -6,7 +6,7 @@
 //                        ∧ fresh(r, asOf): verifiedAt 달력 날짜 ∧ 0 ≤ (asOf − verifiedAt) ≤ STALE_DAYS(180)   (M-1, R4 D5)
 //                        computeExposure(seed, asOf) — asOf 필수(YYYY-MM-DD 아니면 RangeError). 아래 "verified" 는 전부 이 뜻.
 //   careProfile        = verified
-//   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified
+//   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified ∧ taxonId 의 Taxon 존재·verified(K-4, R7 A6)
 //   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ verified(r) ∧ item verified
 //   animalType         = base ∧ 노출 requirement ≥ 1
 //   supplyItem         = verified ∧ 어떤 노출 (type,item) 쌍의 item
@@ -296,8 +296,12 @@ export function computeExposure(seed, asOf) {
   const verifiedProfile = (id) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every(ok);
   const verifiedItem = (id) => typeof id === 'string' && items.has(id) && items.get(id).every(ok);
 
+  const taxa = groupById(rows('taxa'));
+  // K-4(R7 A6): 타입의 Taxon(LEGAL) 도 verified — taxonId 없음·미존재·DRAFT·AI_DRAFT·오래됨이면 타입(과 그 아래 전부) 비노출.
+  const verifiedTaxon = (id) => typeof id === 'string' && id !== '' && taxa.has(id) && taxa.get(id).every(ok);
+
   const typeRows = groupById(rows('animalTypes'));
-  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId);
+  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId) && verifiedTaxon(t.taxonId);
 
   const reqs = rows('supplyRequirements').filter(isObj);
   const reqIdGroups = groupById(reqs);

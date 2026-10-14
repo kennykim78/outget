@@ -22,5 +22,41 @@
         "accessedAt": "2026-09-30"
       }
     ]
+  },
+  {
+    "id": "phodopus-sungorus",
+    "scientificName": "Phodopus sungorus",
+    "koreanName": "정글리안햄스터",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "LEGAL",
+    "source": []
+  },
+  {
+    "id": "phodopus-campbelli",
+    "scientificName": "Phodopus campbelli",
+    "koreanName": "캠벨햄스터",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "contentKind": "LEGAL",
+    "source": []
   }
 ]

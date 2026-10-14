@@ -95,7 +95,13 @@ const PLACEHOLDERS = new Set(['', '—', '–', '-', 'TODO', 'TBD', 'N/A']);
 
 export function isPlaceholder(text: string): boolean {
   const t = text.trim();
-  return PLACEHOLDERS.has(t.toUpperCase()) || PLACEHOLDERS.has(t) || /^TODO\b/i.test(t);
+  return PLACEHOLDERS.has(t.toUpperCase()) || PLACEHOLDERS.has(t) || /^TODO\b/i.test(t) || isBracketPlaceholder(t);
+}
+
+// 문자열 전체가 대괄호 표시(짧은 1쌍) 또는 대괄호가 검수/TBD/TODO/? 로 시작하는 문자열. 문장 속 대괄호는 통과.
+function isBracketPlaceholder(t: string): boolean {
+  if (/^\[\s*(검수|TBD|TODO|\?)/i.test(t)) return true;
+  return /^\[[^[\]]{0,30}\]$/.test(t);
 }
 
 // ── 파일별 텍스트 필드(계획 §F "Lint text fields") ─────────────

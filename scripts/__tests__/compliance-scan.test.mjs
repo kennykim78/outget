@@ -73,14 +73,20 @@ function baseSeed() {
     'animal-types.json': [
       {
         id: 'hamster-golden', slug: 'hamster/golden', group: 'SMALL_MAMMAL', displayName: '골든햄스터', status: 'ACTIVE',
-        aliases: ['시리안햄스터'], taxonId: null, careProfileId: 'cp-syrian', careOverrides: {}, oneLiner: '단독 사육', ...meta({ contentKind: 'CARE' }),
+        aliases: ['시리안햄스터'], taxonId: 'tx-fixture', careProfileId: 'cp-syrian', careOverrides: {}, oneLiner: '단독 사육', ...meta({ contentKind: 'CARE' }),
       },
       {
         id: 'hamster-dwarf', slug: 'hamster/dwarf', group: 'SMALL_MAMMAL', displayName: '드워프햄스터', status: 'PLANNED',
         aliases: [], taxonId: null, careProfileId: null, careOverrides: {}, ...meta({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null }),
       },
     ],
-    'taxa.json': [],
+    // K-4(R7 A6): 타입 노출은 taxonId 의 Taxon(LEGAL) 검수도 요구 — 합성 종 자리표시(실제 종·법 사실 아님).
+    'taxa.json': [
+      {
+        id: 'tx-fixture', scientificName: 'Fixtura testa', koreanName: '픽스처종', legal: { animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null, note: null },
+        revisionOf: null, ...meta({ contentKind: 'LEGAL', reviewerType: 'OFFICIAL_SOURCE' }),
+      },
+    ],
     'care-profiles.json': [{ id: 'cp-syrian', name: '골든햄스터 기본', taxonIds: [], facts: {}, careNotes: ['단독 사육'], ...meta({ contentKind: 'CARE' }) }],
     'supply-items.json': [
       { id: 'cage', name: '케이지', category: 'CAGE', lifecycle: 'DURABLE', specSchema: { fields: [] }, compatibleAlternativeIds: [], description: '바닥 면적이 우선', ...meta() },
@@ -613,7 +619,7 @@ test('C3-OUT-ID: ws-data requirement 쌍 비노출(각 id 는 노출)', async ()
       Object.assign(d['supply-requirements.json'][1], { reviewStatus: 'DRAFT' }); // golden×wheel 비노출
       d['care-profiles.json'].push({ id: 'cp-gerbil', name: '저빌 기본', taxonIds: [], facts: {}, careNotes: ['무리'], ...meta({ contentKind: 'CARE' }) });
       d['animal-types.json'].push({
-        id: 'gerbil', slug: 'gerbil', group: 'SMALL_MAMMAL', displayName: '저빌', status: 'ACTIVE', aliases: [], taxonId: null,
+        id: 'gerbil', slug: 'gerbil', group: 'SMALL_MAMMAL', displayName: '저빌', status: 'ACTIVE', aliases: [], taxonId: 'tx-fixture',
         careProfileId: 'cp-gerbil', careOverrides: {}, ...meta({ contentKind: 'CARE' }),
       });
       d['supply-requirements.json'].push({
@@ -634,6 +640,21 @@ test('C3-OUT-ID: ws-data requirement 쌍 비노출(각 id 는 노출)', async ()
   assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /requirement hamster-golden\|wheel/.test(f.message)));
   assert.ok(!res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /requirement\.item/.test(f.message)));
 });
+
+// K-4(R7 A6): Taxon(LEGAL) 이 미검수·AI_DRAFT 위장·taxonId null 이면 타입이 비노출 — 산출물에 남은 타입 페이지는 실패.
+for (const [name, inject] of [
+  ['Taxon DRAFT', (d) => Object.assign(d['taxa.json'][0], { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null })],
+  ['Taxon VERIFIED + AI_DRAFT 위장', (d) => Object.assign(d['taxa.json'][0], { reviewerType: 'AI_DRAFT' })],
+  ['taxonId null', (d) => Object.assign(d['animal-types.json'][0], { taxonId: null })],
+]) {
+  test(`C3-OUT-ROUTE·C3-OUT-ID: ${name} → 타입 비노출, 산출물의 골든 페이지는 FAIL`, async () => {
+    const res = scan(await makeRoot({ seed: inject, output: () => {} }));
+    expectFail(res, 'C3-OUT-ROUTE');
+    assert.equal(res.json.exposed.animalTypes, 0);
+    assert.equal(res.json.exposed.taxa, 0);
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /hamster-golden/.test(f.message)));
+  });
+}
 
 test('C3-OUT-ID: 카탈로그에 비노출 id', async () => {
   const res = scan(await makeRoot({

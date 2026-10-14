@@ -315,6 +315,8 @@ export interface SeedBundle {
 // ── 엔진 카탈로그 ─────────────────────────────────────────────
 export interface EngineCatalog {
   readonly animalTypes: ReadonlyMap<string, AnimalTypeRec>;
+  /** K-4(R7 A6): 타입 노출이 AnimalType.taxonId → Taxon(LEGAL) 검수를 본다. 입력에 taxa 가 없으면 빈 Map(→ 타입 비노출, fail-closed). */
+  readonly taxa: ReadonlyMap<string, TaxonRec>;
   readonly careProfiles: ReadonlyMap<string, CareProfileRec>;
   readonly supplyItems: ReadonlyMap<string, SupplyItemRec>;
   /** careProfileId → (supplyItemId → requirement), 시드 순서 유지. */

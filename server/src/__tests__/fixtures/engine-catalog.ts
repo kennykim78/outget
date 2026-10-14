@@ -9,6 +9,7 @@ import type {
   SpecSchema,
   SupplyItemRec,
   SupplyRequirementRec,
+  TaxonRec,
 } from '../../engine/types.js';
 
 export const META: ContentMeta = {
@@ -90,8 +91,21 @@ function req(
 
 export function makeBundle(): Pick<
   SeedBundle,
-  'animalTypes' | 'careProfiles' | 'supplyItems' | 'supplyRequirements' | 'compatibilityRules'
+  'animalTypes' | 'taxa' | 'careProfiles' | 'supplyItems' | 'supplyRequirements' | 'compatibilityRules'
 > {
+  // K-4(R7 A6): 타입 노출은 taxonId 의 Taxon(LEGAL) 검수를 본다. 합성 종 1개(값 임의, 실제 종 아님).
+  const taxa: TaxonRec[] = [
+    {
+      ...META,
+      contentKind: 'LEGAL',
+      id: 'tx-test',
+      scientificName: 'Testus fixturus',
+      koreanName: '테스트종',
+      legal: { animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null, note: null },
+      revisionOf: null,
+    },
+  ];
+
   const supplyItems: SupplyItemRec[] = [
     item('box', '상자', BOX_SCHEMA),
     item('spinner', '회전판', SPINNER_SCHEMA, { compatibleAlternativeIds: ['disc', 'nope'] }),
@@ -200,7 +214,7 @@ export function makeBundle(): Pick<
       displayName: '테스트동물',
       status: 'ACTIVE',
       aliases: ['테동'],
-      taxonId: null,
+      taxonId: 'tx-test',
       careProfileId: 'pf-test',
       careOverrides: {
         requirements: {
@@ -225,7 +239,7 @@ export function makeBundle(): Pick<
       displayName: '기본동물',
       status: 'ACTIVE',
       aliases: ['기동'],
-      taxonId: null,
+      taxonId: 'tx-test',
       careProfileId: 'pf-test',
       careOverrides: {},
     },
@@ -242,7 +256,7 @@ export function makeBundle(): Pick<
     },
   ];
 
-  return { animalTypes, careProfiles, supplyItems, supplyRequirements, compatibilityRules };
+  return { animalTypes, taxa, careProfiles, supplyItems, supplyRequirements, compatibilityRules };
 }
 
 /** 깊은 동결 — E11(입력 불변) 검증용. */

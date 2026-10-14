@@ -401,6 +401,10 @@ export function checkStructure(ctx: Ctx): void {
 
       // S03 타입·enum
       checkFields(ctx, key, id, rec, FIELDS[key], '');
+      // R7 A3: 학명은 DRAFT 포함 비어 있지 않은 문자열('' · 공백만 금지). 타입 오류는 위 checkFields 가 이미 보고.
+      if (key === 'taxa' && typeof rec.scientificName === 'string' && !isNonEmptyStr(rec.scientificName)) {
+        ctx.out.error('S03', key, id, 'scientificName', '학명은 비어 있지 않은 문자열이어야 한다(DRAFT 포함)');
+      }
       for (const [f, vals] of Object.entries(ENUMS[key])) {
         const v = rec[f];
         if (v === null && FIELDS[key][f]?.includes('null')) continue;

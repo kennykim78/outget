@@ -40,8 +40,8 @@ describe('planSeedWrites — real seed', () => {
       vetClinic: count('vetClinic'),
       testimonial: count('testimonial'),
     }).toEqual({
-      taxon: 1,
-      careProfile: 1,
+      taxon: 3, // R7 A4: 드워프 Taxon 2행(phodopus-sungorus·campbelli, DRAFT) 추가
+      careProfile: 2, // R7 A4: cp-hamster-dwarf(DRAFT) 추가
       animalType: 6,
       supplyItem: 14,
       supplyRequirement: 14,

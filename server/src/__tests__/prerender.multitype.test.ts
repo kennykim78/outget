@@ -202,7 +202,7 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
     expect(row?.reviewStatus).not.toBe('VERIFIED');
     expect(row?.reviewerType).toBe('AI_DRAFT');
     const ws = JSON.stringify(wsDataOf(fam.html));
-    for (const w of ['드워프', '정글리안', '윈터화이트', '캠벨', '드햄', 'hamster-dwarf', 'hamster/dwarf']) {
+    for (const w of ['드워프', '정글리안', '윈터화이트', '캠벨', '드햄', 'hamster-dwarf', 'hamster/dwarf', '정글리안햄스터', '캠벨햄스터', 'Phodopus', 'phodopus-sungorus', 'phodopus-campbelli', 'cp-hamster-dwarf']) {
       expect(fam.html, w).not.toContain(w);
       expect(ws, w).not.toContain(w);
     }

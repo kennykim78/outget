@@ -6,7 +6,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PHOTO_USABLE_STATUSES, STALE_DAYS, isPhotoUsable, isoDayNumber, parseCcLicenseUrl, type SeedBundle } from '../engine/index.js';
 import { SEED_FILES } from '../seed/common.js';
 import { projectSite } from '../prerender/project.js';
-import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, SECOND, V, patch, promoted, promotedTwo } from './fixtures/prerender-seed.js';
+import {
+  FIXTURE_AS_OF,
+  FIXTURE_FIRST_STALE,
+  FIXTURE_LAST_FRESH,
+  GOLDEN_TAXON_ID,
+  SECOND,
+  V,
+  V_LEGAL,
+  patch,
+  promoted,
+  promotedTwo,
+} from './fixtures/prerender-seed.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const mjs = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'seed-exposure.mjs')).href)) as {
@@ -124,6 +135,7 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
 
   const OLD = '2026-03-31'; // FIXTURE_AS_OF 기준 184일
   const links: Array<[keyof SeedBundle, string]> = [
+    ['taxa', GOLDEN_TAXON_ID], // K-4(R7 A6)
     ['animalTypes', 'hamster-golden'],
     ['careProfiles', 'cp-hamster-syrian'],
     ['supplyItems', 'cage'],
@@ -164,6 +176,45 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
     const want2 = ['cr-scope-a', 'cr-wheel-cage'];
     expect(engineIds(s, FIXTURE_AS_OF).compatibilityRules).toEqual(want2);
     expect(mjsIds(s, FIXTURE_AS_OF).compatibilityRules).toEqual(want2);
+  });
+
+  // K-4(R7 A6, Kenny 결정): 타입 노출에 Taxon(LEGAL) 검수 포함 — 엔진(taxonOk) ↔ mjs(verifiedTaxon) 같은 집합.
+  describe('K-4 Taxon 검수 패리티', () => {
+    const EMPTY = { animalTypes: [], curatedProducts: [], setupBundles: [], supplyRequirements: [], compatibilityRules: [] };
+    const cases: Array<[string, (s: SeedBundle) => void]> = [
+      ['Taxon DRAFT(디스크 상태)', (s) => patch(s, 'taxa', GOLDEN_TAXON_ID, { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null })],
+      ['Taxon VERIFIED + AI_DRAFT 위장', (s) => patch(s, 'taxa', GOLDEN_TAXON_ID, { reviewerType: 'AI_DRAFT' })],
+      ['Taxon NEEDS_REVIEW', (s) => patch(s, 'taxa', GOLDEN_TAXON_ID, { reviewStatus: 'NEEDS_REVIEW' })],
+      ['taxonId null', (s) => patch(s, 'animalTypes', 'hamster-golden', { taxonId: null })],
+      ['taxonId 미존재', (s) => patch(s, 'animalTypes', 'hamster-golden', { taxonId: 'tx-ghost' })],
+      ['taxa 행 전부 제거', (s) => void (s.taxa = [])],
+    ];
+    it.each(cases)('%s → 양쪽 모두 노출 0', (_n, inject) => {
+      const s = promoted();
+      inject(s);
+      expect(engineIds(s, FIXTURE_AS_OF)).toEqual(EMPTY);
+      expect(mjsIds(s, FIXTURE_AS_OF)).toEqual(EMPTY);
+    });
+
+    it('promoted({ taxonDraft: true }) → 양쪽 0, 기본 promoted() → 양쪽 같은 비어있지 않은 집합', () => {
+      const d = promoted({ taxonDraft: true });
+      expect(engineIds(d, FIXTURE_AS_OF)).toEqual(EMPTY);
+      expect(mjsIds(d, FIXTURE_AS_OF)).toEqual(EMPTY);
+      const s = promoted();
+      expect(engineIds(s, FIXTURE_AS_OF).animalTypes).toEqual(['hamster-golden']);
+      expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
+    });
+
+    it('2타입: B 의 Taxon 만 DRAFT 면 B 만 빠진다(타입별, 양쪽 동일)', () => {
+      const s = promotedTwo();
+      s.taxa.push({ ...JSON.parse(JSON.stringify(s.taxa.find((t) => t.id === GOLDEN_TAXON_ID))), id: 'fixture-taxon-b', reviewStatus: 'DRAFT' });
+      patch(s, 'animalTypes', SECOND.typeId, { taxonId: 'fixture-taxon-b' });
+      expect(engineIds(s, FIXTURE_AS_OF).animalTypes).toEqual(['hamster-golden']);
+      expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
+      patch(s, 'taxa', 'fixture-taxon-b', { ...V_LEGAL });
+      expect(engineIds(s, FIXTURE_AS_OF).animalTypes).toEqual([SECOND.typeId, 'hamster-golden'].sort());
+      expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
+    });
   });
 
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {

@@ -33,7 +33,7 @@ const V: Pick<ContentMeta, 'reviewStatus' | 'reviewerType' | 'verifiedBy' | 'ver
 
 function allVerified(verifiedAt = VAT) {
   const b = makeBundle();
-  for (const x of [...b.supplyRequirements, ...b.supplyItems, ...b.careProfiles, ...b.animalTypes, ...b.compatibilityRules]) {
+  for (const x of [...b.supplyRequirements, ...b.supplyItems, ...b.careProfiles, ...b.animalTypes, ...b.compatibilityRules, ...b.taxa]) {
     Object.assign(x, V, { verifiedAt });
   }
   return b;
@@ -125,10 +125,11 @@ describe('exposure chain demotes stale content (asOf)', () => {
   });
 
   // 체인의 어느 ContentMeta 하나만 오래돼도 0(fail-closed).
-  for (const link of ['animalType', 'careProfile', 'item', 'requirement'] as const) {
+  for (const link of ['animalType', 'careProfile', 'item', 'requirement', 'taxon'] as const) {
     it(`only ${link} stale → requirement, type, product, bundle all hidden`, () => {
       const b = allVerified(EDGE);
       const old = '2025-12-31'; // EDGE 기준 181일
+      if (link === 'taxon') b.taxa.find((x) => x.id === 'tx-test')!.verifiedAt = old; // K-4(R7 A6)
       if (link === 'animalType') b.animalTypes.find((x) => x.id === 'critter')!.verifiedAt = old;
       if (link === 'careProfile') b.careProfiles.find((x) => x.id === 'pf-test')!.verifiedAt = old;
       if (link === 'item') b.supplyItems.find((x) => x.id === 'spinner')!.verifiedAt = old;
@@ -141,7 +142,7 @@ describe('exposure chain demotes stale content (asOf)', () => {
       expect(isProductExposable(cat, 'critter', p, EDGE)).toBe(false);
       expect(orderExposableProducts(cat, 'critter', [p], EDGE)).toEqual([]);
       expect(isBundleExposable(cat, 'critter', bundle({ verifiedAt: EDGE }), EDGE)).toBe(false);
-      if (link === 'animalType' || link === 'careProfile') expect(isAnimalTypeExposable(cat, 'critter', EDGE)).toBe(false);
+      if (link === 'animalType' || link === 'careProfile' || link === 'taxon') expect(isAnimalTypeExposable(cat, 'critter', EDGE)).toBe(false);
     });
   }
 
