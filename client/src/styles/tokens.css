@@ -30,7 +30,7 @@
   --ws-mascot-ink: #2f2b27;
 
   /* 타입: 패밀리 */
-  --ws-font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --ws-font-sans: "Pretendard Variable", Pretendard, "WS Fallback Noto", "WS Fallback Malgun", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
 
   /* 타입: 스타일 (size / lh / weight / tracking) */
   --ws-type-display-size: 32px;

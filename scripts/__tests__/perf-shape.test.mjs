@@ -23,11 +23,15 @@ function head() {
 </head><body></body></html>`;
 }
 
+const localFace = (extra = 'unicode-range:U+AC00-D7A3;') =>
+  `@font-face{font-family:"WS Fallback Malgun";src:local("Malgun Gothic");size-adjust:86.43%;${extra}}`;
+const locals = () => Array.from({ length: 4 }, () => localFace()).join('\n');
+
 function fixture() {
   const d = mkdtempSync(join(tmpdir(), 'perfshape-'));
   mkdirSync(join(d, 'assets'));
   mkdirSync(join(d, 'vet'));
-  writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90));
+  writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90) + '\n' + locals());
   writeFileSync(join(d, 'assets', 'ws-fonts-ccc.css'), faces(92));
   writeFileSync(join(d, 'assets', 'ws-boot-bbb.js'), '');
   for (let i = 0; i < 92; i++) writeFileSync(join(d, 'assets', `P.subset.${i}-h.woff2`), '');
@@ -74,6 +78,42 @@ test('변이: index CSS 에 @font-face 전체 복원 -> exit 1', () => {
   }
 });
 
+
+test('index CSS 에 local() 대체 face(unicode-range 있음)는 웹폰트 2개 계산에서 빠진다 -> exit 0', () => {
+  const d = fixture();
+  try {
+    writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90) + '\n' + locals());
+    const r = run(d);
+    assert.equal(r.status, 0, r.stderr);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('변이: local() 대체 face 에 unicode-range 없음 -> exit 1', () => {
+  const d = fixture();
+  try {
+    writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90) + '\n' + localFace('') + localFace() + localFace() + localFace());
+    const r = run(d);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /unicode-range 없음/);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('변이: index CSS 에 url face 3개(대체 face 가 url 을 가짐) -> exit 1', () => {
+  const d = fixture();
+  try {
+    writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90) + '\n' + face(17) + '\n' + locals());
+    const r = run(d);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /index-aaa\.css.*@font-face 3/);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
 test('변이: index·ws-fonts 외 lazy 청크 CSS -> exit 1', () => {
   const d = fixture();
   try {
@@ -109,3 +149,27 @@ test(
     assert.equal(r.status, 0, r.stderr);
   },
 );
+
+test('변이: local() 대체 face 가 빠짐(import 주석 처리 등) -> exit 1', () => {
+  const d = fixture();
+  try {
+    writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90));
+    const r = run(d);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /local\(\) 대체 @font-face 0개/);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('변이: local() 대체 face unicode-range 가 라틴까지 덮음 -> exit 1', () => {
+  const d = fixture();
+  try {
+    writeFileSync(join(d, 'assets', 'index-aaa.css'), faces(2, 90) + '\n' + localFace('unicode-range:U+0000-FFFF;') + localFace() + localFace() + localFace());
+    const r = run(d);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /한글 밖/);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+});

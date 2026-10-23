@@ -5,6 +5,9 @@
 // 성능 P1(font2): 동기 CSS 에는 첫 화면 조각 90·91 만. 전체 92규칙은 빌드에선 build/wsAfterPaint.ts 가 별도 자산으로 내고
 //   첫 페인트 뒤 주입한다(+ noscript). dev(플러그인 꺼짐)에서만 여기서 전체 CSS 를 직접 불러온다 — 프로덕션 번들에선 제거된다.
 import './styles/fonts-first.css';
+// 지표 맞춤 대체 글꼴(local() 시스템 한글 + size-adjust, 한글 unicode-range) — 웹폰트 교체 시 재흐름·CLS 제거(K-F1 (c)).
+//   dev·빌드·프리렌더·noscript 모두 같은 진입 CSS 에 들어간다. 네트워크 요청 0.
+import './styles/fonts-fallback.css';
 if (import.meta.env.DEV) void import('pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css');
 // 디자인 토큰(scripts/gen-tokens.mjs 생성 — 직접 수정 금지) → 앱 스타일(토큰 변수만).
 import './styles/tokens.css';

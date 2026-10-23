@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 const INDEX_FONT_FACES = 2;
 const WS_FONT_FACES = 92;
+// 지표 맞춤 대체 face(fonts-fallback.css: Noto·Malgun × Regular·Bold). 빠지면 첫 화면 CLS 0.13 회귀(_workspace/62) — 존재를 강제한다.
+const INDEX_LOCAL_FACES = 4;
+// 대체 face 는 한글만 덮는다 — 이 코드포인트 미만(라틴·숫자·기호)을 덮으면 Pretendard 와 폭이 달라 오히려 밀린다.
+const LOCAL_RANGE_MIN = 0x1100;
 
 function walkHtml(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -38,8 +42,22 @@ export function checkPerfShape(distArg = 'client/dist') {
 
   for (const f of indexCss) {
     const css = readFileSync(join(assets, f), 'utf8');
-    const n = count(css, /@font-face/g);
+    // 웹폰트(url) face 만 센다. local() 만 쓰는 지표 맞춤 대체 face(client/src/styles/fonts-fallback.css)는
+    // 내려받기가 없어 분배 대상이 아니다 — 대신 url 0·unicode-range 필수(라틴까지 덮어 크기를 바꾸지 않게).
+    const blocks = css.match(/@font-face\s*\{[^}]*\}/g) || [];
+    const n = blocks.filter((b) => /url\(/.test(b)).length;
     if (n !== INDEX_FONT_FACES) errs.push(`${f}: @font-face ${n}개 (기대 ${INDEX_FONT_FACES})`);
+    if (blocks.length !== count(css, /@font-face/g)) errs.push(`${f}: @font-face 블록 파싱 실패`);
+    const locals = blocks.filter((b) => !/url\(/.test(b));
+    if (locals.length !== INDEX_LOCAL_FACES) errs.push(`${f}: local() 대체 @font-face ${locals.length}개 (기대 ${INDEX_LOCAL_FACES})`);
+    for (const b of locals) {
+      if (!/src\s*:\s*local\(/.test(b)) errs.push(`${f}: url 없는 @font-face 가 local() 도 아님`);
+      const ur = b.match(/unicode-range\s*:([^;}]*)/);
+      if (!ur) errs.push(`${f}: local() 대체 @font-face 에 unicode-range 없음`);
+      else if ([...ur[1].matchAll(/U\+([0-9a-f?]+)/gi)].some((m) => parseInt(m[1].replace(/\?/g, '0'), 16) < LOCAL_RANGE_MIN)) {
+        errs.push(`${f}: local() 대체 @font-face unicode-range 가 한글 밖(U+${LOCAL_RANGE_MIN.toString(16).toUpperCase()} 미만)을 덮음`);
+      }
+    }
   }
   for (const f of wsCss) {
     const css = readFileSync(join(assets, f), 'utf8');

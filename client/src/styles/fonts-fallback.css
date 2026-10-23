@@ -1,0 +1,53 @@
+/*
+ * 지표 맞춤 대체 글꼴(K-F1 (c) — _workspace/62_qa_font_tradeoff.md, 63_fe_fallback_font.md).
+ * 첫 페인트는 Pretendard Variable 조각(90·91)이 적용되기 전(느린 CPU 에서 FCP 후 약 200ms)이나 90/91 밖 글자에서
+ * 시스템 한글 글꼴로 그려진다. 시스템 한글 글꼴은 Pretendard 보다 글자 폭이 넓어(Malgun 1/0.8643배) 웹폰트로
+ * 바뀔 때 줄바꿈이 달라지고 아래 섹션이 밀린다(일반 Windows 홈 실속도 CLS 0.1355). 아래 face 는 같은 시스템 글꼴을
+ * size-adjust 로 Pretendard 한글 글자 폭에 맞춰 이 이동을 없앤다.
+ *
+ * - src 는 local() 만 — 사용자 기기에 이미 있는 글꼴. 네트워크 요청·외부 출처 0(불변식 ①), CSP font-src 무관.
+ *   기기에 없으면 face 가 실패하고 스택의 다음 패밀리로 넘어간다(기존 동작 그대로).
+ * - unicode-range 는 한글 블록만: 1100-11FF 한글 자모, 3130-318F 호환 자모, A960-A97F 자모 확장-A,
+ *   AC00-D7A3 완성형 음절, D7B0-D7FF 자모 확장-B. 라틴·숫자·기호까지 줄이면 로고 'WithSmall' 등이 86% 로 작아져
+ *   헤더 칩이 가로로 15px 밀렸다(62 §3 M2). 라틴은 이 face 를 건너뛰어 스택 뒤쪽(system-ui) 원래 크기로 그린다.
+ * - size-adjust 실측(2026-10-23, Windows 11·Chrome, canvas measureText, 한글 문장 폭 비율, 굵기 400·500·600·700·800 동일):
+ *     Pretendard / Malgun Gothic = 0.8643 → 86.43%
+ *     Pretendard / Noto Sans KR  = 0.9394 → 93.94%
+ *   Apple SD Gothic Neo(macOS·iOS)·Noto Sans CJK KR(Android)은 이 PC 에 없어 재지 못했다 — 넣지 않는다(재면 face 추가).
+ * - 굵기: Malgun·Noto 의 local() 이름은 Regular·Bold 두 개만 확인된다(local 이름 대조, 63 문서). 100~599 → Regular,
+ *   600~900 → Bold. 500·600 은 Pretendard 와 획 굵기가 다르게 보이지만 글자 폭(한글 전각)은 같다.
+ * - 스택 순서(tokens.json type.families.sans): "Pretendard Variable", Pretendard, "WS Fallback Noto", "WS Fallback Malgun", …
+ *   Noto 를 Malgun 보다 앞에 둔 것은 기존 스택("Noto Sans KR" 이 system-ui 앞)의 우선순위를 그대로 따른 것.
+ */
+@font-face {
+	font-family: 'WS Fallback Noto';
+	font-style: normal;
+	font-weight: 100 599;
+	src: local('Noto Sans KR');
+	size-adjust: 93.94%;
+	unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
+@font-face {
+	font-family: 'WS Fallback Noto';
+	font-style: normal;
+	font-weight: 600 900;
+	src: local('Noto Sans KR Bold');
+	size-adjust: 93.94%;
+	unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
+@font-face {
+	font-family: 'WS Fallback Malgun';
+	font-style: normal;
+	font-weight: 100 599;
+	src: local('Malgun Gothic'), local('MalgunGothic');
+	size-adjust: 86.43%;
+	unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
+@font-face {
+	font-family: 'WS Fallback Malgun';
+	font-style: normal;
+	font-weight: 600 900;
+	src: local('Malgun Gothic Bold'), local('MalgunGothicBold');
+	size-adjust: 86.43%;
+	unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7A3, U+D7B0-D7FF;
+}
