@@ -1,11 +1,20 @@
-// 부트스트랩(계약 C-2): ws-data 읽기 → 정적 보관 → createRoot 교체 렌더(D1) → #root[data-ws-prerendered] 제거.
+// 부트스트랩(계약 C-2): ws-data 읽기 → 정적 보관 → createRoot 교체 렌더(D1) → 첫 커밋 후 #root[data-ws-prerendered] 제거.
 //   main.tsx 와 F8 하이드레이션 테스트가 같은 경로를 쓴다. 첫 줄 = 매직링크 토큰 제거(captureMagicToken).
-import { StrictMode } from 'react';
+import { StrictMode, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import App from '../App';
 import { captureMagicToken } from '../save/magicLink';
+import { firstScreenChunks } from './firstScreen';
 import { emptyPageData, readPageData } from './pageData';
 import { captureStatic, stripProductSurfaces } from './staticCapture';
+
+/** 첫 커밋 뒤(passive effect)에 프리렌더 표식을 지운다 — root.render 는 비동기라 호출 직후엔 아직 보관 HTML 이 화면에 있다(e2e 하이드레이션 신호). */
+function PrerenderDone({ rootEl, children }: { rootEl: HTMLElement; children: ReactNode }): ReactNode {
+  useEffect(() => {
+    rootEl.removeAttribute('data-ws-prerendered');
+  }, [rootEl]);
+  return children;
+}
 
 /** hashchange 구독은 문서 수명 동안 1개(boot 재호출·테스트에서 중복 등록 0). */
 let hashWatch = false;
@@ -29,11 +38,19 @@ export function boot(doc: Document, loc: Pick<Location, 'pathname'>): Root {
   const captured = captureStatic(rootEl, { stripProducts: data === null });
   if (data === null) stripProductSurfaces(rootEl); // 렌더 커밋 전 프레임에도 남기지 않는다
   const root = createRoot(rootEl);
-  root.render(
-    <StrictMode>
-      <App page={page} captured={captured} />
-    </StrictMode>,
-  );
-  rootEl.removeAttribute('data-ws-prerendered');
+  const render = (): void => {
+    root.render(
+      <StrictMode>
+        <PrerenderDone rootEl={rootEl}>
+          <App page={page} captured={captured} />
+        </PrerenderDone>
+      </StrictMode>,
+    );
+  };
+  // R7 O1: 첫 커밋에 필요한 지연 청크(딥링크 레이어·/vet)가 아직이면 먼저 받는다 — 그동안 프리렌더 HTML 이 그대로 남는다.
+  //   청크 오류여도 렌더한다(레이어는 LayerHost 오류 경계가 닫고, /vet 은 ChunkBoundary 가 보관 main 을 그린다).
+  const wait = firstScreenChunks(page, captured.layer);
+  if (wait === null) render();
+  else void wait.then(render, render);
   return root;
 }

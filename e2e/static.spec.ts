@@ -1,7 +1,7 @@
 // X1 정적 경로 + X2 no-JS 본문(R6 E2) — 데모 시드 전용.
 //   /hamster 그룹 페이지 카드 → 타입 홈 · /pick no-JS(CTA → /pick 200 · 정적 L1 링크 → 타입 홈 200)
 //   · no-JS /hamster/golden 본문(타입명·필수 항목·규격 문장·병원 리스트) · 미달 상품 페이지 404 · 후기 '규격 확인해보기' → L5 딥링크.
-import { test, expect } from './support/fixtures';
+import { test, expect, gotoHydrated } from './support/fixtures';
 import { assertScreen, BELOW_MIN_PRODUCT, belowMinSeeded, tap } from './support/invariants';
 
 const TYPE = { id: 'hamster-golden', name: '골든햄스터', home: '/hamster/golden' } as const;
@@ -75,7 +75,7 @@ test('최소 규격 미달 상품 — 상품 페이지·용품 페이지·사이
   expect(sitemap).not.toContain(BELOW_MIN_PRODUCT.id);
   // 같은 용품(쳇바퀴)의 추천이 실리는 화면 — L4 딥링크·용품 페이지.
   for (const url of [`${TYPE.home}/supplies/wheel`, '/supplies/wheel', `/supplies/wheel/${TYPE.id}`, TYPE.home]) {
-    const r = await page.goto(url);
+    const r = await gotoHydrated(page, url);
     expect(r?.status(), url).toBe(200);
     await assertScreen(page, url);
     const html = await (await request.get(url)).text();
@@ -86,7 +86,7 @@ test('최소 규격 미달 상품 — 상품 페이지·용품 페이지·사이
 test("후기 '규격 확인해보기' → 동물 선택 → /hamster/golden/check/cage(L5)", async ({ page }) => {
   // 마퀴 정지(prefers-reduced-motion) — 움직이는 카드는 클릭 안정성 대기를 통과하지 못한다.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
+  await gotoHydrated(page, '/');
   // G3b: 홈 ws-data 의 타입별 specCheckItemId(데모: 골든 = cage).
   const types = await page.evaluate(() => (JSON.parse(document.getElementById('ws-data')?.textContent ?? '{}') as { data?: { types?: Array<{ id: string; specCheckItemId?: string }> } }).data?.types ?? []);
   expect(types.find((t) => t.id === TYPE.id)?.specCheckItemId).toBe('cage');
@@ -103,7 +103,7 @@ test("후기 '규격 확인해보기' → 동물 선택 → /hamster/golden/chec
   await assertScreen(page, '후기 → L5 케이지');
 
   // 이미 선택된 동물이 있으면 L1 없이 바로 같은 대상.
-  await page.goto('/');
+  await gotoHydrated(page, '/');
   const again = page.locator('section[data-ws-section="reviews"] button.ws-review-action:not([tabindex="-1"])', { hasText: '규격 확인해보기' }).first();
   await Promise.all([page.waitForURL(`**${TYPE.home}/check/cage`), tap(page, again)]);
   await expect(L5).toBeVisible();

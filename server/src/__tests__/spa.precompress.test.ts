@@ -68,10 +68,13 @@ interface Raw {
 
 let server: http.Server;
 let port = 0;
-function get(path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<Raw> {
+// 전용 서버를 쓰는 테스트는 공유 port 를 바꾸지 않고 4번째 인자로 넘긴다(타임아웃 후 비동기로 남은 본문이 공유 port 를 오염시켜 ECONNREFUSED 연쇄가 나는 것 방지).
+// 이 두 테스트는 buildDist(프리렌더)+precompressDir(brotli q11)를 직접 돌려 부하 시 5s 를 넘기므로 HEAVY_MS 로 상향.
+const HEAVY_MS = 60_000;
+function get(path: string, headers: Record<string, string> = {}, method = 'GET', usePort: number = port): Promise<Raw> {
   return new Promise((ok, fail) => {
     // agent:false + Connection:close — keep-alive 소켓 재사용이 서버 keep-alive 타임아웃과 경쟁해 ECONNRESET 나는 플레이크 방지.
-    const req = http.request({ host: '127.0.0.1', port, path, method, headers: { ...headers, Connection: 'close' }, agent: false }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port: usePort, path, method, headers: { ...headers, Connection: 'close' }, agent: false }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => ok({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }));
@@ -92,7 +95,7 @@ beforeAll(async () => {
   server = app.listen(0, '127.0.0.1');
   await new Promise<void>((r) => server.once('listening', () => r()));
   port = (server.address() as AddressInfo).port;
-});
+}, HEAVY_MS);
 afterAll(async () => {
   server.closeAllConnections();
   await new Promise<void>((r) => server.close(() => r()));
@@ -260,10 +263,9 @@ describe('mountSpa 협상', () => {
     const app = appFor(d);
     const s = app.listen(0, '127.0.0.1');
     await new Promise<void>((r) => s.once('listening', () => r()));
-    const save = port;
-    port = (s.address() as AddressInfo).port;
+    const sp = (s.address() as AddressInfo).port;
     try {
-      const r = await get('/assets/index-abc.css', { 'Accept-Encoding': 'br, gzip' });
+      const r = await get('/assets/index-abc.css', { 'Accept-Encoding': 'br, gzip' }, 'GET', sp);
       expect(r.headers['content-encoding']).toBeUndefined();
       expect(r.body.toString('utf8')).toBe(changed);
       // 프리렌더 HTML 도: 원본 교체 + mtime 을 사본과 같게 맞춰도 내용 검증으로 걸러진다
@@ -271,14 +273,14 @@ describe('mountSpa 협상', () => {
       const brStat = statSync(`${home}.br`);
       writeFileSync(home, readFileSync(home, 'utf8').replace('</body>', '<!-- x --></body>'));
       utimesSync(home, brStat.atime, brStat.mtime);
-      const h = await get('/', { 'Accept-Encoding': 'br, gzip' });
+      const h = await get('/', { 'Accept-Encoding': 'br, gzip' }, 'GET', sp);
       expect(h.headers['content-encoding']).toBeUndefined();
       expect(h.body.equals(readFileSync(home))).toBe(true);
     } finally {
-      port = save;
+      s.closeAllConnections();
       await new Promise<void>((r) => s.close(() => r()));
     }
-  });
+  }, HEAVY_MS);
 
   it('변형 캐시 서명: 사본을 한 번 제공(캐시)한 뒤 원본이 같은 크기로 바뀌고 mtime 이 달라지면 낡은 사본을 보내지 않는다', async () => {
     const d = await buildDist();
@@ -288,10 +290,9 @@ describe('mountSpa 협상', () => {
     const app = appFor(d);
     const s = app.listen(0, '127.0.0.1');
     await new Promise<void>((r) => s.once('listening', () => r()));
-    const save = port;
-    port = (s.address() as AddressInfo).port;
+    const sp = (s.address() as AddressInfo).port;
     try {
-      const first = await get('/assets/index-abc.css', { 'Accept-Encoding': 'br' });
+      const first = await get('/assets/index-abc.css', { 'Accept-Encoding': 'br' }, 'GET', sp);
       expect(first.headers['content-encoding']).toBe('br'); // 검증 결과가 캐시에 들어간다
       expect(decoded(first).toString('utf8')).toBe(before);
       const changed = before.replace(/#123456/g, '#654321'); // 같은 길이, 다른 내용
@@ -300,15 +301,14 @@ describe('mountSpa 협상', () => {
       writeFileSync(css, changed);
       const future = new Date(Date.now() + 60_000);
       utimesSync(css, future, future); // mtime 변경(사본은 그대로)
-      const second = await get('/assets/index-abc.css', { 'Accept-Encoding': 'br' });
+      const second = await get('/assets/index-abc.css', { 'Accept-Encoding': 'br' }, 'GET', sp);
       expect(second.headers['content-encoding']).toBeUndefined();
       expect(second.body.toString('utf8')).toBe(changed);
     } finally {
-      port = save;
       s.closeAllConnections();
       await new Promise<void>((r) => s.close(() => r()));
     }
-  });
+  }, HEAVY_MS);
 
   it('역슬래시·dot 세그먼트 경로는 정적 압축 대상 아님(기존 거부·404 동작)', async () => {
     writeFileSync(join(dist, 'assets', '.hidden.js'), JS);
@@ -318,5 +318,5 @@ describe('mountSpa 협상', () => {
       expect([403, 404], p).toContain(r.status);
       expect(decoded(r).toString('utf8'), p).not.toContain('export const');
     }
-  });
+  }, HEAVY_MS);
 });

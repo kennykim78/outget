@@ -2,6 +2,8 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+// 성능 P1(font2 + jslate) — 진입 module·전체 글꼴 CSS 를 첫 페인트 뒤로(빌드 전용). 사양은 build/wsAfterPaint.ts 머리말.
+import { wsAfterPaint } from './build/wsAfterPaint';
 
 // R6 F2b ③ 첫 화면 글꼴 preload(빌드 전용). Pretendard dynamic-subset 중 첫 화면 제목·헤더·히어로 글자의 대부분이
 //   들어 있는 조각 90(한글 최빈)·91(라틴+한글 최빈) 둘만 — 빌드 산출 해시명을 번들에서 찾아 head 에 주입.
@@ -55,6 +57,7 @@ export default defineConfig({
   plugins: [
     react(),
     preloadFirstScreenFonts(),
+    wsAfterPaint(),
     VitePWA({
       registerType: 'autoUpdate',
       // R6 F2b ①: registerSW.js 를 defer 로 — head 동기 스크립트가 첫 렌더를 막지 않게(F1 렌더 차단 306ms).
@@ -84,7 +87,7 @@ export default defineConfig({
             // 문서 이동만, 단 /api·/auth·/admin 최상위 이동은 캐시하지 않는다(SEC). 7일 지난 페이지는 오프라인에서도 버린다
             // (회수·강등된 페이지가 무기한 남지 않게).
             urlPattern: ({ request, url }) =>
-              request.mode === 'navigate' && !/^\/(?:api|auth|admin)(?:\/|$)/.test(url.pathname),
+              request.mode === 'navigate' && !/^\/(?:api|auth|admin|save)(?:\/|$)/.test(url.pathname), // save: #t= 토큰이 캐시 요청 키에 남지 않게(perf-sec L2)
             handler: 'NetworkFirst',
             options: {
               cacheName: 'ws-html',

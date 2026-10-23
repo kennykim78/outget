@@ -3,7 +3,7 @@
 //   guard(자동): 같은 오리진 밖 요청을 전부 차단·기록(불변식 ① — 외부 이미지·가격·페이지 0)하고, 테스트 끝에 0건을 단언.
 //               페이지 미처리 예외(pageerror)도 기록·0건 단언.
 //   newContext(픽스처): 같은 guard 를 단 추가 브라우저 컨텍스트(다른 기기·JS 꺼짐 등) — 테스트 끝에 닫는다.
-import { test as base, expect, type Browser, type BrowserContext, type BrowserContextOptions } from '@playwright/test';
+import { test as base, expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Response } from '@playwright/test';
 
 export interface Guard {
   /** 차단된 외부 요청 URL(같은 오리진 밖). */
@@ -38,7 +38,17 @@ export async function installGuard(context: BrowserContext, origin: string, g: G
   context.on('page', (p) => p.on('pageerror', (e) => g.pageErrors.push(e.message)));
 }
 
-/** 추가 컨텍스트 옵션 — 현재 프로젝트의 화면·기기 값을 이어받는다(서비스 워커 차단 고정). */
+/**
+ * goto 후 하이드레이션 완료까지 대기 — client/src/app/boot.tsx 가 하이드레이션 뒤 #root 의 data-ws-prerendered 를 지운다.
+ * (성능 P1: 앱 JS 가 첫 페인트 후 주입되므로, 그 전 클릭은 <a href> 폴백 문서 이동이 된다. JS 켠 상호작용 테스트 전용.)
+ */
+export async function gotoHydrated(page: Page, url: string): Promise<Response | null> {
+  const res = await page.goto(url);
+  await page.locator('#root:not([data-ws-prerendered])').waitFor({ state: 'attached', timeout: 20_000 });
+  return res;
+}
+
+/** 추가 컨텍스트 옵션— 현재 프로젝트의 화면·기기 값을 이어받는다(서비스 워커 차단 고정). */
 export type ExtraContextOptions = Pick<BrowserContextOptions, 'javaScriptEnabled' | 'reducedMotion'>;
 
 export const test = base.extend<{ guard: Guard; newContext: (opts?: ExtraContextOptions) => Promise<BrowserContext> }>({

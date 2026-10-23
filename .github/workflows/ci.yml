@@ -61,6 +61,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Perf build shape (after-paint loader · font split)
+        run: node scripts/check-perf-shape.mjs
+
       - name: Compliance (prerender output)
         run: node scripts/compliance-scan.mjs --require-output --now "$(TZ=Asia/Seoul date +%F)"
 

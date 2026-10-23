@@ -3,13 +3,13 @@
 //   레이어 딥링크(L4·L5·L7 URL, /save)는 ws-data 로 같은 React 레이어를 마운트(app/deepLink) — 정적 aside 는 레이어 마운트와
 //   같은 useLayoutEffect 에서 걷힌다(이중 aside 0). 문서 안 레이어 URL 링크는 app/layerLinks 가 push 로 가로챈다.
 //   데이터는 page(ws-data)만 — 재노출·재정렬 없음(불변식 ③). 인증 컨텍스트 없음(D10).
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import type { WsPageData } from '@ws/engine';
 import { useAnimalSelection } from './animal/selection';
 import { deepLinkFor } from './app/deepLink';
 import { installLayerLinks } from './app/layerLinks';
 import { LayerPageProvider } from './app/layerPage';
-import { layerRegistry, layerWsId } from './app/layerRegistry';
+import { installLayerWarmup, layerRegistry, layerWsId } from './app/layerRegistry';
 import { routeView } from './app/routeView';
 import StaticMain from './app/StaticMain';
 import type { CapturedStatic } from './app/staticCapture';
@@ -22,7 +22,11 @@ import { navCurrentFor, pickShellType, typeHomeHref } from './shell/shellType';
 import { removePrerenderedLayer } from './ui/layer/Layer';
 import LayerHost from './ui/layer/LayerHost';
 import { layerStore, useLayer, useOpenLayer } from './ui/layer/useLayer';
-import VetPage from './vet/VetPage';
+import { vetPageChunk } from './app/pageChunks';
+import { ChunkBoundary } from './app/preloadable';
+
+// /vet 는 지연 청크(R7 O1). 대기·청크 오류 시 같은 문서의 프리렌더 main(StaticMain) — boot 가 첫 렌더 전에 청크를 기다리므로 보통 보이지 않는다.
+const VetPage = vetPageChunk.Component;
 
 export interface AppProps {
   page: WsPageData;
@@ -55,6 +59,10 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   pageRef.current = page;
   useEffect(() => installLayerLinks(document, () => pageRef.current), []);
 
+  // R7 O1 미리 불러오기: 첫 사용자 움직임(포인터 올림·터치·키보드 포커스) 때 자주 여는 레이어 청크를 한 번 받는다.
+  //   부팅·측정(무입력) 구간에는 아무것도 받지 않는다 — 진입 청크·TBT 에 영향 0. 트리거별 매핑 없이 한 곳(단순).
+  useEffect(() => installLayerWarmup(document), []);
+
   const openL1 = () => layer.open('L1');
   const openL2 = () => layer.open('L2');
   const openL8 = () => layer.open('L8', {}, { url: '/save' });
@@ -65,7 +73,14 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   } else if (rv.view === 'homeB') {
     view = <HomeB page={page} type={rv.type} capturedMain={captured.main} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
   } else if (rv.view === 'vet') {
-    view = <VetPage page={page} capturedMain={captured.main} />;
+    const fallback = <StaticMain kind={page.route.kind} html={captured.main} />;
+    view = (
+      <ChunkBoundary fallback={fallback}>
+        <Suspense fallback={fallback}>
+          <VetPage page={page} capturedMain={captured.main} />
+        </Suspense>
+      </ChunkBoundary>
+    );
   } else {
     view = <StaticMain kind={page.route.kind} html={captured.main} />;
   }

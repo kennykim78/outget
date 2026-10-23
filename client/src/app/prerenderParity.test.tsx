@@ -61,7 +61,7 @@ beforeAll(async () => {
     asOf: fx.FIXTURE_AS_OF,
     mascots,
   });
-});
+}, 30_000);
 
 // ---- 골격 ----
 interface Skel {

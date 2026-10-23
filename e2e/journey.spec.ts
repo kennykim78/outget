@@ -4,7 +4,7 @@
 //   → L8 이메일 → 메일 링크 → [이 기기 연결하기] → 확인(마스킹 주소) → [이 주소로 저장하기] → 다른 컨텍스트 새 링크 → 체크·케이지 복원.
 //   각 화면: assertScreen(금지어 0 · 판매처 면책만 · 미달 상품 0). 외부 요청 0·pageerror 0 은 guard 가 테스트 끝에 단언.
 import type { Locator, Page } from '@playwright/test';
-import { test, expect, e2eEnv } from './support/fixtures';
+import { test, expect, e2eEnv, gotoHydrated } from './support/fixtures';
 import { assertScreen, belowMinSeeded, PRICE_NOTES, tap, withoutPriceNotes } from './support/invariants';
 import { mailsTo, waitForSaveLink } from './support/mail';
 
@@ -34,7 +34,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   expect(belowMinSeeded(), '데모 시드에 최소 규격 미달 상품 변형이 들어가 있어야 X2 ③ 단언이 의미 있다').toBe(true);
 
   await test.step('홈 A → L1 → 소동물 → 골든햄스터(홈 B)', async () => {
-    await page.goto('/');
+    await gotoHydrated(page, '/');
     await expect(page.locator('#ws-hero-title')).toBeVisible();
     await expect(page.locator('.ws-context')).toHaveCount(0);
     await assertScreen(page, '홈 A');
@@ -138,12 +138,12 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   });
 
   await test.step('/setup 구성안 → 홈 B → L7 상품(✓ 기준 충족 · 가격·판매처·구매 0)', async () => {
-    await page.goto(`${TYPE.home}/setup`);
+    await gotoHydrated(page, `${TYPE.home}/setup`);
     await expect(page.locator('main section.ws-bundle').first()).toBeVisible();
     await expect(page.locator('main')).toContainText('처음 준비한다면');
     await assertScreen(page, '/setup');
 
-    await page.goto(TYPE.home);
+    await gotoHydrated(page, TYPE.home);
     await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
     // L3 응답 후: 숫자 줄. 케이지 ✓, 쳇바퀴는 케이지 등록으로 △.
     await expect(page.locator('section[data-ws-section="now"]')).toHaveAttribute('data-ws-answered', '1');
@@ -176,7 +176,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   });
 
   await test.step('/vet/서울-마포구 — 그 지역 병원만', async () => {
-    await page.goto('/vet/서울-마포구');
+    await gotoHydrated(page, '/vet/서울-마포구');
     await expect(page.locator('main')).toContainText('서울 마포구');
     const vets = page.locator('main li.ws-vet');
     await expect(vets).toHaveCount(1);
@@ -187,7 +187,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
 
   const email = `e2e-x1-${testInfo.project.name}-${Date.now()}@example.com`;
   await test.step('L8 저장 — 메일 링크 → 이 기기 연결하기 → 확인(마스킹) → 이 주소로 저장하기', async () => {
-    await page.goto(TYPE.home);
+    await gotoHydrated(page, TYPE.home);
     await Promise.all([page.waitForURL('**/save'), tap(page, page.locator('section[data-ws-section="save"] a.ws-save-link'))]);
     const L8 = layer(page, 'L8');
     await expect(L8.locator('[data-ws-save="input"]')).toBeVisible();
@@ -200,7 +200,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await assertScreen(page, 'L8 보냄');
     const link = await waitForSaveLink(email, before, origin);
 
-    await page.goto(link);
+    await gotoHydrated(page, link);
     await expect(L8.locator('[data-ws-save="connect"]')).toBeVisible();
     // 토큰은 즉시 주소창에서 지운다.
     expect(new URL(page.url()).hash).toBe('');
@@ -220,7 +220,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   await test.step('다른 브라우저 컨텍스트 — 새 링크로 연결 → 체크·케이지 복원', async () => {
     const ctx2 = await newContext();
     const p2 = await ctx2.newPage();
-    await p2.goto('/save');
+    await gotoHydrated(p2, '/save');
     const L8 = layer(p2, 'L8');
     await expect(L8.locator('[data-ws-save="input"]')).toBeVisible();
     expect(await p2.evaluate((k) => localStorage.getItem(k), `ws.setup.${TYPE.id}`)).toBeNull();
@@ -229,7 +229,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await tap(p2, L8.getByRole('button', { name: '인증 메일 보내기' }));
     await expect(L8.locator('[data-ws-save="sent"]')).toBeVisible();
     const link2 = await waitForSaveLink(email, before, origin);
-    await p2.goto(link2);
+    await gotoHydrated(p2, link2);
     await tap(p2, L8.getByRole('button', { name: '이 기기 연결하기' }));
     // 서버에 저장된 준비가 있으므로 확인 화면을 거친다(R6 D2) — 복원은 그 전에 로컬로 합쳐진다.
     await expect(L8.locator('[data-ws-save="confirm-masked"]')).toBeVisible();
@@ -248,12 +248,12 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     expect(await p2.evaluate(() => localStorage.getItem('ws.animalType'))).toBe(TYPE.id);
 
     // 화면 복원: 홈 B 칩(케이지 ✓ · 쳇바퀴 △) · L5 케이지 줄.
-    await p2.goto(TYPE.home);
+    await gotoHydrated(p2, TYPE.home);
     await expect(p2.locator('h1#ws-context-title')).toHaveText(TYPE.name);
     await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'ready');
     await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
     await assertScreen(p2, '다른 기기 홈 B');
-    await p2.goto(`${TYPE.home}/check/wheel`);
+    await gotoHydrated(p2, `${TYPE.home}/check/wheel`);
     await expect(layer(p2, 'L5').locator('[data-ws-cage-row="set"]')).toContainText('60×40×35cm');
   });
 

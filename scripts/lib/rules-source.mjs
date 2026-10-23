@@ -19,7 +19,7 @@ import {
 } from './seed-exposure.mjs';
 
 // e2e: R6 — 데모 E2E 하네스도 스캔(@playwright/test 외 금지 라이브러리·외부 fetch·시크릿 등은 그대로 적용).
-export const SCAN_DIRS = ['client/src', 'server/src', 'server/prisma', 'server/seed', 'scripts', 'e2e'];
+export const SCAN_DIRS = ['client/src', 'client/build', 'server/src', 'server/prisma', 'server/seed', 'scripts', 'e2e']; // client/build: vite 플러그인 소스(R7 성능 P1, perf-sec L1)
 
 // 스캐너 자신(규칙 패턴을 담고 있음) — 코드 규칙(C1-FETCH/SDK, C2, C5)만 면제, C1-LIB·C7 은 적용.
 export const SELF_FILES = new Set([
@@ -582,7 +582,7 @@ export function scanSources(root, ctx, notes) {
     /* 루트 없음은 상위에서 처리 */
   }
   walk(join(root, '.github', 'workflows'), extra);
-  for (const p of ['client/package.json', 'server/package.json', 'client/index.html']) {
+  for (const p of ['client/package.json', 'server/package.json', 'client/index.html', 'client/vite.config.ts']) {
     const abs = join(root, ...p.split('/'));
     if (existsSync(abs)) extra.push(abs);
   }

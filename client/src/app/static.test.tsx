@@ -65,6 +65,18 @@ describe('F8 StaticMain', () => {
   });
 });
 
+describe('boot 표식 제거 시점', () => {
+  it('render 직후엔 data-ws-prerendered 유지, 첫 커밋 뒤에 제거', async () => {
+    const page = pageOf('CREDITS', {}, { path: '/credits' });
+    document.body.innerHTML =
+      '<div id="root" data-ws-prerendered="1"><main class="ws-page" data-ws-route="CREDITS"><h1>x</h1></main></div>' +
+      `<script id="ws-data" type="application/json">${JSON.stringify(page).replace(/</g, '<')}</script>`;
+    root = boot(document, { pathname: page.route.path }); // act 밖 = 비동기 렌더 그대로
+    expect(document.getElementById('root')).toHaveAttribute('data-ws-prerendered', '1');
+    await waitFor(() => expect(document.getElementById('root')).not.toHaveAttribute('data-ws-prerendered'));
+  });
+});
+
 describe('R5 딥링크 레이어(ws-data → React)', () => {
   const data = { requirements: [req('cage', 'REQUIRED', '케이지')], products: [product('p1', 'cage', '합성 케이지')] };
   function typePage(path: string, layer: WsPageData['layer']): WsPageData {
@@ -152,12 +164,13 @@ describe('R5 딥링크 레이어(ws-data → React)', () => {
     expect(document.querySelectorAll('aside.ws-layer')).toHaveLength(0);
   });
 
-  it('L5: 지연 내용(FE2 모듈)이어도 레이어 셸(제목 = 규격 확인)이 바로 열린다', async () => {
+  it('L5: 지연 청크(불러온 뒤 첫 커밋) — 껍데기·내용·용품명 제목이 같은 커밋에(빈 패널·제목 점프 0, R7 O1)', () => {
     window.history.replaceState(null, '', '/hamster/golden/check/cage');
     mount(typePage('/hamster/golden/check/cage', { kind: 'L5', typeId: golden.id, itemId: 'cage' }), typeMain);
-    expect(screen.getByRole('dialog', { name: COPY.checkLayer.title })).toHaveAttribute('data-ws-layer', 'L5');
-    expect(screen.getByRole('dialog', { name: COPY.checkLayer.title })).toHaveAttribute('data-ws-id', 'supplyRequirements#req-cage');
-    await waitFor(() => expect(document.querySelector('[data-ws-layer="L5"] [data-ws-step="L5"]')).not.toBeNull(), { timeout: 15000 });
+    const dlg = screen.getByRole('dialog', { name: new RegExp(`^${COPY.checkLayer.title}`) });
+    expect(dlg).toHaveAttribute('data-ws-layer', 'L5');
+    expect(dlg).toHaveAttribute('data-ws-id', 'supplyRequirements#req-cage');
+    expect(dlg.querySelector('[data-ws-step="L5"]')).not.toBeNull();
   });
 
   it('보관 aside 가 없어도(dev) ws-data 로 레이어를 연다', () => {
