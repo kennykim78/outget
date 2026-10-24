@@ -683,3 +683,30 @@ describe('보안 회귀(S1 L-2·L-3)', () => {
     expect(aside).toContain(`name="${String(num[1].key)}" type="number" min="25" inputmode="decimal"`);
   });
 });
+
+// Kenny 2026-10-24 K-4 되돌림: 타입 노출은 Taxon 을 보지 않는다. Taxon 내용(legal)은 어떤 산출물에도 싣지 않고,
+//   Taxon 참조(catalog taxonId·taxonIds)는 Taxon 이 VERIFIED ∧ ≠AI_DRAFT ∧ 유효일 때만(불변식 7).
+describe('Taxon 미검수 — 타입 노출, legal 문구·Taxon 참조 비노출', () => {
+  const disk = realSeed().taxa.find((t) => t.id === 'mesocricetus-auratus');
+  if (!disk || typeof disk.legal.note !== 'string') throw new Error('fixture: 골든 Taxon legal.note 없음');
+  const note = disk.legal.note;
+  // 학명 문자열은 AnimalType.aliases(사용자 언어)에도 있어 Taxon 내용 판별에 쓰지 않는다 — legal.note·Taxon id 로 본다.
+  const hidden = [note, 'mesocricetus-auratus'];
+
+  it('디스크 Taxon(DRAFT·AI_DRAFT) 그대로 → 골든 페이지 노출, legal.note·Taxon id 가 어떤 산출물에도 없다', () => {
+    expect(disk.reviewStatus).not.toBe('VERIFIED');
+    const b = build(promoted());
+    expect(paths(b)).toContain('/hamster/golden');
+    expect(b.catalog.animalTypes.map((t) => [t.id, t.taxonId])).toEqual([['hamster-golden', null]]);
+    for (const p of b.catalog.careProfiles) expect(p.taxonIds).toEqual([]);
+    const all = [...b.files.values()].join('\n');
+    for (const w of hidden) expect(all, w).not.toContain(w);
+  });
+
+  it('Taxon VERIFIED(OFFICIAL_SOURCE) → 카탈로그 Taxon 참조만 생기고 legal.note 는 여전히 없다(싣는 경로 없음)', () => {
+    const b = build(promoted({ taxonVerified: true }));
+    expect(b.catalog.animalTypes.map((t) => [t.id, t.taxonId])).toEqual([['hamster-golden', 'mesocricetus-auratus']]);
+    const all = [...b.files.values()].join('\n');
+    expect(all).not.toContain(note);
+  });
+});

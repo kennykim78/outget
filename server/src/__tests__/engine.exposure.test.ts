@@ -17,6 +17,7 @@ import {
   createCatalog,
   isProductExposable,
   isRequirementExposable,
+  isTaxonExposable,
   isTestimonialExposable,
   isTestimonialPublic,
   isVerified,
@@ -87,7 +88,7 @@ describe('isVerified', () => {
 
 type Skip = 'req' | 'item' | 'profile' | 'type' | 'taxon';
 
-/** critter-plain × box 체인(+ Taxon tx-test, K-4)을 EXPERIENCED_KEEPER 로 승격(skip 은 승격하지 않음). */
+/** critter-plain × box 체인(+ Taxon tx-test)을 EXPERIENCED_KEEPER 로 승격(skip 은 승격하지 않음). */
 function promotedBundle(opts: { type?: 'ACTIVE' | 'PLANNED'; skip?: Skip } = {}) {
   const b = makeBundle();
   const at = b.animalTypes.find((x) => x.id === 'critter-plain')!;
@@ -114,9 +115,14 @@ describe('isRequirementExposable', () => {
     expect(isRequirementExposable(cat, r, AS_OF)).toBe(true);
   });
 
-  it.each(['req', 'item', 'profile', 'type', 'taxon'] as const)('not when %s is unverified', (skip) => {
+  it.each(['req', 'item', 'profile', 'type'] as const)('not when %s is unverified', (skip) => {
     const { cat, r } = promoted({ skip });
     expect(isRequirementExposable(cat, r, AS_OF)).toBe(false);
+  });
+
+  it('still exposable when only the Taxon is unverified (Kenny 2026-10-24 K-4 되돌림)', () => {
+    const { cat, r } = promoted({ skip: 'taxon' });
+    expect(isRequirementExposable(cat, r, AS_OF)).toBe(true);
   });
 
   it('not when the animal type is PLANNED', () => {
@@ -149,8 +155,12 @@ describe('isAnimalTypeExposable (M1)', () => {
     expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip: 'type' })), 'critter-plain', AS_OF)).toBe(false);
   });
 
-  it.each(['req', 'item', 'profile', 'taxon'] as const)('false when %s is unverified (no exposable requirement / profile / taxon)', (skip) => {
+  it.each(['req', 'item', 'profile'] as const)('false when %s is unverified (no exposable requirement / profile)', (skip) => {
     expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip })), 'critter-plain', AS_OF)).toBe(false);
+  });
+
+  it('true when only the Taxon is unverified (Kenny 2026-10-24 K-4 되돌림)', () => {
+    expect(isAnimalTypeExposable(createCatalog(promotedBundle({ skip: 'taxon' })), 'critter-plain', AS_OF)).toBe(true);
   });
 
   it('PLANNED → false; unknown id → false; type without profile → false', () => {
@@ -405,8 +415,9 @@ describe('isTestimonialPublic(cat, t, asOf) — APPROVED ∧ verifiedUsage ∧ �
   });
 });
 
-// K-4(R7 A6, Kenny 결정): 타입 노출 = 기존 조건 ∧ taxonId 의 Taxon(LEGAL) VERIFIED ∧ ≠AI_DRAFT ∧ 유효. 하위 전부 종속.
-describe('K-4 — Taxon(LEGAL) 검수가 타입·요구사항·상품·번들·후기 노출을 막는다', () => {
+// Kenny 2026-10-24 K-4 되돌림: 타입·요구사항·상품·번들·후기 노출은 Taxon(LEGAL) 검수를 보지 않는다.
+//   Taxon 내용·참조 공개만 isTaxonExposable(VERIFIED ∧ ≠AI_DRAFT ∧ 유효)로 따로 판정.
+describe('Taxon(LEGAL) 미검수여도 노출 가능, Taxon 공개는 isTaxonExposable 만', () => {
   const kBundle: SetupBundleRec = {
     id: 'sb-k4',
     careProfileId: 'pf-test',
@@ -423,7 +434,7 @@ describe('K-4 — Taxon(LEGAL) 검수가 타입·요구사항·상품·번들·�
   };
   const kTestimonial = { status: 'APPROVED' as const, verifiedUsage: true, animalTypeId: 'critter' };
 
-  /** 타입·요구사항·상품·번들·후기 각각의 노출 여부. */
+  /** 타입·요구사항·상품·번들·후기 각각의 노출 여부 + Taxon 공개 여부. */
   function chain(b: Bundle) {
     const cat = createCatalog(b);
     return {
@@ -433,6 +444,7 @@ describe('K-4 — Taxon(LEGAL) 검수가 타입·요구사항·상품·번들·�
       ordered: orderExposableProducts(cat, 'critter', [product('pk')], AS_OF).length,
       bundle: isBundleExposable(cat, 'critter', kBundle, AS_OF),
       testimonial: isTestimonialPublic(cat, kTestimonial, AS_OF),
+      taxon: isTaxonExposable(cat, cat.animalTypes.get('critter')?.taxonId, AS_OF),
     };
   }
   function listExposed(cat: ReturnType<typeof createCatalog>): number {
@@ -440,55 +452,51 @@ describe('K-4 — Taxon(LEGAL) 검수가 타입·요구사항·상품·번들·�
       .map((i) => resolveRequirement(cat, 'critter', i))
       .filter((r) => r !== null && isRequirementExposable(cat, r, AS_OF)).length;
   }
-  const NONE = { type: false, requirements: 0, product: false, ordered: 0, bundle: false, testimonial: false };
+  const ALL = { type: true, requirements: 5, product: true, ordered: 1, bundle: true, testimonial: true };
   const taxon = (b: Bundle) => b.taxa.find((x) => x.id === 'tx-test')!;
 
-  it('Taxon VERIFIED → 노출(대조군)', () => {
-    expect(chain(allVerified())).toEqual({ type: true, requirements: 5, product: true, ordered: 1, bundle: true, testimonial: true });
+  it('Taxon VERIFIED → 노출, Taxon 공개(대조군)', () => {
+    expect(chain(allVerified())).toEqual({ ...ALL, taxon: true });
   });
 
-  it('Taxon DRAFT → 타입·요구사항·상품·번들·후기 전부 비노출', () => {
+  it('Taxon DRAFT → 타입·요구사항·상품·번들·후기 그대로 노출, Taxon 비공개', () => {
     const b = allVerified();
     Object.assign(taxon(b), { reviewStatus: 'DRAFT' });
-    expect(chain(b)).toEqual(NONE);
+    expect(chain(b)).toEqual({ ...ALL, taxon: false });
   });
 
-  it('Taxon NEEDS_REVIEW / 오래됨(181일) / verifiedAt 없음 → 비노출', () => {
+  it('Taxon NEEDS_REVIEW / 오래됨(181일) / verifiedAt 없음 → 노출 그대로, Taxon 비공개', () => {
     for (const p of [{ reviewStatus: 'NEEDS_REVIEW' }, { verifiedAt: '2026-04-03' }, { verifiedAt: null }] as const) {
       const b = allVerified();
       Object.assign(taxon(b), p);
-      expect(chain(b), JSON.stringify(p)).toEqual(NONE);
+      expect(chain(b), JSON.stringify(p)).toEqual({ ...ALL, taxon: false });
     }
   });
 
-  it('AI_DRAFT 위장(VERIFIED + AI_DRAFT)·미지 검수자 → 비노출', () => {
+  it('AI_DRAFT 위장(VERIFIED + AI_DRAFT)·미지 검수자 → 노출 그대로, Taxon 비공개(AI_DRAFT 는 VERIFIED 불가)', () => {
     for (const reviewerType of ['AI_DRAFT', 'HUMAN', '']) {
       const b = allVerified();
       Object.assign(taxon(b), { reviewStatus: 'VERIFIED', reviewerType });
-      expect(chain(b), reviewerType).toEqual(NONE);
+      expect(chain(b), reviewerType).toEqual({ ...ALL, taxon: false });
     }
   });
 
-  it('taxonId null · 빈 문자열 · 미존재 Taxon → 비노출(fail-closed)', () => {
+  it('taxonId null · 빈 문자열 · 미존재 Taxon → 노출 그대로, Taxon 비공개', () => {
     for (const taxonId of [null, '', 'tx-ghost']) {
       const b = allVerified();
       Object.assign(b.animalTypes.find((x) => x.id === 'critter')!, { taxonId });
-      expect(chain(b), String(taxonId)).toEqual(NONE);
+      expect(chain(b), String(taxonId)).toEqual({ ...ALL, taxon: false });
     }
   });
 
-  it('카탈로그 입력에 taxa 가 없으면(클라 공개 카탈로그 형태) 타입 비노출', () => {
+  it('카탈로그 입력에 taxa 가 없어도(클라 공개 카탈로그 형태) 타입 노출, Taxon 비공개', () => {
     const rest: Partial<Bundle> = allVerified();
     delete rest.taxa;
-    expect(chain(rest as Bundle)).toEqual(NONE);
+    expect(chain(rest as Bundle)).toEqual({ ...ALL, taxon: false });
   });
 
-  it('다른 타입의 Taxon 만 DRAFT 면 이 타입은 영향 없음(타입별 판정)', () => {
-    const b = allVerified();
-    b.taxa.push({ ...taxon(b), id: 'tx-other', reviewStatus: 'DRAFT' });
-    Object.assign(b.animalTypes.find((x) => x.id === 'critter-plain')!, { taxonId: 'tx-other' });
-    expect(chain(b).type).toBe(true);
-    expect(isAnimalTypeExposable(createCatalog(b), 'critter-plain', AS_OF)).toBe(false);
+  it('isTaxonExposable: asOf 형식 오류는 RangeError', () => {
+    expect(() => isTaxonExposable(createCatalog(allVerified()), 'tx-test', '2026/10/01')).toThrow(RangeError);
   });
 });
 

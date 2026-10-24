@@ -80,7 +80,7 @@ function baseSeed() {
         aliases: [], taxonId: null, careProfileId: null, careOverrides: {}, ...meta({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null }),
       },
     ],
-    // K-4(R7 A6): 타입 노출은 taxonId 의 Taxon(LEGAL) 검수도 요구 — 합성 종 자리표시(실제 종·법 사실 아님).
+    // 합성 종 자리표시(실제 종·법 사실 아님) — Taxon 참조 공개 규칙 검사용(타입 노출은 Taxon 을 보지 않음, K-4 되돌림).
     'taxa.json': [
       {
         id: 'tx-fixture', scientificName: 'Fixtura testa', koreanName: '픽스처종', legal: { animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null, note: null },
@@ -641,20 +641,44 @@ test('C3-OUT-ID: ws-data requirement 쌍 비노출(각 id 는 노출)', async ()
   assert.ok(!res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /requirement\.item/.test(f.message)));
 });
 
-// K-4(R7 A6): Taxon(LEGAL) 이 미검수·AI_DRAFT 위장·taxonId null 이면 타입이 비노출 — 산출물에 남은 타입 페이지는 실패.
-for (const [name, inject] of [
+// Kenny 2026-10-24 K-4 되돌림: Taxon(LEGAL) 미검수·AI_DRAFT 위장·taxonId null 이어도 타입은 노출 — Taxon 만 비노출 집합.
+const TAXON_HIDDEN = [
   ['Taxon DRAFT', (d) => Object.assign(d['taxa.json'][0], { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null })],
   ['Taxon VERIFIED + AI_DRAFT 위장', (d) => Object.assign(d['taxa.json'][0], { reviewerType: 'AI_DRAFT' })],
   ['taxonId null', (d) => Object.assign(d['animal-types.json'][0], { taxonId: null })],
-]) {
-  test(`C3-OUT-ROUTE·C3-OUT-ID: ${name} → 타입 비노출, 산출물의 골든 페이지는 FAIL`, async () => {
-    const res = scan(await makeRoot({ seed: inject, output: () => {} }));
-    expectFail(res, 'C3-OUT-ROUTE');
-    assert.equal(res.json.exposed.animalTypes, 0);
+];
+const withCatalogTaxon = ({ typeTaxon, profileTaxa }) => (o) => {
+  const c = JSON.parse(o['data/catalog.v1.abcd1234.json']);
+  if (typeTaxon !== undefined) c.animalTypes[0].taxonId = typeTaxon;
+  if (profileTaxa !== undefined) c.careProfiles[0].taxonIds = profileTaxa;
+  o['data/catalog.v1.abcd1234.json'] = JSON.stringify(c);
+};
+for (const [name, inject] of TAXON_HIDDEN) {
+  test(`K-4 되돌림 clean: ${name} → 타입 노출 그대로, Taxon 비노출, 골든 페이지 통과`, async () => {
+    const res = scan(await makeRoot({ seed: inject }));
+    expectClean(res);
+    assert.equal(res.json.exposed.animalTypes, 1);
     assert.equal(res.json.exposed.taxa, 0);
-    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /hamster-golden/.test(f.message)));
+  });
+  test(`C3-OUT-ID: ${name} 인데 카탈로그가 Taxon 을 참조하면 FAIL(타입·프로필 각각)`, async () => {
+    for (const ref of [{ typeTaxon: 'tx-fixture' }, { profileTaxa: ['tx-fixture'] }]) {
+      const res = scan(await makeRoot({ seed: inject, output: withCatalogTaxon(ref) }));
+      expectFail(res, 'C3-OUT-ID');
+      assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && /Taxon 참조/.test(f.message)), JSON.stringify(ref));
+    }
   });
 }
+test('K-4 되돌림 clean: Taxon VERIFIED 면 카탈로그 Taxon 참조(타입·프로필) 통과, null 참조도 통과', async () => {
+  for (const ref of [{ typeTaxon: 'tx-fixture', profileTaxa: ['tx-fixture'] }, { typeTaxon: null, profileTaxa: [] }]) {
+    const res = scan(await makeRoot({ output: withCatalogTaxon(ref) }));
+    expectClean(res);
+    assert.equal(res.json.exposed.taxa, 1);
+  }
+});
+test('C3-OUT-ID: 미존재 Taxon 참조는 FAIL', async () => {
+  const res = scan(await makeRoot({ output: withCatalogTaxon({ typeTaxon: 'tx-ghost' }) }));
+  expectFail(res, 'C3-OUT-ID');
+});
 
 test('C3-OUT-ID: 카탈로그에 비노출 id', async () => {
   const res = scan(await makeRoot({

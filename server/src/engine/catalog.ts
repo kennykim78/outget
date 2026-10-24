@@ -2,8 +2,8 @@
 import type { EngineCatalog, SeedBundle, SupplyRequirementRec } from './types.js';
 
 /**
- * taxa 는 선택(K-4, R7 A6): 노출 판정(exposure.ts)만 쓴다. 클라 공개 카탈로그(규격 확인 전용)는 taxa 를 싣지 않으므로
- *   생략 가능 — 생략하면 빈 Map 이고 모든 타입이 비노출이다(fail-closed). 서버 호출자는 SeedBundle 전체를 넘긴다.
+ * taxa 는 선택: Taxon 참조·법 정보 공개 판정(exposure.ts isTaxonExposable)만 쓴다 — 타입 노출 게이트 아님(Kenny 2026-10-24 K-4 되돌림).
+ *   클라 공개 카탈로그(규격 확인 전용)는 taxa 를 싣지 않으므로 생략 가능 — 생략하면 빈 Map(Taxon 내용 비공개, fail-closed).
  */
 export type CatalogInput = Pick<
   SeedBundle,

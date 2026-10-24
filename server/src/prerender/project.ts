@@ -1,6 +1,6 @@
 // 공개 투영(계획 §6-3, D4·D6) — 시드 묶음 → 노출 행만 담은 사이트 모델. 순수(입력 불변, 시각·난수 없음).
 //   노출 판단은 전부 engine 노출 API(isAnimalTypeExposable · isRequirementExposable · orderExposableProducts ·
-//   isBundleExposable · isCompatRuleExposable · isVetListed · isTestimonialPublic · isPhotoUsable).
+//   isBundleExposable · isCompatRuleExposable · isVetListed · isTestimonialPublic · isPhotoUsable · isTaxonExposable).
 //   요구사항 값은 resolveRequirement 결과만 쓴다(불변식 6). verifiedBy·운영 메모·출처 접근일은 싣지 않는다.
 import {
   buildSearchKeyword,
@@ -12,6 +12,7 @@ import {
   isPhotoUsable,
   parseCcLicenseUrl,
   isRequirementExposable,
+  isTaxonExposable,
   isTestimonialPublic,
   isVetListed,
   listResolvedRequirements,
@@ -353,7 +354,8 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
       displayName: t.rec.displayName,
       status: t.rec.status,
       aliases: [...t.rec.aliases],
-      taxonId: t.rec.taxonId,
+      // Taxon 참조는 검수 완료일 때만(불변식 7) — 타입은 Taxon 미검수여도 노출(Kenny 2026-10-24 K-4 되돌림).
+      taxonId: isTaxonExposable(cat, t.rec.taxonId, asOf) ? t.rec.taxonId : null,
       careProfileId: t.rec.careProfileId,
       careOverrides: Object.keys(kept).length > 0 ? { requirements: kept } : {},
       mascot: t.rec.mascot ?? null,
@@ -365,7 +367,7 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
   });
   const careProfiles: CareProfileRec[] = [...cat.careProfiles.values()]
     .filter((p) => profileIds.has(p.id))
-    .map((p) => ({ ...publicMeta(p), id: p.id, name: p.name, taxonIds: [...p.taxonIds], facts: p.facts, careNotes: [...p.careNotes] }));
+    .map((p) => ({ ...publicMeta(p), id: p.id, name: p.name, taxonIds: p.taxonIds.filter((x) => isTaxonExposable(cat, x, asOf)), facts: p.facts, careNotes: [...p.careNotes] }));
   const supplyItems: SupplyItemRec[] = [...cat.supplyItems.values()]
     .filter((i) => exposedItems.has(i.id))
     .map((i) => ({

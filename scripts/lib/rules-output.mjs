@@ -104,6 +104,12 @@ function checkCatalog(c, rel, ex, digest, add) {
       continue;
     }
     for (const x of arr) if (!isObj(x) || !ex.ids[k].has(x.id)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 ${k}#${x?.id}`);
+    // Taxon 참조는 검수 완료 Taxon 만(불변식 7) — 타입은 Taxon 미검수여도 노출(Kenny 2026-10-24 K-4 되돌림).
+    const taxonRefs = (x) => (k === 'animalTypes' ? [x.taxonId] : k === 'careProfiles' && Array.isArray(x.taxonIds) ? x.taxonIds : []);
+    for (const x of arr) {
+      if (!isObj(x)) continue;
+      for (const t of taxonRefs(x)) if (t !== null && t !== undefined && !ex.ids.taxa.has(t)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 Taxon 참조 ${k}#${x.id} → ${t}`);
+    }
   }
 }
 

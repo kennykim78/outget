@@ -11,6 +11,7 @@ import {
   isFresh,
   isProductExposable,
   isRequirementExposable,
+  isTaxonExposable,
   isVerified,
   listResolvedRequirements,
   orderExposableProducts,
@@ -125,11 +126,10 @@ describe('exposure chain demotes stale content (asOf)', () => {
   });
 
   // 체인의 어느 ContentMeta 하나만 오래돼도 0(fail-closed).
-  for (const link of ['animalType', 'careProfile', 'item', 'requirement', 'taxon'] as const) {
+  for (const link of ['animalType', 'careProfile', 'item', 'requirement'] as const) {
     it(`only ${link} stale → requirement, type, product, bundle all hidden`, () => {
       const b = allVerified(EDGE);
       const old = '2025-12-31'; // EDGE 기준 181일
-      if (link === 'taxon') b.taxa.find((x) => x.id === 'tx-test')!.verifiedAt = old; // K-4(R7 A6)
       if (link === 'animalType') b.animalTypes.find((x) => x.id === 'critter')!.verifiedAt = old;
       if (link === 'careProfile') b.careProfiles.find((x) => x.id === 'pf-test')!.verifiedAt = old;
       if (link === 'item') b.supplyItems.find((x) => x.id === 'spinner')!.verifiedAt = old;
@@ -142,9 +142,22 @@ describe('exposure chain demotes stale content (asOf)', () => {
       expect(isProductExposable(cat, 'critter', p, EDGE)).toBe(false);
       expect(orderExposableProducts(cat, 'critter', [p], EDGE)).toEqual([]);
       expect(isBundleExposable(cat, 'critter', bundle({ verifiedAt: EDGE }), EDGE)).toBe(false);
-      if (link === 'animalType' || link === 'careProfile' || link === 'taxon') expect(isAnimalTypeExposable(cat, 'critter', EDGE)).toBe(false);
+      if (link === 'animalType' || link === 'careProfile') expect(isAnimalTypeExposable(cat, 'critter', EDGE)).toBe(false);
     });
   }
+
+  // Kenny 2026-10-24 K-4 되돌림: Taxon 만 오래되면 노출은 그대로, Taxon 공개만 내려간다.
+  it('only taxon stale → requirement, type, product, bundle still exposed; isTaxonExposable false', () => {
+    const b = allVerified(EDGE);
+    b.taxa.find((x) => x.id === 'tx-test')!.verifiedAt = '2025-12-31';
+    const cat = createCatalog(b);
+    expect(isRequirementExposable(cat, resolveRequirement(cat, 'critter', 'spinner')!, EDGE)).toBe(true);
+    expect(isProductExposable(cat, 'critter', product({ verifiedAt: EDGE }), EDGE)).toBe(true);
+    expect(isBundleExposable(cat, 'critter', bundle({ verifiedAt: EDGE }), EDGE)).toBe(true);
+    expect(isAnimalTypeExposable(cat, 'critter', EDGE)).toBe(true);
+    expect(isTaxonExposable(cat, 'tx-test', EDGE)).toBe(false);
+    expect(isTaxonExposable(createCatalog(allVerified(EDGE)), 'tx-test', EDGE)).toBe(true);
+  });
 
   it('product / bundle / rule own verifiedAt stale → hidden even if the chain is fresh', () => {
     const cat = createCatalog(allVerified(EDGE));

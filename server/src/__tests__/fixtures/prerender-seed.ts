@@ -33,19 +33,20 @@ export function patch(seed: SeedBundle, key: keyof SeedBundle, id: string, p: Ro
 }
 
 /**
- * LEGAL 승격 값(K-4, R7 A6) — Taxon 은 contentKind LEGAL 이라 validate V03 이 OFFICIAL_SOURCE 정확 등급을 요구한다.
+ * LEGAL 승격 값 — Taxon 은 contentKind LEGAL 이라 validate V03 이 OFFICIAL_SOURCE 정확 등급을 요구한다.
  *   검수 표기만 바꾼다(legal 사실값·학명은 디스크 시드 그대로).
  */
 export const V_LEGAL = { ...V, reviewerType: 'OFFICIAL_SOURCE' } as const;
 export const GOLDEN_TAXON_ID = 'mesocricetus-auratus';
 
 /**
- * golden 체인 승격(메모리): taxon(K-4)·type·profile·cage/wheel 요구사항·항목·cp-001·번들 1·병원 1·CC_BY 사진 1·후기 1.
- *   taxonDraft: Taxon 만 디스크 상태(DRAFT) 그대로 — 타입 이하 전부 비노출이어야 한다(K-4).
+ * golden 체인 승격(메모리): type·profile·cage/wheel 요구사항·항목·cp-001·번들 1·병원 1·CC_BY 사진 1·후기 1.
+ *   Taxon 은 디스크 상태(DRAFT) 그대로 — 타입 노출은 Taxon 을 보지 않는다(Kenny 2026-10-24 K-4 되돌림).
+ *   taxonVerified: 골든 Taxon 도 승격(Taxon 참조 공개 경로 검사용).
  */
-export function promoted(opts: { typeDraft?: boolean; taxonDraft?: boolean } = {}): SeedBundle {
+export function promoted(opts: { typeDraft?: boolean; taxonVerified?: boolean } = {}): SeedBundle {
   const s = clone(realSeed());
-  if (!opts.taxonDraft) patch(s, 'taxa', GOLDEN_TAXON_ID, { ...V_LEGAL });
+  if (opts.taxonVerified) patch(s, 'taxa', GOLDEN_TAXON_ID, { ...V_LEGAL });
   patch(s, 'animalTypes', 'hamster-golden', opts.typeDraft ? {} : { ...V });
   patch(s, 'careProfiles', 'cp-hamster-syrian', { ...V });
   for (const id of ['req-syrian-cage', 'req-syrian-wheel']) patch(s, 'supplyRequirements', id, { ...V });

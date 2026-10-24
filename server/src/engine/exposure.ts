@@ -59,10 +59,9 @@ function okMeta(m: Pick<ContentMeta, 'reviewStatus' | 'reviewerType' | 'verified
 }
 
 /**
- * K-4(R7 A6, Kenny 결정): 타입의 법 정보(Taxon, LEGAL)도 검수·유효해야 노출 — taxonId 없음·미존재·DRAFT·AI_DRAFT·오래됨이면 false.
- *   등급은 isVerified(rank ≥ OPERATOR)와 같다 — LEGAL 의 정확 등급(OFFICIAL_SOURCE)은 validator MIN_GRADE(V03)가 강제(D15).
- *   requirementOk·animalTypeOk 둘 다 거치므로 요구사항·상품·번들·후기 노출이 같이 따라간다(단일 지점).
- *   scripts/lib/seed-exposure.mjs baseType 의 verifiedTaxon 과 같은 조건(패리티 테스트).
+ * Taxon(LEGAL) 내용 노출 조건: taxonId 존재 ∧ VERIFIED ∧ ≠AI_DRAFT ∧ 유효. 타입·요구사항 노출 게이트가 아니다
+ *   — Kenny 2026-10-24 K-4 되돌림. 산출물에 Taxon 참조·법 정보를 실을 때만 쓴다(불변식 7).
+ *   LEGAL 의 정확 등급(OFFICIAL_SOURCE)은 validator MIN_GRADE(V03)가 강제(D15).
  */
 function taxonOk(cat: EngineCatalog, taxonId: string | null | undefined, day: number): boolean {
   if (typeof taxonId !== 'string' || taxonId === '') return false;
@@ -70,9 +69,14 @@ function taxonOk(cat: EngineCatalog, taxonId: string | null | undefined, day: nu
   return taxon !== undefined && okMeta(taxon, day);
 }
 
+/** Taxon 내용·참조 공개 가능(VERIFIED ∧ ≠AI_DRAFT ∧ 유효). 노출 타입이라도 이것이 false 면 taxonId·legal 을 싣지 않는다. */
+export function isTaxonExposable(cat: EngineCatalog, taxonId: string | null | undefined, asOf: string): boolean {
+  return taxonOk(cat, taxonId, asOfDay(asOf));
+}
+
 function requirementOk(cat: EngineCatalog, r: ResolvedRequirement, day: number): boolean {
   const at = cat.animalTypes.get(r.animalTypeId);
-  if (!at || at.status !== 'ACTIVE' || !taxonOk(cat, at.taxonId, day)) return false;
+  if (!at || at.status !== 'ACTIVE') return false;
   return (
     okMeta(r.review.animalType, day) &&
     okMeta(r.review.requirement, day) &&
@@ -81,7 +85,7 @@ function requirementOk(cat: EngineCatalog, r: ResolvedRequirement, day: number):
   );
 }
 
-/** AnimalType ACTIVE ∧ Taxon(K-4)·AnimalType·requirement·SupplyItem·CareProfile 모두 검수 완료 ∧ 유효(M1, M-1). */
+/** AnimalType ACTIVE ∧ AnimalType·requirement·SupplyItem·CareProfile 모두 검수 완료 ∧ 유효(M1, M-1). */
 export function isRequirementExposable(cat: EngineCatalog, r: ResolvedRequirement, asOf: string): boolean {
   return requirementOk(cat, r, asOfDay(asOf));
 }
@@ -89,13 +93,12 @@ export function isRequirementExposable(cat: EngineCatalog, r: ResolvedRequiremen
 function animalTypeOk(cat: EngineCatalog, animalTypeId: string, day: number): boolean {
   const at = cat.animalTypes.get(animalTypeId);
   if (!at || at.status !== 'ACTIVE' || !okMeta(at, day) || !at.careProfileId) return false;
-  if (!taxonOk(cat, at.taxonId, day)) return false;
   const profile = cat.careProfiles.get(at.careProfileId);
   if (!profile || !okMeta(profile, day)) return false;
   return listResolvedRequirements(cat, at.id).some((r) => requirementOk(cat, r, day));
 }
 
-/** 타입 페이지 노출: ACTIVE ∧ AnimalType·Taxon(K-4)·CareProfile 검수·유효 ∧ 노출 가능한 요구사항 ≥ 1(M1, D4, M-1). */
+/** 타입 페이지 노출: ACTIVE ∧ AnimalType·CareProfile 검수·유효(Taxon 은 보지 않음 — K-4 되돌림) ∧ 노출 가능한 요구사항 ≥ 1(M1, D4, M-1). */
 export function isAnimalTypeExposable(cat: EngineCatalog, animalTypeId: string, asOf: string): boolean {
   return animalTypeOk(cat, animalTypeId, asOfDay(asOf));
 }

@@ -6,7 +6,7 @@
 //                        ∧ fresh(r, asOf): verifiedAt 달력 날짜 ∧ 0 ≤ (asOf − verifiedAt) ≤ STALE_DAYS(180)   (M-1, R4 D5)
 //                        computeExposure(seed, asOf) — asOf 필수(YYYY-MM-DD 아니면 RangeError). 아래 "verified" 는 전부 이 뜻.
 //   careProfile        = verified
-//   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified ∧ taxonId 의 Taxon 존재·verified(K-4, R7 A6)
+//   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified(Taxon 은 보지 않음 — Kenny 2026-10-24 K-4 되돌림)
 //   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ verified(r) ∧ item verified
 //   animalType         = base ∧ 노출 requirement ≥ 1
 //   supplyItem         = verified ∧ 어떤 노출 (type,item) 쌍의 item
@@ -15,7 +15,7 @@
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
 //   setupBundle        = verified ∧ ∃ 노출 type t: careProfileId 일치 ∧ itemIds 비어있지 않고 전부 (t,item) 노출
 //   compatibilityRule  = verified ∧ a·b 둘 다 노출 item ∧ (careProfileId 없음 ∨ 노출 타입의 프로필)
-//   taxon              = verified ∧ 노출 type 이 참조
+//   taxon              = verified ∧ (노출 type 의 taxonId ∨ 노출 careProfile 의 taxonIds) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
 //   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
@@ -296,12 +296,8 @@ export function computeExposure(seed, asOf) {
   const verifiedProfile = (id) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every(ok);
   const verifiedItem = (id) => typeof id === 'string' && items.has(id) && items.get(id).every(ok);
 
-  const taxa = groupById(rows('taxa'));
-  // K-4(R7 A6): 타입의 Taxon(LEGAL) 도 verified — taxonId 없음·미존재·DRAFT·AI_DRAFT·오래됨이면 타입(과 그 아래 전부) 비노출.
-  const verifiedTaxon = (id) => typeof id === 'string' && id !== '' && taxa.has(id) && taxa.get(id).every(ok);
-
   const typeRows = groupById(rows('animalTypes'));
-  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId) && verifiedTaxon(t.taxonId);
+  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId);
 
   const reqs = rows('supplyRequirements').filter(isObj);
   const reqIdGroups = groupById(reqs);
@@ -362,6 +358,7 @@ export function computeExposure(seed, asOf) {
 
   const typeProfiles = new Set([...types.values()].map((t) => t.careProfileId));
   const typeTaxa = new Set([...types.values()].map((t) => t.taxonId).filter((x) => typeof x === 'string'));
+  for (const p of rows('careProfiles')) if (isObj(p) && typeProfiles.has(p.id) && Array.isArray(p.taxonIds)) for (const x of p.taxonIds) if (typeof x === 'string') typeTaxa.add(x);
 
   const vetIds = idsWhere(rows('vetClinics'), (v) => isObj(v.verification) && v.verification.status === 'VERIFIED');
   const vetRegions = new Set();

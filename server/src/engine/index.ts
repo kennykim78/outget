@@ -35,6 +35,7 @@ export {
   parseCcLicenseUrl,
   isProductExposable,
   isRequirementExposable,
+  isTaxonExposable,
   isTestimonialExposable,
   isTestimonialPublic,
   isVerified,
