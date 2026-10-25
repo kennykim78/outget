@@ -1,0 +1,16 @@
+# 서명 매니페스트·검수 패킷은 Kenny 소유(QA 82 D1 — 매니페스트 해시는 키 없는 sha256 이라 재서명은 사람 리뷰가 최종 방어선).
+# 효력은 리포 설정의 브랜치 보호 "Require review from Code Owners" 가 켜져 있어야 한다(이 파일은 설정을 바꾸지 않는다).
+/server/seed/review-signatures.json @kennykim78
+/docs/planning-artifacts/seed-draft/review-signatures.json @kennykim78
+/scripts/review-packets/ @kennykim78
+# 서명 검증 코드 자체 — 같은 PR 에서 가드를 약화하지 못하게(QA 83).
+/scripts/seed-review-diff.mjs @kennykim78
+/scripts/apply-review-signatures.mjs @kennykim78
+/scripts/lib/review-signature.mjs @kennykim78
+/scripts/lib/ai-handle.mjs @kennykim78
+/server/src/seed/signatures.ts @kennykim78
+/server/src/seed/ai-handle.json @kennykim78
+/server/src/seed/ai-handle.ts @kennykim78
+/server/src/seed/fact-fields.json @kennykim78
+/server/src/seed/validate-review.ts @kennykim78
+/.github/CODEOWNERS @kennykim78

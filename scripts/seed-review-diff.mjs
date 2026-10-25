@@ -9,7 +9,11 @@
 // FAIL 규칙(head reviewStatus=VERIFIED 인 행에 대해):
 //   R1 base가 VERIFIED가 아니고 NEEDS_REVIEW도 아님(DRAFT→VERIFIED 직행, 신규 행/신규 파일 포함)
 //   R2 base reviewerType=AI_DRAFT  (AI 초안은 같은 base 기준 한 번에 VERIFIED 불가 — 재라벨 후 별도 PR)
-//   R3 verifiedBy가 AI 핸들 /\b(ai|gpt|claude|bot|llm)\b/i
+//   R3 verifiedBy·specVerifiedBy가 AI 핸들(판정 단일 출처 server/src/seed/ai-handle.json — scripts/lib/ai-handle.mjs, QA 82 D2)
+//   R4 base·head 모두 VERIFIED인데 행 factHash(scripts/lib/review-signature.mjs)가 바뀌었고(사실 변경 = 재서명),
+//      head 행 verifiedAt 또는 head 매니페스트 signedAt 이 base 기준일(base 행 verifiedAt·base 매니페스트 signedAt 중 늦은 날)보다
+//      새 날짜가 아님 / head 매니페스트 항목 없음 → FAIL(QA 82 D1 — 키 없는 해시라 날짜 그대로 해시만 갈아끼우는 위조 차단).
+//      재서명 행은 'Re-signed VERIFIED rows' 로 따로 출력한다(PR 리뷰 + CODEOWNERS 가 서명자 확인).
 //   + 무결성: head 파일 내 중복 id / id 없는 VERIFIED 행 / JSON 배열 아님 → FAIL
 //
 // exit 0 통과(새로 VERIFIED된 행 목록 출력) · 1 위반 · 2 인수/ref 오류.
@@ -17,11 +21,14 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { factHash } from './lib/review-signature.mjs';
+import { isAiHandle } from './lib/ai-handle.mjs';
 
 const SEED_DIR = 'server/seed';
 // 서명 매니페스트(보안 79 H-1)는 콘텐츠 행 파일이 아니다(항목 id 가 파일 간 겹칠 수 있음) — 전이 검사 대상 밖, seed:validate G01~G06 이 검사.
 const SIGNATURE_FILE = 'review-signatures.json';
-const AI_HANDLE = /\b(ai|gpt|claude|bot|llm)\b/i;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isIso = (v) => typeof v === 'string' && ISO_DATE.test(v);
 const REF_SAFE = /^[A-Za-z0-9._\/~^@{}:+-]+$/;
 
 const USAGE = 'usage: node scripts/seed-review-diff.mjs --base <ref> [--head <ref>]';
@@ -95,6 +102,36 @@ function readAtCommit(cwd, sha, file) {
   return git(cwd, ['show', `${sha}:${SEED_DIR}/${file}`]);
 }
 
+/** 서명 매니페스트 → Map('file#id' → 항목). 없음/파싱 실패 = 빈 Map(head 쪽은 R4 가 fail-closed, 형식은 seed:validate G01). */
+function readManifest(text, label) {
+  const map = new Map();
+  if (text === null) return map;
+  let data;
+  try {
+    data = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+  } catch (e) {
+    console.error(`seed-review-diff: warn: ${label}: invalid JSON (${e.message})`);
+    return map;
+  }
+  if (!Array.isArray(data)) {
+    console.error(`seed-review-diff: warn: ${label}: top-level is not an array`);
+    return map;
+  }
+  for (const e of data) {
+    if (e && typeof e === 'object' && typeof e.file === 'string' && typeof e.id === 'string') map.set(`${e.file}#${e.id}`, e);
+  }
+  return map;
+}
+
+/** ref 의 파일 텍스트, 없으면 null. */
+function showOrNull(cwd, sha, path) {
+  try {
+    return git(cwd, ['show', `${sha}:${path}`]);
+  } catch {
+    return null;
+  }
+}
+
 function parseRows(text, label, errors) {
   let data;
   try {
@@ -154,6 +191,16 @@ function main() {
 
   const fails = [];
   const promoted = [];
+  const resigned = [];
+
+  const sigPath = `${SEED_DIR}/${SIGNATURE_FILE}`;
+  const headSigText = headSha
+    ? showOrNull(root, headSha, sigPath)
+    : existsSync(join(root, sigPath))
+      ? readFileSync(join(root, sigPath), 'utf8')
+      : null;
+  const baseSig = readManifest(showOrNull(root, baseSha, sigPath), `${SIGNATURE_FILE}@${args.base}`);
+  const headSig = readManifest(headSigText, `${SIGNATURE_FILE}@${headLabel}`);
 
   for (const file of [...headFiles].sort()) {
     const headText = headSha ? readAtCommit(root, headSha, file) : readFileSync(join(root, SEED_DIR, file), 'utf8');
@@ -183,8 +230,29 @@ function main() {
       if (b?.reviewerType === 'AI_DRAFT') {
         fails.push(`${where}: R2 base reviewerType=AI_DRAFT -> VERIFIED (AI_DRAFT can never be VERIFIED; relabel in a separate PR)`);
       }
-      if (typeof h.verifiedBy === 'string' && AI_HANDLE.test(h.verifiedBy)) {
-        fails.push(`${where}: R3 verifiedBy=${JSON.stringify(h.verifiedBy)} looks like an AI/bot handle`);
+      for (const f of ['verifiedBy', 'specVerifiedBy']) {
+        if (isAiHandle(h[f])) fails.push(`${where}: R3 ${f}=${JSON.stringify(h[f])} looks like an AI/bot handle`);
+      }
+      if (wasVerified) {
+        const hashBase = factHash(file, b);
+        const hashHead = factHash(file, h);
+        if (hashBase !== hashHead) {
+          const k = `${file}#${id}`;
+          const be = baseSig.get(k);
+          const he = headSig.get(k);
+          const baseDates = [b.verifiedAt, be?.signedAt].filter(isIso).sort();
+          const since = baseDates.length ? baseDates[baseDates.length - 1] : null;
+          const newer = (d) => isIso(d) && (since === null || d > since);
+          const why = [];
+          if (!newer(h.verifiedAt)) why.push(`verifiedAt=${JSON.stringify(h.verifiedAt ?? null)}`);
+          if (!he) why.push('no manifest entry at head');
+          else if (!newer(he.signedAt)) why.push(`manifest signedAt=${JSON.stringify(he.signedAt ?? null)}`);
+          if (why.length) {
+            fails.push(`${where}: R4 VERIFIED facts changed (factHash ${hashBase.slice(0, 12)}… -> ${hashHead.slice(0, 12)}…) without a re-sign date newer than base ${since ?? '(none)'}: ${why.join(', ')}`);
+          } else {
+            resigned.push(`${where} (facts changed, re-signed by ${h.verifiedBy ?? '?'} verifiedAt=${h.verifiedAt} signedAt=${he.signedAt}, base ${since ?? '(none)'})`);
+          }
+        }
       }
       if (!wasVerified) {
         promoted.push(`${where} (${baseStatus} -> VERIFIED, reviewerType=${h.reviewerType ?? '?'}, verifiedBy=${h.verifiedBy ?? '?'}, verifiedAt=${h.verifiedAt ?? '?'})`);
@@ -197,6 +265,10 @@ function main() {
     for (const f of fails) console.log(`FAIL ${f}`);
     console.log(`seed-review-diff: ${fails.length} violation(s)`);
     process.exit(1);
+  }
+  if (resigned.length) {
+    console.log(`Re-signed VERIFIED rows (${resigned.length}):`);
+    for (const p of resigned) console.log(`- ${p}`);
   }
   if (promoted.length) {
     console.log(`Newly VERIFIED rows (${promoted.length}):`);

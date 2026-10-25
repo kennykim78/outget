@@ -169,13 +169,112 @@ test('head 중복 id로 base 행을 가리는 우회는 FAIL(1)', () =>
     assert.match(r.out, /duplicate/i);
   }));
 
-test('이미 VERIFIED 였던 행 유지는 통과(0)', () =>
+test('이미 VERIFIED 였던 행 유지(서명 밖 키만 변경)는 통과(0)', () =>
   withRepo((dir) => {
     writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
     commit(dir);
-    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01', note: 'x' })]);
+    // displayOrder 는 서명 해시 필드가 아니다(fact-fields.json) → factHash 불변.
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01', displayOrder: 2 })]);
     const r = run(dir, '--base', 'HEAD');
     assert.equal(r.code, 0, r.out);
+    assert.doesNotMatch(r.out, /Re-signed/);
+  }));
+
+// ── R4(QA 82 D1): VERIFIED→VERIFIED 사실 변경은 base 보다 새 날짜의 재서명 필요 ──
+const SIG = (over = {}) => ({ file: 'taxa.json', id: 'r1', basis: 'ROW_CHECKED', signedBy: 'kenny', signedAt: '2026-09-01', factHash: 'a'.repeat(64), ...over });
+
+test('R4: VERIFIED 행 사실 변경 + 날짜 그대로(해시만 교체)는 FAIL(1)', () =>
+  withRepo((dir) => {
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG()]);
+    commit(dir);
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01', note: 'x' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG({ factHash: 'b'.repeat(64) })]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /FAIL taxa\.json#r1: R4 [^\n]*verifiedAt="2026-09-01"[^\n]*signedAt="2026-09-01"/);
+  }));
+
+test('R4: verifiedAt 만 새 날짜, 매니페스트 signedAt 그대로면 FAIL(1)', () =>
+  withRepo((dir) => {
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG()]);
+    commit(dir);
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-10-02', note: 'x' })]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /R4 [^\n]*manifest signedAt="2026-09-01"/);
+    assert.doesNotMatch(r.out, /R4 [^\n]*verifiedAt=/);
+  }));
+
+test('R4: 매니페스트 signedAt 이 base 보다 늦어도 행 verifiedAt 이 base 매니페스트 signedAt 이하면 FAIL(1)', () =>
+  withRepo((dir) => {
+    // base 기준일 = max(행 verifiedAt 2026-09-01, 매니페스트 signedAt 2026-09-10) = 2026-09-10
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG({ signedAt: '2026-09-10' })]);
+    commit(dir);
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-10', note: 'x' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG({ signedAt: '2026-10-02' })]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /R4 [^\n]*base 2026-09-10[^\n]*verifiedAt="2026-09-10"/);
+  }));
+
+test('R4: head 매니페스트 항목 없음(또는 파일 없음)은 FAIL(1, fail-closed)', () =>
+  withRepo((dir) => {
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
+    commit(dir);
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-10-02', note: 'x' })]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /R4 [^\n]*no manifest entry at head/);
+  }));
+
+test('R4: 행 verifiedAt·매니페스트 signedAt 모두 새 날짜면 통과(0)하고 재서명 목록에 출력', () =>
+  withRepo((dir) => {
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG()]);
+    commit(dir);
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-10-02', note: 'x' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG({ signedAt: '2026-10-02', factHash: 'b'.repeat(64) })]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /Re-signed VERIFIED rows \(1\):\n- taxa\.json#r1/);
+  }));
+
+test('R4: --head ref 모드에서도 같은 판정(커밋된 위조는 FAIL)', () =>
+  withRepo((dir) => {
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG()]);
+    commit(dir, 'base');
+    const base = git(dir, 'rev-parse', 'HEAD').trim();
+    writeSeed(dir, 'taxa.json', [row({ ...V, verifiedAt: '2026-09-01', note: 'x' })]);
+    writeSeed(dir, 'review-signatures.json', [SIG({ factHash: 'b'.repeat(64) })]);
+    commit(dir, 'forge');
+    const r = run(dir, '--base', base, '--head', 'HEAD');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /R4/);
+  }));
+
+test('R3(QA 82 D2): chatgpt·claude3·ai_kenny·specVerifiedBy AI 핸들은 FAIL, kenny·daisy·maia 는 통과', () =>
+  withRepo((dir) => {
+    const ids = ['h-chatgpt', 'h-claude3', 'h-aikenny', 'h-spec', 'h-kenny', 'h-daisy', 'h-maia'];
+    writeSeed(dir, 'taxa.json', ids.map((id) => row({ id, reviewStatus: 'NEEDS_REVIEW' })));
+    commit(dir);
+    writeSeed(dir, 'taxa.json', [
+      row({ ...V, id: 'h-chatgpt', verifiedBy: 'chatgpt' }),
+      row({ ...V, id: 'h-claude3', verifiedBy: 'claude3' }),
+      row({ ...V, id: 'h-aikenny', verifiedBy: 'ai_kenny' }),
+      row({ ...V, id: 'h-spec', verifiedBy: 'kenny', specVerifiedBy: 'Gemini-Pro' }),
+      row({ ...V, id: 'h-kenny', verifiedBy: 'kenny' }),
+      row({ ...V, id: 'h-daisy', verifiedBy: 'daisy' }),
+      row({ ...V, id: 'h-maia', verifiedBy: 'maia' }),
+    ]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 1, r.out);
+    for (const id of ['h-chatgpt', 'h-claude3', 'h-aikenny']) assert.match(r.out, new RegExp(`FAIL taxa\\.json#${id}: R3 verifiedBy`));
+    assert.match(r.out, /FAIL taxa\.json#h-spec: R3 specVerifiedBy/);
+    for (const id of ['h-kenny', 'h-daisy', 'h-maia']) assert.doesNotMatch(r.out, new RegExp(`FAIL[^\\n]*${id}`));
   }));
 
 test('잘못된 ref 는 exit 2', () =>

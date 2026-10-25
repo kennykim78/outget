@@ -1,9 +1,10 @@
-// 검수 규칙 V01~V05·V08~V10 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
+// 검수 규칙 V01~V05·V08~V11 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
 import { CONTENT_KEYS, daysBetween, has, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
 import { isReviewBasis, requiredBasis, REVIEW_BASES } from './signatures.js';
 import { registrableDomainOfUrl } from './hostname.js';
+import { isAiHandle } from './ai-handle.js';
 import type { Ctx } from './context.js';
 
 /** contentKind 별 최소 검수 등급(제품기획 §7.3 + A-7). LEGAL 은 정확히 OFFICIAL_SOURCE. */
@@ -46,6 +47,10 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   if (has(r, 'reviewBasis')) {
     if (!verified && r.reviewBasis !== null) out.error('V09', key, id, 'reviewBasis', `비VERIFIED(${String(r.reviewStatus)}) 행의 reviewBasis 는 null`);
     if (verified && !isReviewBasis(r.reviewBasis)) out.error('V09', key, id, 'reviewBasis', `VERIFIED 는 reviewBasis ${REVIEW_BASES.join('/')} 필요 (현재 ${String(r.reviewBasis)})`);
+  }
+  // V11(QA 82 D2) — 검수자·규격 확인자는 사람만. 상태와 무관하게 값이 있으면 검사(AI 핸들 판정 단일 출처 ai-handle.json).
+  for (const f of ['verifiedBy', 'specVerifiedBy'] as const) {
+    if (isAiHandle(r[f])) out.error('V11', key, id, f, `${f}=${JSON.stringify(r[f])} 는 AI/봇 핸들 — 검수자는 사람만(불변식 7)`);
   }
   if (!verified) return;
 

@@ -26,6 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { factHash, SIGNATURE_FILE } from './lib/review-signature.mjs';
+import { isAiHandle } from './lib/ai-handle.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const RESULT_FORMAT = 'withsmall.review-check-result/v1';
@@ -45,7 +46,6 @@ const PRODUCTS = 'curated-products.json';
 /** 이 스크립트가 바꿀 수 있는 키(그 밖은 바이트 그대로 — 자기 검사). */
 export const MANAGED_KEYS = Object.freeze(['reviewStatus', 'reviewerType', 'verifiedBy', 'verifiedAt', 'reviewBasis', 'specVerifiedBy', 'specVerifiedAt', 'status']);
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const AI_HANDLE = /\b(ai|gpt|claude|bot|llm)\b/i;
 const REVIEWER_TYPES_OK = ['OPERATOR', 'EXPERIENCED_KEEPER', 'VET_PUBLISHED_SOURCE', 'OFFICIAL_SOURCE', 'VET'];
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -92,7 +92,7 @@ export function checkResult(result, packet, items, now) {
   if (result.format !== RESULT_FORMAT) errs.push(`format 은 ${RESULT_FORMAT}`);
   if (result.packet !== packet.packet) errs.push(`packet 은 ${packet.packet}`);
   if (typeof result.signedBy !== 'string' || result.signedBy.trim() === '') errs.push('signedBy 필요');
-  else if (AI_HANDLE.test(result.signedBy)) errs.push(`signedBy 에 AI 핸들 금지: ${result.signedBy}`);
+  else if (isAiHandle(result.signedBy)) errs.push(`signedBy 에 AI 핸들 금지: ${result.signedBy}`);
   if (!Array.isArray(result.checked)) errs.push('checked 는 배열');
   else {
     const seen = new Set();

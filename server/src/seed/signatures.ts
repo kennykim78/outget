@@ -1,4 +1,4 @@
-// 서명 매니페스트 규칙 G01~G06(보안 79 H-1, Kenny 2026-10-25 'H-1 라벨', 불변식 7).
+// 서명 매니페스트 규칙 G01~G07(보안 79 H-1, Kenny 2026-10-25 'H-1 라벨', 불변식 7). G07(QA 82 D2) = signedBy AI 핸들 금지.
 //   "VERIFIED 행 집합 = 서명 집합"을 기계로 검증한다. 매니페스트 = server/seed/review-signatures.json
 //   (배열, 항목 { file, id, basis, signedBy, signedAt, factHash }). factHash 는 그 행의 사실 필드 해시 —
 //   서명 뒤 사실이 바뀌면 G05 로 실패해 재서명을 요구한다.
@@ -6,6 +6,7 @@
 //   순수 모듈(fs·시계 없음 — node:crypto 해시만).
 import { createHash } from 'node:crypto';
 import def from './fact-fields.json' with { type: 'json' };
+import { isAiHandle } from './ai-handle.js';
 import { asRec, CONTENT_KEYS, has, isIsoDate, isNonEmptyStr, SEED_FILES, type Rec, type SeedKey } from './common.js';
 import type { Ctx } from './context.js';
 
@@ -97,6 +98,8 @@ function parseEntries(ctx: Ctx, data: unknown): SignatureEntry[] {
     if (!isNonEmptyStr(e.id)) bad.push('id 가 비었다');
     if (!isReviewBasis(e.basis)) bad.push(`basis 는 ${REVIEW_BASES.join('/')}`);
     if (!isNonEmptyStr(e.signedBy)) bad.push('signedBy 가 비었다');
+    // G07(QA 82 D2) — 서명자는 사람만. 형식 오류와 별개로 보고(항목은 계속 검사).
+    else if (isAiHandle(e.signedBy)) out.error('G07', null, null, `${at}.signedBy`, `signedBy=${JSON.stringify(e.signedBy)} 는 AI/봇 핸들 — 서명은 사람만(불변식 7)`);
     if (!isIsoDate(e.signedAt)) bad.push('signedAt 은 YYYY-MM-DD');
     else if (e.signedAt > ctx.now) bad.push(`signedAt 미래 날짜 ${e.signedAt} (기준 ${ctx.now})`);
     if (typeof e.factHash !== 'string' || !FACT_HASH_RE.test(e.factHash)) bad.push('factHash 는 16진 64자(sha256)');

@@ -1,0 +1,5 @@
+{
+  "v": 1,
+  "substrings": ["ai_", "_ai", "gpt", "claude", "bot", "llm", "openai", "gemini"],
+  "boundedTokens": ["ai"]
+}
