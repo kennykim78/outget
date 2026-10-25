@@ -2,7 +2,7 @@
 //   프리렌더 HTML 의 <script id="ws-data" type="application/json"> 만 읽는다(데이터 출처는 이것 하나 —
 //   재노출·재정렬·재판정 없음, 불변식 ③). 검증 실패는 전부 null(fail-closed) → 빈 데이터 + routeFromLocation.
 //   shell.html·vite dev 처럼 ws-data 가 없는 문서도 같은 폴백을 탄다.
-import { PICK_PATH, ROUTE_KINDS, VERDICTS, WS_DATA_KEYS, type RouteKind, type WsLayer, type WsPageData, type WsRoute } from '@ws/engine';
+import { decodeWsPage, PICK_PATH, ROUTE_KINDS, VERDICTS, WS_DATA_KEYS, type RouteKind, type WsLayer, type WsPageData, type WsRoute } from '@ws/engine';
 
 const LAYER_KINDS = ['L4', 'L5', 'L7'] as const;
 
@@ -37,7 +37,8 @@ function isData(v: unknown): v is WsPageData['data'] {
   return (v.products as unknown[]).every((p) => isRecord(p) && EXPOSABLE_VERDICTS.includes(p.verdict as string));
 }
 
-/** ws-data 를 읽어 검증한다. 스크립트 없음·깨진 JSON·v≠1·미지 route.kind·data 키 불일치·배열 아님·추천 불가 verdict → null. */
+/** ws-data 를 읽어 검증한다. 스크립트 없음·깨진 JSON·디코드 실패(v∉{1,2}·v2 형식 위반)·미지 route.kind·data 키 불일치·배열 아님·추천 불가 verdict → null.
+ *  와이어 v2(출처 표 + sourceRefs)는 decodeWsPage 가 v1 논리 객체로 되돌린 뒤 아래 검사를 그대로 받는다(v1 입력은 통과). */
 export function readPageData(doc: Document): WsPageData | null {
   const el = doc.getElementById('ws-data');
   if (!el || el.tagName !== 'SCRIPT' || el.getAttribute('type') !== 'application/json') return null;
@@ -47,13 +48,14 @@ export function readPageData(doc: Document): WsPageData | null {
   } catch {
     return null;
   }
-  if (!isRecord(parsed)) return null;
-  if (parsed.v !== 1) return null;
-  if (!isRoute(parsed.route)) return null;
-  if (!isLayer(parsed.layer)) return null;
-  if (typeof parsed.catalogUrl !== 'string') return null;
-  if (!isData(parsed.data)) return null;
-  return parsed as unknown as WsPageData;
+  const page: unknown = decodeWsPage(parsed);
+  if (!isRecord(page)) return null;
+  if (page.v !== 1) return null;
+  if (!isRoute(page.route)) return null;
+  if (!isLayer(page.layer)) return null;
+  if (typeof page.catalogUrl !== 'string') return null;
+  if (!isData(page.data)) return null;
+  return page as unknown as WsPageData;
 }
 
 /** 데이터 없이 경로만으로 판별 가능한 라우트. 동물·품목·지역 경로는 데이터 없이 판별하지 않는다 → NOT_FOUND. */

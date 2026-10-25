@@ -10,7 +10,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-01';
+const NOW = '2026-10-24';
 const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 
 function fresh(): Required<RawSeed> {
@@ -101,7 +101,7 @@ interface Case {
 
 function foodWithSources(s: Required<RawSeed>, urls: string[]): void {
   const r = row(s, 'supplyRequirements', 'req-syrian-food');
-  Object.assign(r, { reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'vet-handle', verifiedAt: '2026-09-30' });
+  Object.assign(r, { reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'vet-handle', verifiedAt: '2026-09-30', reviewBasis: 'ROW_CHECKED' });
   r.source = urls.map((url, i) => ({ url, title: `t${i}`, accessedAt: '2026-09-30' }));
 }
 

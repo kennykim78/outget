@@ -149,7 +149,7 @@ describe('spa — 승격 픽스처 dist', () => {
   let app: Express;
   beforeAll(async () => {
     const seedDir = tmp('seed');
-    writeSeedDir(seedDir, promoted());
+    writeSeedDir(seedDir, promoted({ publishable: true }));
     app = appFor(await prerendered(seedDir));
   }, 60_000);
 
@@ -177,7 +177,7 @@ describe('spa — 승격 픽스처 dist', () => {
   });
 
   it('manifest 에 없는 타입 하위 경로 → 404', async () => {
-    expect((await request(app).get('/hamster/golden/supplies/bedding')).status).toBe(404);
+    expect((await request(app).get('/hamster/golden/supplies/scale')).status).toBe(404); // scale 은 DRAFT(publishable 픽스처에서도 비노출)
     expect((await request(app).get('/hamster/dwarf')).status).toBe(404);
   });
 });

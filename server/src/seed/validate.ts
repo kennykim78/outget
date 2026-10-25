@@ -4,12 +4,14 @@ import { Collector, type Issue, type RawSeed } from './common.js';
 import { buildCtx, type ValidateOptions } from './context.js';
 import { lintRecord } from './lint.js';
 import { checkExposure, checkExprs, checkOptionLabels, meetsMinSpecFn, type ExposureSummary } from './validate-engine.js';
+import { checkPublishGates } from './validate-gates.js';
 import { checkPeople } from './validate-people.js';
 import { checkProducts } from './validate-products.js';
 import { checkPromotion } from './validate-promotion.js';
 import { checkRefs } from './validate-refs.js';
 import { checkReview } from './validate-review.js';
 import { checkSlugs } from './validate-slug.js';
+import { checkSignatures } from './signatures.js';
 import { checkStructure } from './validate-structure.js';
 import { SEED_KEYS } from './common.js';
 
@@ -30,6 +32,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   checkRefs(ctx);
   checkExprs(ctx);
   checkReview(ctx);
+  checkSignatures(ctx, opts.signatures);
   checkPromotion(ctx);
   checkSlugs(ctx);
   // P01 재계산은 구조·참조 오류가 없을 때만 엔진에 맡긴다(깨진 입력으로 엔진을 돌리지 않는다).
@@ -41,6 +44,8 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   }
   const summary = checkExposure(ctx, raw, !out.issues.some((i) => i.severity === 'ERROR'));
   if (!out.issues.some((i) => i.severity === 'ERROR')) checkOptionLabels(ctx, raw);
+  // X01·X02(공개 게이트) — 구조·참조가 온전할 때만 엔진 노출 판정으로.
+  if (structurallySound) checkPublishGates(ctx, raw);
 
   return {
     errors: out.issues.filter((i) => i.severity === 'ERROR'),

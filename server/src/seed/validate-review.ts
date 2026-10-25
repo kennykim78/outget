@@ -1,7 +1,8 @@
-// 검수 규칙 V01~V05 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
+// 검수 규칙 V01~V05·V08~V10 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
-import { CONTENT_KEYS, daysBetween, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
+import { CONTENT_KEYS, daysBetween, has, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
+import { isReviewBasis, requiredBasis, REVIEW_BASES } from './signatures.js';
 import { registrableDomainOfUrl } from './hostname.js';
 import type { Ctx } from './context.js';
 
@@ -17,6 +18,12 @@ export const MIN_GRADE: Record<string, { min: string; exact?: boolean; minSource
 /** engine isVerified 에 위임(VERIFIED ∧ ≠AI_DRAFT). */
 const verified = (r: Rec): boolean =>
   isVerified({ reviewStatus: r.reviewStatus, reviewerType: r.reviewerType } as Parameters<typeof isVerified>[0]);
+
+/** 국내 도메인(V08): registrable domain 의 최상위가 .kr 또는 .한국(punycode xn--3e0b707e). */
+export const DOMESTIC_TLDS: readonly string[] = ['kr', 'xn--3e0b707e'];
+export function isDomesticDomain(domain: string): boolean {
+  return DOMESTIC_TLDS.includes(domain.slice(domain.lastIndexOf('.') + 1));
+}
 
 function sourceUrls(r: Rec): string[] {
   return Array.isArray(r.source) ? r.source.map((s) => asRec(s)?.url).filter((u): u is string => typeof u === 'string') : [];
@@ -35,7 +42,18 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   if (verified && r.reviewerType === 'AI_DRAFT') {
     out.error('V01', key, id, 'reviewStatus', 'AI_DRAFT 는 VERIFIED 가 될 수 없다(불변식 7)');
   }
+  // V09(보안 79 H-1) — 검수 방식은 VERIFIED 행에만, VERIFIED 는 반드시. 누락 키는 S04 가 보고.
+  if (has(r, 'reviewBasis')) {
+    if (!verified && r.reviewBasis !== null) out.error('V09', key, id, 'reviewBasis', `비VERIFIED(${String(r.reviewStatus)}) 행의 reviewBasis 는 null`);
+    if (verified && !isReviewBasis(r.reviewBasis)) out.error('V09', key, id, 'reviewBasis', `VERIFIED 는 reviewBasis ${REVIEW_BASES.join('/')} 필요 (현재 ${String(r.reviewBasis)})`);
+  }
   if (!verified) return;
+
+  // V10 — 행별 출처 확인이 근거인 행(상품·최소 규격)은 ROW_CHECKED 만(일괄 승인 불가, Kenny 2026-10-24 H-1).
+  const need = requiredBasis(key, r);
+  if (need && isReviewBasis(r.reviewBasis) && r.reviewBasis !== need) {
+    out.error('V10', key, id, 'reviewBasis', `${key === 'curatedProducts' ? '상품' : '최소 규격 행'}은 ${need} 만 (현재 ${r.reviewBasis}) — 일괄 승인 불가`);
+  }
 
   // V02
   if (!isNonEmptyStr(r.verifiedBy)) out.error('V02', key, id, 'verifiedBy', 'VERIFIED 는 verifiedBy 필요');
@@ -57,6 +75,10 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
       // M6: registrable domain 기준(서브도메인·후행 점·대소문자·IDN 우회 차단). 판정 불가(IP·localhost 등)는 세지 않는다.
       const domains = new Set(urls.map(registrableDomainOfUrl).filter((h): h is string => h !== null));
       if (domains.size < g.minSources) out.error('V04', key, id, 'source', `${kind} 는 서로 다른 기관 도메인(registrable domain)의 출처 ${g.minSources}개 이상 (현재 ${domains.size})`);
+      // V08(QA 72 G-3): 국내 출처 1개 이상. 시드 source 형식(PRD 부록 B: url·title·accessedAt)에 국가 메타가 없으므로
+      //   registrable domain 의 국가 최상위 도메인(.kr·.한국)으로만 판정한다(.com 국내 기관은 세지 않음 — fail-closed).
+      //   '수의(veterinary)' 여부는 기계 판정 불가 — 검수자 확인(패킷 0-4).
+      if (![...domains].some(isDomesticDomain)) out.error('V08', key, id, 'source', `${kind} 는 국내 출처(.kr·.한국 도메인) 1개 이상 (현재 0)`);
     }
   }
 

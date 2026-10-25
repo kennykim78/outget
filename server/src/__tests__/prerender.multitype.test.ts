@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SeedBundle } from '../engine/index.js';
+import { decodeWsPage, type SeedBundle } from '../engine/index.js';
 import { buildSite, type BuiltPage, type SiteBuild } from '../prerender/site.js';
-import { FIXTURE_AS_OF, SECOND, V, promotedTwo, realSeed } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, SECOND, V, dwarfSigned, promotedTwo, realSeed } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = readFileSync(join(here, '..', '..', '..', 'client', 'index.html'), 'utf8');
@@ -26,7 +26,10 @@ interface WsDoc {
 function wsDataOf(html: string): WsDoc {
   const m = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
   if (!m) throw new Error('ws-data 없음');
-  return JSON.parse(m[1]) as WsDoc;
+  // 와이어(v2) → 메모리(v1) — 클라이언트 readPageData 와 같은 디코더(engine/ws-wire). 거부(null)면 실패.
+  const d = decodeWsPage(JSON.parse(m[1]));
+  if (!d) throw new Error('ws-data 디코드 거부');
+  return d as unknown as WsDoc;
 }
 const pageAt = (b: SiteBuild, path: string): BuiltPage => {
   const p = b.pages.find((x) => x.route.path === path);
@@ -196,13 +199,19 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
     expect(fam.html).toContain('<title>햄스터');
   });
 
-  it('2) PLANNED 드워프: 이름·별칭이 HTML·ws-data 에 0, 시드 행은 비검수(불변식 7)', () => {
-    const row = realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf');
+  it('2) PLANNED 드워프: 이름·별칭·한 줄 소개가 HTML·ws-data 에 0 — R7-B 시드 행은 VERIFIED(메모리 서명)여도 PLANNED(게이트 G 전)라 비노출', () => {
+    // 디스크는 Kenny 확인표 수령 전 DRAFT(보안 79 H-1 환원) — 서명된 상태(dwarfSigned, 메모리)에서도 PLANNED 면 0 임을 고정.
+    const signed = dwarfSigned();
+    const row = signed.animalTypes.find((t) => t.id === 'hamster-dwarf');
     expect(row?.status).toBe('PLANNED');
-    expect(row?.reviewStatus).not.toBe('VERIFIED');
-    expect(row?.reviewerType).toBe('AI_DRAFT');
-    const ws = JSON.stringify(wsDataOf(fam.html));
-    for (const w of ['드워프', '정글리안', '윈터화이트', '캠벨', '드햄', 'hamster-dwarf', 'hamster/dwarf', '정글리안햄스터', '캠벨햄스터', 'Phodopus', 'phodopus-sungorus', 'phodopus-campbelli', 'cp-hamster-dwarf']) {
+    expect(row?.reviewStatus).toBe('VERIFIED');
+    expect(row?.reviewerType).toBe('EXPERIENCED_KEEPER');
+    expect(realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf')?.reviewStatus).toBe('DRAFT');
+    const famSigned = pageAt(build(promotedTwo({ base: signed })), '/hamster');
+    const ws = JSON.stringify(wsDataOf(famSigned.html));
+    expect(fam.html.length).toBeGreaterThan(0);
+    for (const w of ['드워프', '정글리안', '윈터화이트', '캠벨', '드햄', 'hamster-dwarf', 'hamster/dwarf', '정글리안햄스터', '캠벨햄스터', 'Phodopus', 'phodopus-sungorus', 'phodopus-campbelli', 'cp-hamster-dwarf', '단독 사육 기본', 'req-dwarf-', 'sb-dwarf-', 'cp-dw-', 'cr-dwarf-', 'kenny']) {
+      expect(famSigned.html, w).not.toContain(w);
       expect(fam.html, w).not.toContain(w);
       expect(ws, w).not.toContain(w);
     }

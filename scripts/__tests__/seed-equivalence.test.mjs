@@ -62,3 +62,19 @@ test('인수 오류는 exit 2', () => {
   const r = spawnSync(process.execPath, [SCRIPT, '--bogus'], { encoding: 'utf8' });
   assert.equal(r.status, 2);
 });
+
+test('서명 매니페스트 review-signatures.json: 정본·사본 통째로 같으면 0, 다르면 1(행 사실 비교 대신 전체 비교)', () => {
+  const e = { file: 'supply-items.json', id: 'x', basis: 'ROW_CHECKED', signedBy: 'kenny', signedAt: '2026-10-01', factHash: 'a'.repeat(64) };
+  const f = fixture([row()], [row()]);
+  try {
+    writeFileSync(join(f.seed, 'review-signatures.json'), JSON.stringify([e]));
+    writeFileSync(join(f.draft, 'review-signatures.json'), JSON.stringify([e]));
+    assert.equal(run(f).status, 0);
+    writeFileSync(join(f.draft, 'review-signatures.json'), JSON.stringify([{ ...e, signedAt: '2026-10-02' }]));
+    const r = run(f);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /review-signatures\.json: 서명 매니페스트가 정본과 사본이 다름/);
+    rmSync(join(f.draft, 'review-signatures.json'));
+    assert.equal(run(f).status, 1);
+  } finally { rmSync(f.dir, { recursive: true, force: true }); }
+});

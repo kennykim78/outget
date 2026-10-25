@@ -195,3 +195,17 @@ test('인수 오류(--base 누락, 옵션처럼 보이는 ref, 알 수 없는 �
     assert.equal(run(dir, '--base', '--upload-pack=x').code, 2);
     assert.equal(run(dir, '--base', 'HEAD', '--bogus').code, 2);
   }));
+
+test('서명 매니페스트 review-signatures.json 은 전이 검사 밖(항목 id 가 파일 간 겹쳐도 중복 id FAIL 아님)', () =>
+  withRepo((dir) => {
+    writeSeed(dir, 'taxa.json', [row({ reviewerType: 'AI_DRAFT' })]);
+    writeSeed(dir, 'review-signatures.json', []);
+    commit(dir);
+    const h = 'a'.repeat(64);
+    writeSeed(dir, 'review-signatures.json', [
+      { file: 'supply-items.json', id: 'x', basis: 'ROW_CHECKED', signedBy: 'kenny', signedAt: '2026-10-01', factHash: h },
+      { file: 'setup-bundles.json', id: 'x', basis: 'AI_RESEARCH_BULK', signedBy: 'kenny', signedAt: '2026-10-01', factHash: h },
+    ]);
+    const r = run(dir, '--base', 'HEAD');
+    assert.equal(r.code, 0, r.out);
+  }));

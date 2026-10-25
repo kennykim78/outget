@@ -12,7 +12,7 @@
 //
 // exit: 0 = FAIL 0건(WARN 은 무관) · 1 = FAIL ≥1 · 2 = 설정 오류(인수, 금지어 단일 소스 없음·형식 오류)
 //
-// 규칙: C1-FETCH C1-LIB C1-SDK C1-SEEDURL · C2-TRADE C2-PRICE · C3-QUERY C3-GUARDTEST C3-OUT-ID C3-OUT-ROUTE ·
+// 규칙: C1-FETCH C1-LIB C1-SDK C1-SEEDURL · C2-TRADE C2-PRICE · C3-QUERY C3-GUARDTEST C3-OUT-ID C3-OUT-ROUTE C3-OUT-SRC C3-OUT-TAXON C3-OUT-DRAFTSRC C3-OUT-REVIEWMETA C3-TAXON ·
 //       C4-BANNED C4-CODE(R4 FAIL) C4-STEM(R6: 산출물·VERIFIED/APPROVED 시드 FAIL, DRAFT 시드 WARN) · C5-GEO(+R5 위치 API 0) · C6-IMG · C7-SECRET · C8-OUT-SAFE C8-SRC-SAFE ·
 //       C9-STORAGE(웹 저장소 lib/storage.ts 만·document.cookie 0) C9-COOKIE(서버 쿠키 발급 2파일) · C0-SEED C0-OUTPUT
 import { existsSync } from 'node:fs';
@@ -22,7 +22,7 @@ import { isDir } from './lib/files.mjs';
 import { seoulToday } from './lib/dates.mjs';
 import { ConfigError, loadBannedWords } from './lib/normalize.mjs';
 import { scanSources } from './lib/rules-source.mjs';
-import { scanOutputs } from './lib/rules-output.mjs';
+import { scanOutputs, scanSeedExposure } from './lib/rules-output.mjs';
 import { computeExposure, dayNumber, readSeed, seedDigest } from './lib/seed-exposure.mjs';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -81,7 +81,8 @@ function main() {
   const { seed } = readSeed(seedDir);
   const ex = computeExposure(seed, opts.now);
   const digest = existsSync(seedDir) ? seedDigest(seedDir) : null;
-  const outputs = scanOutputs({ root: opts.root, dist: opts.prerender, ex, digest, bw, add, requireOutput: opts.requireOutput });
+  scanSeedExposure({ ex, add });
+  const outputs = scanOutputs({ root: opts.root, dist: opts.prerender, ex, digest, bw, add, requireOutput: opts.requireOutput, seed });
   if (outputs === 'NOT RUN') notes.push('산출물 규칙(C3-OUT-*, C4 산출물, C6 산출물, C8): NOT RUN — prerender-manifest.json 없음');
 
   const order = { FAIL: 0, WARN: 1 };

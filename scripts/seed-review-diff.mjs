@@ -19,6 +19,8 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SEED_DIR = 'server/seed';
+// 서명 매니페스트(보안 79 H-1)는 콘텐츠 행 파일이 아니다(항목 id 가 파일 간 겹칠 수 있음) — 전이 검사 대상 밖, seed:validate G01~G06 이 검사.
+const SIGNATURE_FILE = 'review-signatures.json';
 const AI_HANDLE = /\b(ai|gpt|claude|bot|llm)\b/i;
 const REF_SAFE = /^[A-Za-z0-9._\/~^@{}:+-]+$/;
 
@@ -77,7 +79,7 @@ function listFilesAtCommit(cwd, sha) {
     .map((s) => s.trim())
     .filter((p) => p.endsWith('.json'))
     .map((p) => p.slice(SEED_DIR.length + 1))
-    .filter((f) => f && !f.includes('/'));
+    .filter((f) => f && !f.includes('/') && f !== SIGNATURE_FILE);
 }
 
 function listFilesWorktree(root) {
@@ -85,7 +87,8 @@ function listFilesWorktree(root) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isFile() && d.name.endsWith('.json'))
-    .map((d) => d.name);
+    .map((d) => d.name)
+    .filter((f) => f !== SIGNATURE_FILE);
 }
 
 function readAtCommit(cwd, sha, file) {

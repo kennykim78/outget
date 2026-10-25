@@ -67,7 +67,7 @@ describe('seedDigest — lane E 구현과 동일', () => {
     expect(seedDigest(SEED_DIR)).toMatch(/^[0-9a-f]{64}$/);
     expect(seedDigest(SEED_DIR)).toBe(mod.seedDigest(SEED_DIR));
     const d = tmp('seed');
-    writeSeedDir(d, promoted());
+    writeSeedDir(d, promoted({ publishable: true }));
     writeFileSync(join(d, 'taxa.json'), `\uFEFF${readFileSync(join(d, 'taxa.json'), 'utf8').replace(/\n/g, '\r\n')}`); // BOM·CRLF
     expect(seedDigest(d)).toBe(mod.seedDigest(d));
     expect(seedDigest(d)).not.toBe(seedDigest(SEED_DIR));
@@ -112,7 +112,7 @@ describe('prerender CLI', () => {
   it('G-4: VITE_NAVER_MAP_CLIENT_ID 가 있으면 /vet layout=map, 키 값은 어떤 산출물에도 0 / 없으면 list', async () => {
     const KEY = 'ncpKeyValueShouldNeverLeak42';
     const seedDir = tmp('seed');
-    writeSeedDir(seedDir, promoted());
+    writeSeedDir(seedDir, promoted({ publishable: true }));
     const on = outDir();
     expect((await run(['--out', on, '--seed-dir', seedDir], { VITE_NAVER_MAP_CLIENT_ID: KEY })).code).toBe(0);
     expect(readFileSync(join(on, 'vet', 'index.html'), 'utf8')).toContain('data-ws-vet-layout="map"');
@@ -126,10 +126,10 @@ describe('prerender CLI', () => {
   it('승격 시드 → types 1, 이어서 실시드로 재실행하면 이전 타입 페이지가 남지 않는다', async () => {
     const out = outDir();
     const seedDir = tmp('seed');
-    writeSeedDir(seedDir, promoted());
+    writeSeedDir(seedDir, promoted({ publishable: true }));
     const r = await run(['--out', out, '--seed-dir', seedDir]);
     expect(r.err).toEqual([]);
-    expect(r.out).toEqual(['prerender — pages 19 (+404), indexable 14, types 1']);
+    expect(r.out).toEqual(['prerender — pages 35 (+404), indexable 26, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
     expect(existsSync(join(out, 'hamster', 'golden', 'supplies', 'cage', 'index.html'))).toBe(true);
     expect(existsSync(join(out, 'vet', '서울-마포구', 'index.html'))).toBe(true);
     const r2 = await run(['--out', out]);
@@ -143,11 +143,11 @@ describe('prerender CLI', () => {
   // M-1(R4 A1): --now 가 노출 기준일 — verifiedAt + 180 노출, + 181 강등. 기준일은 산출물에 쓰지 않는다.
   it('--now 는 노출 기준일: verifiedAt+180 → types 1, +181 → types 0(타입 페이지 없음), 산출물에 날짜 없음', async () => {
     const seedDir = tmp('seed');
-    writeSeedDir(seedDir, promoted());
+    writeSeedDir(seedDir, promoted({ publishable: true }));
     const fresh = outDir();
     const r1 = await run(['--out', fresh, '--seed-dir', seedDir, '--now', FIXTURE_LAST_FRESH]);
     expect(r1.err).toEqual([]);
-    expect(r1.out).toEqual(['prerender — pages 19 (+404), indexable 14, types 1']);
+    expect(r1.out).toEqual(['prerender — pages 35 (+404), indexable 26, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
     const stale = outDir();
     const r2 = await run(['--out', stale, '--seed-dir', seedDir, '--now', FIXTURE_FIRST_STALE]);
     expect(r2.err).toEqual([]);
@@ -164,7 +164,7 @@ describe('prerender CLI', () => {
 
   it('--now 없으면 io.today() 가 노출 기준일(고정 값 주입 — 실시계 아님)', async () => {
     const seedDir = tmp('seed');
-    writeSeedDir(seedDir, promoted());
+    writeSeedDir(seedDir, promoted({ publishable: true }));
     const r = await run(['--out', outDir(), '--seed-dir', seedDir], {}, () => FIXTURE_FIRST_STALE);
     expect(r.code).toBe(0);
     expect(r.out[0]).toMatch(/types 0$/);
@@ -175,7 +175,7 @@ describe('prerender CLI', () => {
   it('시드 오류 → exit 1, 아무것도 쓰지 않음(D20)', async () => {
     const out = outDir();
     const seedDir = tmp('seed');
-    const s = promoted();
+    const s = promoted({ publishable: true });
     patch(s, 'curatedProducts', 'cp-001', { reviewerType: 'AI_DRAFT' }); // VERIFIED ∧ AI_DRAFT → V01
     writeSeedDir(seedDir, s);
     const r = await run(['--out', out, '--seed-dir', seedDir]);
@@ -188,7 +188,7 @@ describe('prerender CLI', () => {
     const out = outDir();
     const pub = tmp('pub');
     const seedDir = tmp('seed');
-    const s = promoted();
+    const s = promoted({ publishable: true });
     patch(s, 'curatedProducts', 'cp-001', { imageAsset: '/assets/products/cp-001.webp', imageLicense: 'OWN_PHOTO' });
     writeSeedDir(seedDir, s);
     const r = await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub]);

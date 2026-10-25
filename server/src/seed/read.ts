@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SeedBundle } from '../engine/types.js';
 import { asSeedBundle, Collector, SEED_FILES, SEED_KEYS, type Issue, type RawSeed } from './common.js';
+import { SIGNATURE_FILE, type SignatureInput } from './signatures.js';
 
 export { asSeedBundle };
 
@@ -10,6 +11,8 @@ export interface SeedReadResult {
   raw: RawSeed;
   /** S01: 파싱 실패·배열 아님(누락 파일은 validateSeed 가 S01 로 보고). */
   issues: Issue[];
+  /** 서명 매니페스트(review-signatures.json). 없음 = { missing: true } → validateSeed G01. 파싱 실패는 issues(G01). */
+  signatures: SignatureInput;
 }
 
 export function readSeedDirRaw(dir: string): SeedReadResult {
@@ -32,7 +35,18 @@ export function readSeedDirRaw(dir: string): SeedReadResult {
     }
     raw[key] = parsed;
   }
-  return { raw, issues: out.issues };
+  let signatures: SignatureInput = { missing: true };
+  const sigPath = join(dir, SIGNATURE_FILE);
+  if (existsSync(sigPath)) {
+    try {
+      const text = readFileSync(sigPath, 'utf8');
+      signatures = { missing: false, data: JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) };
+    } catch (e) {
+      out.error('G01', null, null, SIGNATURE_FILE, `JSON 파싱 실패: ${(e as Error).message}`);
+      signatures = { missing: false, data: [] };
+    }
+  }
+  return { raw, issues: out.issues, signatures };
 }
 
 /** 계획 §B 시그니처: 읽기 실패·누락이 있으면 throw. 내용 검증은 하지 않는다(validateSeed 사용). */

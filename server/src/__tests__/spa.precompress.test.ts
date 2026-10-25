@@ -31,7 +31,7 @@ async function buildDist(): Promise<string> {
   const out = tmp('dist');
   writeFileSync(join(out, 'index.html'), TEMPLATE);
   const seedDir = tmp('seed');
-  writeSeedDir(seedDir, promoted());
+  writeSeedDir(seedDir, promoted({ publishable: true }));
   const err: string[] = [];
   const code = await runPrerenderCli(['--out', out, '--public-dir', tmp('pub'), '--now', FIXTURE_AS_OF, '--seed-dir', seedDir], {
     stdout: () => undefined,

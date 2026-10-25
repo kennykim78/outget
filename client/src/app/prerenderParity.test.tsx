@@ -11,6 +11,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { RouteKind } from '@ws/engine';
 import { layerStore } from '../ui/layer/useLayer';
 import { boot } from './boot';
+import { readPageData } from './pageData';
 
 interface BuiltPageLite {
   route: { path: string; kind: RouteKind };
@@ -45,11 +46,13 @@ async function serverModule<T>(rel: string): Promise<T> {
 const TEMPLATE = '<!doctype html><html><head><!--ws:head--></head><body><div id="root"><!--ws:body--></div></body></html>';
 
 let site: SiteLite;
+// 73 S5: 드워프 미리보기(PLANNED→ACTIVE 픽스처, 와이어 v2 최대 쪽 포함) — 같은 템플릿·마스코트, 고정 asOf.
+let dwarfSite: SiteLite;
 
 beforeAll(async () => {
   const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
   const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
-  const fx = await serverModule<{ promoted: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+  const fx = await serverModule<{ promoted: () => unknown; dwarfPreview: () => unknown; FIXTURE_AS_OF: string; DWARF_PREVIEW_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
   const mascots = mascotMod.loadMascots(repoPath('docs/design/mascots'));
   // 경로가 틀리면 loadMascots 는 예외 없이 빈 맵 — 하네스 결함을 제품 차이로 오인하지 않게 먼저 막는다.
   expect(mascots.has('group-small-mammal')).toBe(true);
@@ -59,6 +62,13 @@ beforeAll(async () => {
     origin: 'http://localhost:3001',
     seedDigest: 'a'.repeat(64),
     asOf: fx.FIXTURE_AS_OF,
+    mascots,
+  });
+  dwarfSite = siteMod.buildSite(fx.dwarfPreview(), {
+    template: TEMPLATE,
+    origin: 'http://localhost:3001',
+    seedDigest: 'a'.repeat(64),
+    asOf: fx.DWARF_PREVIEW_AS_OF,
     mascots,
   });
 }, 30_000);
@@ -164,8 +174,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function pageAt(path: string): BuiltPageLite {
-  const p = site.pages.find((x) => x.route.path === path);
+function pageAt(path: string, from: SiteLite = site): BuiltPageLite {
+  const p = from.pages.find((x) => x.route.path === path);
   if (!p) throw new Error(`no prerendered page ${path}`);
   return p;
 }
@@ -240,11 +250,26 @@ function unexplained(kind: RouteKind, d: readonly string[]): string[] {
   });
 }
 
+// 73 S5: 드워프 — 홈B·용품 레이어(L4)·규격 확인(L5)·상품(L7) 정적 경로(경로는 dwarfPreview 산출에서 확인).
+const DWARF_CASES: Array<[RouteKind, string]> = [
+  ['TYPE', '/hamster/dwarf'],
+  ['TYPE', '/hamster/dwarf/supplies/cage'],
+  ['TYPE', '/hamster/dwarf/check/cage'],
+  ['TYPE', '/hamster/dwarf/products/cp-dw-001'],
+  ['TYPE', '/hamster/dwarf/supplies/sand-bath-box'],
+];
+
 describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
-  it.each(CASES)('%s %s: 골격 동일(허용 목록 외 차이 0)', (kind, path) => {
-    const p = pageAt(path);
+  it.each([
+    ...CASES.map(([k, p]) => [k, p, 'promoted'] as const),
+    ...DWARF_CASES.map(([k, p]) => [k, p, 'dwarf'] as const),
+  ])('%s %s (%s): 골격 동일(허용 목록 외 차이 0)', (kind, path, which) => {
+    const p = pageAt(path, which === 'dwarf' ? dwarfSite : site);
     expect(p.route.kind).toBe(kind);
     loadStatic(p);
+    // 73 S3·S5: 프리렌더는 와이어 v2 를 싣고, 클라 디코드가 받아들인다(fail-closed 폴백으로 빠져 '같은 빈 골격'이 되는 위양성 차단).
+    expect((JSON.parse(document.getElementById('ws-data')?.textContent ?? 'null') as { v?: unknown } | null)?.v).toBe(2);
+    expect(readPageData(document)?.route.path).toBe(path);
     const before = skel(mainEl());
     const beforeTokens = classTokens(mainEl());
     hydrate(p);

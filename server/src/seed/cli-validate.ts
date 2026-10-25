@@ -64,8 +64,8 @@ export async function runValidateCli(argv: readonly string[], io: CliIo): Promis
     return 2;
   }
   const now = args.now ?? io.today();
-  const { raw, issues: readIssues } = readSeedDirRaw(args.dir);
-  const res = validateSeed(raw, { now, strict: args.strict });
+  const { raw, issues: readIssues, signatures } = readSeedDirRaw(args.dir);
+  const res = validateSeed(raw, { now, strict: args.strict, signatures });
   const errors = [...readIssues, ...res.errors];
   const warnings = res.warnings;
 

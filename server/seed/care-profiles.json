@@ -34,6 +34,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": [
       {
@@ -55,13 +56,88 @@
       "phodopus-sungorus",
       "phodopus-campbelli"
     ],
-    "facts": {},
-    "careNotes": [],
+    "facts": {
+      "social": "SOLITARY",
+      "activity": "NOCTURNAL",
+      "adultLengthCm": [
+        7,
+        10
+      ],
+      "tempC": [
+        18,
+        24
+      ],
+      "humidityPct": [
+        40,
+        60
+      ],
+      "lifespanYears": [
+        1.5,
+        2
+      ]
+    },
+    "careNotes": [
+      "1마리 단독 사육을 기본으로 한다. 어릴 때부터 함께 자란 형제는 함께 지내기도 하지만 나중에 싸울 수 있어 따로 지낼 케이지를 미리 준비해 둔다.",
+      "주로 밤에 활동하고 낮에는 잔다. 몸이 작고 쉽게 놀라 손에 잡히면 물 수 있으니 처음에는 짧게 다룬다.",
+      "외풍과 직사광선이 없고 온도 변화가 적은 실내에 둔다. 더우면 피할 곳이 없어 열사병이 올 수 있으니 여름에는 시원한 자리로 옮기고, 기운이 없어 보이면 병원에 문의한다."
+    ],
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
-    "source": []
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=Kopie_von_Zwerghamster_271124.pdf&did=43",
+        "title": "TVT Merkblatt Nr. 162 – Heimtiere: Zwerghamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://lafeber.com/vet/basic-information-for-hamsters/",
+        "title": "LafeberVet — Basic Information Sheet: Hamster (Pollock, DVM)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/multimedia/table/hamster-breeds-commonly-kept-as-pets",
+        "title": "MSD — Table: Hamster Breeds Commonly Kept as Pets",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/description-and-physical-characteristics-of-hamsters",
+        "title": "MSD — Table: Hamster Breeds Commonly Kept as Pets (같은 표가 있는 본문)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/company",
+        "title": "RSPCA — Keeping Hamsters Together",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-hamster",
+        "title": "PDSA — The ideal home for your hamster",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Phodopus_campbelli/",
+        "title": "Animal Diversity Web — Phodopus campbelli",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://zenodo.org/record/6706432",
+        "title": "Handbook of the Mammals of the World Vol.7 — Phodopus sungorus (Zenodo 사본)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/rodents-owning",
+        "title": "VCA — Rodents - Owning (Rich DVM, Axelson DVM)",
+        "accessedAt": "2026-10-24"
+      }
+    ]
   }
 ]

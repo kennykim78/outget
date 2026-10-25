@@ -11,7 +11,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-01';
+const NOW = '2026-10-24';
 
 const loaded = readSeedDirRaw(SEED_DIR);
 const BASE: RawSeed = loaded.raw;
@@ -44,6 +44,7 @@ function verify(r: Rec, reviewerType = 'EXPERIENCED_KEEPER'): void {
   r.reviewerType = reviewerType;
   r.verifiedBy = 'keeper-handle';
   r.verifiedAt = '2026-09-30';
+  r.reviewBasis = 'ROW_CHECKED';
 }
 
 /** 주입용 정상 출처 1건(V04 동반 오류를 막는다). */
@@ -84,12 +85,15 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 14 = W-EXPOSURE-ZERO 1 · L03 9(caution 7 + 번들 note 단위 2) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 17 = W-EXPOSURE-ZERO 1 · L03 12(caution 7 + 번들 note 단위 2 + R7-B 드워프 3) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 9, L05: 4 });
-    expect(res.warnings).toHaveLength(14);
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 12, L05: 4 });
+    expect(res.warnings).toHaveLength(17);
+    // R7-B 드워프 L03 3건 = 패킷 문장 그대로(값 변경 0): Taxon legal.note 2(DRAFT 초안 '제3조' 등) · req-dwarf-hideout why '3곳'(v0.2 5-8 서명).
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'taxa.json' && i.path === 'legal.note').map((i) => i.id).sort()).toEqual(['phodopus-campbelli', 'phodopus-sungorus']);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-hideout' && i.path === 'why')).toHaveLength(1);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(7);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(2);
   });
@@ -264,17 +268,36 @@ const CASES: Case[] = [
     rule: 'V02',
     inject: (s) => { const r = row(s, 'supplyItems', 'cage'); verify(r); r.verifiedBy = null; },
   },
-  { name: 'V03 FOOD 를 EXPERIENCED_KEEPER 가 검수', rule: 'V03', inject: (s) => { verify(row(s, 'supplyRequirements', 'req-syrian-food')); } },
+  { name: 'V03 FOOD 를 EXPERIENCED_KEEPER 가 검수', rule: 'V03', also: ['V08'] /* 디스크 출처는 국외 3건 */, inject: (s) => { verify(row(s, 'supplyRequirements', 'req-syrian-food')); } },
   { name: 'V03 LEGAL 은 OFFICIAL_SOURCE', rule: 'V03', inject: (s) => { verify(row(s, 'taxa', 'mesocricetus-auratus'), 'VET'); } },
   {
     name: 'V04 FOOD 출처 같은 호스트 2개',
     rule: 'V04',
+    also: ['V08'], // 국외 도메인뿐
     inject: (s) => {
       const r = row(s, 'supplyRequirements', 'req-syrian-food');
       verify(r, 'VET_PUBLISHED_SOURCE');
       r.source = [
         { url: 'https://www.rspca.org.uk/a', title: 'a', accessedAt: '2026-09-30' },
         { url: 'https://rspca.org.uk/b', title: 'b', accessedAt: '2026-09-30' },
+      ];
+    },
+  },
+  {
+    name: 'V08 FOOD VERIFIED 서로 다른 도메인 2개지만 국내(.kr) 0',
+    rule: 'V08',
+    inject: (s) => { verify(row(s, 'supplyRequirements', 'req-syrian-food'), 'VET_PUBLISHED_SOURCE'); },
+  },
+  {
+    name: 'V08 HEALTH VERIFIED — .kr 처럼 보이는 경로·서브도메인 우회(kr.example.com, example.com/kr)는 국내로 세지 않음',
+    rule: 'V08',
+    inject: (s) => {
+      const r = row(s, 'supplyRequirements', 'req-syrian-scale');
+      r.contentKind = 'HEALTH';
+      verify(r, 'VET_PUBLISHED_SOURCE');
+      r.source = [
+        { url: 'https://kr.example.com/a', title: 'a', accessedAt: '2026-09-30' },
+        { url: 'https://example.org/kr', title: 'b', accessedAt: '2026-09-30' },
       ];
     },
   },
@@ -472,6 +495,10 @@ describe('seed:validate — 규칙별 주입', () => {
     if (opts.animalType) verify(row(s, 'animalTypes', 'hamster-golden'));
     // K-4(R7 A6): 타입 노출은 Taxon(LEGAL) 검수도 요구 — LEGAL 정확 등급 OFFICIAL_SOURCE(V03). 사실값은 디스크 그대로.
     if (opts.animalType) verify(row(s, 'taxa', 'mesocricetus-auratus'), 'OFFICIAL_SOURCE');
+    // X01(K-B4): cage 만 승격하므로 나머지 골든 REQUIRED 는 메모리에서 RECOMMENDED 로(비노출 행 — 노출 요약 불변).
+    for (const r of s.supplyRequirements as Rec[]) {
+      if (r.careProfileId === 'cp-hamster-syrian' && r.priority === 'REQUIRED' && r.id !== 'req-syrian-cage') r.priority = 'RECOMMENDED';
+    }
     const p = row(s, 'curatedProducts', 'cp-004');
     Object.assign(p, {
       status: 'ACTIVE',
@@ -488,7 +515,12 @@ describe('seed:validate — 규칙별 주입', () => {
     const s = fresh();
     promoteGoldenChain(s, { animalType: true });
     const res = validateSeed(s, { now: NOW, strict: true });
-    expect(res.errors).toEqual([]);
+    // 보안 79 M-1: cage 만 노출하는 부분 체인은 코드 고정 필수 항목(cage·food·water·bedding·hideout·wheel) 나머지 5개가 X01.
+    //   X01 외 오류 0 — 노출 요약(A6 회귀)은 X01 과 무관하게 같은 값.
+    expect(res.errors.filter((i) => i.rule !== 'X01')).toEqual([]);
+    expect(res.errors.filter((i) => i.rule === 'X01').map((i) => i.path).sort()).toEqual(
+      ['requirements.bedding', 'requirements.food', 'requirements.hideout', 'requirements.water', 'requirements.wheel'],
+    );
     expect(res.summary.requirements).toBe(1);
     expect(res.summary.types).toBe(1);
     expect(res.summary.products).toBe(1);
@@ -514,7 +546,7 @@ describe('seed:validate — 규칙별 주입', () => {
     const s = fresh();
     promoteGoldenChain(s, { animalType: true });
     const res = validateSeed(s, { now: NOW });
-    expect(res.errors).toEqual([]);
+    expect(res.errors.filter((i) => i.rule !== 'X01')).toEqual([]); // X01 = 부분 체인(위 A6 회귀 참고)
     const cage = row(s, 'supplyItems', 'cage') as { specSchema: { fields: Array<Record<string, unknown>> } };
     const typeField = cage.specSchema.fields.find((f) => f.key === 'type') as { optionLabels: Record<string, string> };
     delete typeField.optionLabels.WIRE;

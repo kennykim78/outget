@@ -67,6 +67,7 @@ describe('engine purity', () => {
         'spec-check.ts',
         'spec-text.ts',
         'types.ts',
+        'ws-wire.ts',
       ].sort(),
     );
   });

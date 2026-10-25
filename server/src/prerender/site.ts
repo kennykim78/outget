@@ -1,7 +1,7 @@
 // 사이트 빌드(메모리) — 시드 묶음 + client/dist/index.html 템플릿 → 파일 목록. 디스크 쓰기는 F3 cli.ts.
 //   결정론: 같은 입력이면 같은 바이트(빌드 시각·난수 없음, D19). seedDigest 는 호출부가 계산해 넘긴다(lane E 계약).
 import { createHash } from 'node:crypto';
-import type { PublicCatalog, RouteKind, SeedBundle, WsLayer, WsPageData } from '../engine/index.js';
+import { encodeWsPage, type PublicCatalog, type RouteKind, type SeedBundle, type WsLayer, type WsPageData } from '../engine/index.js';
 import { jsonForScript } from './html.js';
 import { projectSite, type SiteModel } from './project.js';
 import { planRoutes, type RoutePlan } from './routes.js';
@@ -27,6 +27,11 @@ export interface BuildSiteOptions {
   mascots?: ReadonlyMap<string, string>;
   /** /vet 지도 레이아웃 예약(G-4): 빌드 시 지도 키가 "있는지"만. 키 값은 받지도 싣지도 않는다. 기본 false(목록 전용). */
   vetMap?: boolean;
+  /**
+   * ws-data 와이어 버전(기본 2 = engine/ws-wire encodeWsPage — searchLinks 제거·출처 표). 1 = 메모리 객체 그대로(구 형식).
+   *   1 은 구·신 빌드 대조 테스트와 긴급 롤백용 — ws-data 밖 HTML 바이트는 두 값에서 같다.
+   */
+  wsDataWire?: 1 | 2;
 }
 
 export interface ManifestRoute {
@@ -53,7 +58,7 @@ export interface BuiltPage {
   route: RoutePlan;
   html: string;
   data: WsPageData;
-  /** ws-data JSON 바이트 수(F3 가 ≤ 32KB 단언). */
+  /** HTML 에 실린 ws-data JSON(와이어, 기본 v2) 바이트 수(F3 가 ≤ 32KB 단언). data 는 메모리(v1) 객체. */
   wsDataBytes: number;
 }
 
@@ -132,7 +137,7 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   const files = new Map<string, string>();
   const pages: BuiltPage[] = routes.map((route) => {
     const p = render(model, { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true });
-    const json = jsonForScript(p.data);
+    const json = jsonForScript(opts.wsDataWire === 1 ? p.data : encodeWsPage(p.data));
     const html = injectTemplate(opts.template, {
       head: templateHasColorScheme ? p.head.replace(`${COLOR_SCHEME_META}\n`, '') : p.head,
       body: p.body,

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { SeedBundle } from '../engine/index.js';
-import { WS_DATA_KEYS } from '../engine/index.js';
+import { WS_DATA_KEYS, decodeWsPage } from '../engine/index.js';
 import { SEED_FILES } from '../seed/common.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { loadMascots, sanitizeMascotSvg } from '../prerender/mascot.js';
@@ -39,7 +39,10 @@ function wsDataOf(html: string): Record<string, unknown> {
   const m = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
   if (!m) throw new Error('ws-data 없음');
   expect(m[1].includes('</')).toBe(false);
-  return JSON.parse(m[1]) as Record<string, unknown>;
+  // 와이어(v2) → 메모리(v1) — 클라이언트 readPageData 와 같은 디코더(engine/ws-wire). 거부(null)면 실패.
+  const d = decodeWsPage(JSON.parse(m[1]));
+  if (!d) throw new Error('ws-data 디코드 거부');
+  return d as unknown as Record<string, unknown>;
 }
 
 const rawOf = (seed: SeedBundle): Record<string, unknown[]> =>
@@ -267,7 +270,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
   it('PublicProduct.verdict 는 orderExposableProducts 결과(OK)', () => {
     const d = wsDataOf(page('/hamster/golden')) as { data: { products: Row[] } };
     expect(d.data.products).toEqual([
-      expect.objectContaining({ id: 'cp-001', verdict: 'OK', reasonCodes: ['SPEC_MET', 'PROFILE_MATCH'], specVerifiedAt: '2026-09-29' }),
+      expect.objectContaining({ id: 'cp-001', verdict: 'OK', reasonCodes: ['SPEC_MET', 'PROFILE_MATCH'], specVerifiedAt: '2026-09-30' }),
     ]);
   });
 

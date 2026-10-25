@@ -71,8 +71,8 @@ export async function runLoadCli(argv: readonly string[], io: LoadCliIo): Promis
     return 2;
   }
   const now = args.now ?? io.today();
-  const { raw, issues: readIssues } = readSeedDirRaw(args.dir);
-  const res = validateSeed(raw, { now, strict: false });
+  const { raw, issues: readIssues, signatures } = readSeedDirRaw(args.dir);
+  const res = validateSeed(raw, { now, strict: false, signatures });
   const errors = [...readIssues, ...res.errors];
   if (errors.length > 0) {
     for (const i of errors) io.stderr(formatIssue(i));

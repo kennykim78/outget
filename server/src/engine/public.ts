@@ -1,5 +1,8 @@
 // 공개 투영 타입(계획 §6-3) — 프리렌더 ws-data·공개 카탈로그와 클라이언트 하이드레이션이 공유하는 계약.
-//   노출 행만 담는다. 검수자 이름(verifiedBy)·운영 메모(note)·출처 접근일은 싣지 않는다.
+//   노출 행만 담는다. 검수자 이름(verifiedBy)·운영 메모(상품 note·병원 verification.note)는 어디에도 싣지 않는다
+//   (SetupBundle.note 는 운영 메모가 아니라 공개 설명 문구라 bundles[].note 로 싣는다).
+//   출처 접근일(source[].accessedAt): ws-data(PublicRequirement.source = {url,title})에는 없고, 공개 카탈로그(PublicCatalog —
+//   createCatalog 입력 형태, project.ts publicMeta 키 허용목록 url·title·accessedAt)에는 있다(보안 79 L-5).
 //   타입·상수만 있는 순수 모듈(값 계산은 server/src/prerender/project.ts).
 import type {
   AnimalGroup,

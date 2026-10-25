@@ -36,6 +36,7 @@ import {
 } from './common.js';
 import type { Ctx } from './context.js';
 import { isForbiddenKey } from '../shared/forbidden-keys.js';
+import { isReviewBasis, REVIEW_BASES } from './signatures.js';
 
 // ── 필드 타입 표(S03 타입 + S09 알려진 키의 단일 출처) ─────────
 // 'string' | 'string|null' | 'boolean' | 'boolean|null' | 'number|null' | 'array' | 'object' | 'any', 끝 '?' = 생략 가능.
@@ -46,6 +47,8 @@ export const META_FIELDS: Record<string, FieldSpec> = {
   reviewerType: 'any',
   verifiedBy: 'any',
   verifiedAt: 'any',
+  /** 검수 방식(보안 79 H-1, Kenny 2026-10-25): ROW_CHECKED | AI_RESEARCH_BULK | null(비VERIFIED). 시드 전용 메타 — DB·산출물에 없다. */
+  reviewBasis: 'any',
   contentKind: 'any',
   source: 'any',
 };
@@ -324,11 +327,14 @@ function checkSpecSchema(ctx: Ctx, id: string, r: Rec): void {
 
 // ── S04 부록 B ───────────────────────────────────────────────
 function checkMeta(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
-  for (const f of ['reviewStatus', 'reviewerType', 'verifiedBy', 'verifiedAt', 'contentKind', 'source']) {
+  for (const f of ['reviewStatus', 'reviewerType', 'verifiedBy', 'verifiedAt', 'reviewBasis', 'contentKind', 'source']) {
     if (!has(r, f)) ctx.out.error('S04', key, id, f, '부록 B 공통 필드 누락');
   }
   for (const [f, vals] of Object.entries(META_ENUMS)) {
     if (has(r, f) && !vals.includes(r[f] as string)) ctx.out.error('S03', key, id, f, `"${String(r[f])}" 는 ${vals.join('/')} 중 하나`);
+  }
+  if (has(r, 'reviewBasis') && r.reviewBasis !== null && !isReviewBasis(r.reviewBasis)) {
+    ctx.out.error('S03', key, id, 'reviewBasis', `"${String(r.reviewBasis)}" 는 ${REVIEW_BASES.join('/')}/null 중 하나`);
   }
   if (has(r, 'verifiedBy') && r.verifiedBy !== null && typeof r.verifiedBy !== 'string') ctx.out.error('S04', key, id, 'verifiedBy', 'string|null');
   if (has(r, 'verifiedAt') && r.verifiedAt !== null && typeof r.verifiedAt !== 'string') ctx.out.error('S04', key, id, 'verifiedAt', 'string|null');

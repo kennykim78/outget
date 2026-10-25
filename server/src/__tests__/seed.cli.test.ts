@@ -8,7 +8,7 @@ import { runValidateCli, type CliIo } from '../seed/cli-validate.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = ['--now', '2026-10-01'];
+const NOW = ['--now', '2026-10-24'];
 
 const temps: string[] = [];
 afterAll(() => {
@@ -37,7 +37,7 @@ function editJson(dir: string, file: string, id: string, edit: (r: Row) => void)
 async function run(argv: string[]): Promise<{ code: number; out: string[]; err: string[] }> {
   const out: string[] = [];
   const err: string[] = [];
-  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-10-01' };
+  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-10-24' };
   const code = await runValidateCli(argv, io);
   return { code, out, err };
 }
@@ -63,7 +63,7 @@ describe('seed:validate CLI', () => {
   });
 
   const cases: Array<[string, string, (dir: string) => void]> = [
-    ['V01 AI_DRAFT+VERIFIED', 'V01', (d) => editJson(d, 'supply-items.json', 'cage', (r) => Object.assign(r, { reviewStatus: 'VERIFIED', verifiedBy: 'x', verifiedAt: '2026-09-30' }))],
+    ['V01 AI_DRAFT+VERIFIED', 'V01', (d) => editJson(d, 'supply-items.json', 'cage', (r) => Object.assign(r, { reviewStatus: 'VERIFIED', reviewerType: 'AI_DRAFT', verifiedBy: 'x', verifiedAt: '2026-09-30' }))],
     ['L01 금지어', 'L01', (d) => editJson(d, 'supply-requirements.json', 'req-syrian-cage', (r) => { r.why = '최저가로 고르면 돼요.'; })],
     [
       'P01 meetsMinSpec 불일치',

@@ -24,6 +24,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -53,6 +54,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -82,6 +84,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -112,6 +115,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -140,6 +144,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -167,6 +172,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -194,6 +200,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -222,6 +229,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -249,6 +257,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
   },
@@ -275,7 +284,602 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": []
+  },
+  {
+    "id": "cp-dw-001",
+    "supplyItemId": "cage",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Bigger World 케이지 M",
+    "imageAsset": null,
+    "specValues": {
+      "type": "OTHER",
+      "floorWcm": 100,
+      "floorDcm": 50,
+      "heightCm": 50
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "인치 환산 — 실측 확인",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/poplar-wooden-enclosure-for-syrian-and-dwarf-hamsters",
+        "title": "Niteangel Bigger World MDF Terrarium M — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-002",
+    "supplyItemId": "cage",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Bigger World 케이지 L",
+    "imageAsset": null,
+    "specValues": {
+      "type": "OTHER",
+      "floorWcm": 119.8,
+      "floorDcm": 50,
+      "heightCm": 59.9
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "인치 환산 — 실측 확인",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/poplar-wooden-enclosure-for-syrian-and-dwarf-hamsters",
+        "title": "Niteangel Bigger World L — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-003",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "TRIXIE 쳇바퀴 28cm (61011)",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 28,
+      "surface": "SOLID"
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://trixie.shop/products/laufrad",
+        "title": "TRIXIE Laufrad Kunststoff 61011 — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-004",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "TRIXIE 쳇바퀴 28cm (60923)",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 28,
+      "surface": "SOLID",
+      "silent": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://trixie.shop/products/laufrad-1",
+        "title": "TRIXIE Laufrad Holz/Kork 60923 — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-005",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "TRIXIE 쳇바퀴 23cm (61035)",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 23,
+      "surface": "SOLID",
+      "silent": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://trixie.shop/products/laufrad-2",
+        "title": "TRIXIE Laufrad Rindenholz 61035 — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-006",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Wooden 쳇바퀴 M 10.2인치",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 25.9,
+      "surface": "SOLID",
+      "mount": "STAND",
+      "silent": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "인치 환산 — 실측 확인",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-wooden-hamster-exercise-wheel-silent-hamster-running-wheel-for-hamsters-gerbil-mice-and-other-similar-sized-small-pets",
+        "title": "Niteangel Wooden Wheel M 10.2\" — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-007",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Wooden 쳇바퀴 L 11.6인치",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 29.4,
+      "surface": "SOLID",
+      "mount": "STAND",
+      "silent": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "인치 환산 — 실측 확인",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-wooden-hamster-exercise-wheel-silent-hamster-running-wheel-for-hamsters-gerbil-mice-and-other-similar-sized-small-pets",
+        "title": "Niteangel Wooden Wheel L 11.6\" — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-008",
+    "supplyItemId": "wheel",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Clouds 쳇바퀴 M 10인치",
+    "imageAsset": null,
+    "specValues": {
+      "diameterCm": 25.4,
+      "surface": "SOLID",
+      "silent": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "인치 환산 — 실측 확인",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-quiet-hamster-exercise-wheel-clouds-series-hamster-running-wheels-for-dwarf-syrian-hamsters-gerbils-mice-or-other-small-sized-pets",
+        "title": "Niteangel Clouds Series M 10\" — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-009",
+    "supplyItemId": "bedding",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "carefresh Natural Paper 베딩",
+    "imageAsset": null,
+    "specValues": {
+      "material": "PAPER",
+      "scented": false
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.healthy-pet.com/products/natural-small-pet-bedding-1",
+        "title": "carefresh Natural Paper Bedding — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-010",
+    "supplyItemId": "bedding",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Kaytee Clean & Cozy White 베딩",
+    "imageAsset": null,
+    "specValues": {
+      "material": "PAPER",
+      "scented": false
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.kaytee.com/all-products/small-animal/clean-cozy-white",
+        "title": "Kaytee Clean & Cozy White — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-011",
+    "supplyItemId": "bedding",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Oxbow Pure Comfort Natural 베딩",
+    "imageAsset": null,
+    "specValues": {
+      "material": "PAPER",
+      "scented": false
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://oxbowanimalhealth.com/product/pure-comfort-natural-bedding/",
+        "title": "Oxbow Pure Comfort Natural — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://support.oxbowanimalhealth.com/knowledgebase/article/KA-01116/en-us",
+        "title": "Oxbow Pure Comfort Natural — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-012",
+    "supplyItemId": "hideout",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Multi-Chamber 은신처 S",
+    "imageAsset": null,
+    "specValues": {
+      "material": "WOOD",
+      "multiChamber": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-large-wooden-multi-chamber-hideout-for-dwarf-and-syrian-hamsters",
+        "title": "Niteangel Large Wooden Multi-Chamber Hideout S — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-013",
+    "supplyItemId": "hideout",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel 3-Chamber 은신처",
+    "imageAsset": null,
+    "specValues": {
+      "material": "WOOD",
+      "multiChamber": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-3-chamber-hideout-for-hamasters-mice",
+        "title": "Niteangel 3-Chamber Hideout — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-014",
+    "supplyItemId": "hideout",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "TRIXIE Mehrkammerhaus 은신처 2 Kammern (61231)",
+    "imageAsset": null,
+    "specValues": {
+      "material": "WOOD",
+      "multiChamber": true
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://trixie.shop/products/mehrkammerhaus-2-kammern",
+        "title": "TRIXIE Mehrkammerhaus 2 Kammern 61231 — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-015",
+    "supplyItemId": "sand-bath-box",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel 모래 목욕통 Large Rectangle",
+    "imageAsset": null,
+    "specValues": {
+      "shortSideCm": 21.8
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": "인치 환산 — 실측 확인",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-small-animal-sand-bath-box-acrylic-critters-sand-bath-shower-room-digging-sand-container-for-hamsters-mice-lemming-gerbils-or-other-small-pets",
+        "title": "Niteangel Sand-Bath Box, Large Rectangle — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-016",
+    "supplyItemId": "water",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Water Bottle with Stand 급수기 120ml",
+    "imageAsset": null,
+    "specValues": {
+      "kind": "BOTTLE",
+      "mount": "STAND",
+      "capacityMl": 120
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-60ml-120ml-water-bottle-with-holder-hamster-water-source",
+        "title": "Niteangel Water Bottle with Stand — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cp-dw-017",
+    "supplyItemId": "water",
+    "careProfileIds": [
+      "cp-hamster-dwarf"
+    ],
+    "title": "Niteangel Glass Water Bowl 급수기 50ml",
+    "imageAsset": null,
+    "specValues": {
+      "kind": "BOWL",
+      "capacityMl": 50
+    },
+    "targetSpecLabel": null,
+    "meetsMinSpec": true,
+    "specVerifiedBy": null,
+    "specVerifiedAt": null,
+    "status": "REVIEW",
+    "imageLicense": "NONE",
+    "curationReasons": [],
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.niteangelpet.com/products/niteangel-hamster-feeding-water-bowls-small-animal-glass-drinking-bowls-for-dwarf-syrian-hamsters-gerbils-mice-rats-or-other-similar-sized-small-pets",
+        "title": "Niteangel Glass Water Bowl — 제조사 공식",
+        "accessedAt": "2026-10-24"
+      }
+    ]
   }
 ]

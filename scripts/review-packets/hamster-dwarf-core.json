@@ -1,0 +1,280 @@
+{
+  "v": 1,
+  "packet": "hamster-dwarf-core-2026-10",
+  "doc": "docs/planning-artifacts/드워프햄스터-핵심행-확인표.md",
+  "note": "확인표 A·B(☑) → ROW_CHECKED, C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 행별 대상은 2026-10-24 BE70 착지의 VERIFIED 50행(보안 79 H-1). 최소 규격 행은 연결된 A 항목이 전부 ☑일 때만 서명된다.",
+  "reviewerType": "EXPERIENCED_KEEPER",
+  "rowChecked": [
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-cage",
+      "items": [
+        "A1",
+        "A2",
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-wheel",
+      "items": [
+        "A5",
+        "A6",
+        "A9"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-bedding",
+      "items": [
+        "A7",
+        "A8"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-001",
+      "items": [
+        "cp-dw-001"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-002",
+      "items": [
+        "cp-dw-002"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-003",
+      "items": [
+        "cp-dw-003"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-004",
+      "items": [
+        "cp-dw-004"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-005",
+      "items": [
+        "cp-dw-005"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-006",
+      "items": [
+        "cp-dw-006"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-007",
+      "items": [
+        "cp-dw-007"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-008",
+      "items": [
+        "cp-dw-008"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-009",
+      "items": [
+        "cp-dw-009"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-010",
+      "items": [
+        "cp-dw-010"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-011",
+      "items": [
+        "cp-dw-011"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-012",
+      "items": [
+        "cp-dw-012"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-013",
+      "items": [
+        "cp-dw-013"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-014",
+      "items": [
+        "cp-dw-014"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-015",
+      "items": [
+        "cp-dw-015"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-016",
+      "items": [
+        "cp-dw-016"
+      ]
+    },
+    {
+      "file": "curated-products.json",
+      "id": "cp-dw-017",
+      "items": [
+        "cp-dw-017"
+      ]
+    }
+  ],
+  "bulk": {
+    "item": "C",
+    "rows": [
+      {
+        "file": "animal-types.json",
+        "id": "hamster-dwarf"
+      },
+      {
+        "file": "care-profiles.json",
+        "id": "cp-hamster-dwarf"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "cage"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "wheel"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "saucer"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "bedding"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "water"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "food-bowl"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "hideout"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "sand-bath"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "sand-bath-box"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "chew"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "carrier"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "thermo"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "tubes"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-saucer"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-water"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-food-bowl"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-hideout"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-sand-bath"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-sand-bath-box"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-chew"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-carrier"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-thermo"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-dwarf-tubes"
+      },
+      {
+        "file": "compatibility-rules.json",
+        "id": "cr-dwarf-wheel-cage-bedding"
+      },
+      {
+        "file": "compatibility-rules.json",
+        "id": "cr-dwarf-tubes-cage"
+      },
+      {
+        "file": "setup-bundles.json",
+        "id": "sb-dwarf-budget"
+      },
+      {
+        "file": "setup-bundles.json",
+        "id": "sb-dwarf-balanced"
+      },
+      {
+        "file": "setup-bundles.json",
+        "id": "sb-dwarf-reuse"
+      }
+    ]
+  }
+}

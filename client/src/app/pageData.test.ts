@@ -1,7 +1,7 @@
 // readPageData — 프리렌더 ws-data 검증(계약 C-2, 단계 F0 (d)). 실패는 전부 null(fail-closed).
 //   합성 fixture만 쓴다(D12). 외부 호출 0.
 import { afterEach, describe, expect, it } from 'vitest';
-import { WS_DATA_KEYS } from '@ws/engine';
+import { buildSearchLinks, encodeWsPage, WS_DATA_KEYS, WS_WIRE_VERSION, type WsPageData } from '@ws/engine';
 import { emptyPageData, readPageData, resolvePageData, routeFromLocation } from './pageData';
 
 function validPayload(): Record<string, unknown> {
@@ -115,6 +115,89 @@ describe('readPageData — 추천 영역 규격 방어(불변식 ③)', () => {
       mountScript(JSON.stringify(p));
       expect(readPageData(document)).toBeNull();
     }
+  });
+});
+
+describe('readPageData — 와이어 v2(출처 표 + sourceRefs, 계획 73 S3)', () => {
+  const SRC_A = { url: 'https://example.org/a', title: 'A' };
+  const SRC_B = { url: 'https://example.org/b', title: 'B' };
+  function requirement(id: string, keyword: string, source: Array<{ url: string; title: string }>): Record<string, unknown> {
+    return {
+      requirementId: id,
+      animalTypeId: 'hamster-golden',
+      supplyItemId: id,
+      priority: 'REQUIRED',
+      orderHint: 'FIRST',
+      notNowReason: null,
+      minSpec: { all: [] },
+      recommendedSpec: { all: [] },
+      why: 'w',
+      caution: null,
+      avoid: null,
+      searchKeyword: keyword,
+      searchLinks: buildSearchLinks(keyword),
+      item: { id, name: id, category: 'HOUSING', glyph: 'g', specSchema: { fields: [] }, alternativeIds: [] },
+      source,
+      lastVerifiedAt: '2026-10-01',
+    };
+  }
+  function v1WithRequirements(): Record<string, unknown> {
+    const p = validPayload();
+    p.route = { kind: 'TYPE', path: '/hamster/golden' };
+    (p.data as Record<string, unknown>).requirements = [
+      requirement('cage', '햄스터 케이지', [SRC_A, SRC_B]),
+      requirement('bedding', '햄스터 베딩', [SRC_B]),
+    ];
+    (p.data as Record<string, unknown>).products = [{ id: 'p1', supplyItemId: 'cage', title: 't', verdict: 'OK' }];
+    return p;
+  }
+  function wire(): Record<string, unknown> {
+    return encodeWsPage(v1WithRequirements() as unknown as WsPageData) as unknown as Record<string, unknown>;
+  }
+
+  it('v2 정상: 디코드 결과가 같은 v1 페이지와 동일 객체(키 순서 포함)', () => {
+    const w = wire();
+    expect(w.v).toBe(WS_WIRE_VERSION);
+    expect(w.sources).toEqual([SRC_A, SRC_B]);
+    mountScript(JSON.stringify(v1WithRequirements()));
+    const fromV1 = readPageData(document);
+    document.body.innerHTML = '';
+    mountScript(JSON.stringify(w));
+    const fromV2 = readPageData(document);
+    expect(fromV1).not.toBeNull();
+    expect(fromV2).toEqual(fromV1);
+    expect(JSON.stringify(fromV2)).toBe(JSON.stringify(fromV1));
+    expect(fromV2?.v).toBe(1);
+  });
+
+  it('v2 sourceRefs 가 표 범위 밖이면 null', () => {
+    const w = wire();
+    const reqs = (w.data as Record<string, unknown>).requirements as Array<Record<string, unknown>>;
+    reqs[1].sourceRefs = [0, 1, 2];
+    mountScript(JSON.stringify(w));
+    expect(readPageData(document)).toBeNull();
+  });
+
+  it('v2 에 BELOW_MIN 상품이 하나라도 있으면 페이지 전체 null(불변식 ③, 디코드 뒤 허용목록)', () => {
+    const w = wire();
+    (w.data as Record<string, unknown>).products = [
+      { id: 'p1', supplyItemId: 'cage', title: 't', verdict: 'OK' },
+      { id: 'p2', supplyItemId: 'cage', title: 't', verdict: 'BELOW_MIN' },
+    ];
+    mountScript(JSON.stringify(w));
+    expect(readPageData(document)).toBeNull();
+  });
+
+  it('v2 디코드 뒤에도 route·data 6키 검사가 그대로 적용된다', () => {
+    const w = wire();
+    w.route = { kind: 'BOARD', path: '/' };
+    mountScript(JSON.stringify(w));
+    expect(readPageData(document)).toBeNull();
+    document.body.innerHTML = '';
+    const w2 = wire();
+    (w2.data as Record<string, unknown>).extra = [];
+    mountScript(JSON.stringify(w2));
+    expect(readPageData(document)).toBeNull();
   });
 });
 

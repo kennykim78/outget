@@ -9,12 +9,18 @@ import {
   type Row,
   type SeedKey,
 } from './common.js';
+import type { SignatureInput } from './signatures.js';
 
 export interface ValidateOptions {
   /** 기준일 YYYY-MM-DD(미래 날짜·W-STALE 판정). 순수성을 위해 호출자가 넣는다. */
   now: string;
   /** R6 게이트: W-EXPOSURE-ZERO 를 ERROR 로. */
   strict?: boolean;
+  /**
+   * 서명 매니페스트(G01~G06, 보안 79 H-1). CLI(validate·load·prerender)는 readSeedDirRaw().signatures 를 항상 넘긴다.
+   *   생략 = G 규칙 건너뜀 — 메모리 픽스처 단위 테스트 전용. 행 수준 V09·V10(reviewBasis)은 생략과 무관하게 검사한다.
+   */
+  signatures?: SignatureInput;
 }
 
 export interface Ctx {

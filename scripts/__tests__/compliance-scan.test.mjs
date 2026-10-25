@@ -654,9 +654,13 @@ const withCatalogTaxon = ({ typeTaxon, profileTaxa }) => (o) => {
   o['data/catalog.v1.abcd1234.json'] = JSON.stringify(c);
 };
 for (const [name, inject] of TAXON_HIDDEN) {
-  test(`K-4 되돌림 clean: ${name} → 타입 노출 그대로, Taxon 비노출, 골든 페이지 통과`, async () => {
+  test(`K-4 되돌림: ${name} → 타입 노출 그대로, Taxon 비노출${name === 'taxonId null' ? ', C3-TAXON 만 FAIL(L-1)' : ', 골든 페이지 통과'}`, async () => {
     const res = scan(await makeRoot({ seed: inject }));
-    expectClean(res);
+    if (name === 'taxonId null') {
+      // 보안 71 L-1: 노출 타입은 taxonId 필수(validate R01 의 독립 재확인). 노출 집합 계산 자체는 Taxon 을 보지 않는다.
+      expectFail(res, 'C3-TAXON');
+      assert.deepEqual([...new Set(rulesOf(res, 'FAIL'))], ['C3-TAXON']);
+    } else expectClean(res);
     assert.equal(res.json.exposed.animalTypes, 1);
     assert.equal(res.json.exposed.taxa, 0);
   });
@@ -1383,4 +1387,197 @@ test('C8-OUT-SAFE 압축 사본: 원본과 같은 .br/.gz 는 깨끗, 다른 내
   const broken = await makeRoot({ output: noop });
   writeFileSync(join(dist(broken), 'robots.txt.gz'), 'not gzip');
   expectFail(scan(broken, '--require-output'), 'C8-OUT-SAFE');
+});
+
+// ── 76 방어 규칙: C3-TAXON(L-1) · C3-OUT-TAXON(L-2) · C3-OUT-SRC(계획 73 S4) ─────────────
+const WS_RE = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/;
+/** 골든 페이지 ws-data 를 파싱해 fn 으로 바꾼다(문자열 치환 없이 구조 변이). */
+const withWs = (fn) => (o) => {
+  const html = o['hamster/golden/index.html'];
+  const d = JSON.parse(WS_RE.exec(html)[1]);
+  fn(d);
+  o['hamster/golden/index.html'] = html.replace(WS_RE, () => `<script id="ws-data" type="application/json">${JSON.stringify(d)}</script>`);
+};
+/** v2 로 변환: requirement.source → 최상위 sources 표 + sourceRefs, searchLinks 없음. */
+const toV2 = (d, sources = [{ url: j(HTTPS, 'example.org/care'), title: 'care guide' }]) => {
+  d.v = 2;
+  d.sources = sources;
+  for (const q of d.data.requirements) {
+    delete q.source;
+    delete q.searchLinks;
+    q.searchKeyword ??= 'care guide'; // 실제 PublicRequirement 는 항상 searchKeyword 를 가진다(디코더가 필수로 본다)
+    q.sourceRefs = sources.map((_, i) => i);
+  }
+};
+
+test('C3-TAXON: 노출 타입 taxonId 빈 문자열 → FAIL(산출물 없어도)', async () => {
+  const res = scan(await makeRoot({ seed: (d) => { d['animal-types.json'][0].taxonId = ''; } }));
+  expectFail(res, 'C3-TAXON');
+  assert.equal(res.json.outputs, 'NOT RUN');
+});
+test('C3-TAXON clean: 비노출(PLANNED) 타입 taxonId null 은 대상 아님', async () => {
+  expectClean(scan(await makeRoot()));
+});
+
+// L-2: 비노출 Taxon 의 id·legal.note 가 산출물 어디에도 없어야 한다. 노트 문장은 합성 자리표시(법 사실 아님).
+const HIDDEN_NOTE = '픽스처 법 메모 <비공개> & 검토 전';
+const hideTaxon = (d) => {
+  Object.assign(d['taxa.json'][0], { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null });
+  d['taxa.json'][0].legal.note = HIDDEN_NOTE;
+};
+const BSL = String.fromCharCode(0x5c);
+const HTML_NOTE = HIDDEN_NOTE.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const SCRIPT_NOTE = HIDDEN_NOTE.replace(/</g, `${BSL}u003c`).replace(/>/g, `${BSL}u003e`).replace(/&/g, `${BSL}u0026`);
+const L2_LEAKS = [
+  ['HTML 본문에 Taxon id', (o) => { o['index.html'] = o['index.html'].replace('</main>', '<p>tx-fixture</p></main>'); }, 'id'],
+  ['HTML 본문에 legal.note(HTML 이스케이프)', (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${HTML_NOTE}</p></main>`); }, 'legal.note'],
+  ['ws-data 에 legal.note(<script> JSON 이스케이프)', (o) => {
+    o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('"testimonials":[]', () => `"testimonials":[],"x":"${SCRIPT_NOTE}"`);
+  }, 'legal.note'],
+  ['카탈로그 JSON 에 legal.note', (o) => {
+    const c = JSON.parse(o['data/catalog.v1.abcd1234.json']);
+    c.careProfiles[0].note = HIDDEN_NOTE;
+    o['data/catalog.v1.abcd1234.json'] = JSON.stringify(c);
+  }, 'legal.note'],
+  ['JS 번들에 Taxon id', (o) => { o['assets/index-abc.js'] = 'export const t = "tx-fixture";\n'; }, 'id'],
+];
+for (const [name, leak, what] of L2_LEAKS) {
+  test(`C3-OUT-TAXON: 비노출 Taxon ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot({ seed: hideTaxon, output: leak }));
+    expectFail(res, 'C3-OUT-TAXON');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-TAXON' && f.message.includes(`tx-fixture 의 ${what}`)), JSON.stringify(res.json.findings));
+  });
+}
+test('C3-OUT-TAXON clean: Taxon 노출(VERIFIED)이면 id·note 가 산출물에 있어도 통과 / 비노출이어도 산출물에 없으면 통과', async () => {
+  const shown = await makeRoot({
+    seed: (d) => { d['taxa.json'][0].legal.note = HIDDEN_NOTE; },
+    output: (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>tx-fixture ${HTML_NOTE}</p></main>`); },
+  });
+  expectClean(scan(shown));
+  expectClean(scan(await makeRoot({ seed: hideTaxon, output: noop })));
+});
+
+// 계획 73 S4: ws-data v2(최상위 sources 표 + sourceRefs, searchLinks 없음). v1 도 계속 수용.
+test('C3-OUT-SRC clean: v2 정상(표 1·참조 1) / v1 그대로', async () => {
+  expectClean(scan(await makeRoot({ output: withWs((d) => toV2(d)) })));
+  expectClean(scan(await makeRoot({ output: noop })));
+});
+const SRC_BAD = [
+  ['범위 밖 인덱스', (d) => { toV2(d); d.data.requirements[0].sourceRefs = [0, 1]; }, /범위 밖 인덱스 1/],
+  ['음수 인덱스', (d) => { toV2(d); d.data.requirements[0].sourceRefs = [-1, 0]; }, /범위 밖 인덱스 -1/],
+  ['정수 아닌 인덱스', (d) => { toV2(d); d.data.requirements[0].sourceRefs = ['0']; }, /범위 밖 인덱스 "0"/],
+  ['미참조 표 항목', (d) => { toV2(d, [{ url: j(HTTPS, 'example.org/a'), title: 'a' }, { url: j(HTTPS, 'example.org/b'), title: 'b' }]); d.data.requirements[0].sourceRefs = [0]; }, /sources\[1\] 미참조/],
+  ['표 항목 키 초과', (d) => { toV2(d, [{ url: j(HTTPS, 'example.org/a'), title: 'a', accessedAt: '2026-09-30' }]); }, /허용 밖 키 accessedAt/],
+  ['표 항목 형식', (d) => { toV2(d, ['x']); }, /sources\[0\] 형식/],
+  ['sources 배열 아님', (d) => { toV2(d); d.sources = {}; }, /sources 형식/],
+  ['source 잔존', (d) => { toV2(d); d.data.requirements[0].source = [{ url: j(HTTPS, 'example.org/care'), title: 'care guide' }]; }, /source 잔존/],
+  ['searchLinks 잔존', (d) => { toV2(d); d.data.requirements[0].searchLinks = []; }, /searchLinks 잔존/],
+  ['sourceRefs 배열 아님', (d) => { toV2(d); d.data.requirements[0].sourceRefs = 0; }, /sourceRefs 형식/],
+  ['v1 에 sourceRefs(형식 혼합)', (d) => { d.data.requirements[0].sourceRefs = [0]; }, /v1 인데 requirement/],
+  ['v1 에 최상위 sources(형식 혼합)', (d) => { d.sources = []; }, /v1 인데 최상위 sources/],
+  ['알 수 없는 v', (d) => { d.v = 3; }, /알 수 없는 v=3/],
+  // S6 O-1·O-2: 디코더(ws-wire.ts decodeWsPage)와 같은 거부 조건.
+  ['표 중복 {url,title}', (d) => { const s = { url: j(HTTPS, 'example.org/a'), title: 'a' }; toV2(d, [s, { ...s }]); }, /sources\[1\] 중복 표 항목/],
+  ['v2 인데 최상위 sources 없음', (d) => { toV2(d); delete d.sources; }, /최상위 sources 없음/],
+  ['v2 sources 가 null', (d) => { toV2(d); d.sources = null; }, /sources 형식/],
+  ['v2 최상위 키 초과', (d) => { toV2(d); d.extra = 1; }, /최상위 키 집합 불일치/],
+  ['v2 sourceRefs 없음', (d) => { toV2(d); delete d.data.requirements[0].sourceRefs; }, /sourceRefs 형식/],
+  ['v2 searchKeyword 없음', (d) => { toV2(d); delete d.data.requirements[0].searchKeyword; }, /searchKeyword/],
+  ['v2 data.requirements 없음', (d) => { toV2(d); delete d.data.requirements; }, /data\.requirements 배열 없음/],
+];
+for (const [name, mut, re] of SRC_BAD) {
+  test(`C3-OUT-SRC: ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot({ output: withWs(mut) }));
+    expectFail(res, 'C3-OUT-SRC');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && re.test(f.message)), JSON.stringify(res.json.findings));
+  });
+}
+test('C4-BANNED: v2 출처 표 제목(sources[].title)도 금지어 린트 대상', async () => {
+  const res = scan(await makeRoot({ output: withWs((d) => toV2(d, [{ url: j(HTTPS, 'example.org/a'), title: j('추천 ', KO.best, ' 목록') }])) }));
+  expectFail(res, 'C4-BANNED');
+  assert.ok(res.json.findings.some((f) => f.rule === 'C4-BANNED' && /JSON title/.test(f.message)), JSON.stringify(res.json.findings));
+});
+
+// ── 보안 79: C3-OUT-SRC L-2(https 만)·L-3(위험 키) · C3-OUT-DRAFTSRC L-7(비노출 행 전용 출처) ─────────────
+for (const [name, url] of [
+  ['javascript:', j('java', 'script:alert(1)')],
+  ['http:', j('htt', 'p://example.org/a')],
+  ['상대 경로', '/data/x'],
+  ['대문자 스킴', j('HTT', 'PS://example.org/a')],
+]) {
+  test(`C3-OUT-SRC L-2: v2 sources url ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot({ output: withWs((d) => toV2(d, [{ url, title: 'care guide' }])) }));
+    expectFail(res, 'C3-OUT-SRC');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && /https:\/\/ 아님/.test(f.message)), JSON.stringify(res.json.findings));
+  });
+}
+for (const key of ['__proto__', 'constructor', 'prototype']) {
+  test(`C3-OUT-SRC L-3: ws-data 에 자체 키 ${key} → FAIL(v1·v2)`, async () => {
+    const inject = (o) => {
+      o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('"testimonials":[]', () => `"testimonials":[],"${key}":{"polluted":1}`);
+    };
+    const v1 = scan(await makeRoot({ output: inject }));
+    expectFail(v1, 'C3-OUT-SRC');
+    assert.ok(v1.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && f.message.includes(`금지 키 ${key}`)), JSON.stringify(v1.json.findings));
+    const v2 = scan(await makeRoot({ output: (o) => { withWs((d) => toV2(d))(o); inject(o); } }));
+    expectFail(v2, 'C3-OUT-SRC');
+  });
+}
+test('C3-OUT-SRC L-3 clean: 값으로서의 "constructor" 문자열은 대상 아님', async () => {
+  expectClean(scan(await makeRoot({ output: withWs((d) => toV2(d, [{ url: j(HTTPS, 'example.org/care'), title: 'constructor prototype' }])) })));
+});
+
+// L-7: 비노출(DRAFT) 행에만 있는 출처. 합성 자리표시 출처(사실 아님).
+const DRAFT_URL = j(HTTPS, 'draft-only.example.org/src?a=1&b=2');
+const DRAFT_TITLE = '초안 전용 출처 <제목> & 메모';
+const draftSource = (d) => {
+  // wheel SupplyItem 은 fixture 에서 DRAFT(AI_DRAFT) — 비노출 행.
+  d['supply-items.json'][1].source = [{ url: DRAFT_URL, title: DRAFT_TITLE, accessedAt: '2026-09-30' }];
+};
+const L7_LEAKS = [
+  ['HTML 본문에 url(HTML 이스케이프)', (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${DRAFT_URL.replace(/&/g, '&amp;')}</p></main>`); }, 'url'],
+  ['HTML 본문에 title(HTML 이스케이프)', (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${DRAFT_TITLE.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></main>`); }, 'title'],
+  ['ws-data v2 출처 표(<script> JSON 이스케이프)', withWs((d) => toV2(d, [{ url: DRAFT_URL, title: 'care guide' }])), 'url'],
+  ['카탈로그 JSON 에 title', (o) => {
+    const c = JSON.parse(o['data/catalog.v1.abcd1234.json']);
+    c.supplyItems[0].source = [{ url: j(HTTPS, 'example.org/care'), title: DRAFT_TITLE, accessedAt: '2026-09-30' }];
+    o['data/catalog.v1.abcd1234.json'] = JSON.stringify(c);
+  }, 'title'],
+  ['JS 번들에 url', (o) => { o['assets/index-abc.js'] = `export const u = ${JSON.stringify(DRAFT_URL)};\n`; }, 'url'],
+];
+for (const [name, leak, what] of L7_LEAKS) {
+  test(`C3-OUT-DRAFTSRC: ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot({ seed: draftSource, output: leak }));
+    expectFail(res, 'C3-OUT-DRAFTSRC');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-DRAFTSRC' && f.message.includes(`출처 ${what}(supplyItems#wheel)`)), JSON.stringify(res.json.findings));
+  });
+}
+test('C3-OUT-DRAFTSRC clean: 산출물에 없으면 통과 / 같은 출처가 노출 행에도 있으면 대상 아님', async () => {
+  expectClean(scan(await makeRoot({ seed: draftSource, output: noop })));
+  const alsoShown = await makeRoot({
+    seed: (d) => {
+      draftSource(d);
+      d['supply-items.json'][0].source.push({ url: DRAFT_URL, title: DRAFT_TITLE, accessedAt: '2026-09-30' }); // cage(노출 행)
+    },
+    output: (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${DRAFT_URL.replace(/&/g, '&amp;')}</p></main>`); },
+  });
+  expectClean(scan(alsoShown));
+});
+
+// ── 보안 79 H-1: C3-OUT-REVIEWMETA — 검수 방식(reviewBasis)·서명 매니페스트 메타 산출물 0 ─────────────
+for (const [name, leak, needle] of [
+  ['HTML 본문에 reviewBasis', (o) => { o['index.html'] = o['index.html'].replace('</main>', '<p>reviewBasis</p></main>'); }, 'reviewBasis'],
+  ['카탈로그 JSON 에 ROW_CHECKED', (o) => { o['data/catalog.v1.abcd1234.json'] = o['data/catalog.v1.abcd1234.json'].replace(/\}$/, ',"x":"ROW_CHECKED"}'); }, 'ROW_CHECKED'],
+  ['JS 번들에 AI_RESEARCH_BULK', (o) => { o['assets/index-abc.js'] = 'export const b = "AI_RESEARCH_BULK";\n'; }, 'AI_RESEARCH_BULK'],
+  ['JS 번들에 factHash', (o) => { o['assets/index-abc.js'] = 'export const h = { factHash: 1 };\n'; }, 'factHash'],
+  ['sitemap 에 review-signatures', (o) => { o['sitemap.xml'] = o['sitemap.xml'].replace('</urlset>', '<!-- review-signatures --></urlset>'); }, 'review-signatures'],
+]) {
+  test(`C3-OUT-REVIEWMETA: ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot({ output: leak }));
+    expectFail(res, 'C3-OUT-REVIEWMETA');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-REVIEWMETA' && f.message.includes(`"${needle}"`)), JSON.stringify(res.json.findings));
+  });
+}
+test('C3-OUT-REVIEWMETA clean: 기본 산출물 통과', async () => {
+  expectClean(scan(await makeRoot({ output: noop })));
 });

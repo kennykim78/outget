@@ -11,16 +11,13 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
-// 사실 필드(PRD 부록 B 기준). 이 목록의 키만 비교한다. 목록에 없는 키(id·slug·keyword·orderHint·
-// optionLabels·category·specSchema·reviewStatus/reviewerType/verifiedBy/verifiedAt/source 등)는 무시.
-export const FACT_FIELDS = [
-  'why', 'caution', 'avoid', 'minSpec', 'recommendedSpec', 'notNowReason',
-  'facts', 'careNotes', 'legal', 'scientificName', 'koreanName',
-  'rules', 'expr', 'message', 'specValues', 'targetSpecLabel',
-  'description', 'oneLiner', 'purpose', 'note', 'estimatedRangeText',
-  // 범위(scope) — 적용 대상이 바뀌면 사실 의미가 바뀐다(M456 지적: cr-tubes-cage careProfileId).
-  'careProfileId', 'careProfileIds', 'taxonId', 'taxonIds',
-];
+// 사실 필드(PRD 부록 B 기준) — 단일 출처 server/src/seed/fact-fields.json(서명 매니페스트 factHash 와 공유, 보안 79 H-1).
+//   이 목록의 키만 비교한다. 목록에 없는 키(id·slug·keyword·orderHint·optionLabels·category·specSchema·
+//   reviewStatus/reviewerType/verifiedBy/verifiedAt/reviewBasis/source 등)는 무시.
+//   범위(scope) careProfileId(s)·taxonId(s) 포함 — 적용 대상이 바뀌면 사실 의미가 바뀐다(M456 지적: cr-tubes-cage careProfileId).
+import { FACT_FIELDS, SIGNATURE_FILE } from './lib/review-signature.mjs';
+
+export { FACT_FIELDS };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -51,6 +48,11 @@ export function compareDirs(seedDir, draftDir) {
     if (!draftFiles.has(file)) { problems.push(`${file}: seed-draft 사본 없음`); continue; }
     const a = JSON.parse(readFileSync(join(seedDir, file), 'utf8'));
     const b = JSON.parse(readFileSync(join(draftDir, file), 'utf8'));
+    // 서명 매니페스트는 행 사실이 아니라 서명 기록 — 사본과 통째로 같아야 한다.
+    if (file === SIGNATURE_FILE) {
+      if (!isDeepStrictEqual(a, b)) problems.push(`${file}: 서명 매니페스트가 정본과 사본이 다름`);
+      continue;
+    }
     if (!Array.isArray(a) || !Array.isArray(b)) { problems.push(`${file}: JSON 배열 아님`); continue; }
     const bById = new Map(b.map((r) => [r.id, r]));
     for (const r of a) {

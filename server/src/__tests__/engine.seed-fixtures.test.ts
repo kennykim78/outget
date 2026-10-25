@@ -145,6 +145,8 @@ describe('F8 meetsMinSpec recompute over curated specValues', () => {
       'cp-008': true,
       'cp-009': true,
       'cp-010': true,
+      // R7-B: 드워프 상품 17행(v0.3 5장) — 엔진 재계산 전부 충족(패킷 기대값과 일치)
+      ...Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`cp-dw-${String(i + 1).padStart(3, '0')}`, true])),
     });
   });
 });

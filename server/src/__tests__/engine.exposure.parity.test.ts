@@ -214,6 +214,20 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
       expect(mjsTaxa(s)).toEqual([GOLDEN_TAXON_ID]);
     });
 
+    // QA 68 LOW(seed-exposure.mjs 프로필 taxonIds 루프 고정): 타입 taxonId 가 아닌, 노출 프로필 taxonIds 에만 있는 VERIFIED Taxon 도
+    //   양쪽 참조 집합에 들어가고, 비노출 타입(디스크 PLANNED 드워프)의 프로필에만 있는 VERIFIED Taxon 은 양쪽 모두 0.
+    it('프로필 taxonIds 에만 있는 VERIFIED Taxon → 양쪽 참조에 포함, 비노출 프로필 전용 Taxon 은 양쪽 0', () => {
+      const s = promoted();
+      const src = s.taxa.find((t) => t.id === GOLDEN_TAXON_ID);
+      if (!src) throw new Error('fixture: 골든 Taxon 없음');
+      s.taxa.push({ ...JSON.parse(JSON.stringify(src)), id: 'fixture-profile-only', ...V_LEGAL });
+      patch(s, 'careProfiles', 'cp-hamster-syrian', { taxonIds: [GOLDEN_TAXON_ID, 'fixture-profile-only'] });
+      patch(s, 'taxa', 'phodopus-sungorus', { ...V_LEGAL }); // cp-hamster-dwarf 전용 — hamster-dwarf 는 PLANNED
+      expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
+      expect(engineTaxonRefs(s)).toEqual(['fixture-profile-only']);
+      expect(mjsTaxa(s)).toEqual(['fixture-profile-only']);
+    });
+
     it('2타입: B 의 Taxon 만 DRAFT 여도 두 타입 모두 노출, B 의 Taxon 참조만 빠진다(양쪽 동일)', () => {
       const s = promotedTwo();
       patch(s, 'taxa', GOLDEN_TAXON_ID, { ...V_LEGAL });
@@ -233,7 +247,7 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
   });
 
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {
-    for (const v of [null, '2026-10-02', 'bad']) {
+    for (const v of [null, '2026-10-25', 'bad']) {
       const s = promoted();
       patch(s, 'careProfiles', 'cp-hamster-syrian', { verifiedAt: v });
       expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));

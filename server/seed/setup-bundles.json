@@ -21,6 +21,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
   },
@@ -50,6 +51,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
   },
@@ -75,7 +77,123 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
+  },
+  {
+    "id": "sb-dwarf-budget",
+    "careProfileId": "cp-hamster-dwarf",
+    "tier": "BUDGET",
+    "name": "실속",
+    "glyph": "🌿",
+    "purpose": "꼭 필요한 것만, 기준은 지키고.",
+    "itemIds": [
+      "cage",
+      "wheel",
+      "bedding",
+      "water",
+      "hideout",
+      "sand-bath",
+      "sand-bath-box"
+    ],
+    "estimatedRangeText": null,
+    "note": "바닥 100×50cm 케이지 기준.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=Kopie_von_Zwerghamster_271124.pdf&did=43",
+        "title": "TVT Merkblatt Nr. 162 – Heimtiere: Zwerghamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "sb-dwarf-balanced",
+    "careProfileId": "cp-hamster-dwarf",
+    "tier": "BALANCED",
+    "name": "균형",
+    "glyph": "☁",
+    "purpose": "기본에 첫 주 편의를 더해서.",
+    "itemIds": [
+      "cage",
+      "wheel",
+      "bedding",
+      "water",
+      "hideout",
+      "sand-bath",
+      "sand-bath-box",
+      "food-bowl",
+      "chew",
+      "carrier",
+      "thermo"
+    ],
+    "estimatedRangeText": null,
+    "note": "바닥 100×50cm 케이지 기준.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=Kopie_von_Zwerghamster_271124.pdf&did=43",
+        "title": "TVT Merkblatt Nr. 162 – Heimtiere: Zwerghamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "sb-dwarf-reuse",
+    "careProfileId": "cp-hamster-dwarf",
+    "tier": "USED_MIX",
+    "name": "기존 물품 활용",
+    "glyph": "♻",
+    "purpose": "가진 것을 쓰고, 기준에 안 맞는 것만 바꿔요.",
+    "itemIds": [
+      "cage",
+      "wheel",
+      "bedding",
+      "water",
+      "hideout",
+      "sand-bath",
+      "sand-bath-box"
+    ],
+    "estimatedRangeText": null,
+    "note": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=Kopie_von_Zwerghamster_271124.pdf&did=43",
+        "title": "TVT Merkblatt Nr. 162 – Heimtiere: Zwerghamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-24"
+      }
+    ]
   }
 ]

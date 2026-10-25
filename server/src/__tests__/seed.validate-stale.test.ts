@@ -11,19 +11,19 @@ const rawOf = (seed: SeedBundle): RawSeed =>
 
 describe('seed:validate — 검수 나이(W-STALE·노출 요약 같은 경계)', () => {
   it('기준일 고정: FIXTURE_AS_OF 에서 승격 픽스처 노출 types 1, W-STALE 0', () => {
-    const res = validateSeed(rawOf(promoted()), { now: FIXTURE_AS_OF });
+    const res = validateSeed(rawOf(promoted({ publishable: true })), { now: FIXTURE_AS_OF });
     expect(res.errors).toEqual([]);
     expect(res.summary.types).toBe(1);
     expect(res.warnings.filter((w) => w.rule === 'W-STALE')).toEqual([]);
   });
 
   it('+180: 노출 유지·W-STALE 0 / +181: 노출 0·W-STALE ≥ 1 (경계 동일)', () => {
-    const edge = validateSeed(rawOf(promoted()), { now: FIXTURE_LAST_FRESH });
+    const edge = validateSeed(rawOf(promoted({ publishable: true })), { now: FIXTURE_LAST_FRESH });
     expect(edge.summary.types).toBe(1);
     expect(edge.summary.products).toBe(1);
     expect(edge.warnings.filter((w) => w.rule === 'W-STALE')).toEqual([]);
 
-    const past = validateSeed(rawOf(promoted()), { now: FIXTURE_FIRST_STALE });
+    const past = validateSeed(rawOf(promoted({ publishable: true })), { now: FIXTURE_FIRST_STALE });
     expect(past.errors).toEqual([]);
     expect(past.summary.types).toBe(0);
     expect(past.summary.requirements).toBe(0);

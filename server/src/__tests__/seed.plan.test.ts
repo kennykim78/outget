@@ -43,17 +43,17 @@ describe('planSeedWrites — real seed', () => {
       taxon: 3, // R7 A4: 드워프 Taxon 2행(phodopus-sungorus·campbelli, DRAFT) 추가
       careProfile: 2, // R7 A4: cp-hamster-dwarf(DRAFT) 추가
       animalType: 6,
-      supplyItem: 14,
-      supplyRequirement: 14,
-      compatibilityRule: 3,
-      setupBundle: 3,
-      curatedProduct: 0,
+      supplyItem: 15, // R7-B: sand-bath-box 신설(모래목욕 통·모래 분리, 안 A)
+      supplyRequirement: 29, // R7-B: 드워프 15(서명 11 + 모래 2(v0.3) + 사료·저울 DRAFT)
+      compatibilityRule: 5, // R7-B: cr-dwarf-wheel-cage-bedding·cr-dwarf-tubes-cage
+      setupBundle: 6, // R7-B: sb-dwarf-budget·balanced·reuse(v0.3)
+      curatedProduct: 17, // R7-B: cp-dw-001~017(v0.3, SLOT 아님)
       vetClinic: 0,
       testimonial: 0,
     });
     const items = ops.filter((o) => o.op === 'insertMany');
     expect(items).toHaveLength(1);
-    expect(items[0].op === 'insertMany' && items[0].rows.length).toBe(25);
+    expect(items[0].op === 'insertMany' && items[0].rows.length).toBe(50); // R7-B: 골든 25 + 드워프 25(7·11·7)
   });
 
   it('fixed order: leaf prunes → upserts in dependency order → bundle items → parent prunes', () => {
@@ -74,6 +74,7 @@ describe('planSeedWrites — real seed', () => {
       'upsert:compatibilityRule',
       'upsert:setupBundle',
       'insertMany:setupBundleItem',
+      'upsert:curatedProduct', // R7-B: 비SLOT 상품이 처음 생겨 upsert 단계가 나타난다
       'deleteMany:animalType',
       'deleteMany:supplyItem',
       'deleteMany:careProfile',
@@ -212,14 +213,15 @@ describe('runLoadCli — validate first, zero writes on error', () => {
       cpSync(DEFAULT_SEED_DIR, dir, { recursive: true });
       const f = join(dir, 'supply-items.json');
       const rows = JSON.parse(readFileSync(f, 'utf8')) as Array<Record<string, unknown>>;
-      rows[0].reviewStatus = 'VERIFIED'; // AI_DRAFT + VERIFIED → V01
+      rows[0].reviewStatus = 'VERIFIED';
+      rows[0].reviewerType = 'AI_DRAFT'; // AI_DRAFT + VERIFIED → V01(R7-B: 디스크 cage 는 이미 EXPERIENCED_KEEPER VERIFIED)
       writeFileSync(f, JSON.stringify(rows));
       let opened = 0;
       const err: string[] = [];
-      const code = await runLoadCli(['--dir', dir, '--now', '2026-10-01'], {
+      const code = await runLoadCli(['--dir', dir, '--now', '2026-10-24'], {
         stdout: () => undefined,
         stderr: (l) => err.push(l),
-        today: () => '2026-10-01',
+        today: () => '2026-10-24',
         prisma: async () => {
           opened += 1;
           throw new Error('must not open the database');
@@ -239,7 +241,7 @@ describe('runLoadCli — validate first, zero writes on error', () => {
     const code = await runLoadCli(['--bogus'], {
       stdout: () => undefined,
       stderr: () => undefined,
-      today: () => '2026-10-01',
+      today: () => '2026-10-24',
       prisma: async () => {
         opened += 1;
         throw new Error('no');

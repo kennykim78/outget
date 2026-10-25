@@ -24,6 +24,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": [
       {
@@ -48,6 +49,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": [
       {
@@ -73,12 +75,70 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "SPEC",
     "source": [
       {
         "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
         "title": "RSPCA — Hamster care",
         "accessedAt": "2026-09-30"
+      }
+    ]
+  },
+  {
+    "id": "cr-dwarf-wheel-cage-bedding",
+    "a": "wheel",
+    "b": "cage",
+    "careProfileId": "cp-hamster-dwarf",
+    "rules": [
+      {
+        "expr": "a.diameterCm + 20 <= b.heightCm",
+        "onFail": "CHECK",
+        "message": "드워프 베딩을 20cm 깔면 쳇바퀴 위가 뚜껑에 닿을 수 있어요. 케이지 높이와 쳇바퀴 지름을 함께 확인해요."
+      }
+    ],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=Kopie_von_Zwerghamster_271124.pdf&did=43",
+        "title": "TVT Merkblatt Nr. 162 – Heimtiere: Zwerghamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-24"
+      }
+    ]
+  },
+  {
+    "id": "cr-dwarf-tubes-cage",
+    "a": "tubes",
+    "b": "cage",
+    "careProfileId": "cp-hamster-dwarf",
+    "rules": [
+      {
+        "expr": "a.innerDiameterCm >= 5",
+        "onFail": "CHECK",
+        "message": "드워프는 볼주머니가 찬 채로 지나가므로 터널 안쪽 폭이 5cm 이상인지 확인해요."
+      }
+    ],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=Kopie_von_Zwerghamster_271124.pdf&did=43",
+        "title": "TVT Merkblatt Nr. 162 – Heimtiere: Zwerghamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-24"
       }
     ]
   }

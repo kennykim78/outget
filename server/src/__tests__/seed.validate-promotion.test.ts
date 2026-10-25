@@ -10,7 +10,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-01';
+const NOW = '2026-10-24';
 const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 
 const TAXON = 'mesocricetus-auratus';
@@ -29,6 +29,7 @@ function verify(r: Rec, reviewerType: string): void {
   r.reviewerType = reviewerType;
   r.verifiedBy = 'reviewer-handle';
   r.verifiedAt = '2026-09-30';
+  r.reviewBasis = 'ROW_CHECKED';
 }
 const run = (s: RawSeed): ValidateResult => validateSeed(s, { now: NOW, strict: false });
 const errs = (r: ValidateResult, rule: string): ValidateResult['errors'] => r.errors.filter((i) => i.rule === rule);
@@ -45,10 +46,10 @@ function verifiedCare(): Required<RawSeed> {
 }
 
 describe('seed:validate — 승격 무결성(R7 A3)', () => {
-  it('실시드: errors 0 · warnings 14 · V06/V07 0건(현재 VERIFIED 0)', () => {
+  it('실시드: errors 0 · warnings 17 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts 6키·careNotes 3 통과, Taxon VERIFIED 0)', () => {
     const res = run(fresh());
     expect(res.errors).toEqual([]);
-    expect(res.warnings).toHaveLength(14);
+    expect(res.warnings).toHaveLength(17);
     expect(res.errors.concat(res.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
   });
 

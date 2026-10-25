@@ -105,6 +105,11 @@ export interface ContentMeta {
   reviewerType: ReviewerType;
   verifiedBy: string | null;
   verifiedAt: string | null;
+  /**
+   * 검수 방식(보안 79 H-1, Kenny 2026-10-25) — 시드 전용 메타. seed:validate 가 필수·VERIFIED 전용·서명 매니페스트 일치를 검사한다.
+   *   엔진·DB·공개 산출물은 읽지 않는다(불변식 7 — 산출물 0, compliance C3-OUT-REVIEWMETA). 타입상 생략 가능(메모리 픽스처).
+   */
+  reviewBasis?: 'ROW_CHECKED' | 'AI_RESEARCH_BULK' | null;
   contentKind: ContentKind;
   source: SourceRef[];
 }

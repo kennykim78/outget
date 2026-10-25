@@ -46,5 +46,7 @@ export {
 export type { CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
 export { buildSearchLinks, type SearchLink, type SearchProvider } from './search-links.js';
 export * from './public.js';
+export { WS_WIRE_VERSION, decodeWsPage, encodeWsPage } from './ws-wire.js';
+export type { WsPageWire, WsWireRequirement, WsWireSource } from './ws-wire.js';
 /** K1(51 레인 A): 친구 선택 정적 URL — 홈 A 부모 + L1 정적 본문(noindex·sitemap 제외). client shell/pickLink.ts PICK_PATH 와 같은 값. */
 export const PICK_PATH = '/pick';

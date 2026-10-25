@@ -26,6 +26,8 @@ export interface PrerenderIo {
 }
 
 export const WS_DATA_MAX_BYTES = 32 * 1024;
+/** 경고 문턱(실패 아님) — 와이어(v2) 기준 여유 4KB 이하로 줄면 stderr 에 알린다(73 계획 선택안, 오케스트레이터 채택). */
+export const WS_DATA_WARN_BYTES = 28 * 1024;
 /** 원본 템플릿 보존본 — index.html 이 홈 프리렌더로 덮이므로 재실행·/save 셸이 이것을 쓴다. */
 export const SHELL_FILE = 'shell.html';
 
@@ -208,10 +210,10 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   }
 
   // D20 — 시드 검증 선행.
-  const { raw, issues } = readSeedDirRaw(args.seedDir);
+  const { raw, issues, signatures } = readSeedDirRaw(args.seedDir);
   // --now = 시드 검증 기준일이자 노출 기준일(M-1 검수 나이). 산출물에는 쓰지 않는다.
   const asOf = args.now ?? io.today();
-  const res = validateSeed(raw, { now: asOf, strict: false });
+  const res = validateSeed(raw, { now: asOf, strict: false, signatures });
   const errors = [...issues, ...res.errors];
   if (errors.length > 0) {
     for (const i of errors) io.stderr(formatIssue(i));
@@ -239,6 +241,7 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   const fails: string[] = [];
   for (const p of b.pages) {
     if (p.wsDataBytes > WS_DATA_MAX_BYTES) fails.push(`${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_MAX_BYTES}B`);
+    else if (p.wsDataBytes > WS_DATA_WARN_BYTES) io.stderr(`prerender: 경고 ${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_WARN_BYTES}B(상한 ${WS_DATA_MAX_BYTES}B)`);
   }
   for (const ref of referencedAssets(b)) {
     const rel = ref.slice(1);

@@ -1,0 +1,146 @@
+// R7-B B7 — 드워프 미리보기(메모리에서만 확인표 서명(가짜 결과)·hamster-dwarf ACTIVE, 디스크는 DRAFT·PLANNED) 프리렌더 경로·내용 스냅샷.
+//   게이트 G(첫 노출) 전 화면·감사 검증용. 기준일 DWARF_PREVIEW_AS_OF 고정(실시계 0, F14).
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createCatalog, createEngine, type Reason } from '../engine/index.js';
+import { buildSite, type BuiltPage, type SiteBuild } from '../prerender/site.js';
+import { WS_DATA_MAX_BYTES } from '../prerender/cli.js';
+import { projectSite } from '../prerender/project.js';
+import { DWARF_PREVIEW_AS_OF, dwarfPreview, realSeed } from './fixtures/prerender-seed.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const TEMPLATE = readFileSync(join(here, '..', '..', '..', 'client', 'index.html'), 'utf8');
+const D = 'hamster-dwarf';
+const build = (): SiteBuild =>
+  buildSite(dwarfPreview(), { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), indexable: true, asOf: DWARF_PREVIEW_AS_OF });
+const pageAt = (b: SiteBuild, path: string): BuiltPage => {
+  const p = b.pages.find((x) => x.route.path === path);
+  if (!p) throw new Error(`페이지 없음: ${path}`);
+  return p;
+};
+const ruleIds = (rs: Reason[]) => rs.map((r) => r.ruleId);
+
+/** 노출 요구사항(순서 = orderHint → priority → 시드 순). 사료(FOOD)·저울(HEALTH)은 DRAFT 라 없다. */
+const REQ_ORDER = ['cage', 'wheel', 'bedding', 'water', 'hideout', 'sand-bath', 'sand-bath-box', 'food-bowl', 'thermo', 'chew', 'carrier', 'tubes', 'saucer'];
+const ITEMS_SEED_ORDER = ['cage', 'wheel', 'saucer', 'bedding', 'water', 'food-bowl', 'hideout', 'sand-bath', 'sand-bath-box', 'chew', 'carrier', 'thermo', 'tubes'];
+/** 상품 L7 순서 = 요구사항 순 → verdict OK 먼저(cp-dw-005 BELOW_RECOMMENDED 뒤) → 시드 순. */
+const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '009', '010', '011', '016', '017', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
+
+describe('디스크 시드 — 드워프 PLANNED 라 실노출 0', () => {
+  it('projectSite(실시드) 타입 0', () => {
+    expect(realSeed().animalTypes.find((t) => t.id === D)?.status).toBe('PLANNED');
+    expect(projectSite(realSeed(), DWARF_PREVIEW_AS_OF).types).toEqual([]);
+  });
+});
+
+describe('드워프 미리보기 — 경로 스냅샷', () => {
+  const b = build();
+
+  it('노출 타입 = 드워프 1, 골든 0', () => {
+    expect(b.model.types.map((t) => t.id)).toEqual([D]);
+  });
+
+  it('경로 집합(홈 A · /hamster · /hamster/dwarf · setup · L4/L5 × 13 · L7 × 17 · /supplies × 13 × 2 · 고정 5)', () => {
+    expect(b.routes.map((r) => r.path)).toEqual([
+      '/',
+      '/hamster',
+      '/hamster/dwarf',
+      '/hamster/dwarf/setup',
+      ...REQ_ORDER.flatMap((i) => [`/hamster/dwarf/supplies/${i}`, `/hamster/dwarf/check/${i}`]),
+      ...PRODUCT_ORDER.map((p) => `/hamster/dwarf/products/${p}`),
+      '/supplies',
+      ...ITEMS_SEED_ORDER.flatMap((i) => [`/supplies/${i}`, `/supplies/${i}/${D}`]),
+      '/vet',
+      '/save',
+      '/pick',
+      '/credits',
+      '/404',
+    ]);
+  });
+
+  it('골든·사료·저울 경로 0', () => {
+    const paths = b.routes.map((r) => r.path);
+    expect(paths.filter((p) => /golden|\/food(\/|$)|\/scale(\/|$)/.test(p))).toEqual([]);
+  });
+
+  it('홈 A: ws-data 타입 = 드워프 1(피커 카드는 /pick 정적 본문), /hamster: 드워프 카드만', () => {
+    const home = pageAt(b, '/');
+    expect(home.data.data.types.map((t) => t.id)).toEqual([D]);
+    expect(home.html).not.toContain('hamster-golden');
+    expect(pageAt(b, '/pick').html).toContain(`<a class="ws-type-card" href="/hamster/dwarf" data-ws-id="animalTypes#${D}"`);
+    const fam = pageAt(b, '/hamster').html;
+    const hrefs = [...fam.matchAll(/<a class="ws-type-card" href="([^"]+)"/g)].map((x) => x[1]);
+    expect(hrefs).toEqual(['/hamster/dwarf']);
+  });
+
+  it('/hamster/dwarf(L2 체크리스트 입력): 요구사항 13 순서·우선순위, 번들 3, 상품 17', () => {
+    const d = pageAt(b, '/hamster/dwarf').data.data;
+    expect(d.requirements.map((r) => r.supplyItemId)).toEqual(REQ_ORDER);
+    expect(d.requirements.filter((r) => r.priority === 'REQUIRED').map((r) => r.supplyItemId)).toEqual(['cage', 'wheel', 'bedding', 'water', 'hideout', 'sand-bath', 'sand-bath-box']);
+    expect(d.bundles.map((x) => x.id)).toEqual(['sb-dwarf-budget', 'sb-dwarf-balanced', 'sb-dwarf-reuse']);
+    expect(d.bundles.every((x) => x.estimatedRangeText === null)).toBe(true);
+    expect(d.products.map((p) => p.id)).toEqual(PRODUCT_ORDER);
+  });
+
+  it('L4 cage: 최소 규격 4개(철망 간격은 "형태 철망일 때" 조건부), 권장 철망 제외', () => {
+    const html = pageAt(b, '/hamster/dwarf/supplies/cage').html;
+    expect(html).toContain('바닥 가로 100cm 이상');
+    expect(html).toContain('형태 철망일 때 — 철망 간격 6mm 이하');
+    expect(html).toContain('형태 철망 제외');
+  });
+
+  it('L4 모래 2행: /supplies/sand-bath = 목욕 모래, /supplies/sand-bath-box = 모래 목욕통', () => {
+    expect(pageAt(b, '/hamster/dwarf/supplies/sand-bath').html).toContain('목욕 모래');
+    expect(pageAt(b, '/hamster/dwarf/supplies/sand-bath-box').html).toContain('짧은 변');
+  });
+
+  it('L6 내 케이지 판정(공개 카탈로그 → 클라와 같은 createEngine 경로)', () => {
+    const c = b.catalog;
+    const eng = createEngine(createCatalog({ animalTypes: c.animalTypes, careProfiles: c.careProfiles, supplyItems: c.supplyItems, supplyRequirements: c.supplyRequirements, compatibilityRules: c.compatibilityRules }));
+    const base = { floorWcm: 100, floorDcm: 50, heightCm: 50 };
+    expect(eng.specCheck(D, 'cage', { type: 'WIRE', ...base, barGapMm: 9.5 }).verdict).toBe('BELOW_MIN');
+    expect(eng.specCheck(D, 'cage', { type: 'OTHER', ...base }).verdict).toBe('OK');
+    expect(eng.specCheck(D, 'cage', { type: 'WIRE', ...base }).verdict).toBe('CHECK');
+    const ctx = (h: number) => ({ ownedItems: { cage: { type: 'LIVING_BOX', floorWcm: 100, floorDcm: 50, heightCm: h } } });
+    expect(eng.requirementCompat(D, 'wheel', ctx(50)).verdict).toBe('OK');
+    const low = eng.requirementCompat(D, 'wheel', ctx(41));
+    expect(low.verdict).toBe('CHECK');
+    expect(ruleIds(low.reasons)).toEqual(['cr-dwarf-wheel-cage-bedding#0']);
+    // DRAFT 공용 규칙(cr-wheel-cage·cr-water-cage)은 공개 카탈로그에 없다.
+    expect(c.compatibilityRules.map((r) => r.id)).toEqual(['cr-dwarf-wheel-cage-bedding', 'cr-dwarf-tubes-cage']);
+  });
+
+  it('공개 카탈로그: 용품 13(사료·저울 제외), 요구사항 13, verifiedBy 0', () => {
+    expect(b.catalog.supplyItems.map((i) => i.id)).toEqual(ITEMS_SEED_ORDER);
+    expect(b.catalog.supplyRequirements).toHaveLength(13);
+  });
+
+  it('모든 산출물: kenny·사료/저울 DRAFT 문장·Taxon id·법 문구·골든 0, Phodopus 는 VERIFIED 행의 출처 인용에만', () => {
+    const files = [...b.files.entries()];
+    const all = files.map(([, c]) => c).join('\n');
+    // 보안 79 H-1: 검수 방식·서명 메타(reviewBasis·ROW_CHECKED·AI_RESEARCH_BULK·factHash·review-signatures)도 0 — 서명된 미리보기(dwarfSigned) 기준.
+    for (const w of ['kenny', '"req-dwarf-food"', 'req-dwarf-scale', '탄수화물', '주방 저울', 'phodopus-', '시행규칙', '야생생물법', 'mesocricetus', 'hamster-golden', '골든햄스터', 'reviewBasis', 'ROW_CHECKED', 'AI_RESEARCH_BULK', 'factHash', 'review-signatures']) {
+      expect(all.split(w).length - 1, w).toBe(0);
+    }
+    for (const [f, c] of files) {
+      const stripped = c.replace(/https:\/\/animaldiversity\.org\/accounts\/Phodopus_campbelli\/|Animal Diversity Web — Phodopus campbelli|Handbook of the Mammals of the World Vol\.7 — Phodopus sungorus \(Zenodo 사본\)/g, '');
+      expect(stripped, f).not.toContain('Phodopus');
+    }
+  });
+
+  it('sitemap: 드워프 경로 lastmod 2026-10-24, 골든 0', () => {
+    const sm = b.files.get('sitemap.xml') ?? '';
+    expect(sm).toContain('<loc>http://localhost:3001/hamster/dwarf</loc><lastmod>2026-10-24</lastmod>');
+    expect(sm).not.toContain('golden');
+  });
+
+  // R7-B 발견(v1 ws-data 33.9~34.0KB, 44쪽 > 32KB) → 계획 73 ws-data 와이어 v2(engine/ws-wire: searchLinks 제거 + 출처 표)로 해소.
+  //   wsDataBytes = HTML 에 실린 와이어 바이트. 상한(cli.ts WS_DATA_MAX_BYTES 32KB)은 그대로, 여유 목표 = 최대 < 24KB.
+  it('ws-data 상한 — 와이어 v2 기준 초과 페이지 0, 최대 < 24KB', () => {
+    const over = b.pages.filter((p) => p.wsDataBytes > WS_DATA_MAX_BYTES).map((p) => p.route.path);
+    expect(over).toEqual([]);
+    expect(Math.max(...b.pages.map((p) => p.wsDataBytes))).toBeLessThan(24 * 1024);
+  });
+});

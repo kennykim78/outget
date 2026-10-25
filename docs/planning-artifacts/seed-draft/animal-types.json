@@ -22,6 +22,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": [
       {
@@ -47,12 +48,47 @@
     "careProfileId": "cp-hamster-dwarf",
     "careOverrides": {},
     "mascot": "hamster-dwarf",
+    "oneLiner": "단독 사육 기본 · 야행성 · 성체 7~10cm",
+    "seoTitle": null,
+    "seoDescription": null,
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
-    "source": []
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/company",
+        "title": "RSPCA — Keeping Hamsters Together",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://lafeber.com/vet/basic-information-for-hamsters/",
+        "title": "LafeberVet — Basic Information Sheet: Hamster (Pollock, DVM)",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Phodopus_campbelli/",
+        "title": "Animal Diversity Web — Phodopus campbelli",
+        "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://zenodo.org/record/6706432",
+        "title": "Handbook of the Mammals of the World Vol.7 — Phodopus sungorus (Zenodo 사본)",
+        "accessedAt": "2026-10-24"
+      }
+    ]
   },
   {
     "id": "gerbil-mongolian",
@@ -73,6 +109,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
   },
@@ -94,6 +131,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
   },
@@ -115,6 +153,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
   },
@@ -135,6 +174,7 @@
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
+    "reviewBasis": null,
     "contentKind": "CARE",
     "source": []
   }

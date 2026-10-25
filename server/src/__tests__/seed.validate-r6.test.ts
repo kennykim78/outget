@@ -11,7 +11,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-01';
+const NOW = '2026-10-24';
 const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
