@@ -68,11 +68,11 @@
     "imageAsset": null,
     "specValues": {
       "type": "LIVING_BOX",
-      "floorWcm": 80,
+      "floorWcm": 100,
       "floorDcm": 50,
-      "heightCm": 40
+      "heightCm": 50
     },
-    "targetSpecLabel": "리빙박스 80×50×40",
+    "targetSpecLabel": "리빙박스 100×50×50",
     "meetsMinSpec": null,
     "specVerifiedBy": null,
     "specVerifiedAt": null,
@@ -98,12 +98,12 @@
     "imageAsset": null,
     "specValues": {
       "type": "WIRE",
-      "floorWcm": 60,
-      "floorDcm": 40,
-      "heightCm": 35,
+      "floorWcm": 100,
+      "floorDcm": 50,
+      "heightCm": 50,
       "barGapMm": 9
     },
-    "targetSpecLabel": "철망 케이지 60×40 간격 9mm",
+    "targetSpecLabel": "철망 케이지 100×50×50 간격 9mm",
     "meetsMinSpec": null,
     "specVerifiedBy": null,
     "specVerifiedAt": null,
@@ -580,11 +580,10 @@
     "title": "carefresh Natural Paper 베딩",
     "imageAsset": null,
     "specValues": {
-      "material": "PAPER",
-      "scented": false
+      "material": "PAPER"
     },
     "targetSpecLabel": null,
-    "meetsMinSpec": true,
+    "meetsMinSpec": false,
     "specVerifiedBy": null,
     "specVerifiedAt": null,
     "status": "REVIEW",

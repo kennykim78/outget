@@ -87,6 +87,18 @@ export class InMemoryMagicTokenRepository implements MagicTokenRepository {
     return n;
   }
 
+  /** P2 삭제(인메모리 eraser 전용, 동기 — 같은 동기 구간에서 원자적): 그 이메일의 토큰 전부(소비·만료 무관). 삭제 수. */
+  removeByEmailSync(email: string): number {
+    let n = 0;
+    for (const [k, r] of this.rows) {
+      if (r.email === email) {
+        this.rows.delete(k);
+        n++;
+      }
+    }
+    return n;
+  }
+
   /** 테스트 관찰용. */
   size(): number {
     return this.rows.size;
@@ -141,6 +153,18 @@ export class InMemorySessionRepository implements SessionRepository {
     return n;
   }
 
+  /** P2 삭제(인메모리 eraser 전용, 동기): userId 의 세션 전부. 삭제 수. Prisma 는 User Cascade. */
+  removeByUserIdSync(userId: string): number {
+    let n = 0;
+    for (const [k, r] of this.rows) {
+      if (r.userId === userId) {
+        this.rows.delete(k);
+        n++;
+      }
+    }
+    return n;
+  }
+
   dump(): SessionRow[] {
     return [...this.rows.values()].map((r) => ({ ...r }));
   }
@@ -156,6 +180,11 @@ export class InMemorySaveSnapshotRepository implements SaveSnapshotRepository {
 
   async put(row: SaveSnapshotRow): Promise<void> {
     this.rows.set(row.userId, { ...row });
+  }
+
+  /** P2 삭제(인메모리 eraser 전용, 동기): 0|1. Prisma 는 User Cascade. */
+  removeSync(userId: string): number {
+    return this.rows.delete(userId) ? 1 : 0;
   }
 
   async putIfMatch(row: SaveSnapshotRow, baseUpdatedAt: string | null): Promise<SavePutResult> {

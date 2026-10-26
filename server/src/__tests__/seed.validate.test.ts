@@ -11,7 +11,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-24';
+const NOW = '2026-10-25';
 
 const loaded = readSeedDirRaw(SEED_DIR);
 const BASE: RawSeed = loaded.raw;
@@ -85,17 +85,19 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 17 = W-EXPOSURE-ZERO 1 · L03 12(caution 7 + 번들 note 단위 2 + R7-B 드워프 3) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 15 = W-EXPOSURE-ZERO 1 · L03 10(caution 5 + 번들 note 단위 1 + Taxon note 3 + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 12, L05: 4 });
-    expect(res.warnings).toHaveLength(17);
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 10, L05: 4 });
+    expect(res.warnings).toHaveLength(15);
+    // BE90: req-dwarf-food caution = Kenny 확정 문장 2문장(2026-10-25 '84 수령') → L03 caution 1문장 경고 1건(경고, 문장 그대로 둔다).
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-food' && i.path === 'caution')).toHaveLength(1);
     // R7-B 드워프 L03 3건 = 패킷 문장 그대로(값 변경 0): Taxon legal.note 2(DRAFT 초안 '제3조' 등) · req-dwarf-hideout why '3곳'(v0.2 5-8 서명).
-    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'taxa.json' && i.path === 'legal.note').map((i) => i.id).sort()).toEqual(['phodopus-campbelli', 'phodopus-sungorus']);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'taxa.json' && i.path === 'legal.note').map((i) => i.id).sort()).toEqual(['mesocricetus-auratus', 'phodopus-campbelli', 'phodopus-sungorus']);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-hideout' && i.path === 'why')).toHaveLength(1);
-    expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(7);
-    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(2);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(5);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(1);
   });
 
   it('노출 0(DRAFT 전량)', () => {
@@ -143,7 +145,8 @@ const CASES: Case[] = [
   {
     name: 'S05 min > max',
     rule: 'S05',
-    also: ['S06'], // 잘못된 필드는 스키마 맵에 안 들어가므로 그 key 를 쓰는 요구사항 규칙이 S06 으로 연쇄
+    // 잘못된 필드는 스키마 맵에 안 들어가므로 그 key 를 쓰는 요구사항 규칙이 있으면 S06 으로 연쇄된다.
+    //   BE92: 소서 minSpec 삭제(85 근거 없음)로 saucer.diameterCm 을 쓰는 규칙이 없어 S06 연쇄 없음(also 비움).
 
     inject: (s) => {
       const f = ((row(s, 'supplyItems', 'saucer').specSchema as Rec).fields as Rec[])[0];
@@ -220,27 +223,27 @@ const CASES: Case[] = [
       s.supplyRequirements.push(c);
     },
   },
-  { name: 'R07 a 항목 없음', rule: 'R07', inject: (s) => { row(s, 'compatibilityRules', 'cr-wheel-cage').a = 'ghost'; } },
-  { name: 'R07 a == b', rule: 'R07', inject: (s) => { row(s, 'compatibilityRules', 'cr-wheel-cage').b = 'wheel'; } },
+  { name: 'R07 a 항목 없음', rule: 'R07', inject: (s) => { row(s, 'compatibilityRules', 'cr-syrian-wheel-cage-bedding').a = 'ghost'; } },
+  { name: 'R07 a == b', rule: 'R07', inject: (s) => { row(s, 'compatibilityRules', 'cr-syrian-wheel-cage-bedding').b = 'wheel'; } },
   {
     name: 'R07 expr 화이트리스트 밖 식별자',
     rule: 'R07',
-    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-wheel-cage').rules as Rec[])[0]).expr = 'a.diameterCm + process'; },
+    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-syrian-wheel-cage-bedding').rules as Rec[])[0]).expr = 'a.diameterCm + process'; },
   },
   {
     name: 'R07 expr 호출 금지',
     rule: 'R07',
-    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-wheel-cage').rules as Rec[])[0]).expr = 'process.exit()'; },
+    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-syrian-wheel-cage-bedding').rules as Rec[])[0]).expr = 'process.exit()'; },
   },
   {
     name: 'R07 enum 리터럴 options 밖',
     rule: 'R07',
-    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-wheel-cage').rules as Rec[])[2]).expr = "a.mount == 'HANG' ? b.type == 'WIRES' : true"; },
+    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-syrian-wheel-cage-bedding').rules as Rec[])[0]).expr = "a.mount == 'HANG' ? b.type == 'WIRES' : true"; },
   },
   {
     name: 'R07 스키마 밖 참조',
     rule: 'R07',
-    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-water-cage').rules as Rec[])[0]).expr = 'a.mount == b.mount'; },
+    inject: (s) => { ((row(s, 'compatibilityRules', 'cr-syrian-wheel-cage-bedding').rules as Rec[])[0]).expr = 'a.mount == b.mount'; },
   },
   { name: 'R08 itemIds 없음', rule: 'R08', inject: (s) => { (row(s, 'setupBundles', 'sb-syrian-budget').itemIds as string[]).push('ghost'); } },
   { name: 'R08 (profile,tier) 중복', rule: 'R08', inject: (s) => { row(s, 'setupBundles', 'sb-syrian-reuse').tier = 'BUDGET'; } },
@@ -268,7 +271,7 @@ const CASES: Case[] = [
     rule: 'V02',
     inject: (s) => { const r = row(s, 'supplyItems', 'cage'); verify(r); r.verifiedBy = null; },
   },
-  { name: 'V03 FOOD 를 EXPERIENCED_KEEPER 가 검수', rule: 'V03', also: ['V08'] /* 디스크 출처는 국외 3건 */, inject: (s) => { verify(row(s, 'supplyRequirements', 'req-syrian-food')); } },
+  { name: 'V03 FOOD 를 EXPERIENCED_KEEPER 가 검수', rule: 'V03' /* BE92 Q3: 디스크 출처에 국내 K1 → V08 동반 없음 */, inject: (s) => { verify(row(s, 'supplyRequirements', 'req-syrian-food')); } },
   { name: 'V03 LEGAL 은 OFFICIAL_SOURCE', rule: 'V03', inject: (s) => { verify(row(s, 'taxa', 'mesocricetus-auratus'), 'VET'); } },
   {
     name: 'V04 FOOD 출처 같은 호스트 2개',
@@ -286,7 +289,12 @@ const CASES: Case[] = [
   {
     name: 'V08 FOOD VERIFIED 서로 다른 도메인 2개지만 국내(.kr) 0',
     rule: 'V08',
-    inject: (s) => { verify(row(s, 'supplyRequirements', 'req-syrian-food'), 'VET_PUBLISHED_SOURCE'); },
+    inject: (s) => {
+      const r = row(s, 'supplyRequirements', 'req-syrian-food');
+      verify(r, 'VET_PUBLISHED_SOURCE');
+      // BE92 Q3: 디스크 req-syrian-food 에 국내 K1(koreascience.kr)이 붙어 → 국외 출처만 남겨 V08 을 만든다.
+      r.source = (r.source as Array<{ url: string }>).filter((x) => !x.url.includes('.kr/'));
+    },
   },
   {
     name: 'V08 HEALTH VERIFIED — .kr 처럼 보이는 경로·서브도메인 우회(kr.example.com, example.com/kr)는 국내로 세지 않음',
@@ -329,9 +337,14 @@ const CASES: Case[] = [
     inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-004'), { status: 'REVIEW', meetsMinSpec: false, title: '상품 A' }); },
   },
   {
-    name: 'P01 비SLOT meetsMinSpec=true 인데 재계산 false (cp-003 barGapMm 누락 → CHECK)',
+    // BE92: 골든 철망 간격은 when type eq WIRE(85) + cp-003 목표 100×50×50 → 리빙박스는 재계산 true. 높이를 40으로 낮춰 재계산 false 를 만든다.
+    name: 'P01 비SLOT meetsMinSpec=true 인데 재계산 false (cp-003 높이 40 < 50)',
     rule: 'P01',
-    inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-003'), { status: 'REVIEW', meetsMinSpec: true, title: '상품 B' }); },
+    inject: (s) => {
+      const p = row(s, 'curatedProducts', 'cp-003');
+      Object.assign(p, { status: 'REVIEW', meetsMinSpec: true, title: '상품 B' });
+      (p.specValues as Rec).heightCm = 40;
+    },
   },
   { name: 'P01 비SLOT meetsMinSpec null', rule: 'P01', inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-005'), { status: 'REVIEW', title: '상품 C' }); } },
   { name: 'P03 NONE 인데 imageAsset', rule: 'P03', inject: (s) => { row(s, 'curatedProducts', 'cp-001').imageAsset = '/assets/products/cp-001.jpg'; } },
@@ -485,7 +498,7 @@ describe('seed:validate — 규칙별 주입', () => {
     expect(res.errors[0].id).toBe('cp-003');
   });
 
-  /** golden 체인(요구사항·용품·프로필[·동물]) VERIFIED + cp-004(철망 60×40, 간격 9mm) ACTIVE·VERIFIED 승격. 메모리 복사본만. */
+  /** golden 체인(요구사항·용품·프로필[·동물]) VERIFIED + cp-004(철망 100×50×50, 간격 9mm — BE92 목표 규격) ACTIVE·VERIFIED 승격. 메모리 복사본만. */
   function promoteGoldenChain(s: Required<RawSeed>, opts: { animalType: boolean; labels?: boolean }): void {
     verify(row(s, 'supplyRequirements', 'req-syrian-cage'));
     verify(row(s, 'supplyItems', 'cage'));

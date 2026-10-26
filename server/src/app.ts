@@ -9,12 +9,12 @@ import { securityHeaders } from './middleware/security-headers.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { mountSpa } from './middleware/spa.js';
 import { makeCors, parseAllowedOrigins } from './middleware/cors.js';
-import { makeAppLimiters } from './middleware/rate-limit.js';
+import { makeAppLimiters, makeLimiter } from './middleware/rate-limit.js';
 import { assertJwtSecrets, parseTrustProxy } from './config/env.js';
 import { makeEventsRoutes } from './analytics/events.routes.js';
 import { resolveSaveConfig, type SaveConfig } from './save/config.js';
 import { createMagicRouter } from './save/magic.routes.js';
-import { createSaveRouter } from './save/save.routes.js';
+import { createSaveRouter, SAVE_ERASE_LIMIT } from './save/save.routes.js';
 import type { Clock } from './save/session.js';
 
 // 자체 본문 파서를 쓰는 경로는 전역 JSON 파서에서 제외한다(Express 라우팅은 대소문자 무시 — 동일하게 맞춘다).
@@ -113,7 +113,19 @@ export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOpt
 
   // 저장 스냅샷(세션 필수, 검증된 SaveV1 만, 병합 없음 — D5). 좌표·지역·이메일·토큰 키 거부(불변식 ⑧).
   app.put('/api/save', limiters.save);
-  app.use('/api/save', createSaveRouter({ sessions: repos.session, snapshots: repos.saveSnapshot, now }));
+  // P3 연결 저장 삭제(DELETE, channel=SELF): erase 5/15분/IP(+ 위 write 리미터). 계약은 save.routes.ts 머리말.
+  app.delete('/api/save', makeLimiter(SAVE_ERASE_LIMIT, rateLimits));
+  app.use(
+    '/api/save',
+    createSaveRouter({
+      sessions: repos.session,
+      snapshots: repos.saveSnapshot,
+      now,
+      erasure: repos.erasure,
+      users: repos.user,
+      secureCookie: saveConfig.secureCookie,
+    }),
+  );
 
   // 익명 반응(C-R5-3, D8·D9, SEC-3 M-3): anonKey = HMAC(시크릿, 서울 날짜|IP 접두) — 접두는 IPv4 /24·IPv6 /56(R6 B3),
   //   UA 미사용, 400일 창. 원문 IP 저장 0. 변경 분당 20/IP. LIKE 만 10 이상 수 공개.

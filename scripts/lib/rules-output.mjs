@@ -1,9 +1,10 @@
-// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE.
+// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY.
 //   + 시드 노출 규칙 C3-TAXON(scanSeedExposure, 산출물 유무와 무관).
 //   노출 판단은 seed-exposure.mjs(원시 시드 독립 재구현, D9)만 쓴다.
 //
 // prerender-manifest.json 계약(F3 가 쓴다):
 //   { v: 1, seedDigest: "<sha256 hex — seed-exposure.mjs seedDigest()>", indexable: boolean(사이트 수준, WS_INDEXABLE),
+//     mode: "production"|"development"(NODE_ENV=production 프리렌더만 production — C9-PRIVACY 자리표시 경고 문구, 누락은 production 취급),
 //     routes: [{ path: "/hamster/golden", file: "hamster/golden/index.html", kind: RouteKind, indexable: boolean,
 //                typeId?, family?, itemId?, productId?, region?, layer?: { kind, typeId, itemId?|productId? } }] }
 import { existsSync, readFileSync } from 'node:fs';
@@ -14,7 +15,7 @@ import { scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { SEED_KEYS } from './seed-exposure.mjs';
 
-const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'SAVE', 'PICK', 'NOT_FOUND']);
+const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
 const TYPE_KINDS = new Set(['TYPE', 'SETUP']);
 const WS_DATA_KEYS = { types: 'animalTypes', products: 'curatedProducts', bundles: 'setupBundles', vets: 'vetClinics', testimonials: 'testimonials' };
 const JSON_TEXT_SKIP = /^(id|slug|href|url|sourceUrl|path|catalogUrl|imageAsset|reviewerImage|seedDigest|file|item|@context|@type|@id|kind|provider|reviewerType|priority|orderHint|category|tier|verdict|reasonCodes|situation|linkedAction|group|imageLicense)$|Id$|Ids$|At$/;
@@ -330,6 +331,87 @@ export function scanSeedExposure({ ex, add }) {
 }
 
 /**
+ * C9-PRIVACY(계획 86 P11, Kenny K-1·K-2 2026-10-25) — 개인정보 처리방침 산출물.
+ *   ① manifest 에 path /privacy · kind PRIVACY 라우트 + 파일 존재(누락 FAIL)
+ *   ② manifest 라우트 HTML(404 포함, 비라우트 셸 제외)마다 <a href="/privacy">(없으면 FAIL)
+ *   ③ 산출물 텍스트 어디든 "{{KENNY:" 자리표시 — 항상 WARN. 운영 빌드(mode ≠ development)면 메시지에 "운영 기동 차단됨"
+ *      (차단 자체는 server/src/config/env.ts 운영 기동 검사 — /privacy/index.html 에 자리표시면 exit 1)
+ *   ④ /privacy 의 span[data-ws-policy=NAME] 값 = server/src/privacy/policy.ts 의 `export const NAME = <정수식>` 값.
+ *      이름 미존재·불일치 FAIL, span 0 FAIL, policy.ts 의 *_RETENTION_DAYS export 가 페이지에 하나도 없으면 FAIL, policy.ts 없음·해석 불가 FAIL.
+ *   한계: span 밖에 직접 쓴 숫자는 대조하지 못한다(본문은 privacy-content.ts {policy:NAME} 토큰으로만 기간을 싣는다).
+ */
+export const PRIVACY_POLICY_FILE = 'server/src/privacy/policy.ts';
+export const KENNY_NEEDLE = '{{KENNY:';
+const POLICY_CONST_RE = /^export\s+const\s+([A-Z][A-Z0-9_]*)\s*=\s*([^;\n]+);/gm;
+
+/** policy.ts 원문 → 정수 상수 표(정수 리터럴·`_` 구분·`*` 곱만 해석, 그 밖의 식·문자열은 건너뛴다). */
+export function parsePolicyConstants(src) {
+  const out = new Map();
+  for (const m of src.matchAll(POLICY_CONST_RE)) {
+    const expr = m[2].trim();
+    if (!/^\d[\d_]*(?:\s*\*\s*\d[\d_]*)*$/.test(expr)) continue;
+    const v = expr.split('*').reduce((acc, f) => acc * Number(f.trim().replace(/_/g, '')), 1);
+    if (Number.isSafeInteger(v)) out.set(m[1], v);
+  }
+  return out;
+}
+
+function checkPrivacy({ root, dist, m, routes, routeFiles, all, add }) {
+  const R = 'prerender-manifest.json';
+  const route = routes.find((r) => r.kind === 'PRIVACY' && typeof r.file === 'string' && decodePath(r.path) === '/privacy');
+  const abs = route ? join(dist, route.file) : null;
+  if (!abs || !existsSync(abs)) {
+    add('C9-PRIVACY', 'FAIL', R, null, '개인정보 처리방침 페이지 없음(/privacy · kind PRIVACY 라우트와 파일 필요)');
+  }
+
+  // ② 모든 라우트 페이지에 /privacy 링크
+  for (const f of all.filter((x) => x.endsWith('.html') && routeFiles.has(resolve(x)))) {
+    const html = readFileSync(f, 'utf8');
+    const ok = tags(html).some((t) => t.name === 'a' && typeof t.attrs.href === 'string' && t.attrs.href.trim() === '/privacy');
+    if (!ok) add('C9-PRIVACY', 'FAIL', relPosix(root, f), null, '처리방침 링크(href="/privacy") 없음');
+  }
+
+  // ③ 자리표시 — 빌드에서는 항상 WARN(CI 도커 빌드가 NODE_ENV=production 이라 FAIL 이면 모든 PR 이 빨강, 오케스트레이터 2026-10-25).
+  //   공개 차단은 운영 기동 검사(server/src/config/env.ts privacyPlaceholderProblem — docker-entrypoint 의 env 검사 단계)가 맡는다.
+  const dev = isObj(m) && m.mode === 'development';
+  for (const f of all.filter((x) => OUT_TEXT_EXT.test(x))) {
+    const text = readFileSync(f, 'utf8');
+    const at = text.indexOf(KENNY_NEEDLE);
+    if (at < 0) continue;
+    const keys = [...new Set([...text.matchAll(/\{\{KENNY:([A-Za-z0-9]*)\}\}/g)].map((x) => x[1]))].join(', ');
+    add('C9-PRIVACY', 'WARN', relPosix(root, f), lineIndex(text)(at), `Kenny 미정 자리표시 ${KENNY_NEEDLE}…}}(${keys || '?'}) — ${dev ? '개발 빌드' : `운영 빌드(manifest.mode=${JSON.stringify(isObj(m) ? m.mode : undefined)}): 운영 기동 차단됨(WS_ALLOW_PRIVACY_PLACEHOLDER=1 일 때만 기동)`}`);
+  }
+
+  // ④ 기간 숫자 = policy.ts
+  if (!abs || !existsSync(abs)) return;
+  const rel = relPosix(root, abs);
+  const policyAbs = join(root, ...PRIVACY_POLICY_FILE.split('/'));
+  if (!existsSync(policyAbs)) {
+    add('C9-PRIVACY', 'FAIL', PRIVACY_POLICY_FILE, null, '보존 기간 단일 출처(policy.ts) 없음 — /privacy 기간 숫자를 대조할 수 없다');
+    return;
+  }
+  const consts = parsePolicyConstants(stripBom(readFileSync(policyAbs, 'utf8')));
+  const html = readFileSync(abs, 'utf8');
+  const lineOf = lineIndex(html);
+  const re = /<span\b[^>]*\bdata-ws-policy="([^"]*)"[^>]*>([^<]*)<\/span>/g;
+  const seen = new Set();
+  let n = 0;
+  for (const mm of html.matchAll(re)) {
+    n++;
+    const [, name, value] = mm;
+    seen.add(name);
+    if (!consts.has(name)) add('C9-PRIVACY', 'FAIL', rel, lineOf(mm.index), `기간 ${name} 이 policy.ts 에 없음`);
+    else if (value.trim() !== String(consts.get(name))) add('C9-PRIVACY', 'FAIL', rel, lineOf(mm.index), `기간 ${name}: 페이지 ${JSON.stringify(value)} ≠ policy.ts ${consts.get(name)}`);
+  }
+  const attrCount = (html.match(/\bdata-ws-policy=/g) ?? []).length;
+  if (attrCount !== n) add('C9-PRIVACY', 'FAIL', rel, null, `data-ws-policy 표기 ${attrCount}개 중 ${attrCount - n}개가 span 숫자 형식이 아님`);
+  if (n === 0) add('C9-PRIVACY', 'FAIL', rel, null, '보존 기간 표기(span[data-ws-policy]) 0개');
+  for (const name of consts.keys()) {
+    if (name.endsWith('_RETENTION_DAYS') && !seen.has(name)) add('C9-PRIVACY', 'FAIL', rel, null, `policy.ts ${name} 기간이 처리방침에 없음`);
+  }
+}
+
+/**
  * @returns {'RUN'|'NOT RUN'}
  */
 export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, seed }) {
@@ -402,6 +484,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   // HTML — credits 링크 규칙은 manifest 라우트 파일(404 포함)에만(SPA 셸 shell.html 등 비라우트 HTML 제외)
   const routeFiles = new Set(routes.filter((r) => typeof r.file === 'string').map((r) => resolve(dist, r.file)));
   const all = walk(dist);
+  checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
     const html = readFileSync(abs, 'utf8');

@@ -213,6 +213,8 @@ describe('fail-closed 폴백', () => {
     expect(routeFromLocation({ pathname: '/' }).kind).toBe('HOME');
     expect(routeFromLocation({ pathname: '/supplies' }).kind).toBe('SUPPLIES');
     expect(routeFromLocation({ pathname: '/credits' }).kind).toBe('CREDITS');
+    expect(routeFromLocation({ pathname: '/privacy' })).toEqual({ kind: 'PRIVACY', path: '/privacy' });
+    expect(routeFromLocation({ pathname: '/privacy/' }).kind).toBe('PRIVACY');
     expect(routeFromLocation({ pathname: '/save' }).kind).toBe('SAVE');
     // K1 /pick(끝 슬래시 무시) → PICK(레인 A 라우트 종류).
     expect(routeFromLocation({ pathname: '/pick/' })).toEqual({ kind: 'PICK', path: '/pick' });

@@ -19,7 +19,9 @@ import {
   dwarfAllCheckedResult,
   dwarfPacket,
   dwarfSignedWith,
+  filesOf,
   realSeed,
+  type DwarfPacket,
 } from './fixtures/prerender-seed.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -95,7 +97,7 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
         }
       }
     }
-    expect(n).toBe(2 * 93); // 콘텐츠 8파일 93행 × 2
+    expect(n).toBe(2 * 91); // 콘텐츠 8파일 91행 × 2 (BE92: 호환 규칙 5 → 3)
   });
   it('해시는 키 순서·optionLabels·검수 메타와 무관, 사실 1글자 변경에는 반응', () => {
     const r = clone(rowOf(realSeed(), 'supplyRequirements', 'req-dwarf-cage'));
@@ -143,9 +145,9 @@ describe('G01~G06 — 서명 매니페스트 불일치는 각각 error', () => {
     return e;
   };
 
-  it('정상: 가짜 확인표(전 ☑·C) 서명 50행 + 매니페스트 50 → errors 0', () => {
+  it('정상: 가짜 확인표(전 ☑·C) 서명 52행(50 + 사료 D1 + 용품 사료 C) + 매니페스트 52 → errors 0', () => {
     const { raw, manifest } = signed();
-    expect(manifest).toHaveLength(50);
+    expect(manifest).toHaveLength(52);
     expect(run(raw, manifest).errors).toEqual([]);
   });
   it('G05 사실 변조(서명 뒤 why 1글자) → G05 만', () => {
@@ -176,8 +178,8 @@ describe('G01~G06 — 서명 매니페스트 불일치는 각각 error', () => {
   });
   it('G02 AI_DRAFT 를 사람 표기로 바꿔 VERIFIED 로 올려도 서명 없으면 → G02(V01 이 못 잡는 재표시 경로, H-1)', () => {
     const { raw, manifest } = signed();
-    Object.assign(rowOf(raw, 'supplyRequirements', 'req-dwarf-food'), { reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'kenny', verifiedAt: NOW, reviewBasis: 'AI_RESEARCH_BULK' });
-    expect(errsOf(run(raw, manifest), 'G02').map((i) => i.id)).toEqual(['req-dwarf-food']);
+    Object.assign(rowOf(raw, 'supplyRequirements', 'req-dwarf-scale'), { reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'kenny', verifiedAt: NOW, reviewBasis: 'AI_RESEARCH_BULK' });
+    expect(errsOf(run(raw, manifest), 'G02').map((i) => i.id)).toEqual(['req-dwarf-scale']);
   });
   it('G03 고아: 행을 DRAFT 로 되돌리고 항목은 남김 → G03 / 없는 id 항목 → G03', () => {
     const { raw, manifest } = signed();
@@ -259,9 +261,9 @@ describe('V09·V10 — reviewBasis 행 규칙(매니페스트 없이도)', () =>
   });
   it('V09 DRAFT 인데 reviewBasis 값 / VERIFIED 인데 null → V09', () => {
     const raw = base();
-    rowOf(raw, 'supplyRequirements', 'req-dwarf-food').reviewBasis = 'AI_RESEARCH_BULK';
+    rowOf(raw, 'supplyRequirements', 'req-dwarf-scale').reviewBasis = 'AI_RESEARCH_BULK';
     rowOf(raw, 'supplyItems', 'chew').reviewBasis = null;
-    expect(errsOf(v(raw), 'V09').map((i) => i.id).sort()).toEqual(['chew', 'req-dwarf-food']);
+    expect(errsOf(v(raw), 'V09').map((i) => i.id).sort()).toEqual(['chew', 'req-dwarf-scale']);
   });
   it('V10 상품·최소 규격 행은 ROW_CHECKED 만(일괄 승인 불가)', () => {
     const raw = base();
@@ -279,17 +281,17 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
   const bytes = (dir: string): Record<string, string> =>
     Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
 
-  it('round-trip: 가짜 확인표(전 ☑·C) → VERIFIED 50·매니페스트 50·validate 0 → 미서명 결과로 되돌리면 원래 바이트', async () => {
+  it('round-trip: 가짜 확인표(전 ☑·C) → VERIFIED 52·매니페스트 52·validate 0 → 미서명 결과로 되돌리면 원래 바이트', async () => {
     const { seed, draft } = pair();
     const before = bytes(seed);
     const resDir = mkdtempSync(join(tmpdir(), 'withsmall-sigres-'));
     temps.push(resDir);
     const all = writeJson(resDir, 'all.json', dwarfAllCheckedResult(NOW));
     const a = applyCli([...packetArgs, '--result', all, '--seed', seed, '--draft', draft, ...NOW_ARGS]);
-    expect(a.out.join('\n')).toContain('ROW_CHECKED 20 · AI_RESEARCH_BULK 30');
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 21 · AI_RESEARCH_BULK 31');
     expect(a.code).toBe(0);
     const m = JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')) as SignatureEntry[];
-    expect(m).toHaveLength(50);
+    expect(m).toHaveLength(52);
     expect(readFileSync(join(draft, SIGNATURE_FILE), 'utf8')).toBe(readFileSync(join(seed, SIGNATURE_FILE), 'utf8'));
     const v = await validateCli(seed);
     expect(v.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
@@ -299,7 +301,13 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(equivMjs.compareDirs(SEED_DIR, seed).filter((x) => !x.startsWith(SIGNATURE_FILE))).toEqual([]); // 사실 필드 0 변경(매니페스트는 달라야 정상)
     const prods = JSON.parse(readFileSync(join(seed, 'curated-products.json'), 'utf8')) as Row[];
     const dw = prods.filter((p) => String(p.id).startsWith('cp-dw-'));
-    expect(dw.every((p) => p.status === 'ACTIVE' && p.specVerifiedBy === 'kenny' && p.specVerifiedAt === NOW && p.reviewBasis === 'ROW_CHECKED')).toBe(true);
+    expect(dw.every((p) => p.status === (p.id === 'cp-dw-009' ? 'REVIEW' : 'ACTIVE') && p.specVerifiedBy === 'kenny' && p.specVerifiedAt === NOW && p.reviewBasis === 'ROW_CHECKED')).toBe(true); // cp-dw-009: meetsMinSpec=false(무향 근거 소멸) → 서명돼도 REVIEW 유지
+    // 사료(확인표 D1): 행 reviewerType VET_PUBLISHED_SOURCE + ROW_CHECKED, 나머지는 패킷 기본 EXPERIENCED_KEEPER. V03·V04·V08 은 위 validate 0 으로 통과.
+    const reqs = JSON.parse(readFileSync(join(seed, 'supply-requirements.json'), 'utf8')) as Row[];
+    expect(reqs.find((r) => r.id === 'req-dwarf-food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'kenny', verifiedAt: NOW, reviewBasis: 'ROW_CHECKED', contentKind: 'FOOD' });
+    expect(m.find((e) => e.id === 'req-dwarf-food')).toMatchObject({ file: 'supply-requirements.json', basis: 'ROW_CHECKED', signedBy: 'kenny', signedAt: NOW });
+    expect(reqs.filter((r) => r.reviewStatus === 'VERIFIED' && r.id !== 'req-dwarf-food').every((r) => r.reviewerType === 'EXPERIENCED_KEEPER')).toBe(true);
+    expect(reqs.find((r) => r.id === 'req-dwarf-scale')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT' }); // 저울은 패킷 밖
 
     const unsigned = join(ROOT, 'scripts', 'review-packets', 'hamster-dwarf-core.result.unsigned.json');
     expect(applyCli([...packetArgs, '--result', unsigned, '--seed', seed, '--draft', draft, ...NOW_ARGS]).code).toBe(0);
@@ -318,12 +326,92 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(run(rawOf(seed), manifest).errors).toEqual([]);
   });
 
-  it('C 만 서명 → 30행 AI_RESEARCH_BULK, 상품·최소 규격 행은 DRAFT', () => {
+  it('C 만 서명 → 31행 AI_RESEARCH_BULK(BE92: 용품 사료 포함), 상품·최소 규격 행은 DRAFT', () => {
     const { seed, manifest } = dwarfSignedWith({ ...dwarfAllCheckedResult(NOW), checked: [], checkedAt: null });
-    expect(manifest).toHaveLength(30);
+    expect(manifest).toHaveLength(31);
     expect(manifest.every((e) => e.basis === 'AI_RESEARCH_BULK')).toBe(true);
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-bedding').reviewStatus).toBe('DRAFT');
     expect(run(rawOf(seed), manifest).errors).toEqual([]);
+  });
+
+  describe('사료 D1(확인표 D, Kenny 2026-10-25 \'84 수령\') — 행 reviewerType VET_PUBLISHED_SOURCE + ROW_CHECKED', () => {
+    const allOk = (): Record<string, unknown> => dwarfAllCheckedResult(NOW);
+    const without = (item: string): Record<string, unknown> => ({ ...allOk(), checked: (allOk().checked as string[]).filter((x) => x !== item) });
+    /** 미리보기 사본: 서명 결과 + hamster-dwarf 만 ACTIVE(메모리). 매니페스트 없이 검증(status 는 서명 대상 아님). */
+    const previewOf = (seed: SeedBundle): RawSeed => {
+      const raw = rawOf(seed);
+      rowOf(raw, 'animalTypes', 'hamster-dwarf').status = 'ACTIVE';
+      return raw;
+    };
+    /** BE92 이전 패킷(SupplyItem food 가 C 일괄 밖) 사본 — 오케스트레이터 90 Q1 결정으로 실패킷은 food 를 포함한다. */
+    const packetWithoutFoodItem = (): DwarfPacket => {
+      const p = dwarfPacket();
+      return { ...p, bulk: { ...p.bulk, rows: p.bulk.rows.filter((r) => !(r.file === 'supply-items.json' && r.id === 'food')) } };
+    };
+    const signWith = (packet: DwarfPacket, result: Record<string, unknown>): { seed: SeedBundle; manifest: SignatureEntry[] } => {
+      const s = clone(realSeed());
+      const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
+      for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
+      return { seed: s, manifest: res.manifest };
+    };
+
+    it('D1 ☑ → req-dwarf-food VERIFIED·VET_PUBLISHED_SOURCE·ROW_CHECKED, V03·V04·V08·G* 0(국내 koreascience.kr)', () => {
+      const { seed, manifest } = dwarfSignedWith(allOk());
+      const food = rowOf(seed, 'supplyRequirements', 'req-dwarf-food');
+      expect(food).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'kenny', verifiedAt: NOW, reviewBasis: 'ROW_CHECKED' });
+      expect((food.source as Array<{ url: string }>).map((x) => x.url)).toContain('https://koreascience.kr/article/JAKO199972606584618.page');
+      const res = run(rawOf(seed), manifest);
+      expect(res.errors).toEqual([]);
+      for (const rule of ['V03', 'V04', 'V08']) expect(errsOf(res, rule)).toEqual([]);
+    });
+
+    it('D1 ☑ 인데 행 reviewerType 을 EXPERIENCED_KEEPER 로 내리면 → V03(FOOD 최소 VET_PUBLISHED_SOURCE)', () => {
+      const p = dwarfPacket();
+      const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-dwarf-food' ? { ...r, reviewerType: 'EXPERIENCED_KEEPER' } : r)) };
+      const { seed, manifest } = signWith(q, allOk());
+      expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['req-dwarf-food']);
+    });
+
+    it('D1 ☑ 인데 국내 출처(K1)를 빼면 → V08', () => {
+      const { seed } = dwarfSignedWith(allOk());
+      const raw = rawOf(seed);
+      const food = rowOf(raw, 'supplyRequirements', 'req-dwarf-food');
+      food.source = (food.source as Array<{ url: string }>).filter((x) => !x.url.includes('koreascience.kr'));
+      expect(errsOf(validateSeed(raw, { now: NOW }), 'V08').map((i) => i.id)).toEqual(['req-dwarf-food']);
+    });
+
+    it('패킷 행 reviewerType 형식: AI_DRAFT·알 수 없는 값·알 수 없는 키 → 입력 거부', () => {
+      const p = dwarfPacket();
+      const bad = (patchRow: Record<string, unknown>) => ({ ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-dwarf-food' ? { ...r, ...patchRow } : r)) });
+      for (const q of [bad({ reviewerType: 'AI_DRAFT' }), bad({ reviewerType: 'DOCTOR' }), bad({ basis: 'ROW_CHECKED' })]) {
+        expect(() => signWith(q as DwarfPacket, allOk())).toThrow(/패킷 오류/);
+      }
+    });
+
+    it('D1 미☑ → req-dwarf-food DRAFT·AI_DRAFT 유지, 미리보기(ACTIVE) X01 차단 유지(사료 1건)', () => {
+      const { seed, manifest } = dwarfSignedWith(without('D1'));
+      expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-food')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+      expect(manifest.some((e) => e.id === 'req-dwarf-food')).toBe(false);
+      expect(run(rawOf(seed), manifest).errors).toEqual([]);
+      const x = errsOf(validateSeed(previewOf(seed), { now: NOW }), 'X01');
+      expect(x.map((i) => `${String(i.id)} ${i.path}`)).toEqual(['hamster-dwarf requirements.food']);
+      expect(x[0].message).toContain('req-dwarf-food');
+      // 실패킷은 SupplyItem food 를 C 로 서명한다(Q1) — 그래도 D1 미☑ 면 X01 그대로.
+      expect(rowOf(seed, 'supplyItems', 'food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewBasis: 'AI_RESEARCH_BULK' });
+    });
+
+    it('food 를 C 일괄에서 뺀 패킷(BE92 이전)이면 D1 ☑ 여도 미리보기 X01 이 남는다 — 체인의 SupplyItem food(SPEC) DRAFT', () => {
+      const { seed } = signWith(packetWithoutFoodItem(), allOk());
+      expect(rowOf(seed, 'supplyItems', 'food')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT' });
+      expect(errsOf(validateSeed(previewOf(seed), { now: NOW }), 'X01').map((i) => i.path)).toEqual(['requirements.food']);
+    });
+
+    it('D1 ☑ + 실패킷(SupplyItem food C 일괄, 90 Q1 반영) → 미리보기 ACTIVE 사본 errors 0(X01 해소), 매니페스트 포함 실시드 상태도 errors 0', () => {
+      const { seed, manifest } = signWith(dwarfPacket(), allOk());
+      expect(rowOf(seed, 'supplyItems', 'food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', reviewBasis: 'AI_RESEARCH_BULK' });
+      expect(run(rawOf(seed), manifest).errors).toEqual([]);
+      expect(validateSeed(previewOf(seed), { now: NOW }).errors).toEqual([]);
+    });
   });
 
   it('--stage review: 서명 대상은 NEEDS_REVIEW·EXPERIENCED_KEEPER(검수자·basis null), 매니페스트 0 → validate 0', () => {
@@ -331,10 +419,11 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     const files = Object.fromEntries(CONTENT_KEYS.map((k) => [SEED_FILES[k], s[k as keyof SeedBundle] as unknown[]]));
     const res = applyMjs.applySignatures(files, [], dwarfPacket(), dwarfAllCheckedResult(NOW), { now: NOW, stage: 'review' });
     expect(res.manifest).toEqual([]);
-    expect(res.summary.needsReview).toBe(50);
+    expect(res.summary.needsReview).toBe(52);
     const raw = rawOf(s);
     for (const k of CONTENT_KEYS) (raw as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
     expect(rowOf(raw, 'curatedProducts', 'cp-dw-001')).toMatchObject({ reviewStatus: 'NEEDS_REVIEW', reviewerType: 'EXPERIENCED_KEEPER', verifiedBy: null, reviewBasis: null, status: 'REVIEW' });
+    expect(rowOf(raw, 'supplyRequirements', 'req-dwarf-food')).toMatchObject({ reviewStatus: 'NEEDS_REVIEW', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: null, reviewBasis: null });
     expect(run(raw, res.manifest).errors).toEqual([]);
   });
 
@@ -376,17 +465,91 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(bytes(seed)).toEqual(before);
   });
 
-  it('패킷 = 2026-10-24 착지 VERIFIED 50행(ROW_CHECKED 대상 20 = 최소 규격 3 + 상품 17, 일괄 30), 최소 규격 행 대응 A 항목', () => {
+  it('패킷 = 2026-10-24 착지 VERIFIED 50행 + 사료 D1(ROW_CHECKED 대상 21 = 최소 규격 3 + 사료 1 + 상품 17, 일괄 31 = 30 + 용품 사료(90 Q1)), 최소 규격 행 대응 A 항목', () => {
     const p = dwarfPacket();
-    expect(p.rowChecked).toHaveLength(20);
-    expect(p.bulk.rows).toHaveLength(30);
+    expect(p.rowChecked).toHaveLength(21);
+    expect(p.bulk.rows).toHaveLength(31);
+    expect(p.bulk.rows.some((r) => r.file === 'supply-items.json' && r.id === 'food')).toBe(true);
     const items = Object.fromEntries(p.rowChecked.filter((r) => r.file === 'supply-requirements.json').map((r) => [r.id, r.items]));
-    expect(items).toEqual({ 'req-dwarf-cage': ['A1', 'A2', 'A3', 'A4'], 'req-dwarf-wheel': ['A5', 'A6', 'A9'], 'req-dwarf-bedding': ['A7', 'A8'] });
+    expect(items).toEqual({ 'req-dwarf-cage': ['A1', 'A2', 'A3', 'A4', 'A10'], 'req-dwarf-wheel': ['A5', 'A6', 'A9'], 'req-dwarf-bedding': ['A7', 'A8'], 'req-dwarf-food': ['D1'] });
+    // 행 reviewerType 은 사료(FOOD, 확인표 D)만 VET_PUBLISHED_SOURCE — 나머지는 패킷 기본. 저울(req-dwarf-scale)은 패킷 밖.
+    const withType = (p.rowChecked as Array<{ id: string; reviewerType?: string }>).filter((r) => r.reviewerType !== undefined);
+    expect(withType.map((r) => [r.id, r.reviewerType])).toEqual([['req-dwarf-food', 'VET_PUBLISHED_SOURCE']]);
+    expect([...p.rowChecked, ...p.bulk.rows].some((r) => r.id === 'req-dwarf-scale')).toBe(false);
     // 확인표의 상품 행 id 집합 = 패킷 상품 집합
     const doc = readFileSync(join(ROOT, 'docs', 'planning-artifacts', '드워프햄스터-핵심행-확인표.md'), 'utf8');
     const docProducts = [...new Set([...doc.matchAll(/\| (cp-dw-\d{3}) \(/g)].map((x) => x[1]))].sort();
     expect(p.rowChecked.filter((r) => r.file === 'curated-products.json').map((r) => r.id).sort()).toEqual(docProducts);
-    const docA = [...new Set([...doc.matchAll(/^\| (A\d) \|/gm)].map((x) => x[1]))].sort();
-    expect(Object.values(items).flat().sort()).toEqual(docA);
+    const docA = [...new Set([...doc.matchAll(/^\| (A\d+) \|/gm)].map((x) => x[1]))].sort();
+    expect(Object.values(items).flat().filter((x) => x.startsWith('A')).sort()).toEqual(docA);
+    // 확인표 D 절: D1 의 출처 행(K1·K3·S1/S2)이 모두 있다.
+    const docD = [...doc.matchAll(/^\| (D1-[a-z]) /gm)].map((x) => x[1]);
+    expect(docD).toEqual(['D1-a', 'D1-b', 'D1-c']);
+  });
+});
+
+// BE92(2026-10-25): 골든 서명 패킷(scripts/review-packets/hamster-golden-core.json) + 확인표(골든햄스터-핵심행-확인표.md).
+describe('골든 패킷 — 확인표 A·C·D, 패킷 밖 행(저울·구성안·Taxon·용품) DRAFT 유지', () => {
+  type Packet = DwarfPacket & { reviewerType: string };
+  const GOLDEN_PACKET_PATH = join(ROOT, 'scripts', 'review-packets', 'hamster-golden-core.json');
+  const goldenPacket = (): Packet => JSON.parse(readFileSync(GOLDEN_PACKET_PATH, 'utf8')) as Packet;
+  const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '골든햄스터-핵심행-확인표.md'), 'utf8');
+  const signGolden = (result: Record<string, unknown>) => {
+    const s = clone(realSeed());
+    const res = applyMjs.applySignatures(filesOf(s), [], goldenPacket(), result, { now: NOW });
+    for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
+    return { seed: s, manifest: res.manifest };
+  };
+  const allChecked = (): Record<string, unknown> => {
+    const p = goldenPacket();
+    return { format: applyMjs.RESULT_FORMAT, packet: p.packet, signedBy: 'kenny', checkedAt: NOW, checked: [...new Set(p.rowChecked.flatMap((r) => r.items))], bulkSignedAt: NOW };
+  };
+
+  it('구성: 최소 규격 3행(케이지 A6~A11·쳇바퀴 A1~A3·베딩 A4~A5) + 사료 D1(VET_PUBLISHED_SOURCE) + C 일괄 12행, 패킷 밖 행 0', () => {
+    const p = goldenPacket();
+    expect(p.reviewerType).toBe('EXPERIENCED_KEEPER');
+    expect(Object.fromEntries(p.rowChecked.map((r) => [r.id, r.items]))).toEqual({
+      'req-syrian-cage': ['A6', 'A7', 'A8', 'A9', 'A10', 'A11'],
+      'req-syrian-wheel': ['A1', 'A2', 'A3'],
+      'req-syrian-bedding': ['A4', 'A5'],
+      'req-syrian-food': ['D1'],
+    });
+    expect((p.rowChecked as Array<{ id: string; reviewerType?: string }>).filter((r) => r.reviewerType !== undefined).map((r) => [r.id, r.reviewerType])).toEqual([['req-syrian-food', 'VET_PUBLISHED_SOURCE']]);
+    expect([...doc().matchAll(/^\| (D1-[a-z]) /gm)].map((x) => x[1])).toEqual(['D1-a', 'D1-b', 'D1-c']);
+    expect(p.bulk.rows).toHaveLength(12);
+    const ids = [...p.rowChecked, ...p.bulk.rows].map((r) => `${r.file}#${r.id}`);
+    for (const out of ['supply-requirements.json#req-syrian-scale', 'taxa.json#mesocricetus-auratus']) expect(ids).not.toContain(out);
+    expect(ids.filter((x) => x.startsWith('supply-items.json#') || x.startsWith('setup-bundles.json#') || x.startsWith('curated-products.json#'))).toEqual([]);
+    // 확인표 A 항목 집합 = 패킷 A 항목 집합
+    const docA = [...new Set([...doc().matchAll(/^\| (A\d+) \|/gm)].map((x) => x[1]))].sort();
+    expect(p.rowChecked.flatMap((r) => r.items).filter((x) => x.startsWith('A')).sort()).toEqual(docA);
+  });
+
+  it('미서명 결과 파일 → 대상 16행 DRAFT·매니페스트 0, 디스크 시드와 사실·검수 표기 동일', () => {
+    const unsigned = JSON.parse(readFileSync(join(ROOT, 'scripts', 'review-packets', 'hamster-golden-core.result.unsigned.json'), 'utf8')) as Record<string, unknown>;
+    const { seed, manifest } = signGolden(unsigned);
+    expect(manifest).toEqual([]);
+    expect(seed).toEqual(realSeed());
+  });
+
+  it('전 ☑·C·D1(가짜 결과, 메모리) → 16행 VERIFIED(ROW_CHECKED 4 · AI_RESEARCH_BULK 12), 사료만 VET_PUBLISHED_SOURCE, validate errors 0(V03·V04·V08 포함) — 저울·구성안·Taxon 은 DRAFT', () => {
+    const { seed, manifest } = signGolden(allChecked());
+    expect(manifest).toHaveLength(16);
+    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(['req-syrian-bedding', 'req-syrian-cage', 'req-syrian-food', 'req-syrian-wheel']);
+    expect(rowOf(seed, 'supplyRequirements', 'req-syrian-food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', reviewBasis: 'ROW_CHECKED', contentKind: 'FOOD' });
+    expect(run(rawOf(seed), manifest).errors).toEqual([]);
+    for (const [key, id] of [['supplyRequirements', 'req-syrian-scale'], ['setupBundles', 'sb-syrian-budget'], ['taxa', 'mesocricetus-auratus'], ['supplyItems', 'food']] as const) {
+      expect([id, rowOf(seed, key, id).reviewStatus]).toEqual([id, 'DRAFT']);
+    }
+    // 사육 프로필은 습도 값 없이 VERIFIED 가능(V07 키 5개, 2026-10-25 Kenny 습도 삭제).
+    expect(rowOf(seed, 'careProfiles', 'cp-hamster-syrian')).toMatchObject({ reviewStatus: 'VERIFIED' });
+    expect((rowOf(seed, 'careProfiles', 'cp-hamster-syrian').facts as Row).humidityPct).toBeUndefined();
+  });
+
+  it('케이지 A11(법정 하한 문장)만 빠지면 케이지 행은 DRAFT', () => {
+    const r = allChecked();
+    const { seed } = signGolden({ ...r, checked: (r.checked as string[]).filter((x) => x !== 'A11') });
+    expect(rowOf(seed, 'supplyRequirements', 'req-syrian-cage').reviewStatus).toBe('DRAFT');
+    expect(rowOf(seed, 'supplyRequirements', 'req-syrian-wheel').reviewStatus).toBe('VERIFIED');
   });
 });

@@ -2,7 +2,7 @@
   "v": 1,
   "packet": "hamster-dwarf-core-2026-10",
   "doc": "docs/planning-artifacts/드워프햄스터-핵심행-확인표.md",
-  "note": "확인표 A·B(☑) → ROW_CHECKED, C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 행별 대상은 2026-10-24 BE70 착지의 VERIFIED 50행(보안 79 H-1). 최소 규격 행은 연결된 A 항목이 전부 ☑일 때만 서명된다.",
+  "note": "확인표 A·B·D(☑) → ROW_CHECKED, C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 행별 대상은 2026-10-24 BE70 착지의 VERIFIED 50행(보안 79 H-1) + 사료 req-dwarf-food(확인표 D1, Kenny 2026-10-25 '84 수령' — 행 reviewerType VET_PUBLISHED_SOURCE). 최소 규격 행은 연결된 A 항목이 전부 ☑일 때만 서명된다. 저울(req-dwarf-scale)은 패킷 밖(비노출). C 일괄 31행 — 용품 사료(supply-items food, 종 중립 용품 설명)를 2026-10-25 오케스트레이터 90 Q1로 추가(서명 전, 확인표 C에 표시).",
   "reviewerType": "EXPERIENCED_KEEPER",
   "rowChecked": [
     {
@@ -12,7 +12,8 @@
         "A1",
         "A2",
         "A3",
-        "A4"
+        "A4",
+        "A10"
       ]
     },
     {
@@ -31,6 +32,14 @@
         "A7",
         "A8"
       ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-food",
+      "items": [
+        "D1"
+      ],
+      "reviewerType": "VET_PUBLISHED_SOURCE"
     },
     {
       "file": "curated-products.json",
@@ -186,6 +195,10 @@
       {
         "file": "supply-items.json",
         "id": "food-bowl"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "food"
       },
       {
         "file": "supply-items.json",

@@ -30,6 +30,8 @@ export const ROUTE_KINDS = [
   'VET',
   'VET_REGION',
   'CREDITS',
+  // 계획 86 P8: /privacy — 개인정보 처리방침(항상, 색인·sitemap 포함). 클라이언트는 정적 본문(StaticMain).
+  'PRIVACY',
   // R5 C-R5-6(D11): /save — 홈 셸 + L8(이메일 저장) 정적 본문, noindex·sitemap 제외·robots Disallow.
   'SAVE',
   // K1(51 레인 A): /pick — 홈 셸 + L1(친구 선택) 정적 본문, noindex·sitemap 제외, canonical /.

@@ -184,7 +184,29 @@ function baseSource() {
     'server/src/seed/banned-words.json': JSON.stringify(BANNED_WORDS, null, 2),
     'server/prisma/schema.prisma': 'model VetClinic {\n  id String @id\n  lat Float?\n  lng Float?\n}\n',
     'scripts/tool.mjs': 'export const ok = 1;\n',
+    'server/src/privacy/policy.ts': POLICY_TS,
   };
+}
+
+// ── C9-PRIVACY 픽스처(계획 86 P11) ─────────────────────────────
+const POLICY_TS = [
+  'export const DAY_MS = 24 * 60 * 60 * 1000;',
+  'export const UNUSED_USER_RETENTION_DAYS = 365;',
+  'export const EVENT_LOG_RETENTION_DAYS = 90;',
+  'export const MAGIC_TOKEN_RETENTION_MS = 0;',
+  "export const BACKUP_DIR_ENV = 'WS_BACKUP_DIR';",
+  '',
+].join('\n');
+const KENNY = j('{{KEN', 'NY:officerName}}');
+const policySpan = (name, v) => `<span data-ws-policy="${name}">${v}</span>`;
+function privacyMain({ user = 365, event = 90, placeholder = false } = {}) {
+  return [
+    '<main class="ws-page" data-ws-route="PRIVACY"><h1>개인정보 처리방침</h1>',
+    `<p>마지막으로 쓴 날부터 ${policySpan('UNUSED_USER_RETENTION_DAYS', user)}일 동안 쓰지 않으면 지워요.</p>`,
+    `<p>이용 통계는 ${policySpan('EVENT_LOG_RETENTION_DAYS', event)}일 동안 보관해요.</p>`,
+    placeholder ? `<p>성명: ${KENNY}</p>` : '',
+    '</main>',
+  ].join('');
 }
 
 // ── 산출물(dist) 픽스처 ─────────────────────────────────────
@@ -197,7 +219,7 @@ function page(body, wsData = { v: 1, data: { types: [], requirements: [], produc
     '</head><body><div id="root" data-ws-prerendered="1">',
     '<header class="ws-header"><a href="/">WithSmall</a></header>',
     body,
-    '<footer><a href="/vet">병원</a></footer>',
+    '<footer><a href="/vet">병원</a><a href="/privacy">개인정보 처리방침</a></footer>',
     '</div>',
     '<script id="ws-data" type="application/json">', JSON.stringify(wsData), '</script>',
     '<script type="module" src="/assets/index-abc.js"></script>',
@@ -233,6 +255,7 @@ function baseOutput() {
       ].join(''),
       typeData,
     ),
+    'privacy/index.html': page(privacyMain()),
     'robots.txt': 'User-agent: *\nDisallow: /\n',
     'sitemap.xml': '<?xml version="1.0"?><urlset><url><loc>http://localhost:3001/</loc></url><url><loc>http://localhost:3001/hamster/golden</loc></url></urlset>',
     'data/catalog.v1.abcd1234.json': JSON.stringify({
@@ -251,9 +274,11 @@ function manifestFor(seedDigest, over = {}) {
     v: 1,
     seedDigest,
     indexable: false,
+    mode: 'development',
     routes: [
       { path: '/', file: 'index.html', kind: 'HOME', indexable: true },
       { path: '/hamster/golden', file: 'hamster/golden/index.html', kind: 'TYPE', typeId: 'hamster-golden', indexable: true },
+      { path: '/privacy', file: 'privacy/index.html', kind: 'PRIVACY', indexable: true },
     ],
     ...over,
   };
@@ -1580,4 +1605,76 @@ for (const [name, leak, needle] of [
 }
 test('C3-OUT-REVIEWMETA clean: 기본 산출물 통과', async () => {
   expectClean(scan(await makeRoot({ output: noop })));
+});
+
+// ── 계획 86 P11: C9-PRIVACY — /privacy 존재·모든 라우트 링크·자리표시(빌드는 항상 WARN — 차단은 운영 기동 검사)·기간 숫자 = policy.ts ─────────────
+const c9Of = (res, severity) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-PRIVACY' && (!severity || f.severity === severity));
+const withPrivacy = (opts) => (o) => { o['privacy/index.html'] = page(privacyMain(opts)); };
+
+test('C9-PRIVACY clean: /privacy + 모든 라우트 링크 + 기간 = policy.ts → C9 0건', async () => {
+  const res = scan(await makeRoot({ output: noop }));
+  expectClean(res);
+  assert.deepEqual(c9Of(res), []);
+});
+
+for (const [name, f, msg] of [
+  ['변이 1 링크 제거(라우트 페이지 하나)', { output: (o) => { o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('<a href="/privacy">개인정보 처리방침</a>', ''); } }, '링크'],
+  ['변이 3 숫자 불일치(페이지 89 ≠ policy.ts 90)', { output: withPrivacy({ event: 89 }) }, 'EVENT_LOG_RETENTION_DAYS'],
+  ['변이 3b policy.ts 값 변경(페이지 재빌드 없음)', { source: (s) => { s['server/src/privacy/policy.ts'] = POLICY_TS.replace('= 365;', '= 400;'); } , output: noop }, 'UNUSED_USER_RETENTION_DAYS'],
+  ['변이 3c policy.ts 에 새 *_RETENTION_DAYS(페이지에 없음)', { source: (s) => { s['server/src/privacy/policy.ts'] = `${POLICY_TS}export const BACKUP_RETENTION_DAYS = 7;\n`; }, output: noop }, 'BACKUP_RETENTION_DAYS'],
+  ['변이 3d policy.ts 없음', { source: (s) => { delete s['server/src/privacy/policy.ts']; }, output: noop }, 'policy.ts'],
+  ['변이 4 페이지 누락(manifest 라우트 없음)', { output: (o) => { delete o['privacy/index.html']; }, manifest: (dg) => { const m = manifestFor(dg); m.routes = m.routes.filter((r) => r.kind !== 'PRIVACY'); return m; } }, '페이지 없음'],
+  ['변이 4b 페이지 파일 누락(manifest 라우트만)', { output: (o) => { delete o['privacy/index.html']; } }, '페이지 없음'],
+]) {
+  test(`C9-PRIVACY: ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot(f));
+    expectFail(res, 'C9-PRIVACY');
+    assert.ok(c9Of(res, 'FAIL').some((x) => x.message.includes(msg)), JSON.stringify(c9Of(res)));
+  });
+}
+
+test('C9-PRIVACY: 개발 빌드(manifest.mode=development) 자리표시는 WARN 만(exit 0)', async () => {
+  const res = scan(await makeRoot({ output: withPrivacy({ placeholder: true }) }));
+  expectClean(res);
+  const w = c9Of(res, 'WARN');
+  assert.equal(w.length, 1, JSON.stringify(c9Of(res)));
+  assert.ok(w[0].message.includes('officerName') && w[0].file.endsWith('privacy/index.html') && !w[0].message.includes('운영 기동 차단됨'), JSON.stringify(w));
+});
+
+// 오케스트레이터 2026-10-25 후속 ①: 자리표시는 빌드에서 항상 WARN(CI 도커 빌드 NODE_ENV=production) — 차단은 운영 기동 검사(server/src/config/env.ts).
+for (const [name, manifest, expectText] of [
+  ['운영 manifest.mode=production', (dg) => manifestFor(dg, { mode: 'production' }), '운영 기동 차단됨'],
+  ['mode 누락(운영 취급)', (dg) => { const m = manifestFor(dg); delete m.mode; return m; }, '운영 기동 차단됨'],
+]) {
+  test(`C9-PRIVACY: 자리표시 + ${name} → WARN(exit 0) + 메시지 "${expectText}"`, async () => {
+    const res = scan(await makeRoot({ output: withPrivacy({ placeholder: true }), manifest }));
+    expectClean(res);
+    const w = c9Of(res, 'WARN');
+    assert.equal(w.length, 1, JSON.stringify(c9Of(res)));
+    assert.ok(w[0].message.includes(expectText) && w[0].message.includes('officerName'), JSON.stringify(w));
+  });
+}
+
+test('C9-PRIVACY: 자리표시는 /privacy 밖 산출물(JS 번들)에서도 잡는다(WARN)', async () => {
+  const res = scan(await makeRoot({ output: (o) => { o['assets/index-abc.js'] = `export const x = "${KENNY}";\n`; }, manifest: (dg) => manifestFor(dg, { mode: 'production' }) }));
+  expectClean(res);
+  assert.ok(c9Of(res, 'WARN').some((x) => x.file.endsWith('assets/index-abc.js')), JSON.stringify(c9Of(res)));
+});
+
+test('C9-PRIVACY: 링크 규칙은 manifest 라우트 파일만(비라우트 shell.html 은 대상 아님)', async () => {
+  const res = scan(await makeRoot({ output: (o) => { o['shell.html'] = '<!doctype html><html lang="ko"><head><title>WithSmall</title></head><body><div id="root"></div></body></html>'; } }));
+  expectClean(res);
+  assert.deepEqual(c9Of(res), []);
+});
+
+test('C9-PRIVACY: parsePolicyConstants — 정수·곱·_ 구분만, 문자열·기타 식은 건너뜀', async () => {
+  const { parsePolicyConstants } = await import('../lib/rules-output.mjs');
+  const m = parsePolicyConstants(`${POLICY_TS}export const A = 1_000;\nexport const B = FOO * 2;\nexport const C = 'x';\n`);
+  assert.equal(m.get('DAY_MS'), 86_400_000);
+  assert.equal(m.get('UNUSED_USER_RETENTION_DAYS'), 365);
+  assert.equal(m.get('MAGIC_TOKEN_RETENTION_MS'), 0);
+  assert.equal(m.get('A'), 1000);
+  assert.equal(m.has('B'), false);
+  assert.equal(m.has('C'), false);
+  assert.equal(m.has('BACKUP_DIR_ENV'), false);
 });

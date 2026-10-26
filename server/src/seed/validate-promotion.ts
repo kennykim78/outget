@@ -10,9 +10,10 @@ export const TAXON_LEGAL_BOOLEAN_KEYS = ['animalProtectionAct6', 'cites'] as con
 /**
  * V07: VERIFIED CareProfile.facts 필수 키.
  * 출처: PRD v1.3.1 부록 A/B 에 facts 키 정의가 없다(제품기획 §5 의 axes/care 는 다른 형태) →
- *   골든햄스터 시드(cp-hamster-syrian)의 6키를 기준으로 쓴다. 문서에 정의가 생기면 이 목록을 그쪽으로 옮긴다.
+ *   골든햄스터 시드(cp-hamster-syrian)의 키를 기준으로 쓴다. 문서에 정의가 생기면 이 목록을 그쪽으로 옮긴다.
+ *   2026-10-25: humidityPct 제외(5키) — Kenny 결정(85 재조사: 반려 사육용 습도 수치 출처 없음 → 골든 facts 에서 삭제).
  */
-export const CARE_FACT_KEYS = ['social', 'activity', 'adultLengthCm', 'tempC', 'humidityPct', 'lifespanYears'] as const;
+export const CARE_FACT_KEYS = ['social', 'activity', 'adultLengthCm', 'tempC', 'lifespanYears'] as const;
 export const CARE_FACT_KEYS_SOURCE = 'golden-seed(cp-hamster-syrian) — PRD 부록 A/B 에 facts 키 정의 없음';
 
 const isVerifiedRow = (r: Rec): boolean => r.reviewStatus === 'VERIFIED';

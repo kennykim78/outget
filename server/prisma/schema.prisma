@@ -335,6 +335,9 @@ model User {
   passwordHash String?
   role         String  @default("USER")
   createdAt    String  @default("")
+  // QA95 D-1: 마지막 사용 시각(ISO). verify·GET/PUT /api/save 때 서울 날짜가 바뀌었을 때만 1회 갱신.
+  //   자동 파기 미사용 판정 = max(lastSeenAt, SaveSnapshot.updatedAt, createdAt). null = 갱신 전(옛 행).
+  lastSeenAt   String?
 
   sessions     Session[]
   saveSnapshot SaveSnapshot?
@@ -378,6 +381,15 @@ model SaveSnapshot {
   updatedAt String // 서버 수신 시각 ISO
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 삭제 묘비(P4, Kenny K-1): 지운 이메일의 sha256(정규화 이메일) hex + 삭제 시각만. 원문 이메일·userId 없음.
+//   기동 시 "묘비 시각 이전에 만들어진" 일치 User 를 다시 지운다(백업에서 되살아난 행 재삭제 — 삭제 후 새로 연결한 계정은 유지).
+//   백업 보존 기간(7일)이 지나면 묘비도 정리(privacy/retention.ts). 다른 테이블과 관계 없음.
+model ErasureTombstone {
+  emailSha256 String @id
+  erasedAt    String // ISO
+  retainUntil String // ISO — 정리 기준(101 MED-2). 삭제 시 erasedAt+7일, 재적용으로 실제 삭제하면 max(기존, now+7일)
 }
 
 // Auth — refresh 토큰 회전 추적(jti 단위 단건 활성/폐기).

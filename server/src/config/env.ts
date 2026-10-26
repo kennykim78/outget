@@ -4,8 +4,13 @@
 //   assertJwtSecrets: 운영에서 JWT 시크릿 32자 미만이면 기동 실패.
 //   collectEnvProblems(R6 A3): 기동 전 누락·무효 env 를 한 번에 모은다(개별 throw 를 목록화 — 규칙 원본은 각 모듈 그대로).
 //     직접 실행(`node dist/config/env.js`, docker-entrypoint 의 첫 단계) 시 목록 출력 후 exit 1. 시크릿 값은 출력하지 않는다.
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+//   privacyPlaceholderCheck(계획 86 P11 후속, 오케스트레이터 2026-10-25): 운영 기동 시 프리렌더 /privacy/index.html 에 Kenny 미정
+//     자리표시({{KENNY:)가 있으면 기동 거부. 예외는 WS_ALLOW_PRIVACY_PLACEHOLDER=1(CI 도커 스모크·점검용, 경고 로그). 빌드(compliance C9)는 WARN 만.
+//     101 MED-3: 검사 대상 경로 = SPA 서빙과 같은 resolveClientDist(middleware/spa.ts 가 이 함수를 쓴다). 운영에서 페이지가 없어도 기동 거부.
+//     101 L-1: 판정은 '{{KENNY:' 포함 여부(키 모양 무관) — 키 목록은 표시용 보조.
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export type Env = Record<string, string | undefined>;
 
@@ -66,11 +71,105 @@ function normOrigin(raw: string): string {
  *   규칙 원본: PUBLIC_ORIGIN·MAIL_TRANSPORT = save/config.ts resolveSaveConfig, REACTION_KEY_SECRET = reaction/anon-key.ts,
  *   JWT_* = JWT_SECRET_MIN, TRUST_PROXY = parseTrustProxy. 동적 import 로 순환 의존(이 모듈 ← save·reaction)을 피한다.
  */
-export async function collectEnvProblems(env: Env = process.env): Promise<EnvReport> {
+export const ALLOW_PRIVACY_PLACEHOLDER_ENV = 'WS_ALLOW_PRIVACY_PLACEHOLDER';
+/** 자리표시 판정 표식(L-1: 이것만 있으면 거부 — 닫는 괄호·키 문자 모양 무관). */
+const PLACEHOLDER_MARK = '{{KENNY:';
+/** 표시용 키 추출(보조). 닫는 }} 까지 최대 64자, 못 찾으면 '?'. */
+const PLACEHOLDER_KEY_RE = /\{\{KENNY:([^{}\s]{0,64})\}\}/g;
+
+/** 클라이언트 빌드 경로 해석 입력(테스트 주입용 — 기본 = 이 모듈 위치·process.cwd()·existsSync). */
+export interface ClientDistBase {
+  here?: string;
+  cwd?: string;
+  exists?: (path: string) => boolean;
+}
+
+const CONFIG_DIR = dirname(fileURLToPath(import.meta.url));
+/** WS_CLIENT_DIST: 비운영(development·test)에서만 존중하는 클라이언트 빌드 경로 덮어쓰기. */
+export const CLIENT_DIST_ENV = 'WS_CLIENT_DIST';
+
+/**
+ * 후보(앞에서부터 index.html 이 있는 첫 디렉터리):
+ *   ① <cwd>/../client/dist — npm -w server start·도커(cwd=/app/server → /app/client/dist)
+ *   ② <here>/../../../client/dist — server/{src,dist}/<config|middleware> → <repo>/client/dist, 도커 /app/server/dist/x → /app/client/dist
+ *   ③ <here>/../../client/dist · ④ <cwd>/client/dist — 그 밖의 복사 레이아웃
+ *   (config/ 와 middleware/ 는 같은 깊이라 ②③은 어느 쪽에서 불러도 같다.)
+ */
+export function clientDistCandidates(base: ClientDistBase = {}): string[] {
+  const here = base.here ?? CONFIG_DIR;
+  const cwd = base.cwd ?? process.cwd();
+  return [
+    resolve(cwd, '..', 'client', 'dist'),
+    resolve(here, '..', '..', '..', 'client', 'dist'),
+    resolve(here, '..', '..', 'client', 'dist'),
+    resolve(cwd, 'client', 'dist'),
+  ];
+}
+
+/**
+ * 클라이언트 빌드(프리렌더 산출) 디렉터리 — SPA 서빙(middleware/spa.ts mountSpa)과 기동 검사(privacyPlaceholderCheck)가 같은 값을 쓴다(101 MED-3).
+ *   WS_CLIENT_DIST 는 비운영에서만 존중(운영은 무시 — 검사한 파일과 서빙하는 파일이 갈라지지 않게).
+ *   후보 중 index.html 있는 첫 디렉터리, 없으면 ②(설치 위치 기준) — 그 경우 운영 기동 검사가 페이지 없음으로 거부한다.
+ */
+export function resolveClientDist(env: Env = process.env, base: ClientDistBase = {}): string {
+  const override = (env[CLIENT_DIST_ENV] ?? '').trim();
+  if (override !== '' && !isProdLike(env)) return resolve(override);
+  const exists = base.exists ?? existsSync;
+  const candidates = clientDistCandidates(base);
+  return candidates.find((d) => exists(join(d, 'index.html'))) ?? candidates[1];
+}
+
+/** @deprecated 101 MED-3 이후 resolveClientDist 와 같다(기존 호출 호환). */
+export const bootClientDist = (env: Env = process.env): string => resolveClientDist(env);
+
+/**
+ * 운영(isProdLike)에서 <clientDist>/privacy/index.html 검사:
+ *   · 파일 없음 → problems(기동 거부, 101 MED-3 — 처리방침 없이 공개 운영 금지)
+ *   · '{{KENNY:' 포함 → problems(기동 거부, 키 목록 표시). WS_ALLOW_PRIVACY_PLACEHOLDER=1 이면 이 항목만 warnings 로 강등.
+ *   비운영은 검사 안 함.
+ */
+export function privacyPlaceholderCheck(env: Env, clientDist: string): EnvReport {
+  const problems: string[] = [];
+  const warnings: string[] = [];
+  if (!isProdLike(env)) return { problems, warnings };
+  const file = join(clientDist, 'privacy', 'index.html');
+  if (!existsSync(file)) {
+    problems.push(`privacy: 처리방침 페이지 없음(${file}) — 운영 기동 거부. 클라이언트 빌드·프리렌더(/privacy) 후 다시 배포`);
+    return { problems, warnings };
+  }
+  const text = readFileSync(file, 'utf8');
+  if (!text.includes(PLACEHOLDER_MARK)) return { problems, warnings };
+  const keys = [...new Set([...text.matchAll(PLACEHOLDER_KEY_RE)].map((m) => m[1] || '?'))];
+  const list = keys.length > 0 ? keys.join(', ') : '?';
+  if ((env[ALLOW_PRIVACY_PLACEHOLDER_ENV] ?? '').trim() === '1') {
+    warnings.push(`${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1: 처리방침 자리표시 {{KENNY:…}}(${list}) 가 남은 채 기동 — 공개 운영 금지(점검·CI 전용)`);
+  } else {
+    problems.push(
+      `privacy: 처리방침(/privacy)에 Kenny 미정 자리표시 {{KENNY:…}}(${list}) — 운영 기동 거부. 값을 채워 다시 빌드하거나, 점검용이면 ${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1`,
+    );
+  }
+  return { problems, warnings };
+}
+
+export interface CollectEnvOptions {
+  /** 주면 privacyPlaceholderCheck 도 실행(직접 실행 = bootClientDist). 생략·null 이면 건너뜀(단위 테스트·라이브러리 호출). */
+  clientDist?: string | null;
+}
+
+export async function collectEnvProblems(env: Env = process.env, opts: CollectEnvOptions = {}): Promise<EnvReport> {
   const problems: string[] = [];
   const warnings: string[] = [];
   const prod = isProdLike(env);
   const nodeEnv = env.NODE_ENV;
+
+  if (typeof opts.clientDist === 'string') {
+    const pr = privacyPlaceholderCheck(env, opts.clientDist);
+    problems.push(...pr.problems);
+    warnings.push(...pr.warnings);
+  }
+  if (prod && (env[CLIENT_DIST_ENV] ?? '').trim() !== '') {
+    warnings.push(`${CLIENT_DIST_ENV}: 운영에서는 무시(SPA 서빙·기동 검사 모두 기본 경로) — 101 MED-3`);
+  }
 
   if (!KNOWN_NODE_ENV.has(nodeEnv ?? '')) {
     warnings.push(`NODE_ENV: ${nodeEnv === undefined || nodeEnv === '' ? '미설정' : '알 수 없는 값'} — 운영(production)으로 취급(fail-closed)`);
@@ -130,8 +229,8 @@ export interface EnvCheckIo {
 }
 
 /** 검사 실행 + 출력. 반환 = exit code(0 통과, 1 문제 있음). */
-export async function runEnvCheck(env: Env, io: EnvCheckIo): Promise<number> {
-  const { problems, warnings } = await collectEnvProblems(env);
+export async function runEnvCheck(env: Env, io: EnvCheckIo, opts: CollectEnvOptions = {}): Promise<number> {
+  const { problems, warnings } = await collectEnvProblems(env, opts);
   for (const w of warnings) io.stderr(`[withsmall] env 경고: ${w}`);
   if (problems.length > 0) {
     io.stderr(`[withsmall] env 검사 실패 ${problems.length}건 — 기동 중단(.env.example 표 참조):`);
@@ -152,10 +251,15 @@ function isMain(): boolean {
 // top-level await 금지: collectEnvProblems 가 동적 import 하는 save·reaction 모듈이 이 파일을 정적으로 import 한다 —
 //   이 모듈 평가가 await 로 멈춰 있으면 그 모듈들이 이 평가 완료를 기다려 교착(컨테이너에서 "unsettled top-level await" 로 확인).
 if (isMain()) {
-  void runEnvCheck(process.env, {
-    stdout: (l) => process.stdout.write(`${l}\n`),
-    stderr: (l) => process.stderr.write(`${l}\n`),
-  }).then(
+  void runEnvCheck(
+    process.env,
+    {
+      stdout: (l) => process.stdout.write(`${l}\n`),
+      stderr: (l) => process.stderr.write(`${l}\n`),
+    },
+    // 운영 기동 검사(docker-entrypoint 0단계)에서만 처리방침 자리표시를 본다. 경로 = SPA 서빙과 같은 resolveClientDist.
+    { clientDist: resolveClientDist(process.env) },
+  ).then(
     (code) => {
       process.exitCode = code;
     },

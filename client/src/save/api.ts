@@ -14,6 +14,11 @@ export interface SaveApi {
   getSave(): Promise<{ status: number; body: SaveGetResponse | null }>;
   /** H1: baseUpdatedAt = 마지막으로 본 서버 행 시각(행 없음 null). 409 면 current = 지금 서버본. */
   putSave(snapshot: SaveV1, baseUpdatedAt: string | null): Promise<SavePutResult>;
+  /**
+   * 89 스펙 · be-privacy(87) 계약 — DELETE /api/save, 본문 정확히 {"confirm":"ERASE"}(application/json).
+   *   204 = 이메일·저장본·모든 기기 세션 삭제 + 쿠키 만료 · 401 no_session · 415 · 400 · 413 · 429 · 403. 0 = 네트워크.
+   */
+  erase(): Promise<{ status: number }>;
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
@@ -87,6 +92,10 @@ export const fetchSaveApi: SaveApi = {
       return current ? { status: 409, current } : { status: 409 };
     }
     return { status: res.status };
+  },
+  async erase() {
+    const res = await call('/api/save', { method: 'DELETE', headers: JSON_HEADERS, body: JSON.stringify({ confirm: 'ERASE' }) });
+    return { status: res?.status ?? 0 };
   },
 };
 

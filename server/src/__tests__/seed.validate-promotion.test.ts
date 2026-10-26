@@ -10,7 +10,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-24';
+const NOW = '2026-10-25';
 const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 
 const TAXON = 'mesocricetus-auratus';
@@ -46,10 +46,10 @@ function verifiedCare(): Required<RawSeed> {
 }
 
 describe('seed:validate — 승격 무결성(R7 A3)', () => {
-  it('실시드: errors 0 · warnings 17 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts 6키·careNotes 3 통과, Taxon VERIFIED 0)', () => {
+  it('실시드: errors 0 · warnings 15 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts·careNotes 3 통과, Taxon VERIFIED 0; BE90 사료 caution 2문장 L03 +1; BE92 골든 초안 편집 −3 — seed.validate.test baseline 참고)', () => {
     const res = run(fresh());
     expect(res.errors).toEqual([]);
-    expect(res.warnings).toHaveLength(17);
+    expect(res.warnings).toHaveLength(15);
     expect(res.errors.concat(res.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
   });
 
@@ -101,8 +101,8 @@ describe('seed:validate — 승격 무결성(R7 A3)', () => {
     expect(errs(run(s), 'V06')).toEqual([]);
   });
 
-  it('V07: 키 기준은 골든 6키이고 출처를 밝힌다', () => {
-    expect([...CARE_FACT_KEYS]).toEqual(['social', 'activity', 'adultLengthCm', 'tempC', 'humidityPct', 'lifespanYears']);
+  it('V07: 키 기준은 골든 5키이고 출처를 밝힌다(2026-10-25 Kenny: 골든 humidityPct 삭제 → 필수 키에서 제외)', () => {
+    expect([...CARE_FACT_KEYS]).toEqual(['social', 'activity', 'adultLengthCm', 'tempC', 'lifespanYears']);
     expect(CARE_FACT_KEYS_SOURCE).toMatch(/golden-seed/);
     expect(Object.keys(row(fresh(), 'careProfiles', CP).facts as Rec).sort()).toEqual([...CARE_FACT_KEYS].sort());
   });

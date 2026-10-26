@@ -7,7 +7,7 @@
       "animalProtectionAct6": true,
       "cites": false,
       "designatedWildlifeWhitelist": null,
-      "note": "동물보호법 반려동물 6종(햄스터) 포함 → 유상 사적 분양은 동물판매업 허가 대상. CITES 해당 없음."
+      "note": "동물보호법 시행규칙 제3조의 반려동물(햄스터)에 해당한다. 반려동물이므로 야생생물법 제2조제4호바목에 따라 지정관리 야생동물(백색목록 제도) 대상이 아니다. CITES 부속서 등재 없음."
     },
     "revisionOf": null,
     "reviewStatus": "DRAFT",
@@ -18,9 +18,24 @@
     "contentKind": "LEGAL",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.law.go.kr/법령/동물보호법시행규칙/제3조",
+        "title": "동물보호법 시행규칙 제3조 (국가법령정보센터)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.law.go.kr/법령/동물보호법",
+        "title": "동물보호법 (국가법령정보센터)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://speciesplus.net/species#/taxon_concepts?taxonomy=cites_eu&taxon_concept_query=Mesocricetus&geo_entities_ids=&geo_entity_scope=cites&page=1",
+        "title": "Species+ — \"Mesocricetus\" 검색",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.law.go.kr/법령/야생생물보호및관리에관한법률",
+        "title": "야생생물 보호 및 관리에 관한 법률 (국가법령정보센터)",
+        "accessedAt": "2026-10-25"
       }
     ]
   },

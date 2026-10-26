@@ -50,6 +50,18 @@ export class InMemoryRefreshTokenStore implements RefreshTokenStore {
       }
     }
   }
+
+  /** P2 삭제(privacy 인메모리 eraser 전용, 동기): sub 의 행 전부 제거(폐기가 아니라 삭제). 삭제 수. */
+  removeAllForSubSync(sub: string): number {
+    let n = 0;
+    for (const [jti, rec] of this.byJti) {
+      if (rec.sub === sub) {
+        this.byJti.delete(jti);
+        n++;
+      }
+    }
+    return n;
+  }
 }
 
 export class PrismaRefreshTokenStore implements RefreshTokenStore {

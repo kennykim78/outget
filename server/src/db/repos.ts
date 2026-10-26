@@ -54,6 +54,9 @@ import {
   PrismaSessionRepository,
 } from '../save/save.prisma.repo.js';
 
+import { InMemoryErasureStore, type ErasureStore } from '../privacy/erase.js';
+import { PrismaErasureStore } from '../privacy/erase.prisma.js';
+
 // 앱이 의존하는 전체 리포지토리 집합.
 export interface Repos {
   user: UserRepository;
@@ -69,21 +72,30 @@ export interface Repos {
   magicToken: MagicTokenRepository;
   session: SessionRepository;
   saveSnapshot: SaveSnapshotRepository;
+  /** P2 개인정보 삭제(DELETE /api/save·CLI·정리 작업 공용). 토큰→User(Cascade)→Badge·Notification·RefreshToken + 묘비. */
+  erasure: ErasureStore;
 }
 
 // 인메모리 구성(테스트 기본 + dev 폴백). 프로세스 메모리에만 존재.
 export function makeInMemoryRepos(): Repos {
+  const user = new InMemoryUserRepository();
+  const refreshStore = new InMemoryRefreshTokenStore();
+  const notification = new InMemoryNotificationRepository();
+  const magicToken = new InMemoryMagicTokenRepository();
+  const session = new InMemorySessionRepository();
+  const saveSnapshot = new InMemorySaveSnapshotRepository();
   return {
-    user: new InMemoryUserRepository(),
-    refreshStore: new InMemoryRefreshTokenStore(),
-    notification: new InMemoryNotificationRepository(),
+    user,
+    refreshStore,
+    notification,
     report: new InMemoryReportRepository(),
     vet: new InMemoryVetClinicRepository(),
     reaction: new InMemoryReactionRepository(),
     event: new InMemoryEventRepository(),
-    magicToken: new InMemoryMagicTokenRepository(),
-    session: new InMemorySessionRepository(),
-    saveSnapshot: new InMemorySaveSnapshotRepository(),
+    magicToken,
+    session,
+    saveSnapshot,
+    erasure: new InMemoryErasureStore({ user, refreshStore, notification, magicToken, session, saveSnapshot }),
   };
 }
 
@@ -100,5 +112,6 @@ export function makePrismaRepos(prisma: PrismaClient): Repos {
     magicToken: new PrismaMagicTokenRepository(prisma),
     session: new PrismaSessionRepository(prisma),
     saveSnapshot: new PrismaSaveSnapshotRepository(prisma),
+    erasure: new PrismaErasureStore(prisma),
   };
 }

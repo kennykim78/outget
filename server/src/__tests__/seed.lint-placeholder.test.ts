@@ -9,7 +9,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const BASE: RawSeed = readSeedDirRaw(join(here, '..', '..', 'seed')).raw;
-const NOW = '2026-10-24';
+const NOW = '2026-10-25';
 
 function fresh(): Required<RawSeed> {
   return structuredClone(BASE) as Required<RawSeed>;

@@ -47,6 +47,7 @@ const STATIC_KINDS: Array<[RouteKind, string]> = [
   ['SUPPLY_ITEM_TYPE', '/supplies/cage/hamster/golden'],
   // VET·VET_REGION 은 R5 F3-1 부터 React(vet/VetPage) — vet/VetPage.test.tsx.
   ['CREDITS', '/credits'],
+  ['PRIVACY', '/privacy'],
   ['NOT_FOUND', '/404'],
 ];
 
@@ -61,6 +62,7 @@ describe('F8 StaticMain', () => {
     expect(mains[0].textContent).toBe(original);
     expect(document.getElementById('root')).not.toHaveAttribute('data-ws-prerendered');
     expect(document.querySelector('footer.ws-footer a[href="/credits"]')).not.toBeNull();
+    expect(document.querySelector('footer.ws-footer a[href="/privacy"]')).not.toBeNull();
     expect(document.querySelector('header.ws-header a[data-ws-chip]')).not.toBeNull();
   });
 });

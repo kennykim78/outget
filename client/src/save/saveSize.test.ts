@@ -211,6 +211,7 @@ function api(server: SaveV1 | null = null) {
     verify: vi.fn(async () => ({ status: 200 })),
     session: vi.fn(async () => ({ status: 200, linked: true })),
     logout: vi.fn(async () => ({ status: 204 })),
+    erase: vi.fn(async () => ({ status: 204 })),
     getSave: vi.fn(async () => ({ status: 200, body: { snapshot: server, updatedAt: server ? at(1) : null } })),
     putSave: vi.fn(async (s: SaveV1) => {
       puts.push(structuredClone(s));

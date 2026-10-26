@@ -46,7 +46,7 @@
       "thermo"
     ],
     "estimatedRangeText": "12만 원대",
-    "note": "80×50 케이지 기준.",
+    "note": "바닥 100×50cm 케이지 기준.",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -93,6 +93,7 @@
       "wheel",
       "bedding",
       "water",
+      "food",
       "hideout",
       "sand-bath",
       "sand-bath-box"
@@ -130,6 +131,7 @@
       "wheel",
       "bedding",
       "water",
+      "food",
       "hideout",
       "sand-bath",
       "sand-bath-box",
@@ -171,6 +173,7 @@
       "wheel",
       "bedding",
       "water",
+      "food",
       "hideout",
       "sand-bath",
       "sand-bath-box"

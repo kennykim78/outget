@@ -45,7 +45,7 @@ describe('planSeedWrites — real seed', () => {
       animalType: 6,
       supplyItem: 15, // R7-B: sand-bath-box 신설(모래목욕 통·모래 분리, 안 A)
       supplyRequirement: 29, // R7-B: 드워프 15(서명 11 + 모래 2(v0.3) + 사료·저울 DRAFT)
-      compatibilityRule: 5, // R7-B: cr-dwarf-wheel-cage-bedding·cr-dwarf-tubes-cage
+      compatibilityRule: 3, // R7-B: cr-dwarf-wheel-cage-bedding·cr-dwarf-tubes-cage, BE92: 공용 2·골든 튜브 삭제 + cr-syrian-wheel-cage-bedding
       setupBundle: 6, // R7-B: sb-dwarf-budget·balanced·reuse(v0.3)
       curatedProduct: 17, // R7-B: cp-dw-001~017(v0.3, SLOT 아님)
       vetClinic: 0,
@@ -53,7 +53,7 @@ describe('planSeedWrites — real seed', () => {
     });
     const items = ops.filter((o) => o.op === 'insertMany');
     expect(items).toHaveLength(1);
-    expect(items[0].op === 'insertMany' && items[0].rows.length).toBe(50); // R7-B: 골든 25 + 드워프 25(7·11·7)
+    expect(items[0].op === 'insertMany' && items[0].rows.length).toBe(53); // R7-B: 골든 25 + 드워프 25(7·11·7), BE92: 드워프 3종에 사료 +3(8·12·8)
   });
 
   it('fixed order: leaf prunes → upserts in dependency order → bundle items → parent prunes', () => {
@@ -122,7 +122,8 @@ describe('planSeedWrites — products, vets, testimonials (injected non-SLOT row
     };
     b.curatedProducts = [
       activate('cp-001', false), // 시드 값이 틀려도 재계산값(true)을 쓴다
-      activate('cp-003', true), // LIVING_BOX barGapMm 없음 → CHECK → false
+      // BE92: 철망 간격은 WIRE 만(85) + 목표 100×50×50 → 높이 40 으로 낮춰 재계산 false 를 만든다
+      { ...activate('cp-003', true), specValues: { type: 'LIVING_BOX', floorWcm: 100, floorDcm: 50, heightCm: 40 } },
       { ...activate('cp-005', true), careProfileIds: [] },
       ...b.curatedProducts.filter((x) => x.status === 'SLOT').slice(0, 1),
     ];

@@ -1,6 +1,10 @@
 // /auth 아래 매직링크·세션 라우트(계약 C-R5-2, D1·D2·D19·D20).
 //   POST /magic/request {email, entry} → 202 {ok:true} | 400 | 415 | 429(이메일 리밋) | 503 {code:'SAVE_UNAVAILABLE'}
 //   POST /magic/verify  {token}        → 200 {linked:true, maskedEmail} + Set-Cookie ws_sid | 400 | 401
+//     QA95 D-3: 토큰 소비 뒤 같은 계정 삭제(DELETE /api/save·CLI·정리)와 경합해 User 가 사라지면 세션 insert 가
+//       FK 위반(Prisma P2003)·대상 없음(P2025)으로 실패한다 → 500 대신 401 {error:'invalid_token'}(다른 401 과 같은 본문).
+//       쿠키는 발급하지 않는다. 다른 오류는 그대로 500(next).
+//     QA95 D-1: 성공 시 users.touchLastSeen(서울 날짜가 바뀐 경우만 1회 쓰기).
 //   GET  /session                      → 200 {linked:true, maskedEmail} | {linked:false}
 //     maskedEmail = maskEmail(정규화 이메일) "k***@e***.com" — 원문 이메일은 어떤 응답에도 없다.
 //     SEC-3 M-1: 클라이언트가 연결 확인 화면에 "어느 계정과 연결되는지"를 보여 줘 링크 바꿔치기(로그인 CSRF)를 알아채게 한다.
@@ -84,6 +88,14 @@ export interface MagicDeps {
   now: Clock;
 }
 
+/**
+ * ws_sid 삭제 쿠키(Max-Age=0) 발급 — 쿠키 발급 지점은 이 파일 하나(compliance C9-COOKIE).
+ *   DELETE /auth/session 과 P3 DELETE /api/save(save.routes.ts)가 같이 쓴다.
+ */
+export function expireSessionCookie(res: Response, secure: boolean): void {
+  res.setHeader('Set-Cookie', clearSessionCookie(secure));
+}
+
 function requireJson(req: Request, res: Response): boolean {
   if (req.is('application/json')) return true;
   res.status(415).json({ error: 'unsupported_media_type' });
@@ -93,6 +105,14 @@ function requireJson(req: Request, res: Response): boolean {
 function body(req: Request): Record<string, unknown> {
   const b: unknown = req.body;
   return b !== null && typeof b === 'object' && !Array.isArray(b) ? (b as Record<string, unknown>) : {};
+}
+
+/** QA95 D-3: 삭제 경합으로 사용자가 사라진 경우의 Prisma 오류 코드. */
+const ERASED_DURING_VERIFY = new Set(['P2003', 'P2025']);
+
+export function isErasedDuringVerify(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && ERASED_DURING_VERIFY.has(code);
 }
 
 export function createMagicRouter(deps: MagicDeps): Router {
@@ -162,19 +182,27 @@ export function createMagicRouter(deps: MagicDeps): Router {
         res.status(401).json({ error: 'invalid_token' });
         return;
       }
-      const user = await users.upsertByEmail(email);
       // 이 브라우저의 이전 세션이 있으면 폐기(쿠키 1개 = 세션 1개).
       const prev = readSessionId(req);
       if (prev !== null) await sessions.revoke(sha256Hex(prev), nowIso);
       const sid = randomOpaque();
       const sidHash = sha256Hex(sid);
-      await sessions.insert({
-        sidHash,
-        userId: user.id,
-        createdAt: nowIso,
-        expiresAt: new Date(t.getTime() + SESSION_MAX_AGE_S * 1000).toISOString(),
-        revokedAt: null,
-      });
+      let user;
+      try {
+        user = await users.upsertByEmail(email);
+        await sessions.insert({
+          sidHash,
+          userId: user.id,
+          createdAt: nowIso,
+          expiresAt: new Date(t.getTime() + SESSION_MAX_AGE_S * 1000).toISOString(),
+          revokedAt: null,
+        });
+      } catch (err) {
+        if (!isErasedDuringVerify(err)) throw err;
+        res.status(401).json({ error: 'invalid_token' });
+        return;
+      }
+      await users.touchLastSeen(user.id, t);
       // R6 C2: 사용자별 활성 세션 상한(새 세션 제외 가장 오래된 것부터 폐기) → 만료·폐기 행 정리.
       await sessions.enforceCap(user.id, sidHash, MAX_SESSIONS_PER_USER, nowIso);
       await sessions.deleteInactive(retentionCutoff(t, SESSION_RETENTION_MS));
@@ -201,7 +229,7 @@ export function createMagicRouter(deps: MagicDeps): Router {
       noStore(res);
       const sid = readSessionId(req);
       if (sid !== null) await sessions.revoke(sha256Hex(sid), now().toISOString());
-      res.setHeader('Set-Cookie', clearSessionCookie(config.secureCookie));
+      expireSessionCookie(res, config.secureCookie);
       res.status(204).end();
     } catch (err) {
       next(err);

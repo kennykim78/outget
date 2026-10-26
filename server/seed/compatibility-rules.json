@@ -1,74 +1,14 @@
 [
   {
-    "id": "cr-wheel-cage",
+    "id": "cr-syrian-wheel-cage-bedding",
     "a": "wheel",
-    "b": "cage",
-    "rules": [
-      {
-        "expr": "a.diameterCm + 4 <= b.heightCm",
-        "onFail": "BELOW_MIN",
-        "message": "쳇바퀴가 케이지 높이보다 커요. 베딩 위에 놓을 공간이 없어요."
-      },
-      {
-        "expr": "a.diameterCm + 15 <= b.heightCm",
-        "onFail": "CHECK",
-        "message": "베딩을 15cm 깔면 쳇바퀴 위가 닿을 수 있어요. 베딩을 낮추거나 소서를 고려해요."
-      },
-      {
-        "expr": "a.mount == 'HANG' ? b.type == 'WIRE' : true",
-        "onFail": "CHECK",
-        "message": "걸이형 쳇바퀴는 리빙박스·아크릴에 고정하기 어려워요."
-      }
-    ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
-    "contentKind": "SPEC",
-    "source": [
-      {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
-      }
-    ]
-  },
-  {
-    "id": "cr-water-cage",
-    "a": "water",
-    "b": "cage",
-    "rules": [
-      {
-        "expr": "a.mount == 'HANG' ? b.type == 'WIRE' : true",
-        "onFail": "CHECK",
-        "message": "리빙박스엔 걸이형 급수기 거치가 어려워요. 스탠드형이나 물그릇을 고려해요."
-      }
-    ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
-    "contentKind": "SPEC",
-    "source": [
-      {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
-      }
-    ]
-  },
-  {
-    "id": "cr-tubes-cage",
-    "a": "tubes",
     "b": "cage",
     "careProfileId": "cp-hamster-syrian",
     "rules": [
       {
-        "expr": "a.innerDiameterCm >= 6",
-        "onFail": "BELOW_MIN",
-        "message": "성체 골든햄스터는 내경 6cm 미만 튜브에 낄 수 있어요."
+        "expr": "a.diameterCm + 25 <= b.heightCm",
+        "onFail": "CHECK",
+        "message": "골든햄스터 베딩을 25cm 깔면 쳇바퀴 위가 뚜껑에 닿을 수 있어요. 케이지 높이와 쳇바퀴 지름을 함께 확인해요."
       }
     ],
     "reviewStatus": "DRAFT",
@@ -79,9 +19,14 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },

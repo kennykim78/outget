@@ -312,6 +312,41 @@ export const COPY = deepFreeze({
     /** R6 레인 0.2 — 첫 PUT 보류 확인(마스킹 이메일 {name}). */
     confirmMasked: sent('{name}에 저장할까요?'),
     confirmCta: '이 주소로 저장하기',
+    /** 89 스펙 §2 — L8 저장 정보 지우기·이 기기 정보 지우기(PRD US-025 보완). {n} = privacy/policy.ts BACKUP_RETENTION_DAYS. */
+    eraseLink: '저장한 정보 지우기',
+    deviceLink: '이 기기 정보 지우기',
+    backLabel: '이전 화면으로',
+    eraseTitle: '저장한 정보를 지울까요?',
+    eraseIntro: sent('{name} 주소로 저장한 정보를 지워요.'),
+    eraseIntroNoName: sent('이 이메일로 저장한 정보를 지워요.'),
+    eraseListTitle: '지우는 정보',
+    eraseItemEmail: '이메일 주소',
+    eraseItemState: '저장해 둔 동물 선택과 준비 상태(체크, 내 케이지, 반응)',
+    eraseOtherDevices: sent('이 주소로 연결한 다른 기기도 연결이 풀려요. 다른 기기에 남아 있는 준비 상태는 그 기기에 그대로 있어요.'),
+    eraseBackup: sent('백업 사본에서는 {n}일 안에 함께 지워져요.'),
+    eraseFinal: sent('지운 정보는 다시 되살릴 수 없어요.'),
+    eraseWipeDevice: '이 기기의 준비 상태도 지우기',
+    eraseWipeDeviceHint: sent('선택하지 않으면 이 기기의 준비 상태는 남고 연결만 풀려요.'),
+    eraseCta: '저장한 정보 지우기',
+    erasing: sent('지우고 있어요'),
+    eraseCancel: sent('그만둘게요'),
+    eraseLimited: sent('짧은 시간에 요청이 많았어요. 잠시 뒤 다시 눌러 주세요.'),
+    eraseFailed: sent('지금은 지울 수 없어요. 저장한 정보는 그대로 있어요. 잠시 뒤 다시 눌러 주세요.'),
+    erasedTitle: '저장한 정보를 지웠어요',
+    erasedBody: sent('이 기기와 다른 기기의 이메일 연결도 모두 풀었어요.'),
+    erasedDeviceKept: sent('이 기기의 준비 상태는 남아 있어요. 다시 저장하려면 메일 링크를 새로 받아 주세요.'),
+    erasedDeviceWiped: sent('이 기기의 준비 상태도 지웠어요.'),
+    toStart: '처음 화면으로',
+    reauthTitle: '다시 연결해야 지울 수 있어요',
+    reauthBody: sent('이 기기의 이메일 연결이 끝나 있어요. 메일의 링크로 다시 연결한 뒤 지워 주세요.'),
+    reauthKept: sent('저장한 정보와 이 기기의 준비 상태는 그대로 있어요.'),
+    deviceTitle: '이 기기 정보를 지울까요?',
+    deviceBody: sent('이 기기에 남은 동물 선택, 준비 상태, 내 케이지, 반응을 지워요.'),
+    deviceLinkedNote: sent('이 기기의 이메일 연결도 풀려요. 이메일로 저장한 정보는 남아 있어요. 그것까지 지우려면 아래 링크를 눌러 주세요.'),
+    deviceCta: '이 기기 정보 지우기',
+    deviceDoneTitle: '이 기기 정보를 지웠어요',
+    deviceDoneBody: sent('처음 화면부터 다시 시작할 수 있어요.'),
+    deviceLogoutPending: sent('연결 해제는 인터넷이 연결되면 마저 끝내요.'),
   },
   /** PRD US-014 · 계획 §4. 의료 판단 없음 — "병원에 문의"까지. */
   vet: {
@@ -445,6 +480,17 @@ export const COPY = deepFreeze({
     /** R6 레인 0.2 — 푸터 개인정보 처리방침 링크 라벨. */
     privacy: '개인정보 처리방침',
   },
+  /** /privacy 페이지 틀(계획 86 P8). 본문 사실은 prerender/privacy-content.ts. */
+  privacy: {
+    title: '개인정보 처리방침',
+    description: sent('위드스몰이 어떤 개인정보를 왜 받고, 얼마나 보관하고, 어떻게 지우는지 적었어요.'),
+    toc: '차례',
+    version: '버전',
+    effectiveDate: '시행일',
+    notApplicable: '해당 없음',
+    previousTitle: '이전 버전',
+    previousNone: sent('이전 버전이 없어요. 이 버전이 첫 버전이에요.'),
+  },
   /** R6 레인 0.2 — 접근성 보조 문구(sr-only). */
   a11y: {
     newWindow: '(새 창)',
@@ -458,6 +504,9 @@ export const COPY = deepFreeze({
 });
 
 export type Copy = typeof COPY;
+
+/** 89 스펙 §2 eraseBackup {n} — 기간 숫자 단일 출처(privacy/policy.ts, 순수 상수 모듈)를 클라가 @ws/copy 로 받는다. */
+export { BACKUP_RETENTION_DAYS } from '../privacy/policy.js';
 
 /**
  * 상태 글리프(스펙22 §2.0·§4-1) — 텍스트 문자, 색만으로 상태를 말하지 않는다. 프리렌더·클라이언트 공용 단일 소스.

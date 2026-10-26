@@ -5,7 +5,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { assertJwtSecrets, collectEnvProblems, isProdLike, JWT_SECRET_MIN, parseTrustProxy, runEnvCheck } from '../config/env.js';
 
 describe('isProdLike', () => {
@@ -142,8 +146,11 @@ describe('collectEnvProblems / runEnvCheck', () => {
 // R6 A3 회귀: 직접 실행(entrypoint 의 `node dist/config/env.js`) 이 교착 없이 끝나고 종료 코드로 결과를 낸다.
 //   (top-level await + 순환 동적 import 교착 — 컨테이너에서 "unsettled top-level await" 로 재현됐던 결함)
 describe('env.ts 직접 실행', () => {
-  const runMain = (env: Record<string, string>): { status: number | null; out: string } => {
-    const r = spawnSync(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('../config/env.ts', import.meta.url))], {
+  // cwd 를 임시 배치로 바꿀 수 있게 tsx 로더는 절대 URL.
+  const TSX = pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href;
+  const runMain = (env: Record<string, string>, cwd?: string): { status: number | null; out: string } => {
+    const r = spawnSync(process.execPath, ['--import', TSX, fileURLToPath(new URL('../config/env.ts', import.meta.url))], {
+      cwd,
       env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', ...env },
       encoding: 'utf8',
       timeout: 60_000,
@@ -161,7 +168,19 @@ describe('env.ts 직접 실행', () => {
 
   it('운영 정상 구성 → exit 0, env ok', () => {
     const secret = randomBytes(36).toString('base64url');
-    const r = runMain({ NODE_ENV: 'production', DATABASE_URL: 'file:/tmp/x.db', PUBLIC_ORIGIN: 'https://staging.example', JWT_ACCESS_SECRET: secret, JWT_REFRESH_SECRET: secret, REACTION_KEY_SECRET: secret });
+    // 86 P11 후속: 직접 실행은 처리방침 자리표시도 본다 — 로컬 빌드 산출물(자리표시 있음)과 무관하게, 자리표시 없는 산출 디렉터리를 준다.
+    //   101 MED-3: 운영은 WS_CLIENT_DIST 를 무시하므로 SPA 와 같은 후보 ①(<cwd>/../client/dist) 배치로 준다.
+    const root = mkdtempSync(join(tmpdir(), 'ws-env-dist-'));
+    const dist = join(root, 'client', 'dist');
+    mkdirSync(join(dist, 'privacy'), { recursive: true });
+    writeFileSync(join(dist, 'index.html'), '<!doctype html>');
+    writeFileSync(join(dist, 'privacy', 'index.html'), '<main>처리방침</main>');
+    mkdirSync(join(root, 'server'));
+    const r = runMain(
+      { NODE_ENV: 'production', DATABASE_URL: 'file:/tmp/x.db', PUBLIC_ORIGIN: 'https://staging.example', JWT_ACCESS_SECRET: secret, JWT_REFRESH_SECRET: secret, REACTION_KEY_SECRET: secret },
+      join(root, 'server'),
+    );
+    rmSync(root, { recursive: true, force: true });
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/env ok/);
   }, 90_000);

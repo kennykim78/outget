@@ -1,0 +1,99 @@
+{
+  "v": 1,
+  "packet": "hamster-golden-core-2026-10",
+  "doc": "docs/planning-artifacts/골든햄스터-핵심행-확인표.md",
+  "note": "확인표 A·D(☑) → ROW_CHECKED(사료 D1 행은 reviewerType VET_PUBLISHED_SOURCE), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-25 재조사 _workspace/85_research_golden.md + 케이지 국내 출처 _workspace/91_research_cage_kr.md(Kenny 2026-10-25 골든 케이지 100×50×50 확정). 최소 규격 행은 연결된 A 항목이 전부 ☑일 때만 서명된다. 패킷 밖(DRAFT 유지): 저울 req-syrian-scale(HEALTH, 드워프와 같이 비노출), 구성안 sb-syrian-*(케이지 기준 문구·출처 없음), Taxon(노출 조건 밖, K-4), 용품 설명 supply-items(드워프 C 일괄에서 서명 — 여기 넣으면 미서명 시 DRAFT로 되돌린다). 상품(B)은 골든 cp-001~010이 전부 SLOT이라 없음.",
+  "reviewerType": "EXPERIENCED_KEEPER",
+  "rowChecked": [
+    {
+      "file": "supply-requirements.json",
+      "id": "req-syrian-cage",
+      "items": [
+        "A6",
+        "A7",
+        "A8",
+        "A9",
+        "A10",
+        "A11"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-syrian-wheel",
+      "items": [
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-syrian-bedding",
+      "items": [
+        "A4",
+        "A5"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-syrian-food",
+      "items": [
+        "D1"
+      ],
+      "reviewerType": "VET_PUBLISHED_SOURCE"
+    }
+  ],
+  "bulk": {
+    "item": "C",
+    "rows": [
+      {
+        "file": "animal-types.json",
+        "id": "hamster-golden"
+      },
+      {
+        "file": "care-profiles.json",
+        "id": "cp-hamster-syrian"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-water"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-food-bowl"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-hideout"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-sand-bath"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-chew"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-carrier"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-thermo"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-tubes"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-syrian-saucer"
+      },
+      {
+        "file": "compatibility-rules.json",
+        "id": "cr-syrian-wheel-cage-bedding"
+      }
+    ]
+  }
+}

@@ -101,18 +101,19 @@ const visibleText = (html: string): string =>
 describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
   const b = build(realSeed());
 
-  it('라우트가 정확히 5개(R4 D6: /credits 항상, noindex)', () => {
+  it('고정 라우트(R4 D6: /credits 항상 noindex · 86 P8: /privacy 항상 색인)', () => {
     // 51 레인 A(K1): /pick 항상(noindex·sitemap 제외).
-    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/save', '/pick', '/credits', '/404']);
-    expect(b.routes.map((r) => r.kind)).toEqual(['HOME', 'SUPPLIES', 'VET', 'SAVE', 'PICK', 'CREDITS', 'NOT_FOUND']);
+    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/save', '/pick', '/credits', '/privacy', '/404']);
+    expect(b.routes.map((r) => r.kind)).toEqual(['HOME', 'SUPPLIES', 'VET', 'SAVE', 'PICK', 'CREDITS', 'PRIVACY', 'NOT_FOUND']);
     expect(b.routes.find((r) => r.kind === 'CREDITS')?.indexable).toBe(false);
     expect(b.routes.find((r) => r.kind === 'NOT_FOUND')?.file).toBe('404.html');
   });
 
-  it('indexable 은 / 만, sitemap 1건, robots Disallow', () => {
-    expect(b.routes.filter((r) => r.indexable).map((r) => r.path)).toEqual(['/']);
+  it('indexable 은 / · /privacy 만, sitemap 2건, robots Disallow', () => {
+    // 계획 86 P8: /privacy 는 항상 색인·sitemap 포함.
+    expect(b.routes.filter((r) => r.indexable).map((r) => r.path)).toEqual(['/', '/privacy']);
     const sm = b.files.get('sitemap.xml') as string;
-    expect(sm.match(/<loc>/g)).toHaveLength(1);
+    expect(sm.match(/<loc>/g)).toHaveLength(2);
     expect(sm).toContain(`<loc>${ORIGIN}/</loc>`);
     expect(b.files.get('robots.txt')).toBe('User-agent: *\nDisallow: /\n');
     expect(b.manifest.indexable).toBe(false);
@@ -183,6 +184,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
       '/save',
       '/pick',
       '/credits',
+      '/privacy',
       '/404',
     ]);
     expect(b.routes.find((r) => r.path === '/vet/서울-마포구')).toMatchObject({ kind: 'VET_REGION', region: '서울 마포구', file: 'vet/서울-마포구/index.html' });
@@ -222,7 +224,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     const now = html.slice(html.indexOf('>', order[0]) + 1, order[1]);
     // 진행·개수 숫자 0. 숫자는 칩 규격 요약(엔진 chipSpecText, "28cm 이상")에만.
     expect(visibleText(now.replace(/<span class="ws-t-meta ws-need-spec">[^<]*<\/span>/g, ''))).not.toMatch(/\d/);
-    expect(now).toContain('<span class="ws-t-meta ws-need-spec">60×40×30cm 이상</span>');
+    expect(now).toContain('<span class="ws-t-meta ws-need-spec">100×50×50cm 이상</span>');
     expect(now).not.toContain('↑');
     const vet = html.slice(order[3], order[4]);
     expect(vet).toContain('href="/vet"');
@@ -238,7 +240,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     const order = ['why', 'conditions', 'caution', 'avoid'].map((k) => aside.indexOf(`data-ws-part="${k}"`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(aside).toContain('지름 28cm 이상');
+    expect(aside).toContain('지름 27cm 이상');
     expect(aside).toContain('마지막 검수 2026.09');
     expect(aside).toContain('data-ws-id="curatedProducts#cp-001"');
     for (const m of aside.matchAll(/<a href="https:[^"]*"[^>]*>/g)) expect(m[0]).toContain('rel="noopener noreferrer nofollow"');
@@ -325,7 +327,7 @@ describe('(c) 같은 승격에서 type 만 DRAFT → 타입 라우트 0', () => 
   it('TYPE·SETUP·FAMILY·SUPPLY_ITEM* 라우트 없음, typeId 0', () => {
     expect(b.routes.filter((r) => ['FAMILY', 'TYPE', 'SETUP', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE'].includes(r.kind))).toEqual([]);
     expect(b.routes.filter((r) => r.typeId !== undefined)).toEqual([]);
-    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/vet/서울-마포구', '/save', '/pick', '/credits', '/404']);
+    expect(paths(b)).toEqual(['/', '/supplies', '/vet', '/vet/서울-마포구', '/save', '/pick', '/credits', '/privacy', '/404']);
     expect(b.catalog.animalTypes).toEqual([]);
     expect(b.catalog.supplyRequirements).toEqual([]);
   });
@@ -345,8 +347,9 @@ describe('(d) 비노출 id 가 어떤 ws-data·data-ws-id·카탈로그에도 �
     const s = promoted();
     // cp-002: VERIFIED 지만 AI_DRAFT → 비노출
     patch(s, 'curatedProducts', 'cp-002', { ...V, reviewerType: 'AI_DRAFT', status: 'ACTIVE', meetsMinSpec: true, title: 'x' });
-    // cp-003: 리빙박스, barGapMm 없음 → 최소 규격 CHECK → 비노출(불변식 3)
-    patch(s, 'curatedProducts', 'cp-003', { ...V, status: 'ACTIVE', meetsMinSpec: true, title: 'y', specVerifiedAt: '2026-09-30' });
+    // cp-003: 철망(WIRE), barGapMm 없음 → 최소 규격 CHECK → 비노출(불변식 3)
+    //   BE92: 철망 간격은 WIRE 일 때만(85) → 리빙박스 목표 규격은 충족이라 형태를 철망으로 바꿔 CHECK 를 만든다.
+    patch(s, 'curatedProducts', 'cp-003', { ...V, status: 'ACTIVE', meetsMinSpec: true, title: 'y', specVerifiedAt: '2026-09-30', specValues: { type: 'WIRE', floorWcm: 100, floorDcm: 50, heightCm: 50 } });
     // ph-02: CC_BY 인데 저작자·원본 URL 없음 → 사용 불가(isPhotoUsable) → /credits 에 없음
     patch(s, 'photos', 'ph-02', { source: 'Wikimedia Commons', license: 'CC_BY', author: null, sourceUrl: null, downloadedAt: '2026-09-27', status: 'READY' });
     const b = build(s);
@@ -460,7 +463,7 @@ describe('R4 A2 프리렌더 보강', () => {
     }
     const l4 = pageOf(b, '/hamster/golden/supplies/wheel');
     const cond = /<section data-ws-part="conditions">[\s\S]*?<\/section>/.exec(l4)?.[0] as string;
-    expect(cond).toContain('지름 28cm 이상');
+    expect(cond).toContain('지름 27cm 이상');
     expect(cond).not.toContain('바닥면');
     const l5 = pageOf(b, '/hamster/golden/check/wheel');
     expect(l5).toContain('name="diameterCm"');

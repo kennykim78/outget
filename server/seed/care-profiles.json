@@ -9,16 +9,12 @@
       "social": "SOLITARY",
       "activity": "NOCTURNAL",
       "adultLengthCm": [
-        15,
+        13,
         18
       ],
       "tempC": [
         18,
-        26
-      ],
-      "humidityPct": [
-        40,
-        60
+        24
       ],
       "lifespanYears": [
         2,
@@ -27,8 +23,8 @@
     },
     "careNotes": [
       "반드시 1마리 단독 사육 — 성체 합사는 싸움으로 이어진다.",
-      "야행성이라 밤에 수 km를 달린다. 낮 소음·진동을 피한다.",
-      "굴을 파는 습성 — 베딩을 얕게 깔면 행동 문제가 생긴다."
+      "야행성이고 야생에서는 하룻밤에 몇 km를 오간다. 낮 소음·진동을 피한다.",
+      "굴을 파는 습성 — 베딩을 25cm 이상 깊게 깐다."
     ],
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
@@ -38,14 +34,34 @@
     "contentKind": "CARE",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters",
+        "title": "Hamsters – MSD Veterinary Manual (Exotic and Laboratory Animals)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/company",
+        "title": "Keeping Hamsters Together – RSPCA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Mesocricetus_auratus/",
+        "title": "Mesocricetus auratus (golden hamster) – Animal Diversity Web",
+        "accessedAt": "2026-10-25"
       }
     ]
   },

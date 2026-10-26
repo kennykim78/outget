@@ -87,6 +87,10 @@ function fakeApi(over: Partial<{ [K in keyof SaveApi]: SaveApi[K] }> = {}) {
       order.push('logout');
       return { status: 204 };
     }),
+    erase: vi.fn(async () => {
+      order.push('erase');
+      return { status: 204 };
+    }),
     getSave: vi.fn(async () => {
       order.push('get');
       return { status: 200, body: { snapshot: server, updatedAt: serverAt } };

@@ -22,11 +22,12 @@ const pageAt = (b: SiteBuild, path: string): BuiltPage => {
 };
 const ruleIds = (rs: Reason[]) => rs.map((r) => r.ruleId);
 
-/** 노출 요구사항(순서 = orderHint → priority → 시드 순). 사료(FOOD)·저울(HEALTH)은 DRAFT 라 없다. */
-const REQ_ORDER = ['cage', 'wheel', 'bedding', 'water', 'hideout', 'sand-bath', 'sand-bath-box', 'food-bowl', 'thermo', 'chew', 'carrier', 'tubes', 'saucer'];
-const ITEMS_SEED_ORDER = ['cage', 'wheel', 'saucer', 'bedding', 'water', 'food-bowl', 'hideout', 'sand-bath', 'sand-bath-box', 'chew', 'carrier', 'thermo', 'tubes'];
+/** 노출 요구사항(순서 = orderHint → priority → 시드 순). 저울(HEALTH)은 DRAFT 라 없다.
+ *  BE92: 미리보기(전 ☑·C·D1)는 SupplyItem food 도 C 일괄(90 Q1)로 서명돼 사료(FOOD)가 노출된다. */
+const REQ_ORDER = ['cage', 'wheel', 'bedding', 'water', 'food', 'hideout', 'sand-bath', 'sand-bath-box', 'food-bowl', 'thermo', 'chew', 'carrier', 'tubes', 'saucer'];
+const ITEMS_SEED_ORDER = ['cage', 'wheel', 'saucer', 'bedding', 'water', 'food-bowl', 'food', 'hideout', 'sand-bath', 'sand-bath-box', 'chew', 'carrier', 'thermo', 'tubes'];
 /** 상품 L7 순서 = 요구사항 순 → verdict OK 먼저(cp-dw-005 BELOW_RECOMMENDED 뒤) → 시드 순. */
-const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '009', '010', '011', '016', '017', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
+const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '010', '011', '016', '017', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
 
 describe('디스크 시드 — 드워프 PLANNED 라 실노출 0', () => {
   it('projectSite(실시드) 타입 0', () => {
@@ -42,7 +43,7 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
     expect(b.model.types.map((t) => t.id)).toEqual([D]);
   });
 
-  it('경로 집합(홈 A · /hamster · /hamster/dwarf · setup · L4/L5 × 13 · L7 × 17 · /supplies × 13 × 2 · 고정 5)', () => {
+  it('경로 집합(홈 A · /hamster · /hamster/dwarf · setup · L4/L5 × 14 · L7 × 16 · /supplies × 14 × 2 · 고정 6)', () => {
     expect(b.routes.map((r) => r.path)).toEqual([
       '/',
       '/hamster',
@@ -56,13 +57,15 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
       '/save',
       '/pick',
       '/credits',
+      '/privacy',
       '/404',
     ]);
   });
 
-  it('골든·사료·저울 경로 0', () => {
+  it('골든·저울 경로 0, 사료 경로는 있음(BE92)', () => {
     const paths = b.routes.map((r) => r.path);
-    expect(paths.filter((p) => /golden|\/food(\/|$)|\/scale(\/|$)/.test(p))).toEqual([]);
+    expect(paths.filter((p) => /golden|\/scale(\/|$)/.test(p))).toEqual([]);
+    expect(paths.filter((p) => /\/food(\/|$)/.test(p))).toEqual(['/hamster/dwarf/supplies/food', '/hamster/dwarf/check/food', '/supplies/food', `/supplies/food/${D}`]);
   });
 
   it('홈 A: ws-data 타입 = 드워프 1(피커 카드는 /pick 정적 본문), /hamster: 드워프 카드만', () => {
@@ -75,16 +78,17 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
     expect(hrefs).toEqual(['/hamster/dwarf']);
   });
 
-  it('/hamster/dwarf(L2 체크리스트 입력): 요구사항 13 순서·우선순위, 번들 3, 상품 17', () => {
+  it('/hamster/dwarf(L2 체크리스트 입력): 요구사항 14 순서·우선순위, 번들 3(사료 포함), 상품 16', () => {
     const d = pageAt(b, '/hamster/dwarf').data.data;
     expect(d.requirements.map((r) => r.supplyItemId)).toEqual(REQ_ORDER);
-    expect(d.requirements.filter((r) => r.priority === 'REQUIRED').map((r) => r.supplyItemId)).toEqual(['cage', 'wheel', 'bedding', 'water', 'hideout', 'sand-bath', 'sand-bath-box']);
+    expect(d.requirements.filter((r) => r.priority === 'REQUIRED').map((r) => r.supplyItemId)).toEqual(['cage', 'wheel', 'bedding', 'water', 'food', 'hideout', 'sand-bath', 'sand-bath-box']);
     expect(d.bundles.map((x) => x.id)).toEqual(['sb-dwarf-budget', 'sb-dwarf-balanced', 'sb-dwarf-reuse']);
+    expect(d.bundles.every((x) => x.itemIds.includes('food'))).toBe(true);
     expect(d.bundles.every((x) => x.estimatedRangeText === null)).toBe(true);
     expect(d.products.map((p) => p.id)).toEqual(PRODUCT_ORDER);
   });
 
-  it('L4 cage: 최소 규격 4개(철망 간격은 "형태 철망일 때" 조건부), 권장 철망 제외', () => {
+  it('L4 cage: 최소 규격 4개(철망 간격 9mm 는 "형태 철망일 때" 조건부) + 권장(철망 제외 · 철망일 때 간격 6mm — 2026-10-25 권장으로 강등)', () => {
     const html = pageAt(b, '/hamster/dwarf/supplies/cage').html;
     expect(html).toContain('바닥 가로 100cm 이상');
     expect(html).toContain('형태 철망일 때 — 철망 간격 6mm 이하');
@@ -100,7 +104,8 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
     const c = b.catalog;
     const eng = createEngine(createCatalog({ animalTypes: c.animalTypes, careProfiles: c.careProfiles, supplyItems: c.supplyItems, supplyRequirements: c.supplyRequirements, compatibilityRules: c.compatibilityRules }));
     const base = { floorWcm: 100, floorDcm: 50, heightCm: 50 };
-    expect(eng.specCheck(D, 'cage', { type: 'WIRE', ...base, barGapMm: 9.5 }).verdict).toBe('BELOW_MIN');
+    expect(eng.specCheck(D, 'cage', { type: 'WIRE', ...base, barGapMm: 9.5 }).verdict).toBe('BELOW_MIN'); // 최소 9mm 이하(BE92 Q2), 6mm 는 권장
+    expect(eng.specCheck(D, 'cage', { type: 'WIRE', ...base, barGapMm: 9 }).verdict).toBe('BELOW_RECOMMENDED');
     expect(eng.specCheck(D, 'cage', { type: 'OTHER', ...base }).verdict).toBe('OK');
     expect(eng.specCheck(D, 'cage', { type: 'WIRE', ...base }).verdict).toBe('CHECK');
     const ctx = (h: number) => ({ ownedItems: { cage: { type: 'LIVING_BOX', floorWcm: 100, floorDcm: 50, heightCm: h } } });
@@ -112,16 +117,17 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
     expect(c.compatibilityRules.map((r) => r.id)).toEqual(['cr-dwarf-wheel-cage-bedding', 'cr-dwarf-tubes-cage']);
   });
 
-  it('공개 카탈로그: 용품 13(사료·저울 제외), 요구사항 13, verifiedBy 0', () => {
+  it('공개 카탈로그: 용품 14(저울 제외), 요구사항 14, verifiedBy 0', () => {
     expect(b.catalog.supplyItems.map((i) => i.id)).toEqual(ITEMS_SEED_ORDER);
-    expect(b.catalog.supplyRequirements).toHaveLength(13);
+    expect(b.catalog.supplyRequirements).toHaveLength(14);
   });
 
-  it('모든 산출물: kenny·사료/저울 DRAFT 문장·Taxon id·법 문구·골든 0, Phodopus 는 VERIFIED 행의 출처 인용에만', () => {
+  it('모든 산출물: kenny·저울 DRAFT 문장·Taxon id·법 문구·골든 0(드워프 사료 문장 속 비교 언급 제외), Phodopus 는 VERIFIED 행의 출처 인용에만', () => {
     const files = [...b.files.entries()];
-    const all = files.map(([, c]) => c).join('\n');
+    // BE92: 사료가 노출되면 드워프 사료 문장(Kenny 확정, BE90)이 골든햄스터용 사료를 비교로 언급한다 — 그 두 구절만 빼고 센다.
+    const all = files.map(([, c]) => c).join('\n').split('골든햄스터용이 아닌').join('').split('고지방 골든햄스터용 사료').join('');
     // 보안 79 H-1: 검수 방식·서명 메타(reviewBasis·ROW_CHECKED·AI_RESEARCH_BULK·factHash·review-signatures)도 0 — 서명된 미리보기(dwarfSigned) 기준.
-    for (const w of ['kenny', '"req-dwarf-food"', 'req-dwarf-scale', '탄수화물', '주방 저울', 'phodopus-', '시행규칙', '야생생물법', 'mesocricetus', 'hamster-golden', '골든햄스터', 'reviewBasis', 'ROW_CHECKED', 'AI_RESEARCH_BULK', 'factHash', 'review-signatures']) {
+    for (const w of ['kenny', 'req-dwarf-scale', '주방 저울', 'phodopus-', '시행규칙', '야생생물법', 'mesocricetus', 'hamster-golden', '골든햄스터', 'reviewBasis', 'ROW_CHECKED', 'AI_RESEARCH_BULK', 'factHash', 'review-signatures']) {
       expect(all.split(w).length - 1, w).toBe(0);
     }
     for (const [f, c] of files) {
@@ -141,6 +147,7 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
   it('ws-data 상한 — 와이어 v2 기준 초과 페이지 0, 최대 < 24KB', () => {
     const over = b.pages.filter((p) => p.wsDataBytes > WS_DATA_MAX_BYTES).map((p) => p.route.path);
     expect(over).toEqual([]);
-    expect(Math.max(...b.pages.map((p) => p.wsDataBytes))).toBeLessThan(24 * 1024);
+    // BE92: 사료 요구사항이 모든 드워프 페이지 ws-data 에 실려 최대 약 24.7KB → 여유 목표 24KB → 26KB(경고 28KB·상한 32KB 그대로) — 오케스트레이터 확인 대상.
+    expect(Math.max(...b.pages.map((p) => p.wsDataBytes))).toBeLessThan(26 * 1024);
   });
 });

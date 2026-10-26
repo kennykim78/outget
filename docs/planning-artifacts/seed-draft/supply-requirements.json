@@ -5,61 +5,63 @@
     "supplyItemId": "cage",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "바닥을 넓게 쓰는 동물이에요. 좁으면 철망을 물거나 같은 자리를 도는 행동이 생겨요.",
-    "caution": "철망 간격 1cm 이하, 바닥은 철망이 아닌 단단한 면. 층을 쌓는 것보다 바닥 면적이 우선.",
-    "avoid": "바닥 60×40cm 미만 · 철망 바닥 · 플라스틱 튜브형 소형 케이지",
+    "why": "바닥을 넓게 쓰는 동물이에요. 동물보호법 시행규칙은 사육공간의 가로·세로를 몸길이의 2.5배·2배 이상으로 정하고 있어요.",
+    "caution": "철망이면 간격 1cm 미만인지 보고, 바닥은 철망이 아닌 단단한 면으로, 층을 쌓기보다 바닥 면적을 먼저 봐요.",
+    "avoid": "바닥 100×50cm 미만 · 철망 바닥 · 플라스틱 튜브형 소형 케이지",
     "minSpec": {
       "rules": [
         {
           "key": "floorWcm",
           "op": "gte",
-          "value": 60,
-          "reason": "성체 활동·베딩 깊이 확보"
+          "value": 100,
+          "reason": "바닥 가로 100cm 미만은 수의·동물복지 단체가 제시한 최소에 못 미쳐요"
         },
         {
           "key": "floorDcm",
           "op": "gte",
-          "value": 40,
-          "reason": "성체 활동 최소 바닥"
+          "value": 50,
+          "reason": "바닥 세로 50cm 미만은 최소 바닥 면적에 못 미쳐요"
         },
         {
           "key": "heightCm",
           "op": "gte",
-          "value": 30,
-          "reason": "베딩 15cm + 쳇바퀴 설치"
+          "value": 50,
+          "reason": "높이 50cm 미만은 수의·동물복지 단체가 제시한 최소에 못 미쳐요"
         },
         {
           "key": "barGapMm",
           "op": "lte",
-          "value": 10,
-          "reason": "탈출·끼임 방지"
+          "value": 9,
+          "reason": "철망 틈으로 빠져나가지 않도록 간격이 1cm 미만이어야 해요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
         }
       ]
     },
     "recommendedSpec": {
       "rules": [
         {
-          "key": "floorWcm",
-          "op": "gte",
-          "value": 80,
-          "reason": "굴 파기·구역 분리"
-        },
-        {
-          "key": "floorDcm",
-          "op": "gte",
-          "value": 50,
-          "reason": "굴 파기·구역 분리"
-        },
-        {
-          "key": "heightCm",
-          "op": "gte",
-          "value": 40,
-          "reason": "베딩 20cm + 30cm 쳇바퀴"
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 6,
+          "reason": "수의 전문지는 철망 간격 6mm 이하를 제시해요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
         }
       ]
     },
     "notNowReason": null,
-    "searchKeyword": "{animal} 리빙박스 대형 케이지 80x50",
+    "searchKeyword": "{animal} 대형 케이지 100x50",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -68,14 +70,34 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.tierschutz-tvt.de/",
-        "title": "TVT(독일 수의사 동물보호협회) — Heimtiere: Hamster 권고",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.vettimes.com/clinical/exotics/looking-after-small-mammals-hamster-care-cpdrodents",
+        "title": "Looking after small mammals – hamster care (Witcomb, VN Times 2023)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/environment",
+        "title": "Creating a Good Home for Hamsters – RSPCA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/flDownload.do?gubun=&flSeq=159546699&bylClsCd=110201",
+        "title": "동물보호법 시행규칙 [별표 2] 반려동물에 대한 사육ㆍ관리ㆍ보호 의무 (국가법령정보센터)",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -85,16 +107,16 @@
     "supplyItemId": "wheel",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "밤에 수 km를 달려요. 지름이 작으면 등이 뒤로 꺾인 채 달려 척추에 무리가 가요.",
+    "why": "야생에서는 하룻밤에 몇 km를 오가요. 지름이 작으면 등을 굽힌 채 달리게 돼 허리에 부담이 쌓여요.",
     "caution": "달릴 때 등이 수평인지 확인. 발이 빠지지 않는 통면.",
-    "avoid": "지름 20cm 이하 · 살대형·격자형 바닥 · 볼형 런닝볼",
+    "avoid": "지름 27cm 미만 · 살대형·격자형 바닥 · 볼형 런닝볼",
     "minSpec": {
       "rules": [
         {
           "key": "diameterCm",
           "op": "gte",
-          "value": 28,
-          "reason": "성체 골든햄스터 등 수평 기준"
+          "value": 27,
+          "reason": "지름 27cm 미만이면 등을 굽히고 달리게 돼요"
         },
         {
           "key": "surface",
@@ -110,7 +132,7 @@
           "key": "diameterCm",
           "op": "gte",
           "value": 30,
-          "reason": "대형 성체 여유"
+          "reason": "수의사 협회는 골든햄스터에 지름 30cm 이상을 제시해요"
         }
       ]
     },
@@ -124,14 +146,24 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.tierschutz-tvt.de/",
-        "title": "TVT(독일 수의사 동물보호협회) — Heimtiere: Hamster 권고",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (Antinoff DVM)",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -141,8 +173,8 @@
     "supplyItemId": "bedding",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "굴을 파는 동물이에요. 얕게 깔면 굴을 못 파서 스트레스가 쌓여요.",
-    "caution": "최소 15cm, 가능하면 20cm 이상 깊이. 무향.",
+    "why": "굴을 파는 동물이에요. 굴을 파고 그 안에서 자고 먹이를 저장해요.",
+    "caution": "25cm 이상 깊이로 깔 수 있게 준비해요. 무향.",
     "avoid": "삼나무(cedar)·소나무(pine) 향 베딩 · 향 첨가 · 솜(코튼) 베딩",
     "minSpec": {
       "rules": [
@@ -152,13 +184,13 @@
           "value": [
             "CEDAR_PINE"
           ],
-          "reason": "페놀 성분 호흡기 자극"
+          "reason": "삼나무·소나무는 피하라고 수의 출처가 적어요"
         },
         {
           "key": "scented",
           "op": "eq",
           "value": false,
-          "reason": "후각 자극"
+          "reason": "향을 넣은 베딩은 호흡기를 자극할 수 있어요"
         }
       ]
     },
@@ -166,13 +198,9 @@
       "rules": [
         {
           "key": "material",
-          "op": "in",
-          "value": [
-            "PAPER",
-            "ASPEN",
-            "HEMP"
-          ],
-          "reason": "굴 유지력·먼지가 적음"
+          "op": "eq",
+          "value": "PAPER",
+          "reason": "종이 베딩은 모든 출처가 공통으로 쓸 수 있다고 꼽아요"
         }
       ]
     },
@@ -186,14 +214,34 @@
     "contentKind": "CARE",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (Antinoff DVM)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.vettimes.com/clinical/exotics/looking-after-small-mammals-hamster-care-cpdrodents",
+        "title": "Looking after small mammals – hamster care (Witcomb, VN Times 2023)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/environment",
+        "title": "Creating a Good Home for Hamsters – RSPCA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -222,14 +270,29 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/diet",
+        "title": "What To Feed a Pet Hamster – RSPCA",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters",
+        "title": "Hamsters – MSD Veterinary Manual (Exotic and Laboratory Animals)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -237,16 +300,23 @@
     "id": "req-syrian-food-bowl",
     "careProfileId": "cp-hamster-syrian",
     "supplyItemId": "food-bowl",
-    "priority": "REQUIRED",
+    "priority": "RECOMMENDED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "사료를 흩뿌려 주는 방법도 있지만 첫 준비에는 그릇이 편해요.",
+    "why": "사료를 흩어 찾아 먹게 하는 방법이 권장되고, 그릇을 쓸 때는 무겁고 씻기 쉬운 도자기가 기준이에요.",
     "caution": "무거운 도기. 뒤집히는 플라스틱은 피해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
     },
     "recommendedSpec": {
-      "rules": []
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "CERAMIC",
+          "reason": "무겁고 씻기 쉬운 도자기가 기준이에요"
+        }
+      ]
     },
     "notNowReason": null,
     "searchKeyword": "{animal} 도자기 사료 그릇",
@@ -258,14 +328,29 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (Antinoff DVM)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters",
+        "title": "Hamsters – MSD Veterinary Manual (Exotic and Laboratory Animals)",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -276,32 +361,13 @@
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
     "why": "전용 주식이 필요해요. 사람 간식·씨앗만 주는 건 안 돼요.",
-    "caution": "조단백 15~20%, 조지방 4~7% 범위의 골든햄스터용. 성분표는 검수 필요.",
+    "caution": "햄스터 전용 주식을 기준으로 해요.",
     "avoid": "해바라기씨 위주 믹스 · 당분 첨가 간식 위주",
     "minSpec": {
       "rules": []
     },
     "recommendedSpec": {
-      "rules": [
-        {
-          "key": "proteinPct",
-          "op": "gte",
-          "value": 15,
-          "reason": "성장·유지"
-        },
-        {
-          "key": "proteinPct",
-          "op": "lte",
-          "value": 20,
-          "reason": "과잉 단백 회피"
-        },
-        {
-          "key": "fatPct",
-          "op": "lte",
-          "value": 7,
-          "reason": "비만 예방"
-        }
-      ]
+      "rules": []
     },
     "notNowReason": null,
     "searchKeyword": "{animal} 사료 주식",
@@ -313,19 +379,39 @@
     "contentKind": "FOOD",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://koreascience.kr/article/JAKO199972606584618.page",
+        "title": "햄스터의 사육과 관리 II – 대한수의사회지 35(9):738-745 (1999)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters",
-        "title": "PDSA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters",
+        "title": "Hamsters – MSD Veterinary Manual (Exotic and Laboratory Animals)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (Antinoff DVM)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rvc.ac.uk/Media/Default/Beaumont%20Sainsbury%20Animal%20Hospital/documents/Syrian-Hamster-Care-Advice-2020.pdf",
+        "title": "Syrian Hamster Care Advice – RVC Exotics Service (2020)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -335,7 +421,7 @@
     "supplyItemId": "hideout",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "숨을 곳이 없으면 늘 긴장해요. 잠자리·저장 공간을 나눠 2개 이상.",
+    "why": "자고 먹이를 쌓아 둘 숨을 곳이 필요해요. 입구에서 떨어진 칸에서 자는 습성이 있어 여러 칸 은신처가 잘 맞아요.",
     "caution": "입구가 몸보다 넉넉한 것. 다중 방 은신처면 하나로도 가능.",
     "avoid": null,
     "minSpec": {
@@ -361,14 +447,24 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/environment",
+        "title": "Creating a Good Home for Hamsters – RSPCA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -378,20 +474,11 @@
     "supplyItemId": "sand-bath",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "물 목욕은 안 돼요. 모래로 털 기름기를 정리해요.",
-    "caution": "친칠라용 '모래(sand)'. 가루형 '더스트(dust)'는 호흡기에 나빠요.",
-    "avoid": "더스트(가루형) · 착색 모래",
+    "why": "모래에 뒹굴며 털을 손질해요.",
+    "caution": "친칠라용처럼 입자가 둥글고 고운 모래로 해요.",
+    "avoid": "모서리가 날카로운 석영 모래 · 새 모래 · 건축용 모래",
     "minSpec": {
-      "rules": [
-        {
-          "key": "sandType",
-          "op": "not_in",
-          "value": [
-            "DUST"
-          ],
-          "reason": "미세 분진 호흡기 자극"
-        }
-      ]
+      "rules": []
     },
     "recommendedSpec": {
       "rules": [
@@ -399,7 +486,7 @@
           "key": "sandType",
           "op": "eq",
           "value": "CHINCHILLA_SAND",
-          "reason": "먼지가 적은 모래·세척 용이"
+          "reason": "입자가 둥글고 아주 고운 모래가 털 손질에 맞아요"
         }
       ]
     },
@@ -413,14 +500,19 @@
     "contentKind": "CARE",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/health",
+        "title": "Hamster Health & Welfare Tips – RSPCA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -430,8 +522,8 @@
     "supplyItemId": "chew",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "앞니가 계속 자라요. 갉을 것이 없으면 철망을 물어요.",
-    "caution": "무처리 원목·미네랄 스톤.",
+    "why": "앞니가 계속 자라요.",
+    "caution": "약을 치지 않은 나뭇가지·나무 조각.",
     "avoid": "도색·접착제 처리 목재",
     "minSpec": {
       "rules": []
@@ -449,14 +541,19 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
+        "title": "Keeping Hamsters As Pets – RSPCA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -485,14 +582,14 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.rspca.org.uk/documents/1494939/7712578/Transporting+your+hamster+(PDF+181KB).pdf/a186d3ad-1278-700f-e7bc-cf34648f3308?t=1559219675901&download=true",
+        "title": "Transporting your hamster – RSPCA (PDF)",
+        "accessedAt": "2026-10-24"
       }
     ]
   },
@@ -502,8 +599,8 @@
     "supplyItemId": "thermo",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "18~26℃를 벗어나면 위험해요. 특히 여름·겨울.",
-    "caution": "케이지 옆 같은 높이에 설치.",
+    "why": "18~24℃를 유지하는지 숫자로 확인해요. 너무 더우면 열사병, 너무 추우면 토퍼(휴면과 비슷한 상태)에 빠질 수 있어요.",
+    "caution": "직사광선·외풍이 닿지 않는 자리에 두고, 겨울에 난방하지 않는 방은 피해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
@@ -521,14 +618,19 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (Antinoff DVM)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/hamsters-as-pets",
+        "title": "Hamsters as pets – PDSA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -538,8 +640,8 @@
     "supplyItemId": "scale",
     "priority": "OPTIONAL",
     "orderHint": "AFTER_ADAPTATION",
-    "why": "체중 변화가 가장 빠른 이상 신호예요. 주 1회 재요.",
-    "caution": "1g 단위면 충분.",
+    "why": "병이 천천히 진행돼 놓치기 쉬워서 매주 체중을 재는 방법이 권장돼요.",
+    "caution": "볼주머니가 빈 상태에서 체중이 크게 변하면 병원에 문의해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
@@ -554,17 +656,17 @@
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
-    "contentKind": "SPEC",
+    "contentKind": "HEALTH",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/health",
+        "title": "Hamster Health & Welfare Tips – RSPCA",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -575,20 +677,20 @@
     "priority": "OPTIONAL",
     "orderHint": "AFTER_ADAPTATION",
     "why": "환경을 풍부하게 해요. 필수는 아니에요.",
-    "caution": "성체 골든은 내경 6cm 이상.",
-    "avoid": "내경 5cm 이하 튜브",
+    "caution": "안쪽 폭 7cm 이상인지 확인해요.",
+    "avoid": "좁은 투명 플라스틱 튜브 연결 구조",
     "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
       "rules": [
         {
           "key": "innerDiameterCm",
           "op": "gte",
-          "value": 6,
-          "reason": "성체 끼임 방지"
+          "value": 7,
+          "reason": "볼주머니가 가득 찬 상태로도 편하게 지날 수 있는 폭이에요"
         }
       ]
-    },
-    "recommendedSpec": {
-      "rules": []
     },
     "notNowReason": null,
     "searchKeyword": "{animal} 터널 대형",
@@ -600,14 +702,19 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
       },
       {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://nc3rs.org.uk/housing-and-husbandry-hamster",
+        "title": "Housing and husbandry: Hamster – NC3RS",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -621,19 +728,12 @@
     "caution": null,
     "avoid": null,
     "minSpec": {
-      "rules": [
-        {
-          "key": "diameterCm",
-          "op": "gte",
-          "value": 20,
-          "reason": "성체 활동"
-        }
-      ]
+      "rules": []
     },
     "recommendedSpec": {
       "rules": []
     },
-    "notNowReason": "쳇바퀴(28cm↑)가 있으면 대체품이에요. 케이지 높이가 낮아 쳇바퀴를 못 놓을 때만.",
+    "notNowReason": "세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요.",
     "searchKeyword": "플라잉 소서 대형",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
@@ -643,14 +743,9 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
-      },
-      {
-        "url": "https://www.bluecross.org.uk/advice/hamster/caring-for-your-hamster",
-        "title": "Blue Cross — Caring for your hamster",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.bluecross.org.uk/advice/hamster/hamster-care",
+        "title": "Hamster Care – Blue Cross",
+        "accessedAt": "2026-10-25"
       }
     ]
   },
@@ -686,8 +781,8 @@
         {
           "key": "barGapMm",
           "op": "lte",
-          "value": 6,
-          "reason": "몸이 작아 철망 틈으로 빠져나가지 않도록 간격 6mm 이하가 기준이에요",
+          "value": 9,
+          "reason": "철망 틈으로 빠져나가지 않도록 간격이 1cm 미만이어야 해요",
           "when": [
             {
               "key": "type",
@@ -707,6 +802,19 @@
             "WIRE"
           ],
           "reason": "철망 케이지는 기어오르다 떨어지거나 발이 끼기 쉽고 베딩을 깊게 깔기 어려워요"
+        },
+        {
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 6,
+          "reason": "몸이 작아 철망 틈으로 빠져나가지 않도록 간격 6mm 이하를 권해요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
         }
       ]
     },
@@ -1027,8 +1135,8 @@
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
     "why": "드워프는 탄수화물을 잘 처리하지 못하고 당뇨가 생기기 쉬운 경향이 알려져 있어요. 골든햄스터용이 아닌 드워프에 맞춘 주식을 기준으로 해요.",
-    "caution": "과일과 꿀·당밀이 든 간식은 피하고, 체중이나 먹는 양이 달라지면 병원에 문의해요.",
-    "avoid": "과일 · 꿀·당밀·설탕이 든 간식 · 요거트 드롭 · 큰 알갱이·고지방 골든햄스터용 사료",
+    "caution": "해바라기씨 같은 기름진 씨앗과 말린 과일은 주식이 아니라 가끔 주는 간식으로 해요. 체중이나 먹는 양이 달라지면 병원에 문의해요.",
+    "avoid": "꿀·당밀·설탕이 든 간식 · 요거트 드롭 · 큰 알갱이·고지방 골든햄스터용 사료",
     "minSpec": {
       "rules": []
     },
@@ -1073,6 +1181,16 @@
         "url": "https://www.vettimes.com/clinical/exotics/looking-after-small-mammals-hamster-care-cpdrodents",
         "title": "Looking after small mammals – hamster care (Witcomb, VN Times 2023)",
         "accessedAt": "2026-10-24"
+      },
+      {
+        "url": "https://koreascience.kr/article/JAKO199972606584618.page",
+        "title": "햄스터의 사육과 관리 II – 대한수의사회지 35(9):738-745 (1999)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://v.daum.net/v/un9ESKCn6M?f=p",
+        "title": "\"해바라기씨, 햄스터 주식 아냐… 말린 과일 탓 당뇨 앓는 경우도 많아\" – 헬스조선 [멍멍냥냥] (2024-12-17, 다음 뉴스 재배포본으로 열람)",
+        "accessedAt": "2026-10-25"
       }
     ]
   },

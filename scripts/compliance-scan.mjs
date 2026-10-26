@@ -14,7 +14,8 @@
 //
 // 규칙: C1-FETCH C1-LIB C1-SDK C1-SEEDURL · C2-TRADE C2-PRICE · C3-QUERY C3-GUARDTEST C3-OUT-ID C3-OUT-ROUTE C3-OUT-SRC C3-OUT-TAXON C3-OUT-DRAFTSRC C3-OUT-REVIEWMETA C3-TAXON ·
 //       C4-BANNED C4-CODE(R4 FAIL) C4-STEM(R6: 산출물·VERIFIED/APPROVED 시드 FAIL, DRAFT 시드 WARN) · C5-GEO(+R5 위치 API 0) · C6-IMG · C7-SECRET · C8-OUT-SAFE C8-SRC-SAFE ·
-//       C9-STORAGE(웹 저장소 lib/storage.ts 만·document.cookie 0) C9-COOKIE(서버 쿠키 발급 2파일) · C0-SEED C0-OUTPUT
+//       C9-STORAGE(웹 저장소 lib/storage.ts 만·document.cookie 0) C9-COOKIE(서버 쿠키 발급 2파일) ·
+//       C9-PRIVACY(/privacy 존재·모든 라우트 링크·기간 숫자 = server/src/privacy/policy.ts FAIL, {{KENNY: 자리표시 WARN — 차단은 운영 기동 검사) · C0-SEED C0-OUTPUT
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,7 +84,7 @@ function main() {
   const digest = existsSync(seedDir) ? seedDigest(seedDir) : null;
   scanSeedExposure({ ex, add });
   const outputs = scanOutputs({ root: opts.root, dist: opts.prerender, ex, digest, bw, add, requireOutput: opts.requireOutput, seed });
-  if (outputs === 'NOT RUN') notes.push('산출물 규칙(C3-OUT-*, C4 산출물, C6 산출물, C8): NOT RUN — prerender-manifest.json 없음');
+  if (outputs === 'NOT RUN') notes.push('산출물 규칙(C3-OUT-*, C4 산출물, C6 산출물, C8, C9-PRIVACY): NOT RUN — prerender-manifest.json 없음');
 
   const order = { FAIL: 0, WARN: 1 };
   findings.sort((a, b) => order[a.severity] - order[b.severity] || a.rule.localeCompare(b.rule) || a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0));

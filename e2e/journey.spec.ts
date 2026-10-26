@@ -9,7 +9,7 @@ import { assertScreen, belowMinSeeded, PRICE_NOTES, tap, withoutPriceNotes } fro
 import { mailsTo, waitForSaveLink } from './support/mail';
 
 const TYPE = { id: 'hamster-golden', name: '골든햄스터', home: '/hamster/golden' } as const;
-// 데모 시드(server/seed + 메모리 승격) 값: 케이지 최소 60×40×30cm, 쳇바퀴 최소 28cm·권장 30cm.
+// 데모 시드(server/seed + 메모리 승격) 값: 케이지 최소 100×50×50cm, 쳇바퀴 최소 27cm·권장 30cm(BE92). 내 케이지 60×40×35 는 쳇바퀴 호환(베딩 25cm) CHECK 확인용.
 const CAGE = { floorWcm: '60', floorDcm: '40', heightCm: '35' } as const;
 
 test.skip(() => process.env.E2E_SEED_MODE !== 'demo', '데모 시드 전용');

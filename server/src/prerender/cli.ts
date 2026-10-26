@@ -231,7 +231,7 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   try {
     // G-4: 지도 키는 존재 여부만 넘긴다(값은 프리렌더 산출물에 들어가지 않는다).
     const vetMap = (io.env.VITE_NAVER_MAP_CLIENT_ID ?? '').trim() !== '';
-    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots, vetMap });
+    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots, vetMap, production });
   } catch (e) {
     io.stderr(`prerender: ${(e as Error).message}`);
     return 1;

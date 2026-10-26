@@ -198,6 +198,8 @@ const CASES: Array<[RouteKind, string]> = [
   ['SETUP', '/hamster/golden/setup'],
   ['PICK', '/pick'],
   ['NOT_FOUND', '/404'],
+  // 94 FE-privacy: /privacy 는 StaticMain 이 프리렌더 main 을 그대로 유지(차이 0).
+  ['PRIVACY', '/privacy'],
 ];
 
 // ---- 허용 차이(레인 A 수용, _workspace/decisions.md 2026-10-13 레인 A 행) ----
@@ -279,6 +281,43 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
     diff(before, after, 'main', d);
     expect([...beforeTokens].filter((c) => !afterTokens.has(c))).toEqual([]);
     expect(unexplained(kind, d)).toEqual([]);
+  });
+
+  it('/privacy: 하이드레이션 후에도 프리렌더 본문(h1·표·절) 유지 — data-ws-static=main', () => {
+    const p = pageAt('/privacy');
+    loadStatic(p);
+    hydrate(p);
+    const m = mainEl();
+    expect(m.getAttribute('data-ws-route')).toBe('PRIVACY');
+    expect(m.closest('[data-ws-static="main"]')).not.toBeNull();
+    expect(m.querySelector('h1')?.textContent).toBe('개인정보 처리방침');
+    expect(m.querySelectorAll('section.ws-privacy-section').length).toBeGreaterThan(5);
+    expect(m.querySelectorAll('table.ws-privacy-table').length).toBeGreaterThan(0);
+  });
+
+  // 94 FE-privacy: 푸터(크레딧·처리방침 링크 순서·마크업)는 서버 renderFooter 와 하이드레이션 후 같다 — 텍스트·href 까지.
+  it.each(CASES)('푸터 %s %s: 프리렌더 ↔ React footer 동일', (_kind, path) => {
+    const p = pageAt(path);
+    loadStatic(p);
+    const footerOf = (): { skel: Skel; hrefs: string[]; texts: string[] } => {
+      const fs = document.querySelectorAll('footer.ws-footer');
+      expect(fs).toHaveLength(1);
+      const f = fs[0];
+      return {
+        skel: skel(f),
+        hrefs: Array.from(f.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? ''),
+        texts: Array.from(f.querySelectorAll('p')).map((x) => norm(x.textContent)),
+      };
+    };
+    const before = footerOf();
+    expect(before.hrefs).toEqual(['/privacy', '/credits']);
+    hydrate(p);
+    const after = footerOf();
+    const d: string[] = [];
+    diff(before.skel, after.skel, 'footer', d);
+    expect(d).toEqual([]);
+    expect(after.hrefs).toEqual(before.hrefs);
+    expect(after.texts).toEqual(before.texts);
   });
 
   // 허용 목록이 썩지 않게 — 위 케이스들이 먼저 돈다(파일 내 순차). 더 이상 나타나지 않는 항목은 지운다.

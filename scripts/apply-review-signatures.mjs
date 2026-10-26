@@ -5,16 +5,18 @@
 //        [--seed <dir>] [--draft <dir>|--no-draft] [--stage review|final] [--now YYYY-MM-DD] [--dry-run]
 //
 // 패킷(scripts/review-packets/*.json): 확인표 항목 → 시드 행 대응.
-//   rowChecked[] = { file, id, items[] } — items 가 전부 ☑ 이면 ROW_CHECKED 서명(확인표 A·B).
+//   rowChecked[] = { file, id, items[], reviewerType? } — items 가 전부 ☑ 이면 ROW_CHECKED 서명(확인표 A·B·D).
+//     reviewerType(선택) = 그 행의 검수자 유형(생략 시 패킷 reviewerType). 예: 사료(FOOD) 행은 확인표 D(수의 출처 직접 확인)
+//     → VET_PUBLISHED_SOURCE(Kenny 2026-10-25 '84 수령'). bulk 행은 항상 패킷 reviewerType.
 //   bulk = { item: "C", rows[]: { file, id } } — 결과의 bulkSignedAt 이 있으면 AI_RESEARCH_BULK 서명(확인표 C).
 // 결과(확인표를 옮긴 JSON, 형식 withsmall.review-check-result/v1):
 //   { format, packet, signedBy, checkedAt: "YYYY-MM-DD"|null, checked: ["A1", "cp-dw-001", ...], bulkSignedAt: "YYYY-MM-DD"|null, notes?: {항목: 메모} }
 //   checked 가 비어 있지 않으면 checkedAt 필수. notes 는 기록용(시드에 쓰지 않는다).
 //
 // 동작(패킷 대상 행만, 사실 필드 0 변경 — 실행 전후 factHash 를 모든 행에서 대조해 다르면 쓰지 않고 실패):
-//   서명됨 + --stage final(기본): VERIFIED · reviewerType=패킷 reviewerType · verifiedBy=signedBy · verifiedAt=날짜 · reviewBasis=basis
+//   서명됨 + --stage final(기본): VERIFIED · reviewerType=행 reviewerType(없으면 패킷) · verifiedBy=signedBy · verifiedAt=날짜 · reviewBasis=basis
 //                                  상품은 specVerifiedBy/At 동일, status = meetsMinSpec true 면 ACTIVE 아니면 REVIEW. 매니페스트 항목 생성.
-//   서명됨 + --stage review:      NEEDS_REVIEW · reviewerType=패킷 reviewerType · verifiedBy/At·reviewBasis null — CI seed-review-diff
+//   서명됨 + --stage review:      NEEDS_REVIEW · reviewerType=행 reviewerType(없으면 패킷) · verifiedBy/At·reviewBasis null — CI seed-review-diff
 //                                  R1·R2(DRAFT/AI_DRAFT → VERIFIED 직행 금지)를 위해 먼저 이 상태를 기본 브랜치에 넣고 final 을 다음 PR 로.
 //   미서명:                         DRAFT · AI_DRAFT · verifiedBy/At null · reviewBasis null(상품 specVerifiedBy/At null · status REVIEW).
 //   모든 콘텐츠 행: reviewBasis 키가 없으면 null 로 추가(verifiedAt 바로 뒤).
@@ -72,6 +74,8 @@ export function checkPacket(packet) {
   else packet.rowChecked.forEach((r, i) => {
     addRow(r, `rowChecked[${i}]`);
     if (!Array.isArray(r?.items) || r.items.length === 0 || !r.items.every((x) => typeof x === 'string' && x !== '')) errs.push(`rowChecked[${i}].items 는 비어 있지 않은 문자열 배열`);
+    if (isObj(r)) for (const k of Object.keys(r)) if (!['file', 'id', 'items', 'reviewerType'].includes(k)) errs.push(`rowChecked[${i}]: 알 수 없는 키 ${k}`);
+    if (isObj(r) && r.reviewerType !== undefined && !REVIEWER_TYPES_OK.includes(r.reviewerType)) errs.push(`rowChecked[${i}].reviewerType 은 ${REVIEWER_TYPES_OK.join('/')} (AI_DRAFT 불가)`);
     else for (const x of r.items) items.add(x);
   });
   if (!isObj(packet?.bulk) || typeof packet.bulk.item !== 'string' || !Array.isArray(packet.bulk.rows)) errs.push('packet.bulk = { item, rows[] } 필요');
@@ -153,26 +157,26 @@ export function applySignatures(files, manifest, packet, result, { stage = 'fina
   const plan = [];
   for (const r of packet.rowChecked) {
     const ok = r.items.every((x) => checked.has(x));
-    plan.push({ file: r.file, id: r.id, sig: ok ? { basis: 'ROW_CHECKED', date: result.checkedAt } : null });
+    plan.push({ file: r.file, id: r.id, reviewerType: r.reviewerType ?? packet.reviewerType, sig: ok ? { basis: 'ROW_CHECKED', date: result.checkedAt } : null });
   }
   for (const r of packet.bulk.rows) {
-    plan.push({ file: r.file, id: r.id, sig: result.bulkSignedAt ? { basis: 'AI_RESEARCH_BULK', date: result.bulkSignedAt } : null });
+    plan.push({ file: r.file, id: r.id, reviewerType: packet.reviewerType, sig: result.bulkSignedAt ? { basis: 'AI_RESEARCH_BULK', date: result.bulkSignedAt } : null });
   }
 
   const planned = new Set(plan.map((p) => `${p.file}#${p.id}`));
   const entries = manifest.filter((e) => !planned.has(`${e?.file}#${e?.id}`)).map(clone);
   const summary = { stage, rowChecked: 0, bulk: 0, needsReview: 0, unsigned: 0, targets: plan.length };
 
-  for (const { file, id, sig } of plan) {
+  for (const { file, id, reviewerType, sig } of plan) {
     const row = find(file, id);
     const product = file === PRODUCTS;
     if (sig && stage === 'final') {
-      Object.assign(row, { reviewStatus: 'VERIFIED', reviewerType: packet.reviewerType, verifiedBy: result.signedBy, verifiedAt: sig.date, reviewBasis: sig.basis });
+      Object.assign(row, { reviewStatus: 'VERIFIED', reviewerType, verifiedBy: result.signedBy, verifiedAt: sig.date, reviewBasis: sig.basis });
       if (product) Object.assign(row, { specVerifiedBy: result.signedBy, specVerifiedAt: sig.date, status: row.meetsMinSpec === true ? 'ACTIVE' : 'REVIEW' });
       entries.push({ file, id, basis: sig.basis, signedBy: result.signedBy, signedAt: sig.date, factHash: factHash(file, row) });
       summary[sig.basis === 'ROW_CHECKED' ? 'rowChecked' : 'bulk']++;
     } else if (sig) {
-      Object.assign(row, { reviewStatus: 'NEEDS_REVIEW', reviewerType: packet.reviewerType, verifiedBy: null, verifiedAt: null, reviewBasis: null });
+      Object.assign(row, { reviewStatus: 'NEEDS_REVIEW', reviewerType, verifiedBy: null, verifiedAt: null, reviewBasis: null });
       if (product) Object.assign(row, { specVerifiedBy: null, specVerifiedAt: null, status: row.status === 'SLOT' ? 'SLOT' : 'REVIEW' });
       summary.needsReview++;
     } else {

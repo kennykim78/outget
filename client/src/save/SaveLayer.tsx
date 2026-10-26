@@ -9,7 +9,7 @@
 //   - 연결 안 된 채 열면 GET /auth/session 1회(미전송 로그아웃이 있으면 그것부터 재시도 — SEC-3 L-3).
 //   - 마스코트는 요약 줄 AnimalAvatar sm 하나(L8 유일). L3 전 숫자 0(D-34). 채운 CTA ≤ 1.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { COPY, formatCopy } from '@ws/copy';
+import { BACKUP_RETENTION_DAYS, COPY, formatCopy } from '@ws/copy';
 import type { PublicAnimalType, PublicRequirement } from '@ws/engine';
 import { useAnimalSelection } from '../animal/selection';
 import { useLayerPage } from '../app/layerPage';
@@ -18,6 +18,7 @@ import { deriveChecklist } from '../checklist/derive';
 import { useSetup } from '../checklist/setupStore';
 import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
 import { track } from '../events/track';
+import { wsStorage } from '../lib/storage';
 import AnimalAvatar from '../ui/AnimalAvatar';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
@@ -26,6 +27,7 @@ import type { MagicEntry } from './api';
 import { fetchSaveApi, type SaveApi } from './api';
 import type { SaveMergeWinner } from './contract';
 import { captureMagicToken, clearMagicToken, subscribeMagicToken } from './magicLink';
+import { SAVE_STATE_KEY } from './saveStateStore';
 import { useSaveLinked } from './useSaveLinked';
 import { getSaveSync, type SaveSync } from './sync';
 import '../styles/save.css';
@@ -34,7 +36,31 @@ export const RESEND_COOLDOWN_S = 60;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL = 254;
 
-type View = 'input' | 'sending' | 'sent' | 'connect' | 'verifying' | 'confirmSave' | 'saving' | 'confirmed' | 'expired' | 'linked' | 'serverLinked';
+type View =
+  | 'input'
+  | 'sending'
+  | 'sent'
+  | 'connect'
+  | 'verifying'
+  | 'confirmSave'
+  | 'saving'
+  | 'confirmed'
+  | 'expired'
+  | 'linked'
+  | 'serverLinked'
+  // 89 스펙 §1 — 지우기 스텝(같은 레이어 본문, 새 레이어 0).
+  | 'eraseConfirm'
+  | 'erasing'
+  | 'erased'
+  | 'eraseReauth'
+  | 'deviceConfirm'
+  | 'deviceWiping'
+  | 'deviceWiped';
+/** 지우기 스텝에 들어온 화면(그만두기·뒤로 → 여기로, 포커스는 진입 링크). */
+type EntryView = 'input' | 'linked' | 'serverLinked';
+type EntryLink = 'erase-link' | 'device-link';
+/** 스텝 진입 시 제목(h2)으로 포커스 옮기는 화면(P3 D6 + 89 스펙 접근성). */
+const FOCUS_TITLE_VIEWS: ReadonlySet<View> = new Set<View>(['sent', 'confirmed', 'expired', 'confirmSave', 'eraseConfirm', 'deviceConfirm', 'eraseReauth', 'erased', 'deviceWiped']);
 type PromptEntry = 'home_band' | 'l2_footer' | 'deeplink';
 
 const SERVER_ENTRY: Record<PromptEntry, MagicEntry> = { home_band: 'home', l2_footer: 'checklist', deeplink: 'direct' };
@@ -46,11 +72,18 @@ function promptEntry(): PromptEntry {
   return s.wsDepth >= 2 ? 'l2_footer' : 'home_band';
 }
 
-/** 테스트 주입(기본 = 앱 전역 동기화·동일 출처 API). */
-export const saveLayerDeps: { sync: () => SaveSync; api: () => SaveApi } = {
+/** 테스트 주입(기본 = 앱 전역 동기화·동일 출처 API · 처음 화면 이동). */
+export const saveLayerDeps: { sync: () => SaveSync; api: () => SaveApi; goHome: () => void } = {
   sync: getSaveSync,
   api: () => fetchSaveApi,
+  // 89 스펙 ⑥(D7): 이 기기를 지운 뒤 닫기 → 새 문서로 처음 화면(헤더 칩·SaveDot·체크 등 메모리 상태 0).
+  goHome: () => window.location.replace('/'),
 };
+
+/** 이 기기에 ws.save 말고 지울 ws.* 키가 있는지(래퍼 열거 — 하드코딩 0). */
+function hasDeviceData(): boolean {
+  return wsStorage.keys('ws.').some((k) => k !== SAVE_STATE_KEY);
+}
 
 function SaveSummary({ type, reqs, catalogUrl }: { type: PublicAnimalType; reqs: PublicRequirement[]; catalogUrl: string }) {
   const { setup } = useSetup(type.id);
@@ -92,6 +125,14 @@ export default function SaveLayer({ close }: LayerContentProps) {
   const [linkedEmpty, setLinkedEmpty] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const entryRef = useRef<PromptEntry>(promptEntry());
+  // 89 스펙 지우기 스텝 상태 — 메모리만(저장·이벤트 0).
+  const [eraseOrigin, setEraseOrigin] = useState<EntryView>('input');
+  const [entryLink, setEntryLink] = useState<EntryLink>('erase-link');
+  const [wipeChecked, setWipeChecked] = useState(false);
+  const [eraseError, setEraseError] = useState<{ kind: 'limited' | 'failed'; seq: number } | null>(null);
+  const [erasedWiped, setErasedWiped] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const wipeHintId = `${useId().replace(/[^a-zA-Z0-9_-]/g, '')}-wipe-hint`;
   const promptSent = useRef(false);
   const inputId = `ws-save-email-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const errorId = `${inputId}-err`;
@@ -101,7 +142,17 @@ export default function SaveLayer({ close }: LayerContentProps) {
   const reqs = useMemo(() => (type ? page.data.requirements.filter((r) => r.animalTypeId === type.id) : []), [page.data.requirements, type]);
 
   const title =
-    view === 'sent'
+    view === 'eraseConfirm' || view === 'erasing'
+      ? COPY.save.eraseTitle
+      : view === 'erased'
+        ? COPY.save.erasedTitle
+        : view === 'eraseReauth'
+          ? COPY.save.reauthTitle
+          : view === 'deviceConfirm' || view === 'deviceWiping'
+            ? COPY.save.deviceTitle
+            : view === 'deviceWiped'
+              ? COPY.save.deviceDoneTitle
+              : view === 'sent'
       ? COPY.save.sentTitle
       : view === 'confirmed'
         ? linkedEmpty
@@ -123,15 +174,24 @@ export default function SaveLayer({ close }: LayerContentProps) {
   // P3 D6: 결과 화면(보냄·확인·만료)으로 바뀌면 새 제목(h2, tabIndex=-1)으로 포커스 — 낭독 시점이 새 제목이 되도록
   //   제목 갱신(setTitle → Layer 재렌더)이 끝난 뒤 마이크로태스크에서. 첫 렌더는 Layer 열기 효과가 맡는다. 오류로 입력·연결 화면에
   //   돌아올 때는 포커스를 옮기지 않는다(버튼이 aria-disabled 로 포커스를 유지 + role=alert).
+  //   89 스펙: 지우기 스텝(확인·재연결·완료) 진입도 제목으로(파괴 버튼은 첫 포커스 금지). 처리 중 → 확인 복귀(오류)는 버튼에 유지.
+  //   그만두기·뒤로로 들어온 화면에 돌아가면 진입 링크로(없으면 제목).
   const prevView = useRef(view);
+  const focusLink = useRef<EntryLink | null>(null);
   useEffect(() => {
-    if (prevView.current === view) return;
+    const from = prevView.current;
+    if (from === view) return;
     prevView.current = view;
-    // confirmSave: 같은 제목이라도 본문이 저장 확인(마스킹 주소)으로 바뀌었다 — 제목으로 옮겨 처음부터 읽히게.
-    if (view !== 'sent' && view !== 'confirmed' && view !== 'expired' && view !== 'confirmSave') return;
+    const link = focusLink.current;
+    focusLink.current = null;
+    const fromBusy = (from === 'erasing' && view === 'eraseConfirm') || (from === 'deviceWiping' && view === 'deviceConfirm');
+    if (!link && (fromBusy || !FOCUS_TITLE_VIEWS.has(view))) return;
     let live = true;
     queueMicrotask(() => {
-      if (live) document.getElementById(chrome.titleId)?.focus();
+      if (!live) return;
+      const titleEl = document.getElementById(chrome.titleId);
+      const target = link ? titleEl?.closest('[role="dialog"]')?.querySelector<HTMLElement>(`[data-ws-save="${link}"]`) : null;
+      (target ?? titleEl)?.focus();
     });
     return () => {
       live = false;
@@ -297,11 +357,319 @@ export default function SaveLayer({ close }: LayerContentProps) {
     setView('linked');
   };
 
+  // ── 89 스펙 지우기 ──────────────────────────────
+  /** 이 기기 준비 상태를 지웠다(완료 화면) — ✕·ESC·버튼 어느 닫기든 처음 화면으로(⑥). */
+  const deviceGone = view === 'deviceWiped' || (view === 'erased' && erasedWiped);
+  const deviceGoneRef = useRef(false);
+  deviceGoneRef.current = deviceGone;
+  const wentHome = useRef(false);
+  const goHome = useCallback(() => {
+    if (wentHome.current) return;
+    wentHome.current = true;
+    saveLayerDeps.goHome();
+  }, []);
+  // 레이어가 닫혀 언마운트될 때(✕·ESC·스크림·뒤로) — 기기를 지운 뒤면 처음 화면으로.
+  useEffect(
+    () => () => {
+      if (deviceGoneRef.current) goHome();
+    },
+    [goHome],
+  );
+
+  /** origin null = 기기 지우기 확인 안 링크에서 — 그만두면 처음 들어온 화면의 [저장한 정보 지우기]로. */
+  const openErase = (origin: EntryView | null) => {
+    if (origin) setEraseOrigin(origin);
+    setEntryLink('erase-link');
+    setWipeChecked(false);
+    setEraseError(null);
+    setView('eraseConfirm');
+  };
+  const openDevice = (origin: EntryView) => {
+    setEraseOrigin(origin);
+    setEntryLink('device-link');
+    setView('deviceConfirm');
+  };
+  const cancelErase = () => {
+    if (view === 'erasing' || view === 'deviceWiping') return;
+    setEraseError(null);
+    // 401 뒤엔 이 기기 연결 기록이 없다 — 연결 화면 대신 입력 화면(진입 링크가 없으면 제목).
+    const back: EntryView = eraseOrigin === 'linked' && !linked ? 'input' : eraseOrigin;
+    focusLink.current = entryLink;
+    setView(back);
+  };
+  const onErase = () => {
+    if (view !== 'eraseConfirm') return;
+    const wipe = wipeChecked;
+    setEraseError(null);
+    setView('erasing');
+    void saveLayerDeps
+      .sync()
+      .erase({ wipeDevice: wipe })
+      .then((r) => {
+        if (!alive.current) return;
+        if (r.kind === 'erased') {
+          setErasedWiped(r.wiped);
+          setMaskedEmail(undefined);
+          setView('erased');
+        } else if (r.kind === 'reauth') {
+          setMaskedEmail(undefined);
+          setView('eraseReauth');
+        } else {
+          const kind = r.kind;
+          setEraseError((e) => ({ kind, seq: (e?.seq ?? 0) + 1 }));
+          setView('eraseConfirm');
+        }
+      });
+  };
+  const onWipeDevice = () => {
+    if (view !== 'deviceConfirm') return;
+    setView('deviceWiping');
+    void saveLayerDeps
+      .sync()
+      .wipeDevice({ unlink: eraseOrigin === 'serverLinked' })
+      .then((r) => {
+        if (!alive.current) return;
+        setLogoutPending(r.logoutPending);
+        setMaskedEmail(undefined);
+        setView('deviceWiped');
+      });
+  };
+
+  // 뒤로(머리 행)는 확인·재연결 화면에서만 — 처리 중·완료·그 밖 화면은 없음.
+  const backable = view === 'eraseConfirm' || view === 'deviceConfirm' || view === 'eraseReauth';
+  const cancelRef = useRef(cancelErase);
+  cancelRef.current = cancelErase;
+  useLayoutEffect(() => {
+    chrome.setBack(backable ? { label: COPY.save.backLabel, onBack: () => cancelRef.current() } : null);
+  }, [chrome, backable]);
+
+  /** 본문 끝 관리 링크(89 스펙 진입 링크). input 은 이 기기에 지울 것이 있을 때만 기기 지우기. */
+  const manageLinks = (origin: EntryView) => {
+    const connected = origin !== 'input';
+    const device = connected || hasDeviceData();
+    return (
+      <div className="ws-save-resend" data-ws-save="manage">
+        {connected ? (
+          <button type="button" className="ws-save-link ws-t-meta" data-ws-save="erase-link" onClick={() => openErase(origin)}>
+            {COPY.save.eraseLink}
+          </button>
+        ) : null}
+        {device ? (
+          <button type="button" className="ws-save-link ws-t-meta" data-ws-save="device-link" onClick={() => openDevice(origin)}>
+            {COPY.save.deviceLink}
+          </button>
+        ) : null}
+        <a className="ws-save-link ws-t-meta" href="/privacy">
+          {COPY.footer.privacy}
+        </a>
+      </div>
+    );
+  };
+
   const linkedAs = maskedEmail ? (
     <p className="ws-t-meta ws-save-muted" data-ws-save="linked-as">
       {formatCopy(COPY.save.linkedAs, { name: maskedEmail })}
     </p>
   ) : null;
+
+  if (view === 'eraseConfirm' || view === 'erasing') {
+    const busy = view === 'erasing';
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="erase-confirm">
+            <p className="ws-t-body">{maskedEmail ? formatCopy(COPY.save.eraseIntro, { name: maskedEmail }) : COPY.save.eraseIntroNoName}</p>
+            <div className="ws-save-list">
+              <h3 className="ws-t-label ws-save-muted">{COPY.save.eraseListTitle}</h3>
+              <ul>
+                <li className="ws-t-body">{COPY.save.eraseItemEmail}</li>
+                <li className="ws-t-body">{COPY.save.eraseItemState}</li>
+              </ul>
+            </div>
+            <p className="ws-t-meta ws-save-muted">{COPY.save.eraseOtherDevices}</p>
+            <p className="ws-t-meta ws-save-muted" data-ws-save="erase-backup">
+              {formatCopy(COPY.save.eraseBackup, { n: BACKUP_RETENTION_DAYS })}
+            </p>
+            <p className="ws-t-meta ws-save-muted">{COPY.save.eraseFinal}</p>
+            <div className="ws-save-check-row">
+              <label className="ws-save-check">
+                <input
+                  type="checkbox"
+                  data-ws-save="wipe-device"
+                  checked={wipeChecked}
+                  aria-describedby={wipeHintId}
+                  onChange={(e) => {
+                    if (!busy) setWipeChecked(e.target.checked);
+                  }}
+                />
+                <span className="ws-t-body">{COPY.save.eraseWipeDevice}</span>
+              </label>
+              <p id={wipeHintId} className="ws-t-meta ws-save-muted">
+                {COPY.save.eraseWipeDeviceHint}
+              </p>
+            </div>
+            {eraseError && !busy ? (
+              <p
+                key={eraseError.seq}
+                className="ws-t-meta ws-save-muted"
+                role="alert"
+                data-ws-error={eraseError.kind === 'limited' ? 'erase-limited' : 'erase-failed'}
+              >
+                {eraseError.kind === 'limited' ? COPY.save.eraseLimited : COPY.save.eraseFailed}
+              </p>
+            ) : null}
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            {/* 파괴 = outline(채운 CTA 0, D2). 처리 중 aria-disabled — 포커스 유지(onErase 는 erasing 중 무시). */}
+            <button
+              type="button"
+              className="ws-btn ws-btn--outline"
+              data-ws-save="erase-cta"
+              aria-disabled={busy ? true : undefined}
+              aria-busy={busy ? true : undefined}
+              onClick={onErase}
+            >
+              {busy ? COPY.save.erasing : COPY.save.eraseCta}
+            </button>
+            <button type="button" className="ws-save-link ws-t-meta" aria-disabled={busy ? true : undefined} onClick={cancelErase}>
+              {COPY.save.eraseCancel}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'erased') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="erased">
+            <p className="ws-t-body">{COPY.save.erasedBody}</p>
+            <p className="ws-t-body">{erasedWiped ? COPY.save.erasedDeviceWiped : COPY.save.erasedDeviceKept}</p>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            {erasedWiped ? (
+              <button type="button" className="ws-btn ws-btn--outline" onClick={goHome}>
+                {COPY.save.toStart}
+              </button>
+            ) : (
+              <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+                {COPY.save.close}
+              </button>
+            )}
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'eraseReauth') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="erase-reauth">
+            <p className="ws-t-body">{COPY.save.reauthBody}</p>
+            <p className="ws-t-meta ws-save-muted">{COPY.save.reauthKept}</p>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button
+              type="button"
+              className="ws-btn ws-btn--fill"
+              onClick={() => {
+                setEmail('');
+                setError(null);
+                setView('input');
+              }}
+            >
+              {COPY.save.resendVerify}
+            </button>
+            <button type="button" className="ws-save-link ws-t-meta" onClick={cancelErase}>
+              {COPY.save.eraseCancel}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'deviceConfirm' || view === 'deviceWiping') {
+    const busy = view === 'deviceWiping';
+    const connected = eraseOrigin !== 'input';
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="device-confirm">
+            <p className="ws-t-body">{COPY.save.deviceBody}</p>
+            {connected ? (
+              <div className="ws-save-resend">
+                <p className="ws-t-meta ws-save-muted">{COPY.save.deviceLinkedNote}</p>
+                <button
+                  type="button"
+                  className="ws-save-link ws-t-meta"
+                  data-ws-save="erase-link"
+                  aria-disabled={busy ? true : undefined}
+                  onClick={() => {
+                    if (!busy) openErase(null);
+                  }}
+                >
+                  {COPY.save.eraseLink}
+                </button>
+              </div>
+            ) : null}
+            <p className="ws-t-meta ws-save-muted">{COPY.save.eraseFinal}</p>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button
+              type="button"
+              className="ws-btn ws-btn--outline"
+              data-ws-save="device-cta"
+              aria-disabled={busy ? true : undefined}
+              aria-busy={busy ? true : undefined}
+              onClick={onWipeDevice}
+            >
+              {busy ? COPY.save.erasing : COPY.save.deviceCta}
+            </button>
+            <button type="button" className="ws-save-link ws-t-meta" aria-disabled={busy ? true : undefined} onClick={cancelErase}>
+              {COPY.save.eraseCancel}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  if (view === 'deviceWiped') {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="device-wiped">
+            <p className="ws-t-body">{COPY.save.deviceDoneBody}</p>
+            {logoutPending ? (
+              <p className="ws-t-meta ws-save-muted" data-ws-save="logout-pending">
+                {COPY.save.deviceLogoutPending}
+              </p>
+            ) : null}
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--outline" onClick={goHome}>
+              {COPY.save.toStart}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
 
   if (view === 'connect' || view === 'verifying') {
     const busy = view === 'verifying';
@@ -369,6 +737,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
           <div className="ws-save" data-ws-save="server-linked">
             {linkedAs}
             {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+            {manageLinks('serverLinked')}
           </div>
         </LayerBody>
         <LayerFoot>
@@ -392,6 +761,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
           <div className="ws-save" data-ws-save="linked">
             {linkedAs}
             <p className="ws-t-meta ws-save-muted">{COPY.save.signedInNote}</p>
+            {manageLinks('linked')}
           </div>
         </LayerBody>
         <LayerFoot>
@@ -525,6 +895,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
             ) : null}
           </form>
           {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+          {sending ? null : manageLinks('input')}
         </div>
       </LayerBody>
       <LayerFoot>

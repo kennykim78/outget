@@ -27,6 +27,7 @@ import {
   type PageContext,
   type RenderedPage,
 } from './common.js';
+import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell } from '../privacy-content.js';
 import { familyName } from './family.js';
 import { layerL4 } from './type.js';
 
@@ -432,6 +433,72 @@ export function renderCredits(m: SiteModel, ctx: PageContext): RenderedPage {
       `<h1>${h(COPY.credits.title)}</h1>`,
       `<p>${h(COPY.credits.intro)}</p>`,
       items.length ? ['<ul class="ws-credits">', ...items, '</ul>'].join('\n') : `<p class="ws-empty">${h(COPY.credits.empty)}</p>`,
+    ],
+    data: { ...emptyData(), types: allTypes(m) },
+  });
+}
+
+function privacyBlock(b: PrivacyBlock): string {
+  const t = (s: string): string => linkMailto(fillTokens(h(s)));
+  // 96 S2: 셀 둘째 줄 보조(받는 때) — 같은 셀 안 span(block), 열은 늘리지 않는다.
+  const cell = (c: PrivacyCell): string => (typeof c === 'string' ? t(c) : `${t(c.text)}<span class="ws-t-meta ws-privacy-meta">${t(c.meta)}</span>`);
+  if ('p' in b) {
+    // 96 N2: 문단 끝 내부 텍스트 링크(외부 링크 0 — assertInternalHref).
+    const link = b.link ? ` <a href="${a(assertInternalHref(b.link.href))}">${h(b.link.text)}</a>` : '';
+    return `<p>${t(b.p)}${link}</p>`;
+  }
+  if ('ul' in b) return `<ul>${b.ul.map((x) => `<li>${t(x)}</li>`).join('')}</ul>`;
+  const { caption, head, rows } = b.table;
+  // 96 S3: 가로 스크롤 래퍼 없음 — 390 에서 표가 폭 안에 들어오는 것은 e2e/static.spec 이 검사.
+  return [
+    `<table class="ws-privacy-table"><caption>${t(caption)}</caption>`,
+    `<thead><tr>${head.map((c) => `<th scope="col">${t(c)}</th>`).join('')}</tr></thead>`,
+    `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => (i === 0 ? `<th scope="row">${cell(c)}</th>` : `<td>${cell(c)}</td>`)).join('')}</tr>`).join('')}</tbody>`,
+    '</table>',
+  ].join('');
+}
+
+/**
+ * /privacy(계획 86 P8) — 개인정보 처리방침. 항상 생성, 색인·sitemap 포함(오케스트레이터 2026-10-25). /credits 와 같은 page() 틀.
+ *   본문 = privacy-content.ts(구조화 섹션). 기간 숫자는 privacy/policy.ts 단일 출처 → span[data-ws-policy](compliance C9-PRIVACY 대조).
+ *   Kenny 미정 값은 {{KENNY:키}} 그대로 — production 산출물이면 compliance FAIL.
+ */
+export function renderPrivacy(m: SiteModel, ctx: PageContext): RenderedPage {
+  const p = PRIVACY_POLICY;
+  const anchor = (id: string): string => `privacy-${id}`;
+  const toc = [
+    '<nav class="ws-privacy-toc" aria-labelledby="ws-privacy-toc-title">',
+    `<h2 id="ws-privacy-toc-title">${h(COPY.privacy.toc)}</h2>`,
+    `<ol>${p.sections.map((s) => `<li><a href="#${a(anchor(s.id))}">${h(s.title)}</a></li>`).join('')}</ol>`,
+    '</nav>',
+  ].join('\n');
+  const sections = p.sections.map((s, i) =>
+    [
+      `<section class="ws-privacy-section" id="${a(anchor(s.id))}" data-ws-privacy-section="${a(s.id)}" aria-labelledby="${a(`${anchor(s.id)}-title`)}">`,
+      `<h2 id="${a(`${anchor(s.id)}-title`)}">${h(`${i + 1}. ${s.title}`)}${s.notApplicable ? ` <span class="ws-pill-chip">${h(COPY.privacy.notApplicable)}</span>` : ''}</h2>`,
+      ...s.blocks.map(privacyBlock),
+      '</section>',
+    ].join('\n'),
+  );
+  const previous = [
+    '<section class="ws-privacy-section" id="privacy-previous" data-ws-privacy-section="previous" aria-labelledby="privacy-previous-title">',
+    `<h2 id="privacy-previous-title">${h(COPY.privacy.previousTitle)}</h2>`,
+    p.previousVersions.length
+      ? `<ul>${p.previousVersions.map((v) => `<li>${h(`${COPY.privacy.version} ${v.version} · ${COPY.privacy.effectiveDate} `)}${fillTokens(h(v.effectiveDate))}</li>`).join('')}</ul>`
+      : `<p>${h(COPY.privacy.previousNone)}</p>`,
+    '</section>',
+  ].join('\n');
+  return page(ctx, {
+    title: `${COPY.privacy.title}${COPY.site.titleSuffix}`,
+    description: COPY.privacy.description,
+    crumbs: [HOME, { name: COPY.privacy.title, path: '/privacy' }],
+    main: [
+      `<h1>${h(COPY.privacy.title)}</h1>`,
+      `<p class="ws-privacy-meta ws-t-meta" data-ws-privacy-version="${a(p.version)}">${h(`${COPY.privacy.version} ${p.version} · ${COPY.privacy.effectiveDate} `)}${fillTokens(h(p.effectiveDate))}</p>`,
+      ...p.intro.map((x) => `<p>${fillTokens(h(x))}</p>`),
+      toc,
+      ...sections,
+      previous,
     ],
     data: { ...emptyData(), types: allTypes(m) },
   });

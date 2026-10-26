@@ -41,4 +41,11 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   async listByUser(userId: string): Promise<StoredNotification[]> {
     return this.items.filter((n) => n.userId === userId);
   }
+
+  /** P2 삭제(privacy 인메모리 eraser 전용, 동기): userId 알림 전부 제거. 삭제 수. */
+  removeByUserSync(userId: string): number {
+    const before = this.items.length;
+    for (let i = this.items.length - 1; i >= 0; i--) if (this.items[i].userId === userId) this.items.splice(i, 1);
+    return before - this.items.length;
+  }
 }

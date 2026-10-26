@@ -15,9 +15,14 @@ const dwarfRows = <T extends { id: string }>(rows: T[], prefix: string) => rows.
 
 describe('B4 드워프 최소 규격(v0.2 결정 1·2 + 오케스트레이터 when type eq WIRE)', () => {
   const base = { floorWcm: 100, floorDcm: 50, heightCm: 50 };
-  it('cage WIRE 100×50×50 · 철망 간격 9.5mm → 미달(BELOW_MIN)', () => {
+  // 2026-10-25: 6mm 는 단일 출처(Vet Times) → 권장으로 강등, 최소는 Blue Cross '1cm 미만' + Vet Times 2출처 → lte 9 when WIRE(골든과 같음).
+  it('cage WIRE 100×50×50 · 철망 간격 9.5mm → 미달(BELOW_MIN, 최소 9mm 이하)', () => {
     const r = checkAnimalMinSpec(cat, D, 'cage', { type: 'WIRE', ...base, barGapMm: 9.5 });
     expect([r.meets, r.verdict]).toEqual([false, 'BELOW_MIN']);
+  });
+  it('cage WIRE · 간격 9mm → 최소 충족·권장(6mm 이하) 미달(BELOW_RECOMMENDED)', () => {
+    const r = checkAnimalMinSpec(cat, D, 'cage', { type: 'WIRE', ...base, barGapMm: 9 });
+    expect([r.meets, r.verdict]).toEqual([true, 'BELOW_RECOMMENDED']);
   });
   it('cage OTHER 100×50×50 · 간격 없음 → 충족(when 미적용)', () => {
     const r = checkAnimalMinSpec(cat, D, 'cage', { type: 'OTHER', ...base });
@@ -71,16 +76,17 @@ describe('B4 드워프 호환 규칙(cr-dwarf-*, CHECK)', () => {
 });
 
 describe('B5 상품 17행 — 엔진 재계산 = 시드 meetsMinSpec = v0.3 5장 기대 판정(불변식 3)', () => {
-  const EXPECTED: Record<string, 'OK' | 'BELOW_RECOMMENDED'> = Object.fromEntries(
+  const EXPECTED: Record<string, 'OK' | 'BELOW_RECOMMENDED' | 'CHECK'> = Object.fromEntries(
     Array.from({ length: 17 }, (_, i) => [`cp-dw-${String(i + 1).padStart(3, '0')}`, 'OK' as const]),
   );
   EXPECTED['cp-dw-005'] = 'BELOW_RECOMMENDED'; // W5 TRIXIE 23cm < 권장 25
+  EXPECTED['cp-dw-009'] = 'CHECK'; // carefresh: 무향 근거 소멸(scented 제거) → meetsMinSpec=false, 추천 영역 제외
   const rows = dwarfRows(seed.curatedProducts, 'cp-dw-');
   it('17행, 판정·meetsMinSpec 일치', () => {
     expect(rows.map((p) => p.id)).toEqual(Object.keys(EXPECTED));
     for (const p of rows) {
       const r = checkAnimalMinSpec(cat, D, p.supplyItemId, p.specValues);
-      expect([p.id, r.meets, r.verdict]).toEqual([p.id, true, EXPECTED[p.id]]);
+      expect([p.id, r.meets, r.verdict]).toEqual([p.id, p.id !== 'cp-dw-009', EXPECTED[p.id]]);
       expect(p.meetsMinSpec).toBe(r.meets);
     }
   });
@@ -110,20 +116,25 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
     expect(seed.curatedProducts.filter((p) => p.status === 'ACTIVE').map((p) => p.id)).toEqual([]);
     expect(JSON.parse(readFileSync(join(SEED_DIR, 'review-signatures.json'), 'utf8'))).toEqual([]);
   });
-  it('메모리 서명(가짜 확인표 전 ☑·C): 패킷 50행만 VERIFIED·EXPERIENCED_KEEPER·kenny·2026-10-24, 상품·최소 규격 행 ROW_CHECKED 20 / 나머지 AI_RESEARCH_BULK 30', () => {
+  it('메모리 서명(가짜 확인표 전 ☑·C·D1): 패킷 52행만 VERIFIED·kenny·2026-10-24 — 사료만 VET_PUBLISHED_SOURCE, 나머지 EXPERIENCED_KEEPER, 상품·최소 규격·사료 ROW_CHECKED 21 / 나머지 AI_RESEARCH_BULK 31(BE92: SupplyItem food 추가)', () => {
     const { seed: signed, manifest } = dwarfSignedWith();
     const v = metaOf(signed).filter((x) => x.reviewStatus === 'VERIFIED');
-    expect(v).toHaveLength(50);
-    for (const r of v) expect([r.id, r.reviewerType, r.verifiedBy, r.verifiedAt]).toEqual([r.id, 'EXPERIENCED_KEEPER', 'kenny', '2026-10-24']);
+    expect(v).toHaveLength(52);
+    for (const r of v) {
+      const type = r.id === 'req-dwarf-food' ? 'VET_PUBLISHED_SOURCE' : 'EXPERIENCED_KEEPER';
+      expect([r.id, r.reviewerType, r.verifiedBy, r.verifiedAt]).toEqual([r.id, type, 'kenny', '2026-10-24']);
+    }
     expect(v.filter((r) => r.reviewBasis === 'ROW_CHECKED').map((r) => r.id).sort()).toEqual(
-      ['req-dwarf-bedding', 'req-dwarf-cage', 'req-dwarf-wheel', ...signed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-')).map((p) => p.id)].sort(),
+      ['req-dwarf-bedding', 'req-dwarf-cage', 'req-dwarf-food', 'req-dwarf-wheel', ...signed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-')).map((p) => p.id)].sort(),
     );
-    expect(v.filter((r) => r.reviewBasis === 'AI_RESEARCH_BULK')).toHaveLength(30);
-    expect(manifest).toHaveLength(50);
+    expect(v.filter((r) => r.reviewBasis === 'AI_RESEARCH_BULK')).toHaveLength(31);
+    expect(manifest).toHaveLength(52);
   });
-  it('DRAFT 유지 행(패킷 밖): 사료(FOOD)·저울(HEALTH)·Taxon 2·cr-wheel-cage·cr-water-cage — 서명해도 DRAFT', () => {
+  // BE92: SupplyItem food 는 C 일괄로 이동(오케스트레이터 90 Q1), 공용 cr-wheel-cage·cr-water-cage 는 삭제(85 근거 없음).
+  it('DRAFT 유지 행(패킷 밖): 저울(HEALTH)·SupplyItem scale·Taxon 2·골든 cr-syrian-wheel-cage-bedding — 서명해도 DRAFT', () => {
     const byId = new Map(metaOf(dwarfSigned()).map((r) => [r.id, r]));
-    for (const id of ['req-dwarf-food', 'req-dwarf-scale', 'phodopus-sungorus', 'phodopus-campbelli', 'cr-wheel-cage', 'cr-water-cage', 'food', 'scale']) {
+    expect(byId.get('food')?.reviewStatus).toBe('VERIFIED');
+    for (const id of ['req-dwarf-scale', 'phodopus-sungorus', 'phodopus-campbelli', 'cr-syrian-wheel-cage-bedding', 'scale']) {
       expect([id, byId.get(id)?.reviewStatus, byId.get(id)?.reviewerType]).toEqual([id, 'DRAFT', 'AI_DRAFT']);
     }
   });

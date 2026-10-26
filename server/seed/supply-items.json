@@ -410,9 +410,14 @@
     "contentKind": "SPEC",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/diet",
+        "title": "What To Feed a Pet Hamster – RSPCA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters",
+        "title": "Hamsters – MSD Veterinary Manual (Exotic and Laboratory Animals)",
+        "accessedAt": "2026-10-25"
       }
     ]
   },

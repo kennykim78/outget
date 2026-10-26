@@ -11,7 +11,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-24';
+const NOW = '2026-10-25';
 const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
@@ -139,42 +139,50 @@ describe('M6 R07b — careProfileId 없는 호환 규칙(동물명 문구 ERROR 
     expect(issuesOf(BASE, 'R07b')).toEqual({ errors: [], warnings: [], allErrors: [] });
   });
 
-  it('FAIL: cr-tubes-cage 범위 제거 → 문구 "골든햄스터" ERROR + a.* 단측 WARN', () => {
+  // BE92: 범위 없는 규칙(cr-wheel-cage·cr-water-cage)·cr-tubes-cage 삭제(85 근거 없음) → 실시드에 범위 없는 규칙이 없다.
+  //   범위 있는 실시드 규칙의 careProfileId 를 메모리에서 지워 같은 경로를 검사한다(단측 = cr-dwarf-tubes-cage, 양측 = cr-syrian-wheel-cage-bedding).
+  const ONE = 'cr-dwarf-tubes-cage';
+  const TWO = 'cr-syrian-wheel-cage-bedding';
+
+  it('FAIL: cr-dwarf-tubes-cage 범위 제거 + 문구에 동물명(드워프햄스터) → ERROR + a.* 단측 WARN', () => {
     const s = fresh();
-    delete row(s, 'compatibilityRules', 'cr-tubes-cage').careProfileId;
+    delete row(s, 'compatibilityRules', ONE).careProfileId;
+    rules(s, ONE)[0].message = '드워프햄스터는 터널 안쪽 폭을 확인해요.';
     const r = issuesOf(s, 'R07b');
-    expect(r.errors).toEqual(['cr-tubes-cage|rules[0].message']);
-    expect(r.warnings).toEqual(['cr-tubes-cage|rules']);
+    expect(r.errors).toEqual([`${ONE}|rules[0].message`]);
+    expect(r.warnings).toEqual([`${ONE}|rules`]);
     expect(r.allErrors).toEqual(['R07b']);
   });
 
   it('WARN 만: 범위 없음 + 중립 문구 + 단측 expr', () => {
     const s = fresh();
-    delete row(s, 'compatibilityRules', 'cr-tubes-cage').careProfileId;
-    rules(s, 'cr-tubes-cage')[0].message = '튜브 안쪽이 좁으면 낄 수 있어요.';
+    delete row(s, 'compatibilityRules', ONE).careProfileId;
+    rules(s, ONE)[0].message = '튜브 안쪽이 좁으면 낄 수 있어요.';
     const r = issuesOf(s, 'R07b');
     expect(r.errors).toEqual([]);
-    expect(r.warnings).toEqual(['cr-tubes-cage|rules']);
+    expect(r.warnings).toEqual([`${ONE}|rules`]);
   });
 
   it('ERROR 만: 양측 expr 규칙 문구에 PLANNED 동물 별칭(드햄) → ERROR, 단측 WARN 없음', () => {
     const s = fresh();
-    rules(s, 'cr-wheel-cage')[1].message = `${String(rules(s, 'cr-wheel-cage')[1].message)} 드햄`;
+    delete row(s, 'compatibilityRules', TWO).careProfileId;
+    rules(s, TWO)[0].message = '베딩을 깊게 깔면 쳇바퀴 위가 닿을 수 있어요. 드햄';
     const r = issuesOf(s, 'R07b');
-    expect(r.errors).toEqual(['cr-wheel-cage|rules[1].message']);
+    expect(r.errors).toEqual([`${TWO}|rules[0].message`]);
     expect(r.warnings).toEqual([]);
   });
 
   it('ERROR: 별칭 대소문자 무시(Syrian Hamster)', () => {
     const s = fresh();
-    rules(s, 'cr-water-cage')[0].message = 'Syrian Hamster 는 걸이형을 쓰기 어려워요.';
-    expect(issuesOf(s, 'R07b').errors).toEqual(['cr-water-cage|rules[0].message']);
+    delete row(s, 'compatibilityRules', TWO).careProfileId;
+    rules(s, TWO)[0].message = 'Syrian Hamster 는 베딩을 깊게 깔아요.';
+    expect(issuesOf(s, 'R07b').errors).toEqual([`${TWO}|rules[0].message`]);
   });
 
   it('PASS: careProfileId 가 있으면 문구에 동물명·단측 expr 이어도 0', () => {
     const s = fresh();
-    row(s, 'compatibilityRules', 'cr-wheel-cage').careProfileId = 'cp-hamster-syrian';
-    rules(s, 'cr-wheel-cage')[0].message = '골든햄스터 쳇바퀴가 케이지보다 커요.';
+    rules(s, TWO)[0].expr = 'a.diameterCm >= 27';
+    rules(s, TWO)[0].message = '골든햄스터 쳇바퀴가 작아요.';
     expect(issuesOf(s, 'R07b')).toEqual({ errors: [], warnings: [], allErrors: [] });
   });
 });
@@ -202,7 +210,7 @@ describe('M6 P03b — 다프로필 상품의 프로필별 판정 불일치 WARN'
 
   it('WARN: 골든 충족·B 미달(AND=false, P01 일치) → P03b 1, 오류 0', () => {
     const s = fresh();
-    addProfileB(s, 61); // cp-004 floorWcm 60 → B 에서만 미달
+    addProfileB(s, 101); // cp-004 floorWcm 100(BE92 목표 규격) → B 에서만 미달
     reviewCp004(s, false);
     const r = issuesOf(s, 'P03b');
     expect(r.warnings).toEqual(['cp-004|careProfileIds']);
@@ -218,7 +226,7 @@ describe('M6 P03b — 다프로필 상품의 프로필별 판정 불일치 WARN'
 
   it('PASS: 단일 프로필 상품은 검사 안 함', () => {
     const s = fresh();
-    addProfileB(s, 61);
+    addProfileB(s, 101);
     Object.assign(row(s, 'curatedProducts', 'cp-004'), { status: 'REVIEW', title: '상품 A', meetsMinSpec: false, careProfileIds: ['cp-fixture-b'] });
     expect(issuesOf(s, 'P03b').warnings).toEqual([]);
   });

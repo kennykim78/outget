@@ -7,16 +7,33 @@
 //   - 날짜 솔트: 저장 키가 날마다 바뀌어 DB 만으로는 날짜 간 연결 불가(시크릿 보유 서버는 재계산 가능 — 서버 전용 방식의 한계).
 //   - 중복·취소: 서버가 오늘부터 REACTION_KEY_WINDOW_DAYS 일 전까지의 키를 재계산해(HMAC 400회, 수 ms) 그 안에 같은 대상·종류
 //     행이 있으면 POST 는 아무것도 안 하고, DELETE 는 창 안의 모든 키 행을 지운다 — 며칠 뒤 취소도 동작.
-//     창보다 오래된 행은 취소·중복 판정 밖 → 보존 기한(K4)을 창 이하로 두고 정리해야 한다(보고).
+//     창보다 오래된 행은 취소·중복 판정 밖 → 보존 기한(policy.ts REACTION_RETENTION_DAYS)은 창 이하(기동 검사), 정리는 privacy/retention.ts.
 //   시크릿: REACTION_KEY_SECRET(≥32자, 운영 주입 = Kenny K3). development·test 만 비면 프로세스 랜덤, 그 밖의 NODE_ENV(미설정 포함)는 기동 실패.
 import { createHmac, randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { isProdLike } from '../config/env.js';
 import { seoulToday } from '../prerender/cli.js';
+import { REACTION_RETENTION_DAYS } from '../privacy/policy.js';
 
 export const MIN_SECRET_LENGTH = 32;
 /** 중복·취소 판정 창(일). 오늘 포함. */
 export const REACTION_KEY_WINDOW_DAYS = 400;
+
+/**
+ * P1: 반응 보존 기간(privacy/policy.ts)은 이 창 이하여야 한다 — 창 밖 행은 취소·중복 판정이 닿지 않아
+ *   "지울 수 없는 반응"이 생긴다. 어긋나면 기동 throw(아래 모듈 적재 시 1회 호출 = 서버 import 시점).
+ */
+export function assertReactionRetentionWithinWindow(
+  retentionDays: number = REACTION_RETENTION_DAYS,
+  windowDays: number = REACTION_KEY_WINDOW_DAYS,
+): void {
+  if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > windowDays) {
+    throw new Error(
+      `REACTION_RETENTION_DAYS(${retentionDays}) 는 1 이상 REACTION_KEY_WINDOW_DAYS(${windowDays}) 이하 정수여야 한다 — privacy/policy.ts`,
+    );
+  }
+}
+assertReactionRetentionWithinWindow();
 
 /** SEC-3 L-6: development·test 외 모든 NODE_ENV(미설정·오타 포함)를 운영으로 본다 — BE1 공용 isProdLike(config/env.ts) 위임. */
 export function isProdLikeEnv(nodeEnv: string | undefined): boolean {

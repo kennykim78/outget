@@ -80,7 +80,7 @@ describe('prerender CLI', () => {
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 6 (+404), indexable 1, types 0']);
+    expect(r1.out).toEqual(['prerender — pages 7 (+404), indexable 2, types 0']);
     for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', 'credits/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
       expect(existsSync(join(out, f)), f).toBe(true);
     }
@@ -129,7 +129,7 @@ describe('prerender CLI', () => {
     writeSeedDir(seedDir, promoted({ publishable: true }));
     const r = await run(['--out', out, '--seed-dir', seedDir]);
     expect(r.err).toEqual([]);
-    expect(r.out).toEqual(['prerender — pages 35 (+404), indexable 26, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
+    expect(r.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
     expect(existsSync(join(out, 'hamster', 'golden', 'supplies', 'cage', 'index.html'))).toBe(true);
     expect(existsSync(join(out, 'vet', '서울-마포구', 'index.html'))).toBe(true);
     const r2 = await run(['--out', out]);
@@ -147,7 +147,7 @@ describe('prerender CLI', () => {
     const fresh = outDir();
     const r1 = await run(['--out', fresh, '--seed-dir', seedDir, '--now', FIXTURE_LAST_FRESH]);
     expect(r1.err).toEqual([]);
-    expect(r1.out).toEqual(['prerender — pages 35 (+404), indexable 26, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
+    expect(r1.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
     const stale = outDir();
     const r2 = await run(['--out', stale, '--seed-dir', seedDir, '--now', FIXTURE_FIRST_STALE]);
     expect(r2.err).toEqual([]);

@@ -171,13 +171,13 @@ export function renderTabBar(type: Pick<PublicAnimalType, 'slug'> | null, curren
   ].join('\n');
 }
 
-/** 스펙22 §2.19 — 크레딧 링크는 항상(R4 D6, C6). */
+/** 스펙22 §2.19 — 크레딧 링크는 항상(R4 D6, C6). 처리방침 링크도 항상(계획 86 P8, compliance C9-PRIVACY). */
 export function renderFooter(): string {
   return [
     '<footer class="ws-footer">',
     `<p>${h(COPY.footer.identity)}</p>`,
     `<p>${h(COPY.footer.health)}</p>`,
-    `<p><a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
+    `<p><a href="/privacy">${h(COPY.footer.privacy)}</a> · <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
     '</footer>',
   ].join('\n');
 }

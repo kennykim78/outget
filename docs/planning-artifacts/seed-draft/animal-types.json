@@ -17,7 +17,7 @@
     "careProfileId": "cp-hamster-syrian",
     "careOverrides": {},
     "mascot": "hamster-golden",
-    "oneLiner": "단독 사육 · 야행성 · 성체 15~18cm",
+    "oneLiner": "단독 사육 · 야행성 · 성체 13~18cm",
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -26,9 +26,24 @@
     "contentKind": "CARE",
     "source": [
       {
-        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters",
-        "title": "RSPCA — Hamster care",
-        "accessedAt": "2026-09-30"
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters/company",
+        "title": "Keeping Hamsters Together – RSPCA",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=goldhamster271024-2.pdf&did=37",
+        "title": "TVT Merkblatt Nr. 156 – Heimtiere: Goldhamster (2025년 4월 전면 개정)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/hamsters",
+        "title": "Hamsters – MSD Veterinary Manual (Exotic and Laboratory Animals)",
+        "accessedAt": "2026-10-25"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Mesocricetus_auratus/",
+        "title": "Mesocricetus auratus (golden hamster) – Animal Diversity Web",
+        "accessedAt": "2026-10-25"
       }
     ]
   },

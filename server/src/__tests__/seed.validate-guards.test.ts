@@ -13,7 +13,7 @@ import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, pro
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-24';
+const NOW = '2026-10-25';
 const BASE = readSeedDirRaw(SEED_DIR).raw;
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
 const rawOf = (seed: SeedBundle): Required<RawSeed> =>
@@ -28,6 +28,12 @@ const verify = (r: Rec, reviewerType: string): void => {
   Object.assign(r, { reviewStatus: 'VERIFIED', reviewerType, verifiedBy: 'reviewer-handle', verifiedAt: '2026-09-30', reviewBasis: 'ROW_CHECKED' });
 };
 const errs = (res: ValidateResult, rule: string) => res.errors.filter((i) => i.rule === rule);
+/** 드워프 미리보기에서 사료 행만 D1 미☑ 상태(DRAFT·AI_DRAFT)로 — BE92 이후 미리보기(전 ☑·C)는 SupplyItem food 도 C 일괄로 서명돼 X01 0. */
+const dwarfPreviewFoodDraft = (): Required<RawSeed> => {
+  const s = rawOf(dwarfPreview());
+  Object.assign(row(s, 'supplyRequirements', 'req-dwarf-food'), { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+  return s;
+};
 
 describe('실시드 — 새 규칙 오탐 0', () => {
   it('server/seed: X01·X02·V08·R01 ERROR 0 (골든 ACTIVE 비노출, 드워프 PLANNED)', () => {
@@ -38,8 +44,14 @@ describe('실시드 — 새 규칙 오탐 0', () => {
 });
 
 describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K-B4)', () => {
-  it('드워프 ACTIVE(미리보기 상태) → X01 은 사료(req-dwarf-food, FOOD DRAFT) 1건만', () => {
+  it('드워프 ACTIVE(미리보기 전 ☑·C·D1) → X01 0 — BE92: SupplyItem food 가 C 일괄(31행)에 들어가 사료 체인 완성', () => {
     const res = validateSeed(rawOf(dwarfPreview()), { now: DWARF_PREVIEW_AS_OF });
+    expect(errs(res, 'X01')).toEqual([]);
+    expect(errs(res, 'X02')).toEqual([]);
+  });
+
+  it('드워프 ACTIVE + 사료 D1 미☑(DRAFT) → X01 은 사료(req-dwarf-food, FOOD DRAFT) 1건만', () => {
+    const res = validateSeed(dwarfPreviewFoodDraft(), { now: DWARF_PREVIEW_AS_OF });
     const x = errs(res, 'X01');
     expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-dwarf requirements.food']);
     expect(x[0].message).toContain('req-dwarf-food');
@@ -48,14 +60,14 @@ describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K
   });
 
   it('M-1: careOverrides 로 DRAFT food 를 RECOMMENDED 로 낮춰도 X01(비검수 행 priority 는 보지 않음 — 우회 차단)', () => {
-    const s = rawOf(dwarfPreview());
+    const s = dwarfPreviewFoodDraft();
     row(s, 'animalTypes', 'hamster-dwarf').careOverrides = { requirements: { food: { priority: 'RECOMMENDED' } } };
     const x = errs(validateSeed(s, { now: DWARF_PREVIEW_AS_OF }), 'X01');
     expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-dwarf requirements.food']);
   });
 
   it('M-1: DRAFT 행 자체의 priority 를 NOT_NOW 로 낮춰도 X01', () => {
-    const s = rawOf(dwarfPreview());
+    const s = dwarfPreviewFoodDraft();
     row(s, 'supplyRequirements', 'req-dwarf-food').priority = 'NOT_NOW';
     const x = errs(validateSeed(s, { now: DWARF_PREVIEW_AS_OF }), 'X01');
     expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-dwarf requirements.food']);
@@ -147,7 +159,8 @@ describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K
       if (disk) r.priority = disk.priority;
     }
     const paths = errs(validateSeed(s, { now: FIXTURE_AS_OF }), 'X01').map((i) => i.path).sort();
-    expect(paths).toEqual(['requirements.bedding', 'requirements.food', 'requirements.food-bowl', 'requirements.hideout', 'requirements.water']);
+    // BE92: 골든 사료 그릇 RECOMMENDED(85·Kenny) → REQUIRED 목록에서 빠짐.
+    expect(paths).toEqual(['requirements.bedding', 'requirements.food', 'requirements.hideout', 'requirements.water']);
   });
 
   it('REQUIRED 하나가 만료(verifiedAt +181일)되고 나머지는 유효 → X01', () => {
@@ -209,7 +222,10 @@ describe('V08 — FOOD/HEALTH VERIFIED 국내 출처 1개 이상(G-3)', () => {
     expect(validateSeed(one, { now: NOW }).errors.map((i) => i.rule)).toEqual(['V04']);
 
     const two = fresh();
-    verify(row(two, 'supplyRequirements', 'req-syrian-food'), 'VET_PUBLISHED_SOURCE');
+    const r2 = row(two, 'supplyRequirements', 'req-syrian-food');
+    verify(r2, 'VET_PUBLISHED_SOURCE');
+    // BE92 Q3: 디스크에 국내 K1 이 붙어 → 국외 출처만 남긴다.
+    r2.source = (r2.source as Array<{ url: string }>).filter((x) => !x.url.includes('.kr/'));
     expect(validateSeed(two, { now: NOW }).errors.map((i) => i.rule)).toEqual(['V08']);
   });
 

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import express, { type Express, type Request, type RequestHandler, type Response } from 'express';
 import { decode, ENCODING_SUFFIX, type Encoding, isPrecompressible } from '../prerender/compress.js';
+import { resolveClientDist } from '../config/env.js';
 
 // SPA(클라이언트 빌드) 정적 서빙 — 동일 오리진 단일 컨테이너 배포 전용.
 //   app.ts 에서 NODE_ENV==='production' 일 때만 mountSpa(app) 으로 마운트한다.
@@ -12,28 +13,9 @@ import { decode, ENCODING_SUFFIX, type Encoding, isPrecompressible } from '../pr
 //   네이버 지도(oapi.map.naver.com / *.map.naver.com / *.pstatic.net) 뿐이고, 그것도 /vet·/vet/* 응답에만(D21).
 //   API/auth/health 응답은 securityHeaders 의 default-src 'none' 을 그대로 유지한다.
 
-// client/dist 경로를 실행 위치에 견고하게 해석한다(ESM: import.meta.dirname / __dirname 대체).
-//   - 로컬 prod: server/dist/middleware/spa.js → ../../../client/dist
-//   - 도커 runtime: 복사 레이아웃에 맞춰 후보를 순차 탐색한다.
+// client/dist 경로 해석은 config/env.ts resolveClientDist 한 곳(101 MED-3) — 기동 검사(처리방침 자리표시·페이지 존재)가 본 파일과
+//   여기서 서빙하는 파일이 같다. WS_CLIENT_DIST 덮어쓰기는 비운영에서만. 이 모듈 위치(middleware/)는 config/ 와 같은 깊이.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-
-function resolveClientDist(): string {
-  const candidates = [
-    // 로컬: server/dist/middleware → repo/client/dist
-    path.resolve(HERE, '../../../client/dist'),
-    // server 작업 디렉터리 기준(npm -w server start)
-    path.resolve(process.cwd(), '../client/dist'),
-    // 도커 runtime: /app/client/dist (server dist 와 형제로 복사)
-    path.resolve(HERE, '../../client/dist'),
-    path.resolve(process.cwd(), 'client/dist'),
-    path.resolve(process.cwd(), './client/dist'),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'index.html'))) return c;
-  }
-  // 못 찾으면 첫 후보를 반환(자산 없으면 fallback 핸들러가 처리).
-  return candidates[0];
-}
 
 // SPA(HTML) 응답 전용 CSP — securityHeaders 의 default-src 'none' 을 덮어쓴다(R5 B3-3, D21 경로 분리, SEC L4).
 //   기본: 외부 출처 0, 스크립트는 같은 오리진 파일만('unsafe-inline' 없음 — 프리렌더 HTML 의 인라인 <script> 는
@@ -261,12 +243,12 @@ function sendNegotiated(req: Request, res: Response, file: string, cache: Map<st
 }
 
 export interface MountSpaOptions {
-  /** 테스트·특수 배치용. 기본은 resolveClientDist(). */
+  /** 테스트용. 기본은 resolveClientDist(process.env)(config/env.ts). */
   clientDist?: string;
 }
 
 export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
-  const clientDist = path.resolve(opts.clientDist ?? resolveClientDist());
+  const clientDist = path.resolve(opts.clientDist ?? resolveClientDist(process.env, { here: HERE }));
   const indexHtml = path.join(clientDist, 'index.html');
   const manifest = loadManifest(clientDist);
   const variants = new Map<string, VariantCheck>();

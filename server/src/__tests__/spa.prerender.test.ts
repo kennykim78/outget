@@ -158,7 +158,7 @@ describe('spa — 승격 픽스처 dist', () => {
     expect(r.status).toBe(200);
     expect(r.text).toContain('data-ws-section="now"');
     expect(r.text).toContain('data-ws-layer="L4"');
-    expect(r.text).toContain('바닥 가로 60cm 이상');
+    expect(r.text).toContain('바닥 가로 100cm 이상');
     expect(r.headers['content-security-policy']).toBe(SPA_CSP);
   });
 

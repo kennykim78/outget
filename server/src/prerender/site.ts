@@ -9,7 +9,7 @@ import { buildRobots } from './robots.js';
 import { buildSitemap, normalizeOrigin } from './sitemap.js';
 import { injectTemplate } from './template.js';
 import { COLOR_SCHEME_META, type PageContext, type RenderedPage } from './pages/common.js';
-import { renderCredits, renderFamily, renderHome, renderNotFound, renderPick, renderSave, renderSupplies, renderSupplyItem, renderVet } from './pages/misc.js';
+import { renderCredits, renderFamily, renderHome, renderNotFound, renderPick, renderPrivacy, renderSave, renderSupplies, renderSupplyItem, renderVet } from './pages/misc.js';
 import { renderSetupPage, renderTypePage } from './pages/type.js';
 
 export interface BuildSiteOptions {
@@ -32,6 +32,11 @@ export interface BuildSiteOptions {
    *   1 은 구·신 빌드 대조 테스트와 긴급 롤백용 — ws-data 밖 HTML 바이트는 두 값에서 같다.
    */
   wsDataWire?: 1 | 2;
+  /**
+   * 운영 빌드(NODE_ENV=production 프리렌더, cli.ts)면 true → manifest.mode 'production'. 기본 false('development').
+   *   compliance C9-PRIVACY 가 이 값으로 /privacy 자리표시({{KENNY:})를 FAIL(운영)·WARN(개발)으로 가른다 — 'development' 가 아니면 운영으로 본다.
+   */
+  production?: boolean;
 }
 
 export interface ManifestRoute {
@@ -51,6 +56,8 @@ export interface PrerenderManifest {
   v: 1;
   seedDigest: string;
   indexable: boolean;
+  /** 빌드 모드(계획 86 P11, compliance C9-PRIVACY). */
+  mode: 'production' | 'development';
   routes: ManifestRoute[];
 }
 
@@ -99,6 +106,8 @@ function render(m: SiteModel, ctx: PageContext): RenderedPage {
       return renderVet(m, ctx);
     case 'CREDITS':
       return renderCredits(m, ctx);
+    case 'PRIVACY':
+      return renderPrivacy(m, ctx);
     case 'SAVE':
       return renderSave(m, ctx);
     case 'PICK':
@@ -148,7 +157,13 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
     return { route, html, data: p.data, wsDataBytes: Buffer.byteLength(json, 'utf8') };
   });
 
-  const manifest: PrerenderManifest = { v: 1, seedDigest: opts.seedDigest, indexable: siteIndexable, routes: routes.map(manifestRoute) };
+  const manifest: PrerenderManifest = {
+    v: 1,
+    seedDigest: opts.seedDigest,
+    indexable: siteIndexable,
+    mode: opts.production === true ? 'production' : 'development',
+    routes: routes.map(manifestRoute),
+  };
   files.set(
     'sitemap.xml',
     buildSitemap(

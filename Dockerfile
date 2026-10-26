@@ -90,6 +90,8 @@ ARG SITE_ORIGIN
 ENV SITE_ORIGIN=${SITE_ORIGIN}
 
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
+# 백업 정리(개수 WS_BACKUP_KEEP + 나이 WS_BACKUP_MAX_AGE_DAYS) — 엔트리포인트가 sh 로 호출한다.
+COPY scripts/prune-backups.sh ./scripts/prune-backups.sh
 RUN chmod +x ./docker-entrypoint.sh
 
 # /data 볼륨(SQLite prod.db) — 비루트 유저가 쓸 수 있도록 소유권 부여.
@@ -105,6 +107,6 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3001/health || exit 1
 
-# 엔트리포인트(cwd=/app/server): env 검사 → /data/prod.db 백업(최근 5개) → prisma migrate deploy → 시드 적재 → node dist/index.js.
+# 엔트리포인트(cwd=/app/server): env 검사 → /data/prod.db 백업(최근 5개·최대 7일, scripts/prune-backups.sh) → prisma migrate deploy → 시드 적재 → node dist/index.js.
 #   어느 단계든 실패하면 기동하지 않는다.
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

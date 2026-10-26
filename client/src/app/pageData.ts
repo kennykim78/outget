@@ -71,6 +71,8 @@ export function routeFromLocation(loc: Pick<Location, 'pathname'>): WsRoute {
       return { kind: 'VET', path };
     case '/credits':
       return { kind: 'CREDITS', path };
+    case '/privacy':
+      return { kind: 'PRIVACY', path };
     case '/save':
       return { kind: 'SAVE', path };
     case PICK_PATH:

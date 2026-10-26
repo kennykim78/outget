@@ -89,3 +89,56 @@
   border-radius: var(--ws-radius-pill);
   background: var(--ws-brand-text);
 }
+
+/* 89 스펙 — 지우기 스텝. 파괴 버튼은 기존 .ws-btn--outline(빨간 버튼·fail 색 0). */
+.ws-save-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-save-list h3,
+.ws-save-list ul {
+  margin: 0;
+}
+
+.ws-save-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding-left: 0; /* 96 N1 */
+}
+
+.ws-save-check-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+
+/* 네이티브 checkbox(label 전체 클릭) — 24×24, accent brand-text, 행 최소 터치 높이. */
+.ws-save-check {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-3);
+  min-height: var(--ws-touch);
+  cursor: pointer;
+}
+
+.ws-save-check input[type='checkbox'] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--ws-brand-text);
+}
+
+.ws-save-check input[type='checkbox']:focus-visible {
+  outline: var(--ws-focus-ring);
+  outline-offset: var(--ws-focus-ring-offset);
+}
+
+a.ws-save-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

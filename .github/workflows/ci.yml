@@ -103,6 +103,7 @@ jobs:
             -e REACTION_KEY_SECRET="$REACTION_KEY_SECRET" \
             -e TRUST_PROXY=0 \
             -e DATABASE_URL=file:/data/prod.db \
+            -e WS_ALLOW_PRIVACY_PLACEHOLDER=1 \
             -v "$VOL:/data" \
             ws-ci
           ok=0

@@ -52,8 +52,8 @@ test('no-JS /hamster/golden 본문 — 타입명 · 필수 항목 · 규격 문�
   const now = page.locator('section[data-ws-section="now"]');
   // 필수 항목(데모 시드: 케이지·쳇바퀴)과 각 규격 문장(최소 규격에서 나온 "… 이상").
   for (const [item, name, spec] of [
-    ['cage', '케이지', '60×40×30cm 이상'],
-    ['wheel', '쳇바퀴', '28cm 이상'],
+    ['cage', '케이지', '100×50×50cm 이상'], // BE92: 골든 케이지 최소 100×50×50(Kenny 2026-10-25)
+    ['wheel', '쳇바퀴', '27cm 이상'], // BE92: 쳇바퀴 최소 27(85)
   ] as const) {
     const chip = now.locator(`li[data-ws-item="${item}"]`);
     await expect(chip).toContainText(name);
@@ -107,4 +107,26 @@ test("후기 '규격 확인해보기' → 동물 선택 → /hamster/golden/chec
   const again = page.locator('section[data-ws-section="reviews"] button.ws-review-action:not([tabindex="-1"])', { hasText: '규격 확인해보기' }).first();
   await Promise.all([page.waitForURL(`**${TYPE.home}/check/cage`), tap(page, again)]);
   await expect(L5).toBeVisible();
+});
+
+// 96 S3 — /privacy 390: 가로 스크롤 래퍼 없이 표가 부모 폭 안, 문서 가로 넘침 0(모든 프로젝트에서 390 으로 맞춰 본다).
+test('/privacy 390 — 표 폭 ≤ 부모 폭 · 문서 가로 넘침 0', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const res = await gotoHydrated(page, '/privacy');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('main h1')).toHaveText('개인정보 처리방침');
+  const m = await page.evaluate(() => ({
+    tables: Array.from(document.querySelectorAll<HTMLTableElement>('main table.ws-privacy-table')).map((t) => ({
+      scroll: t.scrollWidth,
+      parent: (t.parentElement as HTMLElement).clientWidth,
+      wrapped: t.parentElement?.classList.contains('ws-privacy-table-wrap') ?? false,
+    })),
+    doc: { scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth },
+  }));
+  expect(m.tables.length).toBe(3);
+  for (const [i, t] of m.tables.entries()) {
+    expect(t.wrapped, `표 ${i} 래퍼 없음`).toBe(false);
+    expect(t.scroll, `표 ${i} scrollWidth ≤ 부모 clientWidth`).toBeLessThanOrEqual(t.parent);
+  }
+  expect(m.doc.scroll, '문서 가로 넘침 0').toBeLessThanOrEqual(m.doc.client);
 });

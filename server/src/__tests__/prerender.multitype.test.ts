@@ -146,19 +146,22 @@ describe('promotedTwo 픽스처 — 2타입 모델', () => {
 
   it('⑦ 호환 규칙 카탈로그(M4): 노출 프로필 범위·범위 없음만, 비노출(DRAFT)·미존재 프로필 범위 VERIFIED 규칙은 0', () => {
     const s = promotedTwo();
-    const src = s.compatibilityRules.find((c) => c.id === 'cr-wheel-cage');
-    if (!src) throw new Error('fixture: cr-wheel-cage 없음');
-    Object.assign(src, { ...V });
+    // BE92: 실시드에 범위 없는 규칙(cr-wheel-cage)이 없어졌다(85 근거 없음 삭제) → 골든 범위 규칙을 복제해 범위를 지운 픽스처 규칙(cr-unscoped, 메모리)을 쓴다.
+    const base = s.compatibilityRules.find((c) => c.id === 'cr-syrian-wheel-cage-bedding');
+    if (!base) throw new Error('fixture: cr-syrian-wheel-cage-bedding 없음');
+    const src = { ...JSON.parse(JSON.stringify(base)), id: 'cr-unscoped', ...V } as typeof base;
+    delete (src as { careProfileId?: string | null }).careProfileId;
     const scoped = (id: string, careProfileId: string) => ({ ...JSON.parse(JSON.stringify(src)), id, careProfileId, ...V });
     s.careProfiles.push({ ...JSON.parse(JSON.stringify(s.careProfiles[0])), id: 'cp-fixture-draft', reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null });
     s.compatibilityRules.push(
+      src,
       scoped('cr-scope-b', SECOND.careProfileId),
       scoped('cr-scope-draft', 'cp-fixture-draft'),
       scoped('cr-scope-ghost', 'cp-fixture-ghost'),
     );
     const built = build(s);
     expect(built.catalog.compatibilityRules.map((c) => [c.id, c.careProfileId])).toEqual([
-      ['cr-wheel-cage', null],
+      ['cr-unscoped', null],
       ['cr-scope-b', SECOND.careProfileId],
     ]);
     const file = built.files.get(built.catalogFile) as string;
@@ -193,8 +196,10 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
     // 마스코트 자산이 있는 빌드(opts.mascots)에서는 56px 이미지가 카드 안에 들어간다.
     const withMascot = buildSite(promotedTwo(), { template: TEMPLATE, origin: ORIGIN, seedDigest: 'a'.repeat(64), indexable: true, asOf: FIXTURE_AS_OF, mascots: new Map([['hamster-golden', '<svg/>']]) });
     expect(pageAt(withMascot, '/hamster').html).toContain('<img src="/mascots/hamster-golden.svg" width="56" height="56"');
-    // ws-data(타입 oneLiner 의 ' · ' 는 사실 문구)는 제외 — 문서 마크업에서 타입명 결합이 없어야 한다.
-    expect(fam.html.split('id="ws-data"')[0]).not.toContain(' · ');
+    // 본문(main)에서 타입명 결합이 없어야 한다 — ws-data(oneLiner 사실 문구)·푸터('개인정보 처리방침 · 사진 출처')는 범위 밖.
+    const famMain = fam.html.slice(fam.html.indexOf('<main'), fam.html.indexOf('</main>'));
+    expect(famMain.length).toBeGreaterThan(0);
+    expect(famMain).not.toContain(' · ');
     expect(fam.html).not.toContain('class="ws-types"');
     expect(fam.html).toContain('<title>햄스터');
   });

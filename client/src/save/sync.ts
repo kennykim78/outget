@@ -24,7 +24,7 @@ import { fetchSaveApi, type SaveApi } from './api';
 import type { SaveMergeWinner, SaveStateV1, SaveV1 } from './contract';
 import { fitSnapshot, mergeSnapshots, sanitizeSnapshot, type MergeResult } from './merge';
 import { defaultSlices, type SaveSlices } from './saveables';
-import { clearSaveState, readSaveState, subscribeSaveState, writeSaveState } from './saveStateStore';
+import { SAVE_STATE_KEY, clearSaveState, readSaveState, subscribeSaveState, writeSaveState } from './saveStateStore';
 
 export const SAVE_DEBOUNCE_MS = 2000;
 /** M6 재시도: 첫 간격·간격 상한·최대 횟수. */
@@ -66,6 +66,17 @@ export type LinkOutcome =
   | { kind: 'expired' }
   | { kind: 'error' };
 
+/**
+ * 89 스펙 저장 정보 지우기 결과. erased.wiped = 이 기기 ws.* 도 지움 · reauth = 401(이 기기 연결 기록만 해제)
+ *   · limited = 429 · failed = 5xx·0·400·403·413·415(로컬 변경 0).
+ */
+export type EraseOutcome = { kind: 'erased'; wiped: boolean } | { kind: 'reauth' } | { kind: 'limited' } | { kind: 'failed' };
+
+/** 이 기기 정보 지우기 결과. logoutPending = 로그아웃이 서버에 닿지 않아 ws.save {linked:false, pendingLogout:true} 만 남김. */
+export interface WipeOutcome {
+  logoutPending: boolean;
+}
+
 /** 서버 세션 확인 결과. null = 모름(네트워크·서버 오류). maskedEmail 은 표시 전용(저장 0). */
 export type SessionProbe = { linked: boolean; maskedEmail?: string } | null;
 
@@ -100,6 +111,17 @@ export interface SaveSync {
   adopt(): Promise<void>;
   /** 로컬 연결 해제 → DELETE /auth/session. 서버에 닿지 않으면 ws.save {pendingLogout:true} 로 남겨 부팅·L8 에서 재시도(SEC-3 L-3). */
   unlink(): Promise<void>;
+  /**
+   * 89 스펙 ①~④·⑦·⑧ — 저장한 정보 지우기(DELETE /api/save). 요청 전 자동 저장 정지(stopSync), 서버가 먼저·로컬은 성공 뒤:
+   *   204 → ws.save 미연결(DELETE /auth/session 0 · pendingLogout 0), wipeDevice 면 ws.* 전부 삭제. 401 → 이 기기 연결 기록만 해제.
+   *   그 밖 실패 → 로컬 0 변경, 연결 중이었으면 자동 저장 재개. 이벤트 0. 레이어를 닫아도 끝까지 적용된다.
+   */
+  erase(opts: { wipeDevice: boolean }): Promise<EraseOutcome>;
+  /**
+   * 89 스펙 ⑤ — 이 기기 정보 지우기. 연결 중(또는 unlink:true — 서버 세션만 살아 있는 기기)이면 로그아웃 먼저,
+   *   그 뒤 ws.* 전부 삭제(storage.keys('ws.') 열거). 로그아웃이 서버에 닿지 않으면 ws.save {linked:false, pendingLogout:true} 만 남긴다.
+   */
+  wipeDevice(opts?: { unlink?: boolean }): Promise<WipeOutcome>;
   /** 대기 중인 디바운스 PUT 을 바로 보낸다. */
   flush(): Promise<void>;
   /** 구독 중인지(테스트·진단). */
@@ -431,6 +453,61 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
     return done;
   }
 
+  /** ws.* 전부 삭제(키는 래퍼가 열거 — 하드코딩 0). keep 은 남길 키. 끝나면 ws.save 구독자에게 알린다(SaveDot·다른 탭은 storage 이벤트). */
+  function wipeLocal(keep: ReadonlySet<string> = new Set()): void {
+    for (const k of storage.keys('ws.')) if (!keep.has(k)) storage.remove(k);
+    if (!keep.has(SAVE_STATE_KEY)) clearSaveState(storage);
+  }
+
+  /** 연결을 끊는 모든 지우기의 공통 정리 — 구독·타이머·서버본·보류 확인을 버린다(ws.save 는 호출부). */
+  function dropConnection(): void {
+    stopSync();
+    newGeneration();
+    resumeOnRelink = false;
+    awaitingConfirm = false;
+  }
+
+  async function doErase(wipeDevice: boolean): Promise<EraseOutcome> {
+    const wasRunning = unsubs.length > 0;
+    const hadPending = timer !== null || retryTimer !== null;
+    stopSync();
+    // 진행 중 GET·PUT 뒤에 한 줄로 — 지운 뒤 옛 PUT 이 행을 되살리지 않게(그 뒤 PUT 은 세션 없음 401).
+    const res = await serial(() => api.erase());
+    if (res.status >= 200 && res.status < 300) {
+      dropConnection();
+      knownLinked = false;
+      if (wipeDevice) wipeLocal();
+      else clearSaveState(storage);
+      return { kind: 'erased', wiped: wipeDevice };
+    }
+    if (res.status === 401) {
+      localUnlink();
+      return { kind: 'reauth' };
+    }
+    // 실패: 로컬 0 변경. 연결 중이었으면 자동 저장을 다시 켠다(정지 사이 변경이 있었으면 디바운스 PUT).
+    if (wasRunning && readSaveState(storage).linked) {
+      start();
+      if (hadPending) schedule();
+    }
+    return { kind: res.status === 429 ? 'limited' : 'failed' };
+  }
+
+  async function doWipeDevice(unlinkServer: boolean): Promise<WipeOutcome> {
+    const st = readSaveState(storage);
+    const logout = st.linked || st.pendingLogout === true || unlinkServer;
+    dropConnection();
+    let pending = false;
+    if (logout) {
+      // unlink 와 같은 순서 — "해제 중" 기록 먼저(탭이 닫혀도 다음 부팅에 다시 보낸다).
+      writeOwn({ linked: false, lastSyncAt: null, pendingLogout: true });
+      pending = !(await retryLogout());
+    }
+    knownLinked = false;
+    wipeLocal(pending ? new Set([SAVE_STATE_KEY]) : new Set());
+    if (pending) writeOwn({ linked: false, lastSyncAt: null, pendingLogout: true });
+    return { logoutPending: pending };
+  }
+
   const self: SaveSync = {
     link(token) {
       // StrictMode 이중 effect 에서 같은 1회용 토큰을 두 번 보내지 않는다(진행 중·연결 성공만 캐시).
@@ -521,6 +598,8 @@ export function createSaveSync(deps: SaveSyncDeps): SaveSync {
       writeOwn({ linked: false, lastSyncAt: null, pendingLogout: true });
       await retryLogout();
     },
+    erase: (opts) => doErase(opts.wipeDevice),
+    wipeDevice: (opts) => doWipeDevice(opts?.unlink === true),
     async flush() {
       if (timer === null) return;
       clearTimeout(timer);
