@@ -64,6 +64,27 @@ const WHEEL_SCHEMA: SpecSchema = {
 };
 const BATH_SCHEMA: SpecSchema = { fields: [{ key: 'widthCm', label: '폭(cm)', type: 'number', min: 5, max: 60 }] };
 const SAUCER_SCHEMA: SpecSchema = { fields: [{ key: 'diameterCm', label: '지름(cm)', type: 'number', min: 5, max: 60 }] };
+/** QA115: ruleScoped 필드(floorType)를 가진 합성 용품 — 요구사항 minSpec 이 참조할 때만 폼에 보이고 엔진 입력에 들어간다. */
+const MAT_SCHEMA: SpecSchema = {
+  fields: [
+    { key: 'widthCm', label: '매트 폭(cm)', type: 'number', min: 5, max: 100 },
+    {
+      key: 'floorType',
+      label: '매트 바닥',
+      type: 'enum',
+      options: ['SOLID', 'MESH'],
+      optionLabels: { SOLID: '막힌 바닥', MESH: '망 바닥' },
+      optional: true,
+      ruleScoped: true,
+    },
+  ],
+};
+const MAT_MIN = {
+  rules: [
+    { key: 'widthCm', op: 'gte' as const, value: 20, reason: '합성 매트 폭 사유' },
+    { key: 'floorType', op: 'eq' as const, value: 'SOLID', reason: '합성 매트 바닥 사유' },
+  ],
+};
 
 const WHEEL_MIN = {
   rules: [
@@ -125,12 +146,14 @@ const CATALOG = {
     item('wheel', '합성 쳇바퀴', WHEEL_SCHEMA, ['saucer']),
     item('bath', '합성 모래 목욕통', BATH_SCHEMA),
     item('saucer', '합성 소서', SAUCER_SCHEMA),
+    item('mat', '합성 매트', MAT_SCHEMA),
   ],
   supplyRequirements: [
     creq('r-cage', 'cage', CAGE_MIN),
     creq('r-wheel', 'wheel', WHEEL_MIN, WHEEL_REC, '{animal} 쳇바퀴 30cm'),
     creq('r-bath', 'bath', BATH_MIN),
     creq('r-saucer', 'saucer', { rules: [] }),
+    creq('r-mat', 'mat', MAT_MIN),
   ],
   compatibilityRules: [
     {
@@ -150,6 +173,13 @@ const CATALOG = {
       a: 'wheel',
       b: 'cage',
       rules: [{ expr: 'a.diameterCm <= b.floorDcm', onFail: 'CHECK', message: '합성 호환 바닥 문장' }],
+    },
+    {
+      ...META,
+      id: 'cr-mat-cage',
+      a: 'mat',
+      b: 'cage',
+      rules: [{ expr: 'a.widthCm <= b.floorWcm', onFail: 'CHECK', message: '합성 매트 호환 문장' }],
     },
   ],
 };
@@ -175,6 +205,7 @@ const PAGE = pageOf(
       preq('wheel', '합성 쳇바퀴', WHEEL_SCHEMA, WHEEL_MIN, WHEEL_REC, ['saucer']),
       preq('bath', '합성 모래 목욕통', BATH_SCHEMA, BATH_MIN),
       preq('saucer', '합성 소서', SAUCER_SCHEMA, { rules: [] }),
+      preq('mat', '합성 매트', MAT_SCHEMA, MAT_MIN),
     ],
     products: [product('p-wheel', 'wheel', '합성 상품 바퀴 제목')],
   },
@@ -523,6 +554,93 @@ describe('L5 화면 규칙', () => {
     expect(named('spec_checker_used')).toHaveLength(0);
     // 요청은 동일 출처 카탈로그 1건뿐
     for (const [url] of fetchMock.mock.calls as Array<[string]>) expect(url).toMatch(/^\/data\/catalog\.v1\.[0-9a-f]{8}\.json$/);
+  });
+});
+
+describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력을 함께 정한다(QA115)', () => {
+  it('제출(:130): minSpec 이 참조하는 ruleScoped 필드가 폼에 보이고, 입력하면 엔진 판정에 반영(OK) · 비우면 CHECK', async () => {
+    const d = await openL5('mat');
+    await ready(d);
+    expect(within(d).getByLabelText('막힌 바닥')).toBeInTheDocument(); // ruleScoped 필드 노출
+    setNumber(d, /매트 폭/, '30');
+    submit(d);
+    let r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    expect(r).toHaveAttribute('data-ws-verdict', 'CHECK'); // floorType 미입력 → 엔진 MISSING
+    expect(within(pline(r)).getByText(COPY.verdict.productCheck)).toBeInTheDocument();
+
+    pick(d, '막힌 바닥');
+    submit(d);
+    r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    expect(r).toHaveAttribute('data-ws-verdict', 'OK'); // 입력값이 엔진에 전달됨
+    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+
+    pick(d, '망 바닥');
+    submit(d);
+    r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    expect(r).toHaveAttribute('data-ws-verdict', 'BELOW_MIN');
+    expect(named('spec_checker_used').map(([, p]) => p.verdict)).toEqual(['CHECK', 'OK', 'BELOW_MIN']);
+  });
+
+  it('케이지 변경 재판정(:80): 같은 입력의 ruleScoped 값을 유지해 다시 계산(제품 OK 유지)', async () => {
+    const d = await openL5('mat');
+    await ready(d);
+    setNumber(d, /매트 폭/, '30');
+    pick(d, '막힌 바닥');
+    submit(d);
+    let r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    expect(r).toHaveAttribute('data-ws-verdict', 'OK');
+    expect(tiers(r)).toEqual(['product']);
+
+    // L6 에서 케이지 등록 → L5 복귀 → 같은 입력으로 재계산(제출 아님)
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.register }));
+    await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    pick(d, '리빙박스');
+    setNumber(d, /바닥 가로/, '60');
+    setNumber(d, /바닥 세로/, '40');
+    setNumber(d, /높이/, '35');
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
+
+    r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    await waitFor(() => expect(tiers(r)).toEqual(['product', 'compat'])); // 재계산이 일어났다
+    expect(r).toHaveAttribute('data-ws-verdict', 'OK'); // floorType 이 재판정 입력에도 남았다
+    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+    expect(named('spec_checker_used')).toHaveLength(1);
+
+    // 케이지 수정(바닥 가로 축소 → 호환 CHECK)으로 한 번 더 재계산 — 제품 단은 여전히 OK(floorType 유지)
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.edit }));
+    await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    setNumber(d, /바닥 가로/, '25');
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
+    r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    await waitFor(() => expect(r).toHaveAttribute('data-ws-verdict', 'CHECK'));
+    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+    expect(within(r.querySelector('[data-ws-tier="compat"]') as HTMLElement).getByText('합성 매트 호환 문장')).toBeInTheDocument();
+    expect(named('spec_checker_used')).toHaveLength(1);
+  });
+
+  it('케이지 변경 재판정(:80): ruleScoped 값을 입력하지 않은 결과는 재계산 후에도 제품 CHECK', async () => {
+    const d = await openL5('mat');
+    await ready(d);
+    setNumber(d, /매트 폭/, '30');
+    submit(d);
+    let r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    expect(r).toHaveAttribute('data-ws-verdict', 'CHECK');
+
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.register }));
+    await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    pick(d, '리빙박스');
+    setNumber(d, /바닥 가로/, '60');
+    setNumber(d, /바닥 세로/, '40');
+    setNumber(d, /높이/, '35');
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
+
+    r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
+    await waitFor(() => expect(tiers(r)).toEqual(['product', 'compat']));
+    expect(r).toHaveAttribute('data-ws-verdict', 'CHECK');
+    expect(within(pline(r)).getByText(COPY.verdict.productCheck)).toBeInTheDocument();
   });
 });
 
