@@ -11,7 +11,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-25';
+const NOW = '2026-10-27';
 
 const loaded = readSeedDirRaw(SEED_DIR);
 const BASE: RawSeed = loaded.raw;
@@ -85,12 +85,12 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 21 = W-EXPOSURE-ZERO 1 · W-RULESCOPED 6(기니피그 S3 — 요구사항 S9 전까지 참조 0) · L03 10(caution 5 + 번들 note 단위 1 + Taxon note 3 + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 23 = W-EXPOSURE-ZERO 1 · W-RULESCOPED 7(기니피그 S3 6 + S8 playpen floorType 1 — 요구사항 S9 전까지 참조 0) · L03 11(caution 5 + 번들 note 단위 1 + Taxon note 4(S7 기니피그 +1, 햄스터와 같은 틀) + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, 'W-RULESCOPED': 6, L03: 10, L05: 4 });
-    expect(res.warnings).toHaveLength(21);
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, 'W-RULESCOPED': 7, L03: 11, L05: 4 });
+    expect(res.warnings).toHaveLength(23);
     // 기니피그 S3: 새 ruleScoped 필드 6개는 아직 어떤 요구사항도 참조하지 않는다(S9 요구사항 착지 후 줄어든다).
     expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
       'bedding.specSchema.dustFree',
@@ -99,11 +99,12 @@ describe('seed:validate — 실제 시드 baseline', () => {
       'food.specSchema.forSpecies',
       'food.specSchema.vitaminC',
       'hideout.specSchema.entrances',
+      'playpen.specSchema.floorType',
     ]);
     // BE90: req-dwarf-food caution = Kenny 확정 문장 2문장(2026-10-25 '84 수령') → L03 caution 1문장 경고 1건(경고, 문장 그대로 둔다).
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-food' && i.path === 'caution')).toHaveLength(1);
     // R7-B 드워프 L03 3건 = 패킷 문장 그대로(값 변경 0): Taxon legal.note 2(DRAFT 초안 '제3조' 등) · req-dwarf-hideout why '3곳'(v0.2 5-8 서명).
-    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'taxa.json' && i.path === 'legal.note').map((i) => i.id).sort()).toEqual(['mesocricetus-auratus', 'phodopus-campbelli', 'phodopus-sungorus']);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'taxa.json' && i.path === 'legal.note').map((i) => i.id).sort()).toEqual(['cavia-porcellus', 'mesocricetus-auratus', 'phodopus-campbelli', 'phodopus-sungorus']);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-hideout' && i.path === 'why')).toHaveLength(1);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(5);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(1);

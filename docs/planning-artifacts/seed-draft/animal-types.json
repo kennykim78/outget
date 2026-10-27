@@ -136,19 +136,51 @@
     "status": "PLANNED",
     "aliases": [
       "기니",
-      "모르모트"
+      "모르모트",
+      "기니픽",
+      "guinea pig",
+      "Cavia porcellus"
     ],
-    "taxonId": null,
-    "careProfileId": null,
+    "taxonId": "cavia-porcellus",
+    "careProfileId": "cp-guineapig",
     "careOverrides": {},
     "mascot": "guinea-pig",
+    "oneLiner": "2마리 이상 함께 · 새벽과 해질녘에 활발 · 성체 20~25cm",
+    "seoTitle": null,
+    "seoDescription": null,
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
     "contentKind": "CARE",
-    "source": []
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/guinea-pigs-as-pets",
+        "title": "Guinea pigs as pets – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Cavia_porcellus/",
+        "title": "Cavia porcellus – Animal Diversity Web",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://koreascience.kr/article/JAKO201156539825696.pdf",
+        "title": "최연식, 「실험동물의 특성, 질병 및 연구 <Guinea Pig>」, 대한수의사회지 2011. 02",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   },
   {
     "id": "budgie",

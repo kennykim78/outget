@@ -155,5 +155,111 @@
         "accessedAt": "2026-10-24"
       }
     ]
+  },
+  {
+    "id": "cp-guineapig",
+    "name": "기니피그 기본",
+    "taxonIds": [
+      "cavia-porcellus"
+    ],
+    "facts": {
+      "social": "GROUP",
+      "activity": "CREPUSCULAR",
+      "adultLengthCm": [
+        20,
+        25
+      ],
+      "tempC": [
+        18,
+        24
+      ],
+      "lifespanYears": [
+        4,
+        8
+      ],
+      "minHeadcount": 2
+    },
+    "careNotes": [
+      "혼자 두지 않는 동물이라 처음부터 2마리 이상 함께 지내는 것을 전제로 준비해요. 수컷과 암컷을 함께 두려면 중성화를 먼저 병원에 문의해요.",
+      "비타민 C를 몸에서 만들지 못해 매일 먹이로 채워야 해요. 기니피그 전용 펠릿과 비타민 C가 많은 채소를 주고, 펠릿은 시간이 지나면 비타민 C가 줄어 오래 두지 않아요. 물에 타는 비타민은 쓰지 않아요.",
+      "건초를 늘 먹을 수 있게 둬요. 이빨이 평생 자라서 건초를 씹으며 닳아요.",
+      "더위에 약해요. 실내 18~24℃를 유지하고, 26℃가 넘으면 열사병이 올 수 있어요. 시원한 곳으로 옮기고 기운이 없어 보이면 병원에 문의해요.",
+      "토끼와 함께 키우지 않아요.",
+      "먹이를 갑자기 바꾸면 먹지 않을 수 있어 천천히 바꿔요. 먹지 않거나 변이 줄면 바로 병원에 문의해요.",
+      "발톱이 계속 자라 몇 주마다 다듬어요. 처음에는 병원에서 방법을 배워요. 쳇바퀴는 다칠 수 있어 쓰지 않아요."
+    ],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/guinea-pigs-as-pets",
+        "title": "Guinea pigs as pets – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/description-and-physical-characteristics-of-guinea-pigs",
+        "title": "Description and Physical Characteristics of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/nutritional-problems-of-guinea-pigs",
+        "title": "Nutritional Problems of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/unique-needs-of-guinea-pigs",
+        "title": "Unique Needs of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Cavia_porcellus/",
+        "title": "Cavia porcellus – Animal Diversity Web",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://koreascience.kr/article/JAKO201156539825696.pdf",
+        "title": "최연식, 「실험동물의 특성, 질병 및 연구 <Guinea Pig>」, 대한수의사회지 2011. 02",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/how-to-keep-guinea-pigs-cool-in-the-summer",
+        "title": "How to Keep Guinea Pigs Cool in the Summer – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/your-guinea-pig-s-diet",
+        "title": "Your guinea pig's diet – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/providing-a-home-for-a-guinea-pig",
+        "title": "Providing a Home for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   }
 ]

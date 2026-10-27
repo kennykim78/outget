@@ -818,5 +818,273 @@
         "accessedAt": "2026-10-24"
       }
     ]
+  },
+  {
+    "id": "playpen",
+    "name": "운동 공간(울타리)",
+    "category": "CAGE",
+    "glyph": "🏡",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "floorWcm",
+          "label": "바닥 가로(cm)",
+          "type": "number",
+          "min": 50,
+          "max": 400
+        },
+        {
+          "key": "floorDcm",
+          "label": "바닥 세로(cm)",
+          "type": "number",
+          "min": 50,
+          "max": 300
+        },
+        {
+          "key": "heightCm",
+          "label": "높이(cm)",
+          "type": "number",
+          "min": 10,
+          "max": 120,
+          "optional": true
+        },
+        {
+          "key": "floorType",
+          "label": "바닥 형태",
+          "type": "enum",
+          "options": [
+            "SOLID",
+            "MESH"
+          ],
+          "optional": true,
+          "ruleScoped": true,
+          "optionLabels": {
+            "SOLID": "막힌 바닥",
+            "MESH": "망 바닥(철망·격자)"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "집 밖에서 마음껏 움직이도록 따로 두르는 놀이 공간이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-guinea-pig",
+        "title": "The ideal home for your guinea pigs – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "hay",
+    "name": "건초",
+    "category": "FOOD",
+    "glyph": "🍃",
+    "lifecycle": "CONSUMABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "hayType",
+          "label": "풀 종류",
+          "type": "enum",
+          "options": [
+            "TIMOTHY",
+            "ORCHARD",
+            "MEADOW",
+            "ALFALFA",
+            "OTHER"
+          ],
+          "optionLabels": {
+            "TIMOTHY": "티모시",
+            "ORCHARD": "오차드",
+            "MEADOW": "목초 혼합(메도우)",
+            "ALFALFA": "알팔파",
+            "OTHER": "기타"
+          }
+        },
+        {
+          "key": "weightG",
+          "label": "중량(g)",
+          "type": "number",
+          "min": 50,
+          "max": 5000,
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "식사의 바탕이 되는 마른 풀이에요. 먼지가 적은 것을 골라요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/your-guinea-pig-s-diet",
+        "title": "Your guinea pig's diet – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "hay-rack",
+    "name": "건초 거치대",
+    "category": "FOOD",
+    "glyph": "📥",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "mount",
+          "label": "설치 위치",
+          "type": "enum",
+          "options": [
+            "INSIDE",
+            "OUTSIDE"
+          ],
+          "optionLabels": {
+            "INSIDE": "안쪽 설치형",
+            "OUTSIDE": "바깥 걸이형"
+          }
+        },
+        {
+          "key": "covered",
+          "label": "덮개",
+          "type": "boolean",
+          "optional": true
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "건초를 바닥에서 띄워 깨끗하게 두는 도구예요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "nail-clipper",
+    "name": "발톱깎이",
+    "category": "HEALTH",
+    "glyph": "🐾",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "type",
+          "label": "종류",
+          "type": "enum",
+          "options": [
+            "SMALL_ANIMAL",
+            "HUMAN",
+            "OTHER"
+          ],
+          "optionLabels": {
+            "SMALL_ANIMAL": "소동물용",
+            "HUMAN": "사람용",
+            "OTHER": "기타"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "자란 발톱을 조금씩 다듬는 도구예요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/routine-care-of-guinea-pigs",
+        "title": "Routine Care of Guinea Pigs – MSD Veterinary Manual",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "brush",
+    "name": "빗",
+    "category": "HEALTH",
+    "glyph": "💈",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "type",
+          "label": "종류",
+          "type": "enum",
+          "options": [
+            "SOFT_BRUSH",
+            "SLICKER",
+            "COMB"
+          ],
+          "optionLabels": {
+            "SOFT_BRUSH": "부드러운 솔",
+            "SLICKER": "슬리커 브러시",
+            "COMB": "양면 빗"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "털을 정리해 엉킴을 줄이는 도구예요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/routine-care-of-guinea-pigs",
+        "title": "Routine Care of Guinea Pigs – MSD Veterinary Manual",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   }
 ]

@@ -45,7 +45,7 @@ export const V = { reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER',
  * 노출 기준일(asOf) — 승격 픽스처를 쓰는 모든 테스트는 이 고정값을 프리렌더 --now·buildSite asOf·computeExposure 에 넣는다.
  *   실시계(io.today·localToday)와 결합 금지(F14 시한폭탄: V.verifiedAt + 180일 = 2027-03-29 이후 강등).
  */
-export const FIXTURE_AS_OF = '2026-10-25'; // 실시드 출처 접근일 최댓값(사료 국내 출처 2026-10-25, BE90) 이상 — S07 미래 날짜 방지.
+export const FIXTURE_AS_OF = '2026-10-27'; // 실시드 출처 접근일 최댓값(기니피그 S7·S8 출처 2026-10-27) 이상 — S07 미래 날짜 방지.
 /** V.verifiedAt + 180일(마지막 노출일) / + 181일(강등 첫날). */
 export const FIXTURE_LAST_FRESH = '2027-03-29';
 export const FIXTURE_FIRST_STALE = '2027-03-30';
@@ -153,11 +153,11 @@ export function demoteUnpromotedRequired(seed: SeedBundle, careProfileId: string
 
 /**
  * R7-B B7 드워프 미리보기 — 가짜 확인표 서명일(DWARF_SIGNED_AT = 메모리 verifiedAt)과 기준일(DWARF_PREVIEW_AS_OF).
- *   기준일은 실시드 출처 접근일 최댓값(사료 국내 출처 2026-10-25, BE90) 이상이어야 S07(미래 날짜)이 나지 않는다.
+ *   기준일은 실시드 출처 접근일 최댓값(기니피그 S7·S8 출처 2026-10-27) 이상이어야 S07(미래 날짜)이 나지 않는다.
  *   실시계 결합 금지(F14): 2026-10-24 + 180일 = 2027-04-22 까지 노출, 그 뒤 강등.
  */
 export const DWARF_SIGNED_AT = '2026-10-24';
-export const DWARF_PREVIEW_AS_OF = '2026-10-25';
+export const DWARF_PREVIEW_AS_OF = '2026-10-27';
 
 /** 드워프 패킷 전 항목 ☑(A·B·D) + C 서명(가짜 확인표 결과 — 테스트 전용, 날짜 기본 DWARF_SIGNED_AT). */
 export function dwarfAllCheckedResult(signedAt: string = DWARF_SIGNED_AT): Record<string, unknown> {

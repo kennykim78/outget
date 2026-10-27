@@ -250,7 +250,7 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
   });
 
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {
-    for (const v of [null, '2026-10-26', 'bad']) { // FIXTURE_AS_OF(2026-10-25) 다음 날 = 미래
+    for (const v of [null, '2026-10-28', 'bad']) { // FIXTURE_AS_OF(2026-10-27) 다음 날 = 미래
       const s = promoted();
       patch(s, 'careProfiles', 'cp-hamster-syrian', { verifiedAt: v });
       expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));

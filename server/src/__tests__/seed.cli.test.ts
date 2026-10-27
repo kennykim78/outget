@@ -8,7 +8,7 @@ import { runValidateCli, type CliIo } from '../seed/cli-validate.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = ['--now', '2026-10-25'];
+const NOW = ['--now', '2026-10-27'];
 
 const temps: string[] = [];
 afterAll(() => {
@@ -37,7 +37,7 @@ function editJson(dir: string, file: string, id: string, edit: (r: Row) => void)
 async function run(argv: string[]): Promise<{ code: number; out: string[]; err: string[] }> {
   const out: string[] = [];
   const err: string[] = [];
-  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-10-25' };
+  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-10-27' };
   const code = await runValidateCli(argv, io);
   return { code, out, err };
 }

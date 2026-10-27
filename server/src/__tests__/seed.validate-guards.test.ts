@@ -13,7 +13,7 @@ import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, pro
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-25';
+const NOW = '2026-10-27';
 const BASE = readSeedDirRaw(SEED_DIR).raw;
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
 const rawOf = (seed: SeedBundle): Required<RawSeed> =>

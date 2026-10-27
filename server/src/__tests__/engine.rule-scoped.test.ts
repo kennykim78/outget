@@ -129,7 +129,7 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
     });
   }
 
-  it('스키마 자체엔 ruleScoped 6필드가 있다(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
+  it('스키마 자체엔 ruleScoped 7필드가 있다(S8 playpen.floorType +1)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
     const scoped = realSeed().supplyItems.flatMap((i) => i.specSchema.fields.filter((f) => f.ruleScoped === true).map((f) => [`${i.id}.${f.key}`, hasCompleteOptionLabels(f), f.optional === true]));
     expect(scoped).toEqual([
       ['cage.floorType', true, true],
@@ -138,6 +138,7 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
       ['food.baseType', true, true],
       ['food.vitaminC', true, true],
       ['hideout.entrances', true, true],
+      ['playpen.floorType', true, true],
     ]);
   });
 
@@ -224,7 +225,7 @@ describe("isFieldOptionalForDisplay(field, minSpec) — '· 선택' 표시", () 
 });
 
 describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
-  const NOW = '2026-10-25';
+  const NOW = '2026-10-27';
   const fresh = () => structuredClone(readSeedDirRaw(SEED_DIR).raw);
   const find = (arr: unknown[] | undefined, id: string): Rec => {
     const r = (arr ?? []).find((x) => (x as Rec).id === id);
@@ -234,10 +235,10 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
   const scopedWarns = (raw: ReturnType<typeof fresh>) =>
     validateSeed(raw, { now: NOW }).warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`);
 
-  it('실시드: 6필드 전부 WARN(ERROR 아님)', () => {
+  it('실시드: 7필드 전부 WARN(ERROR 아님 — S8 playpen.floorType +1)', () => {
     const res = validateSeed(fresh(), { now: NOW });
     expect(res.errors).toEqual([]);
-    expect(scopedWarns(fresh())).toHaveLength(6);
+    expect(scopedWarns(fresh())).toHaveLength(7);
   });
 
   it('요구사항 행의 when key 가 참조하면 그 필드 경고 해소', () => {
@@ -245,7 +246,7 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     const req = find(raw.supplyRequirements, 'req-syrian-cage') as { recommendedSpec: RuleSet };
     req.recommendedSpec = { rules: [...req.recommendedSpec.rules, { key: 'heightCm', op: 'gte', value: 30, reason: '픽스처', when: [{ key: 'floorType', op: 'eq', value: 'MESH' }] }] };
     expect(scopedWarns(raw)).not.toContain('cage.specSchema.floorType');
-    expect(scopedWarns(raw)).toHaveLength(5);
+    expect(scopedWarns(raw)).toHaveLength(6); // playpen.floorType 은 별도 SupplyItem 이라 남는다
   });
 
   it('AnimalType.careOverrides 의 규칙만 참조해도 해소(해석 후 규칙 기준)', () => {
