@@ -49,14 +49,23 @@
   border: 1px solid var(--ws-line);
   border-radius: var(--ws-radius-md);
 }
+/* 2칸(최소·권장): 칸 기본 폭 9rem(144px)에서 똑같이 늘어난다. 규격 숫자 토큰이 더 길면 그 칸이 토큰만큼 넓어지고,
+   두 칸이 한 줄에 못 들어가면 다음 줄로 쌓인다(좁은 칸에 단어 하나씩 끊기는 것 방지)
+   (QA118 LOW: body overflow-wrap:anywhere 가 min-content 를 줄여 1280 드로어에서 '106×61×46cm' 가 단위 안에서 끊겼다).
+   구분선은 칸마다 왼쪽·위 1px 그림자 — 표 가장자리에 닿는 쪽은 overflow:hidden 으로 잘려, 같은 줄이면 세로선·쌓이면 가로선만 남는다. */
 .ws-cond-table--2 {
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  overflow: hidden;
 }
 .ws-cond-cell {
   padding: var(--ws-space-3) var(--ws-space-4);
 }
-.ws-cond-table--2 .ws-cond-cell + .ws-cond-cell {
-  border-left: 1px solid var(--ws-line);
+.ws-cond-table--2 .ws-cond-cell {
+  flex: 1 1 9rem;
+  box-shadow:
+    -1px 0 0 0 var(--ws-line),
+    0 -1px 0 0 var(--ws-line);
 }
 .ws-cond-cell dt {
   color: var(--ws-ink-muted);
@@ -64,6 +73,10 @@
 .ws-cond-cell dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
+}
+/* 규격 숫자는 토큰 중간에서 끊지 않는다 — break-word 는 min-content 에 끊김 지점을 넣지 않고, 칸을 실제로 넘칠 때만 끊는다. */
+.ws-cond-cell dd .ws-t-spec-lg {
+  overflow-wrap: break-word;
 }
 
 .ws-cond-list h4 {

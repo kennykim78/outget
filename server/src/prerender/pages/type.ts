@@ -144,7 +144,8 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
       kind: 'need',
       titleHtml: h(COPY.homeB.nowTitle),
       sub: COPY.homeB.nowBeforeSetup,
-      more: { label: COPY.nav.seeAll, href: hrefOf(`${base(t)}/setup`) },
+      // /setup 은 구성안 ≥ 1 일 때만 생성된다(routes.ts) — 0 이면 링크를 내지 않는다(QA118 D1: 404 방지). React 는 L2 버튼.
+      more: t.bundles.length ? { label: COPY.nav.seeAll, href: hrefOf(`${base(t)}/setup`) } : null,
       // 정적 앵커: ⑤ 저장 배너 CTA(#ws-now)의 이동 대상. client RailSection 은 id 를 달지 않는다(하이드레이션 후 CTA 는 L2).
       attrs: { id: 'ws-now', 'data-ws-answered': '0' },
       items: required.length ? required.map(needChip) : [emptyLi(COPY.homeB.nowEmpty)],

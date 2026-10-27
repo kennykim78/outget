@@ -25,10 +25,15 @@ import type { Ctx } from './context.js';
 export const REQUIRED_ITEMS_BY_PROFILE: Readonly<Record<string, readonly string[]>> = Object.freeze({
   'cp-hamster-syrian': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'wheel']),
   'cp-hamster-dwarf': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'wheel']),
+  // 기니피그(QA118 X01, 2026-10-27): 쳇바퀴 없음(기니피그에 쓰지 않는다 — 105 근거·req-guineapig 16행) · 건초(hay)가 필수.
+  'cp-guineapig': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'hay']),
 });
 
-/** X02 자명 허용목록 — 학명 속(Kenny 승인 범위: 햄스터 Mesocricetus·Phodopus). */
-export const TRIVIAL_LEGAL_GENERA: readonly string[] = Object.freeze(['Mesocricetus', 'Phodopus']);
+/**
+ * X02 자명 허용목록 — 학명 속(Kenny 승인 범위: 햄스터 Mesocricetus·Phodopus)
+ *   + Cavia(기니피그, QA118 X02 오케스트레이터 결정 2026-10-27: 동물보호법 시행규칙 제3조에 반려동물로 명시 — K-4 되돌림 취지와 동일).
+ */
+export const TRIVIAL_LEGAL_GENERA: readonly string[] = Object.freeze(['Mesocricetus', 'Phodopus', 'Cavia']);
 
 function requiredItemsFor(careProfileId: string): readonly string[] | null {
   return Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, careProfileId)

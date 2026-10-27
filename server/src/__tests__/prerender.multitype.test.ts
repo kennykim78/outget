@@ -245,3 +245,31 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
     for (const id of [A, B]) expect(cardOf(fam.html, id)).toBe(cardOf(pick, id));
   });
 });
+
+describe('QA118 D1 — 구성안 0개 타입은 /setup 링크를 내지 않는다(404 방지)', () => {
+  const seed = promotedTwo();
+  // 두 번째 타입의 구성안만 메모리에서 제거(골든은 그대로 — 대조군).
+  seed.setupBundles = seed.setupBundles.filter((x) => x.id !== SECOND.bundleId);
+  const b = build(seed);
+  const paths = new Set(b.pages.map((p) => p.route.path));
+
+  it('구성안 0 → /setup 경로 미생성, 타입 페이지(및 레이어 부모)에 /setup href 0', () => {
+    expect(b.model.types.find((t) => t.id === B)?.bundles.length).toBe(0);
+    expect(paths.has(`/${SECOND.slug}/setup`)).toBe(false);
+    for (const p of typePages(b, B)) expect(p.html, p.route.path).not.toContain(`href="/${SECOND.slug}/setup"`);
+    // now 레일 자체는 남는다(전체 › 만 빠짐).
+    expect(pageAt(b, `/${SECOND.slug}`).html).toContain('id="ws-now"');
+  });
+
+  it('대조: 구성안 있는 골든은 now 전체 ›·구성안 › 둘 다 /setup 링크 + 경로 존재', () => {
+    expect(paths.has('/hamster/golden/setup')).toBe(true);
+    const html = pageAt(b, '/hamster/golden').html;
+    expect(html.split('href="/hamster/golden/setup"').length - 1).toBeGreaterThanOrEqual(2);
+  });
+
+  it('전 페이지: */setup href 는 모두 생성된 경로를 가리킨다', () => {
+    for (const p of b.pages) {
+      for (const m of p.html.matchAll(/href="(\/[^"#?]*\/setup)"/g)) expect(paths.has(m[1]), `${p.route.path} → ${m[1]}`).toBe(true);
+    }
+  });
+});

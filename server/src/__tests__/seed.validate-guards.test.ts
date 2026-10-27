@@ -3,8 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SeedBundle } from '../engine/index.js';
-import { SEED_FILES, type RawSeed, type Rec, type SeedKey } from '../seed/common.js';
+import { createCatalog, listResolvedRequirements, type SeedBundle } from '../engine/index.js';
+import { SEED_FILES, asSeedBundle, type RawSeed, type Rec, type SeedKey } from '../seed/common.js';
 import { readSeedDirRaw } from '../seed/read.js';
 import { isDomesticDomain } from '../seed/validate-review.js';
 import { REQUIRED_ITEMS_BY_PROFILE, TRIVIAL_LEGAL_GENERA, genusOf, isLegalTrivial, isTaxonLegallyTrivial } from '../seed/validate-gates.js';
@@ -189,6 +189,94 @@ describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K
   });
 });
 
+/** 기니피그를 메모리에서 ACTIVE + 체인(타입·사육 프로필·REQUIRED 요구사항 전부(필수 6 + carrier)·용품) VERIFIED 로 — 디스크 시드는 DRAFT 그대로. */
+const GP_FIXED = ['bedding', 'cage', 'food', 'hay', 'hideout', 'water'];
+const guineaPigActive = (): Required<RawSeed> => {
+  const s = fresh();
+  const at = row(s, 'animalTypes', 'guinea-pig');
+  at.status = 'ACTIVE';
+  verify(at, 'EXPERIENCED_KEEPER');
+  verify(row(s, 'careProfiles', 'cp-guineapig'), 'EXPERIENCED_KEEPER');
+  for (const r of s.supplyRequirements as Rec[]) {
+    if (r.careProfileId !== 'cp-guineapig' || r.priority !== 'REQUIRED') continue;
+    verify(r, 'VET_PUBLISHED_SOURCE');
+    verify(row(s, 'supplyItems', r.supplyItemId as string), 'EXPERIENCED_KEEPER');
+  }
+  return s;
+};
+
+describe('기니피그 ACTIVE 전 게이트(QA118 X01·X02)', () => {
+  it('X01 집합: cp-guineapig = cage·food·water·bedding·hideout·hay(쳇바퀴 없음), 동결', () => {
+    expect([...REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']].sort()).toEqual(GP_FIXED);
+    expect(REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']).not.toContain('wheel');
+    expect(Object.isFrozen(REQUIRED_ITEMS_BY_PROFILE['cp-guineapig'])).toBe(true);
+  });
+
+  it('실시드 16행이 집합을 충족: 각 항목에 cp-guineapig 요구사항 행이 있고 priority REQUIRED(해석 전·후)', () => {
+    const rows = (BASE.supplyRequirements as Rec[]).filter((r) => r.careProfileId === 'cp-guineapig');
+    expect(rows.length).toBe(16);
+    for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']) {
+      const r = rows.find((x) => x.supplyItemId === id);
+      expect(r, id).toBeDefined();
+      expect(r?.priority, id).toBe('REQUIRED');
+    }
+    expect(rows.some((x) => x.supplyItemId === 'wheel')).toBe(false);
+    // 해석 후(SupplyItem 기본 → 요구사항 → careOverrides)도 REQUIRED — resolveRequirement 단일 경로로 확인.
+    const cat = createCatalog(asSeedBundle(BASE));
+    const resolved = new Map(listResolvedRequirements(cat, 'guinea-pig').map((r) => [r.supplyItemId, r.priority]));
+    for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']) expect(resolved.get(id), id).toBe('REQUIRED');
+  });
+
+  it('메모리 ACTIVE + REQUIRED 체인 VERIFIED → X01 0(기니피그) · X02 0(Cavia 미검수 Taxon, 자명)', () => {
+    const res = validateSeed(guineaPigActive(), { now: NOW });
+    expect(errs(res, 'X01').filter((i) => i.id === 'guinea-pig')).toEqual([]);
+    expect(errs(res, 'X02').filter((i) => i.id === 'guinea-pig')).toEqual([]);
+    expect(row(BASE, 'taxa', 'cavia-porcellus').reviewStatus).not.toBe('VERIFIED');
+  });
+
+  it('메모리 ACTIVE + 건초(hay) 행 DRAFT 로 되돌림 → X01 requirements.hay', () => {
+    const s = guineaPigActive();
+    Object.assign(row(s, 'supplyRequirements', 'req-guineapig-hay'), { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+    const x = errs(validateSeed(s, { now: NOW }), 'X01').filter((i) => i.id === 'guinea-pig');
+    expect(x.map((i) => i.path)).toEqual(['requirements.hay']);
+  });
+
+  // QA122 LOW-3: 위 DRAFT 테스트는 일반 REQUIRED 체인 검사로도 잡혀 집합의 hay 를 빼도 통과한다.
+  //   hay 행을 VERIFIED 그대로 두고 priority 만 낮추면 '필수 항목 집합'만 잡는다 — 집합에서 hay 를 빼면 이 테스트가 실패한다.
+  for (const lowered of ['RECOMMENDED', 'OPTIONAL', 'NOT_NOW']) {
+    it(`M-1(기니피그): VERIFIED 건초(hay) 행 priority REQUIRED → ${lowered} → X01 requirements.hay (집합 기반)`, () => {
+      const s = guineaPigActive();
+      const hay = row(s, 'supplyRequirements', 'req-guineapig-hay');
+      expect(hay.reviewStatus).toBe('VERIFIED');
+      hay.priority = lowered;
+      const x = errs(validateSeed(s, { now: NOW }), 'X01').filter((i) => i.id === 'guinea-pig');
+      expect(x.map((i) => i.path)).toEqual(['requirements.hay']);
+    });
+  }
+
+  it('M-1(기니피그): careOverrides 로 hay 를 RECOMMENDED 로 낮춰도 X01 requirements.hay', () => {
+    const s = guineaPigActive();
+    const at = row(s, 'animalTypes', 'guinea-pig');
+    const prev = (at.careOverrides as Rec | null | undefined) ?? {};
+    at.careOverrides = { ...prev, requirements: { ...((prev.requirements as Rec | undefined) ?? {}), hay: { priority: 'RECOMMENDED' } } };
+    const x = errs(validateSeed(s, { now: NOW }), 'X01').filter((i) => i.id === 'guinea-pig');
+    expect(x.map((i) => i.path)).toEqual(['requirements.hay']);
+  });
+
+  it('X02: 기니피그 ACTIVE + 미검수 Taxon cites true 주입 → X02(Cavia 라도 불리언이 자명이 아니면 차단)', () => {
+    const s = guineaPigActive();
+    (row(s, 'taxa', 'cavia-porcellus').legal as Rec).cites = true;
+    const x = errs(validateSeed(s, { now: NOW }), 'X02');
+    expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['guinea-pig taxonId']);
+  });
+
+  it('isTaxonLegallyTrivial: 실시드 Cavia porcellus legal → true', () => {
+    const t = row(BASE, 'taxa', 'cavia-porcellus');
+    expect(genusOf(t.scientificName)).toBe('Cavia');
+    expect(isTaxonLegallyTrivial(t)).toBe(true);
+  });
+});
+
 describe('V08 — FOOD/HEALTH VERIFIED 국내 출처 1개 이상(G-3)', () => {
   it('isDomesticDomain: .kr·.한국(punycode) 만', () => {
     expect(isDomesticDomain('snu.ac.kr')).toBe(true);
@@ -254,8 +342,8 @@ describe('X02 — ACTIVE 타입 Taxon 미검수 ∧ 법 판단 필요(M-1, 제�
     expect(isLegalTrivial(null)).toBe(false);
   });
 
-  it('M-2 genusOf·isTaxonLegallyTrivial: 허용목록 속(Mesocricetus·Phodopus) ∧ 불리언 자명만', () => {
-    expect(TRIVIAL_LEGAL_GENERA).toEqual(['Mesocricetus', 'Phodopus']);
+  it('M-2 genusOf·isTaxonLegallyTrivial: 허용목록 속(Mesocricetus·Phodopus·Cavia) ∧ 불리언 자명만', () => {
+    expect(TRIVIAL_LEGAL_GENERA).toEqual(['Mesocricetus', 'Phodopus', 'Cavia']);
     expect(Object.isFrozen(TRIVIAL_LEGAL_GENERA)).toBe(true);
     expect(genusOf('Mesocricetus auratus')).toBe('Mesocricetus');
     expect(genusOf('Phodopus')).toBe('Phodopus');
