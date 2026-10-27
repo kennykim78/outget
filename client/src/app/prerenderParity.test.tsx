@@ -320,6 +320,67 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
     expect(after.texts).toEqual(before.texts);
   });
 
+  // 114 FE-gp-schema(기니피그 S5, 계획 107): L5 폼 필드 목록·'· 선택' 표시가 프리렌더 = 하이드레이션 후(visibleSpecFields·isFieldOptionalForDisplay 공용).
+  //   React 는 숫자 칸을 먼저 묶어 그리므로(SpecForm) 순서가 아닌 키 집합 + 키별 '선택' 표시로 비교한다.
+  //   ruleScoped 6개(floorType·dustFree·forSpecies·baseType·vitaminC·entrances)는 골든·드워프 규칙이 참조하지 않아 양쪽 모두 미노출.
+  const RULE_SCOPED_NEW = ['floorType', 'dustFree', 'forSpecies', 'baseType', 'vitaminC', 'entrances'];
+  type FieldMark = [key: string, optional: boolean];
+  const sortMarks = (m: FieldMark[]): FieldMark[] => [...m].sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0));
+  function staticL5(): FieldMark[] {
+    const form = document.querySelector('aside[data-ws-layer="L5"] form.ws-check');
+    expect(form).not.toBeNull();
+    return Array.from((form as Element).querySelectorAll('div.ws-field')).map((d) => {
+      const named = d.querySelector('[name]');
+      expect(named).not.toBeNull();
+      return [(named as Element).getAttribute('name') ?? '', d.querySelector('.ws-optional') !== null];
+    });
+  }
+  function reactL5(): FieldMark[] {
+    const forms = document.querySelectorAll('[data-ws-spec-form]');
+    expect(forms).toHaveLength(1);
+    return Array.from(forms[0].querySelectorAll('[data-ws-field]')).map((el) => [el.getAttribute('data-ws-field') ?? '', el.querySelector('.ws-spec-optional') !== null]);
+  }
+  const l5Paths = (from: SiteLite, prefix: string): string[] =>
+    from.pages.map((p) => p.route.path).filter((x) => x.startsWith(`${prefix}/check/`));
+
+  it('L5 대상 경로가 있다(골든·드워프 — 0개면 아래 패리티가 공회전)', () => {
+    // 승격 픽스처(골든)는 cage·wheel 만 노출, 드워프 미리보기는 전 요구사항(cage·bedding·food·hideout 포함 — ruleScoped 6개 전부 스키마에 있음).
+    expect(l5Paths(site, '/hamster/golden')).toEqual(expect.arrayContaining(['/hamster/golden/check/cage', '/hamster/golden/check/wheel']));
+    expect(l5Paths(dwarfSite, '/hamster/dwarf')).toEqual(
+      expect.arrayContaining(['/hamster/dwarf/check/cage', '/hamster/dwarf/check/bedding', '/hamster/dwarf/check/food', '/hamster/dwarf/check/hideout']),
+    );
+  });
+
+  it.each([
+    ['promoted', '/hamster/golden', ['floorType']],
+    ['dwarf', '/hamster/dwarf', RULE_SCOPED_NEW],
+  ] as const)('L5 폼 필드·선택 표시: 프리렌더 = 하이드레이션 후 (%s %s 의 모든 /check/*)', (which, prefix, scopedInSchemas) => {
+    const from = which === 'dwarf' ? dwarfSite : site;
+    const paths = l5Paths(from, prefix);
+    let total = 0;
+    const scopedSeen = new Set<string>(); // 숨김 단언이 공회전하지 않게 — 실제 스키마에 ruleScoped 로 있는 키
+    for (const path of paths) {
+      const p = pageAt(path, from);
+      loadStatic(p);
+      const itemId = path.slice(path.lastIndexOf('/') + 1);
+      const req = readPageData(document)?.data.requirements.find((r) => r.supplyItemId === itemId);
+      expect(req).toBeDefined();
+      for (const f of req?.item.specSchema.fields ?? []) if (f.ruleScoped === true) scopedSeen.add(f.key);
+      const before = staticL5();
+      hydrate(p);
+      const after = reactL5();
+      expect({ path, fields: sortMarks(after) }).toEqual({ path, fields: sortMarks(before) });
+      for (const k of RULE_SCOPED_NEW) expect({ path, shown: before.some(([x]) => x === k) }).toEqual({ path, shown: false });
+      total += before.length;
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+    }
+    expect(total).toBeGreaterThan(0);
+    expect([...scopedInSchemas].filter((k) => !scopedSeen.has(k))).toEqual([]);
+  });
+
   // 허용 목록이 썩지 않게 — 위 케이스들이 먼저 돈다(파일 내 순차). 더 이상 나타나지 않는 항목은 지운다.
   it('허용 목록 항목은 모두 실제로 쓰인다', () => {
     expect(ALLOWED.filter((_, i) => !allowedHits.has(i)).map((a) => a.why)).toEqual([]);

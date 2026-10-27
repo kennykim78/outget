@@ -4,16 +4,20 @@ import { COPY, GLYPH } from '@ws/copy';
 import {
   findField,
   hasCompleteOptionLabels,
+  isFieldOptionalForDisplay,
   optionLabel,
   splitLabel,
   worstVerdict,
   type CompatVerdict,
   type EngineCatalog,
   type Reason,
+  type RuleSet,
   type SpecCheckResult,
+  type SpecField,
   type SpecSchema,
   type SpecValue,
   type Verdict,
+  visibleSpecFields,
 } from '@ws/engine';
 import type { CageV1 } from '../context/cageStore';
 import { CAGE_ITEM_ID } from '../context/cageStore';
@@ -133,15 +137,31 @@ export function cageSummary(cage: CageV1, schema: SpecSchema | null): string {
   return typeLabel ? `${dims} · ${typeLabel}` : dims;
 }
 
-/** 폼에 그릴 필드: 라벨이 불완전한 enum 은 그리지 않는다(스펙22 §4-3 — 엔진은 값 없음 → CHECK). */
-export function formFields(schema: SpecSchema) {
-  return (Array.isArray(schema?.fields) ? schema.fields : []).filter(hasCompleteOptionLabels);
+/** 폼이 기준으로 삼는 해석된 규칙(ws-data 요구사항의 minSpec·recommendedSpec). 없으면 규칙 0 — ruleScoped 필드는 전부 숨는다(fail-closed). */
+export interface FormRules {
+  minSpec?: RuleSet | null;
+  recommendedSpec?: RuleSet | null;
 }
 
-/** 폼 문자열 → 엔진 입력. 빈 값은 넣지 않는다(엔진 MISSING → CHECK). 범위 검증은 엔진만(D-44). */
-export function toSpecInput(schema: SpecSchema, raw: Readonly<Record<string, string>>): Record<string, SpecValue> {
+const NO_RULES: RuleSet = { rules: [] };
+
+/**
+ * 폼에 그릴 필드 — 프리렌더 L5(server prerender/pages/type.ts layerL5)와 같은 목록:
+ *   visibleSpecFields(ruleScoped 는 해석된 min·rec 규칙이 참조할 때만) → 라벨이 불완전한 enum 제외(스펙22 §4-3 — 엔진은 값 없음 → CHECK).
+ */
+export function formFields(schema: SpecSchema, rules: FormRules = {}): SpecField[] {
+  return visibleSpecFields(schema, rules.minSpec ?? NO_RULES, rules.recommendedSpec ?? NO_RULES).filter(hasCompleteOptionLabels);
+}
+
+/** 라벨 뒤 " · 선택" 표시 여부 — 엔진 단일 판정(isFieldOptionalForDisplay, 프리렌더와 같음). minSpec 이 참조하면 표시 안 함. */
+export function showOptionalMark(field: SpecField, rules: FormRules = {}): boolean {
+  return isFieldOptionalForDisplay(field, rules.minSpec ?? NO_RULES);
+}
+
+/** 폼 문자열 → 엔진 입력. 빈 값은 넣지 않는다(엔진 MISSING → CHECK). 범위 검증은 엔진만(D-44). 폼에 없는 필드 값은 버린다. */
+export function toSpecInput(schema: SpecSchema, raw: Readonly<Record<string, string>>, rules: FormRules = {}): Record<string, SpecValue> {
   const out: Record<string, SpecValue> = {};
-  for (const f of formFields(schema)) {
+  for (const f of formFields(schema, rules)) {
     const s = (raw[f.key] ?? '').trim();
     if (s === '') continue;
     if (f.type === 'number') {

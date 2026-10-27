@@ -13,6 +13,7 @@ import {
   listResolvedRequirements,
   optionLabel,
   parseExpr,
+  referencedSpecKeys,
   type SpecValues,
 } from '../engine/index.js';
 import { asRec, asSeedBundle, isNonEmptyStr, type RawSeed } from './common.js';
@@ -152,6 +153,34 @@ export function checkOptionLabels(ctx: Ctx, raw: RawSeed): void {
         continue;
       }
       ctx.out.warn('W-OPTLABEL', 'supplyItems', item.id, path, `라벨 없는 enum 값(화면에 표시되지 않는다): ${missing.join(', ')}`);
+    }
+  }
+}
+
+/**
+ * W-RULESCOPED(기니피그 S5, 계획 107) — ruleScoped 필드는 요구사항 규칙이 참조할 때만 L5 에 보인다(visibleSpecFields).
+ *   어떤 요구사항도(시드 행 minSpec·recommendedSpec + 모든 AnimalType 의 해석 후 규칙 — careOverrides 포함, 노출 여부 무관,
+ *   key·when key) 참조하지 않는 ruleScoped 필드는 어디에도 보이지 않는다 → WARN(필드당 1건). 게이트가 아니라 정리 신호.
+ */
+export function checkRuleScoped(ctx: Ctx, raw: RawSeed): void {
+  const bundle = asSeedBundle(raw);
+  const cat = createCatalog(bundle);
+  /** itemId → 참조된 필드 키. */
+  const refs = new Map<string, Set<string>>();
+  const add = (itemId: string, keys: Set<string>): void => {
+    const cur = refs.get(itemId) ?? new Set<string>();
+    for (const k of keys) cur.add(k);
+    refs.set(itemId, cur);
+  };
+  for (const r of bundle.supplyRequirements) add(r.supplyItemId, referencedSpecKeys(r.minSpec, r.recommendedSpec));
+  for (const at of bundle.animalTypes) {
+    for (const r of listResolvedRequirements(cat, at.id)) add(r.supplyItemId, referencedSpecKeys(r.minSpec, r.recommendedSpec));
+  }
+  for (const item of bundle.supplyItems) {
+    const fields = Array.isArray(item.specSchema?.fields) ? item.specSchema.fields : [];
+    for (const f of fields) {
+      if (f.ruleScoped !== true || refs.get(item.id)?.has(f.key)) continue;
+      ctx.out.warn('W-RULESCOPED', 'supplyItems', item.id, `specSchema.${f.key}`, 'ruleScoped 필드를 참조하는 요구사항 규칙이 없다(L5 어디에도 표시되지 않는다)');
     }
   }
 }

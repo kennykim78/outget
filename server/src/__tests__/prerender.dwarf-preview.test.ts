@@ -144,10 +144,11 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
 
   // R7-B 발견(v1 ws-data 33.9~34.0KB, 44쪽 > 32KB) → 계획 73 ws-data 와이어 v2(engine/ws-wire: searchLinks 제거 + 출처 표)로 해소.
   //   wsDataBytes = HTML 에 실린 와이어 바이트. 상한(cli.ts WS_DATA_MAX_BYTES 32KB)은 그대로, 여유 목표 = 최대 < 24KB.
-  it('ws-data 상한 — 와이어 v2 기준 초과 페이지 0, 최대 < 24KB', () => {
+  it('ws-data 상한 — 와이어 v2 기준 초과 페이지 0, 최대 < 28KB(경고선)', () => {
     const over = b.pages.filter((p) => p.wsDataBytes > WS_DATA_MAX_BYTES).map((p) => p.route.path);
     expect(over).toEqual([]);
-    // BE92: 사료 요구사항이 모든 드워프 페이지 ws-data 에 실려 최대 약 24.7KB → 여유 목표 24KB → 26KB(경고 28KB·상한 32KB 그대로) — 오케스트레이터 확인 대상.
-    expect(Math.max(...b.pages.map((p) => p.wsDataBytes))).toBeLessThan(26 * 1024);
+    // BE92: 사료 요구사항이 모든 드워프 페이지 ws-data 에 실려 최대 약 24.7KB → 여유 목표 24KB → 26KB.
+    // 기니피그 S3(decisions 2026-10-27 'S2 크기 실측 수용', 오케스트레이터): 스키마 확장 +약 1.2KB → 단언을 경고선 28KB(28,672B)로. 상한 32KB 불변.
+    expect(Math.max(...b.pages.map((p) => p.wsDataBytes))).toBeLessThan(28 * 1024);
   });
 });

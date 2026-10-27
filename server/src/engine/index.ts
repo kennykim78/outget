@@ -11,10 +11,13 @@ export {
   evaluateRuleSet,
   findField,
   hasCompleteOptionLabels,
+  isFieldOptionalForDisplay,
   optionLabel,
   readSpecValue,
+  referencedSpecKeys,
   sanitizeSpecValues,
   splitLabel,
+  visibleSpecFields,
   worstVerdict,
 } from './rules.js';
 export type { RuleKind, SpecRead } from './rules.js';

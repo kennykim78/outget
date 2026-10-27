@@ -83,6 +83,49 @@ export function hasCompleteOptionLabels(field: SpecField): boolean {
   return field.type !== 'enum' || field.options.every((o) => optionLabel(field, o) !== null);
 }
 
+/** 규칙 집합이 참조하는 필드 키(규칙 key + when key). 형태가 깨진 규칙 집합·조건은 건너뛴다(참조 0). */
+export function referencedSpecKeys(...ruleSets: readonly (RuleSet | null | undefined)[]): Set<string> {
+  const keys = new Set<string>();
+  for (const rs of ruleSets) {
+    const rules: unknown = rs && typeof rs === 'object' ? (rs as { rules?: unknown }).rules : undefined;
+    if (!Array.isArray(rules)) continue;
+    for (const rule of rules as unknown[]) {
+      if (!rule || typeof rule !== 'object') continue;
+      const { key, when } = rule as { key?: unknown; when?: unknown };
+      if (typeof key === 'string') keys.add(key);
+      if (!Array.isArray(when)) continue;
+      for (const c of when as unknown[]) {
+        const k = c && typeof c === 'object' ? (c as { key?: unknown }).key : undefined;
+        if (typeof k === 'string') keys.add(k);
+      }
+    }
+  }
+  return keys;
+}
+
+/**
+ * L5 폼에 보일 필드(기니피그 S5, 계획 107 — client·prerender 공용 단일 헬퍼). 순수·결정론, 스키마 순서 유지.
+ *   ruleScoped !== true 필드는 그대로, ruleScoped === true 필드는 해석된 minSpec·recommendedSpec 의 규칙 key 또는
+ *   when key 가 참조할 때만 남긴다. optionLabels 완전성(hasCompleteOptionLabels)은 호출부가 따로 거른다.
+ *   스키마가 깨졌으면 빈 배열.
+ */
+export function visibleSpecFields(schema: SpecSchema, minSpec: RuleSet, recommendedSpec: RuleSet): SpecField[] {
+  const fields: unknown = schema && typeof schema === 'object' ? (schema as { fields?: unknown }).fields : undefined;
+  if (!Array.isArray(fields)) return [];
+  const refs = referencedSpecKeys(minSpec, recommendedSpec);
+  return (fields as SpecField[]).filter((f) => f.ruleScoped !== true || refs.has(f.key));
+}
+
+/**
+ * 라벨 뒤 " · 선택" 표시 여부(오케스트레이터 결정 2026-10-27 be-gp-schema(113) 행 — client SpecForm·prerender L5 공용 단일 판정).
+ *   field.optional === true 이고, 해석된 minSpec 의 규칙 key·when key 어디에도 참조되지 않을 때만 true.
+ *   minSpec 이 참조하면 판정에 필요한 값이라 '선택'으로 보이지 않게 한다(recommendedSpec 참조는 판정 필수 아님 — 영향 없음).
+ */
+export function isFieldOptionalForDisplay(field: SpecField, minSpec: RuleSet | null | undefined): boolean {
+  if (!field || field.optional !== true) return false;
+  return !referencedSpecKeys(minSpec).has(field.key);
+}
+
 function showValue(field: SpecField | undefined, v: SpecValue): string {
   if (field?.type === 'number' && typeof v === 'number') return `${v}${splitLabel(field.label).unit}`;
   if (field?.type === 'enum' && typeof v === 'string') return optionLabel(field, v) ?? v;

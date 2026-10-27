@@ -15,13 +15,32 @@
             "LIVING_BOX",
             "WIRE",
             "ACRYLIC",
+            "GLASS_TANK",
+            "GRID_PANEL",
             "OTHER"
           ],
           "optionLabels": {
             "LIVING_BOX": "리빙박스",
             "WIRE": "철망",
             "ACRYLIC": "아크릴 케이지",
+            "GLASS_TANK": "유리 수조",
+            "GRID_PANEL": "조립식 패널(C&C)",
             "OTHER": "기타"
+          }
+        },
+        {
+          "key": "floorType",
+          "label": "바닥 형태",
+          "type": "enum",
+          "options": [
+            "SOLID",
+            "MESH"
+          ],
+          "optional": true,
+          "ruleScoped": true,
+          "optionLabels": {
+            "SOLID": "막힌 바닥",
+            "MESH": "망 바닥(철망·격자)"
           }
         },
         {
@@ -36,7 +55,7 @@
           "label": "바닥 세로(cm)",
           "type": "number",
           "min": 20,
-          "max": 120
+          "max": 200
         },
         {
           "key": "heightCm",
@@ -205,6 +224,11 @@
             "ASPEN",
             "HEMP",
             "CEDAR_PINE",
+            "HAY",
+            "FLEECE",
+            "WOOD_SHAVINGS",
+            "STRAW",
+            "FLUFFY",
             "OTHER"
           ],
           "optionLabels": {
@@ -212,6 +236,11 @@
             "ASPEN": "아스펜",
             "HEMP": "헴프",
             "CEDAR_PINE": "삼나무·소나무",
+            "HAY": "건초",
+            "FLEECE": "플리스 깔개",
+            "WOOD_SHAVINGS": "기타 나무 대팻밥",
+            "STRAW": "짚",
+            "FLUFFY": "솜류",
             "OTHER": "기타"
           }
         },
@@ -219,6 +248,13 @@
           "key": "scented",
           "label": "향 첨가",
           "type": "boolean"
+        },
+        {
+          "key": "dustFree",
+          "label": "무분진(먼지 적음)",
+          "type": "boolean",
+          "optional": true,
+          "ruleScoped": true
         },
         {
           "key": "volumeL",
@@ -383,6 +419,47 @@
           }
         },
         {
+          "key": "forSpecies",
+          "label": "대상 동물",
+          "type": "enum",
+          "options": [
+            "GUINEA_PIG",
+            "RABBIT",
+            "HAMSTER",
+            "MULTI"
+          ],
+          "optional": true,
+          "ruleScoped": true,
+          "optionLabels": {
+            "GUINEA_PIG": "기니피그용",
+            "RABBIT": "토끼용",
+            "HAMSTER": "햄스터용",
+            "MULTI": "여러 동물용"
+          }
+        },
+        {
+          "key": "baseType",
+          "label": "주원료",
+          "type": "enum",
+          "options": [
+            "GRASS",
+            "ALFALFA"
+          ],
+          "optional": true,
+          "ruleScoped": true,
+          "optionLabels": {
+            "GRASS": "티모시·목초 기반",
+            "ALFALFA": "알팔파 기반"
+          }
+        },
+        {
+          "key": "vitaminC",
+          "label": "비타민 C 첨가",
+          "type": "boolean",
+          "optional": true,
+          "ruleScoped": true
+        },
+        {
           "key": "proteinPct",
           "label": "조단백(%)",
           "type": "number",
@@ -451,6 +528,15 @@
           "label": "다중 방",
           "type": "boolean",
           "optional": true
+        },
+        {
+          "key": "entrances",
+          "label": "출입구 수(개)",
+          "type": "number",
+          "min": 1,
+          "max": 4,
+          "optional": true,
+          "ruleScoped": true
         }
       ]
     },

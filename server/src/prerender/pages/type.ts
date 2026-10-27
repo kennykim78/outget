@@ -1,6 +1,6 @@
 // 타입 홈 B(컨텍스트 헤더 + 5섹션, UX §3.1 B) · 구성안(/setup) · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
 //   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 칩. 병원은 /vet 링크만.
-import { PICK_PATH, chipSpecText, hasCompleteOptionLabels, optionLabel, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
+import { PICK_PATH, chipSpecText, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, visibleSpecFields, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { RequirementModel, SiteModel, TypeModel } from '../project.js';
@@ -250,13 +250,15 @@ function numAttr(name: string, v: unknown): string {
 /**
  * L5 규격 확인 — 정적 폼(판정 없음, 하이드레이션 후 활성).
  *   스펙22 §4-3·§4-4: optionLabels 가 불완전한 enum 필드는 렌더하지 않는다(엔진은 값 없음 → CHECK, fail-closed).
- *   specSchema optional 필드는 라벨 뒤 " · 선택"(copy checkLayer.optional).
+ *   specSchema optional 필드는 라벨 뒤 " · 선택"(copy checkLayer.optional) — 단 minSpec 이 참조하면 생략(isFieldOptionalForDisplay, client 와 같은 판정).
+ *   ruleScoped 필드는 해석된 규칙이 참조할 때만 렌더(visibleSpecFields).
  */
 function layerL5(t: TypeModel, r: RequirementModel): string {
-  const all = Array.isArray(r.item.specSchema?.fields) ? r.item.specSchema.fields : [];
+  // 기니피그 S5: ruleScoped 필드는 이 요구사항(해석 후 min·rec)의 규칙이 참조할 때만(visibleSpecFields, client 와 같은 헬퍼).
+  const all = visibleSpecFields(r.item.specSchema, r.pub.minSpec, r.pub.recommendedSpec);
   const fields = all.filter(hasCompleteOptionLabels).map((f) => {
     const id = `ws-f-${f.key}`;
-    const opt = f.optional === true ? `<span class="ws-optional"> · ${h(COPY.checkLayer.optional)}</span>` : '';
+    const opt = isFieldOptionalForDisplay(f, r.pub.minSpec) ? `<span class="ws-optional"> · ${h(COPY.checkLayer.optional)}</span>` : '';
     const label = `<label for="${a(id)}">${h(f.label)}${opt}</label>`;
     if (f.type === 'number') {
       return `${label}<input id="${a(id)}" name="${a(f.key)}" type="number"${numAttr('min', f.min)}${numAttr('max', f.max)} inputmode="decimal">`;

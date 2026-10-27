@@ -85,12 +85,21 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 15 = W-EXPOSURE-ZERO 1 · L03 10(caution 5 + 번들 note 단위 1 + Taxon note 3 + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 21 = W-EXPOSURE-ZERO 1 · W-RULESCOPED 6(기니피그 S3 — 요구사항 S9 전까지 참조 0) · L03 10(caution 5 + 번들 note 단위 1 + Taxon note 3 + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, L03: 10, L05: 4 });
-    expect(res.warnings).toHaveLength(15);
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, 'W-RULESCOPED': 6, L03: 10, L05: 4 });
+    expect(res.warnings).toHaveLength(21);
+    // 기니피그 S3: 새 ruleScoped 필드 6개는 아직 어떤 요구사항도 참조하지 않는다(S9 요구사항 착지 후 줄어든다).
+    expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
+      'bedding.specSchema.dustFree',
+      'cage.specSchema.floorType',
+      'food.specSchema.baseType',
+      'food.specSchema.forSpecies',
+      'food.specSchema.vitaminC',
+      'hideout.specSchema.entrances',
+    ]);
     // BE90: req-dwarf-food caution = Kenny 확정 문장 2문장(2026-10-25 '84 수령') → L03 caution 1문장 경고 1건(경고, 문장 그대로 둔다).
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-food' && i.path === 'caution')).toHaveLength(1);
     // R7-B 드워프 L03 3건 = 패킷 문장 그대로(값 변경 0): Taxon legal.note 2(DRAFT 초안 '제3조' 등) · req-dwarf-hideout why '3곳'(v0.2 5-8 서명).

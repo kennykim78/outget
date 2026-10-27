@@ -25,15 +25,20 @@ import type {
 export type SpecValue = number | boolean | string;
 export type SpecValues = Readonly<Record<string, SpecValue | undefined>>;
 
+/**
+ * ruleScoped(기니피그 S3·S5, 계획 107): true 면 해석된 요구사항의 minSpec·recommendedSpec 규칙(key 또는 when key)이
+ *   이 필드를 참조할 때만 L5 폼에 보인다(visibleSpecFields — client·prerender 공용). 판정 엔진은 이 표지를 보지 않는다.
+ */
 export type SpecField =
-  | { key: string; label: string; type: 'number'; min: number; max: number; optional?: boolean }
-  | { key: string; label: string; type: 'boolean'; optional?: boolean }
+  | { key: string; label: string; type: 'number'; min: number; max: number; optional?: boolean; ruleScoped?: boolean }
+  | { key: string; label: string; type: 'boolean'; optional?: boolean; ruleScoped?: boolean }
   | {
       key: string;
       label: string;
       type: 'enum';
       options: string[];
       optional?: boolean;
+      ruleScoped?: boolean;
       optionLabels?: Record<string, string>;
     };
 

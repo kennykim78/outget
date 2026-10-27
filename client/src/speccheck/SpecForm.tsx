@@ -4,7 +4,7 @@
 import { useId } from 'react';
 import { COPY } from '@ws/copy';
 import { optionLabel, type SpecField, type SpecSchema } from '@ws/engine';
-import { formFields } from './verdictView';
+import { formFields, showOptionalMark, type FormRules } from './verdictView';
 
 export interface SpecFormProps {
   schema: SpecSchema;
@@ -16,15 +16,18 @@ export interface SpecFormProps {
   numberColumns?: 1 | 2 | 3;
   /** 숫자 칸 오류(key → 안내 문구). 있으면 aria-invalid + fail 테두리 + 칸 아래 meta(aria-describedby). L6 범위 밖(DR m-2). */
   errors?: Readonly<Record<string, string>>;
+  /** 해석된 minSpec·recommendedSpec(L5 = ws-data 요구사항). ruleScoped 필드 노출·'선택' 표시가 이것으로 정해진다(프리렌더와 같은 판정). */
+  rules?: FormRules;
 }
 
 const ENUM_RADIO_MAX = 4;
+const NO_FORM_RULES: FormRules = {};
 
-function LabelText({ field }: { field: SpecField }) {
+function LabelText({ field, rules }: { field: SpecField; rules: FormRules }) {
   return (
     <>
       {field.label}
-      {field.optional === true ? <span className="ws-spec-optional">{` · ${COPY.checkLayer.optional}`}</span> : null}
+      {showOptionalMark(field, rules) ? <span className="ws-spec-optional">{` · ${COPY.checkLayer.optional}`}</span> : null}
     </>
   );
 }
@@ -35,9 +38,11 @@ function RadioGroup({
   options,
   value,
   onChange,
+  rules,
 }: {
   name: string;
   field: SpecField;
+  rules: FormRules;
   options: Array<{ value: string; label: string }>;
   value: string;
   onChange(v: string): void;
@@ -45,7 +50,7 @@ function RadioGroup({
   return (
     <fieldset className="ws-spec-field ws-spec-field--choice" role="radiogroup" data-ws-field={field.key}>
       <legend className="ws-t-label ws-spec-label">
-        <LabelText field={field} />
+        <LabelText field={field} rules={rules} />
       </legend>
       <div className="ws-spec-radios">
         {options.map((o) => (
@@ -59,9 +64,9 @@ function RadioGroup({
   );
 }
 
-export default function SpecForm({ schema, values, onChange, disabled = false, numberColumns = 2, errors }: SpecFormProps) {
+export default function SpecForm({ schema, values, onChange, disabled = false, numberColumns = 2, errors, rules = NO_FORM_RULES }: SpecFormProps) {
   const uid = useId();
-  const fields = formFields(schema);
+  const fields = formFields(schema, rules);
   const numbers = fields.filter((f) => f.type === 'number');
   const others = fields.filter((f) => f.type !== 'number');
 
@@ -77,7 +82,7 @@ export default function SpecForm({ schema, values, onChange, disabled = false, n
             return (
               <div key={f.key} className="ws-spec-field" data-ws-field={f.key}>
                 <label htmlFor={id} className="ws-t-label ws-spec-label">
-                  <LabelText field={f} />
+                  <LabelText field={f} rules={rules} />
                 </label>
                 <input
                   id={id}
@@ -112,6 +117,7 @@ export default function SpecForm({ schema, values, onChange, disabled = false, n
               key={f.key}
               name={name}
               field={f}
+              rules={rules}
               value={value}
               onChange={(v) => onChange(f.key, v)}
               options={[
@@ -124,12 +130,12 @@ export default function SpecForm({ schema, values, onChange, disabled = false, n
         if (f.type !== 'enum') return null;
         const options = f.options.map((o) => ({ value: o, label: optionLabel(f, o) ?? '' }));
         if (options.length <= ENUM_RADIO_MAX) {
-          return <RadioGroup key={f.key} name={name} field={f} value={value} onChange={(v) => onChange(f.key, v)} options={options} />;
+          return <RadioGroup key={f.key} name={name} field={f} rules={rules} value={value} onChange={(v) => onChange(f.key, v)} options={options} />;
         }
         return (
           <div key={f.key} className="ws-spec-field" data-ws-field={f.key}>
             <label htmlFor={name} className="ws-t-label ws-spec-label">
-              <LabelText field={f} />
+              <LabelText field={f} rules={rules} />
             </label>
             <select id={name} name={f.key} className="ws-spec-input ws-t-body" value={value} onChange={(e) => onChange(f.key, e.target.value)}>
               <option value="" />

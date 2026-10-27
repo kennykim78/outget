@@ -8,7 +8,7 @@ import type { SpecSchema } from '@ws/engine';
 import { useSaveLinked } from '../save/useSaveLinked';
 import SpecForm from '../speccheck/SpecForm';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
-import { useCage, validateCage, type CageV1 } from './cageStore';
+import { CAGE_TYPES, useCage, validateCage, type CageV1 } from './cageStore';
 import '../styles/speccheck.css';
 
 export interface CageStepProps {
@@ -69,8 +69,17 @@ export function rangeErrors(schema: SpecSchema | null, raw: Readonly<Record<stri
   return out;
 }
 
+/** type 옵션 = schema.options ∩ CAGE_TYPES(L6 저장 계약 밖 값은 노출 안 함 — 저장이 조용히 실패하는 것 방지). */
 function pickSchema(schema: SpecSchema, keys: readonly string[]): SpecSchema {
-  return { fields: keys.flatMap((k) => schema.fields.filter((f) => f.key === k)) };
+  return {
+    fields: keys
+      .flatMap((k) => schema.fields.filter((f) => f.key === k))
+      .map((f) =>
+        f.key === TYPE_KEY && f.type === 'enum'
+          ? { ...f, options: f.options.filter((o) => (CAGE_TYPES as readonly string[]).includes(o)) }
+          : f,
+      ),
+  };
 }
 
 export default function CageStep({ typeId, schema, backLabel, onBack }: CageStepProps) {

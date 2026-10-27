@@ -1,8 +1,20 @@
 // verdictView — 순수 표시 함수(스펙33 §3 표). 판정 계산은 엔진, 여기는 매핑만.
 import { COPY, GLYPH } from '@ws/copy';
-import type { SpecCheckResult, SpecSchema } from '@ws/engine';
+import type { RuleSet, SpecCheckResult, SpecSchema } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
-import { cageSummary, compatMark, overallMark, perRuleVerdicts, productHeadline, productMark, toSpecInput, visibleCompatMark, yearMonth } from './verdictView';
+import {
+  cageSummary,
+  compatMark,
+  formFields,
+  overallMark,
+  perRuleVerdicts,
+  productHeadline,
+  productMark,
+  showOptionalMark,
+  toSpecInput,
+  visibleCompatMark,
+  yearMonth,
+} from './verdictView';
 
 const SCHEMA: SpecSchema = {
   fields: [
@@ -84,6 +96,56 @@ describe('verdictView', () => {
       silent: false,
     });
     expect(toSpecInput(SCHEMA, { diameterCm: '', surface: 'GLASS', silent: 'maybe' })).toEqual({});
+  });
+
+  // 기니피그 S5(계획 107) — 폼 필드 = 프리렌더 L5 와 같은 목록(visibleSpecFields → 라벨 완전성), '· 선택' = 엔진 isFieldOptionalForDisplay.
+  describe('ruleScoped · 선택 표시(be-gp-schema 113 결정)', () => {
+    const RS: SpecSchema = {
+      fields: [
+        { key: 'lengthCm', label: '길이(cm)', type: 'number', min: 1, max: 100 },
+        { key: 'scoped', label: '종 전용', type: 'boolean', optional: true, ruleScoped: true },
+        { key: 'scopedWhen', label: '조건 전용', type: 'enum', options: ['X', 'Y'], optionLabels: { X: '엑스', Y: '와이' }, optional: true, ruleScoped: true },
+        { key: 'scopedRec', label: '권장 전용', type: 'number', min: 0, max: 10, optional: true, ruleScoped: true },
+        { key: 'opt', label: '부가', type: 'number', min: 0, max: 10, optional: true },
+      ],
+    };
+    const EMPTY: RuleSet = { rules: [] };
+    const MIN: RuleSet = {
+      rules: [
+        { key: 'scoped', op: 'eq', value: true, reason: 'r' },
+        { key: 'lengthCm', op: 'gte', value: 10, reason: 'r', when: [{ key: 'scopedWhen', op: 'eq', value: 'X' }] },
+      ],
+    } as RuleSet;
+    const REC: RuleSet = { rules: [{ key: 'scopedRec', op: 'gte', value: 3, reason: 'r' }] } as RuleSet;
+    const keys = (rules?: { minSpec?: RuleSet; recommendedSpec?: RuleSet }) => formFields(RS, rules).map((f) => f.key);
+
+    it('규칙 없음(L6·기본) → ruleScoped 전부 숨김, 일반 필드는 스키마 순서 그대로', () => {
+      expect(keys()).toEqual(['lengthCm', 'opt']);
+      expect(keys({ minSpec: EMPTY, recommendedSpec: EMPTY })).toEqual(['lengthCm', 'opt']);
+    });
+
+    it('minSpec key·when key·recommendedSpec key 가 참조하면 표시(스키마 순서 유지)', () => {
+      expect(keys({ minSpec: MIN, recommendedSpec: EMPTY })).toEqual(['lengthCm', 'scoped', 'scopedWhen', 'opt']);
+      expect(keys({ minSpec: EMPTY, recommendedSpec: REC })).toEqual(['lengthCm', 'scopedRec', 'opt']);
+      expect(keys({ minSpec: MIN, recommendedSpec: REC })).toEqual(['lengthCm', 'scoped', 'scopedWhen', 'scopedRec', 'opt']);
+    });
+
+    it('toSpecInput 은 숨긴 ruleScoped 필드 값을 엔진에 넘기지 않는다(폼과 같은 목록)', () => {
+      const raw = { lengthCm: '12', scoped: 'true', scopedWhen: 'X', scopedRec: '4', opt: '1' };
+      expect(toSpecInput(RS, raw)).toEqual({ lengthCm: 12, opt: 1 });
+      expect(toSpecInput(RS, raw, { minSpec: MIN, recommendedSpec: EMPTY })).toEqual({ lengthCm: 12, scoped: true, scopedWhen: 'X', opt: 1 });
+    });
+
+    it("'· 선택': optional 이고 minSpec(key·when key)이 참조하지 않을 때만 — recommendedSpec 참조는 선택 유지", () => {
+      const f = (k: string) => RS.fields.find((x) => x.key === k)!;
+      const rules = { minSpec: MIN, recommendedSpec: REC };
+      expect(showOptionalMark(f('lengthCm'), rules)).toBe(false); // optional 아님
+      expect(showOptionalMark(f('scoped'), rules)).toBe(false); // minSpec key 참조
+      expect(showOptionalMark(f('scopedWhen'), rules)).toBe(false); // minSpec when key 참조
+      expect(showOptionalMark(f('scopedRec'), rules)).toBe(true); // 권장만 참조 — 판정 필수 아님
+      expect(showOptionalMark(f('opt'), rules)).toBe(true);
+      expect(showOptionalMark(f('scoped'))).toBe(true); // 규칙 없음 → optional 그대로
+    });
   });
 
   it('cageSummary · yearMonth', () => {

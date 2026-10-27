@@ -475,7 +475,8 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(l5).toContain('<input type="radio" name="silent" value="false">아니오</label>');
     expect(l5).not.toMatch(/type="checkbox"|checked/);
     const l5cage = pageOf(b, '/hamster/golden/check/cage');
-    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격(mm)<span class="ws-optional"> · 선택</span></label>');
+    // 114(결정 2026-10-27 be-gp-schema 113 행): optional 이라도 minSpec(when 포함)이 참조하면 '· 선택' 생략 — barGapMm 은 cage minSpec 참조.
+    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격(mm)</label>');
     expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로(cm)</label>');
   });
 

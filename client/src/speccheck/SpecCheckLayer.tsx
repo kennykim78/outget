@@ -77,7 +77,7 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
     if (!ready || !requirement) return;
     setOutcome((o) =>
       o
-        ? { ...o, result: ready.engine.specCheck(typeId, itemId, toSpecInput(requirement.item.specSchema, o.raw), userContext) }
+        ? { ...o, result: ready.engine.specCheck(typeId, itemId, toSpecInput(requirement.item.specSchema, o.raw, requirement), userContext) }
         : o,
     );
   }, [userContext, ready, requirement, typeId, itemId]);
@@ -127,7 +127,7 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
     if (!ready) return;
     let result: SpecCheckResult;
     try {
-      result = ready.engine.specCheck(typeId, itemId, toSpecInput(schema, raw), userContext);
+      result = ready.engine.specCheck(typeId, itemId, toSpecInput(schema, raw, requirement), userContext);
     } catch {
       return; // 카탈로그에 이 요구사항이 없음(공개 범위 밖) — 판정하지 않는다.
     }
@@ -187,7 +187,7 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
               onSubmit();
             }}
           >
-            <SpecForm schema={schema} values={raw} onChange={onChange} disabled={ready === null} />
+            <SpecForm schema={schema} rules={requirement} values={raw} onChange={onChange} disabled={ready === null} />
           </form>
           {cageRule ? (
             <div className="ws-cage-row" data-ws-cage-row={cage ? 'set' : 'empty'}>

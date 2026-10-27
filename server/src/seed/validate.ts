@@ -3,7 +3,7 @@
 import { Collector, type Issue, type RawSeed } from './common.js';
 import { buildCtx, type ValidateOptions } from './context.js';
 import { lintRecord } from './lint.js';
-import { checkExposure, checkExprs, checkOptionLabels, meetsMinSpecFn, type ExposureSummary } from './validate-engine.js';
+import { checkExposure, checkExprs, checkOptionLabels, checkRuleScoped, meetsMinSpecFn, type ExposureSummary } from './validate-engine.js';
 import { checkPublishGates } from './validate-gates.js';
 import { checkPeople } from './validate-people.js';
 import { checkProducts } from './validate-products.js';
@@ -44,6 +44,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   }
   const summary = checkExposure(ctx, raw, !out.issues.some((i) => i.severity === 'ERROR'));
   if (!out.issues.some((i) => i.severity === 'ERROR')) checkOptionLabels(ctx, raw);
+  if (!out.issues.some((i) => i.severity === 'ERROR')) checkRuleScoped(ctx, raw);
   // X01·X02(공개 게이트) — 구조·참조가 온전할 때만 엔진 노출 판정으로.
   if (structurallySound) checkPublishGates(ctx, raw);
 

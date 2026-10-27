@@ -305,6 +305,7 @@ function checkSpecSchema(ctx: Ctx, id: string, r: Rec): void {
     if (map.has(f.key)) return err(`key "${f.key}" 중복`);
     if (!isNonEmptyStr(f.label)) return err('label 이 비었다');
     if (has(f, 'optional') && typeof f.optional !== 'boolean') return err('optional 은 boolean');
+    if (has(f, 'ruleScoped') && typeof f.ruleScoped !== 'boolean') return err('ruleScoped 는 boolean');
     if (f.type === 'number') {
       if (!isFiniteNum(f.min) || !isFiniteNum(f.max)) return err('number 필드는 min/max 숫자 필요');
       if (!(f.min < f.max)) return err(`min(${f.min}) < max(${f.max}) 이어야 한다`);
