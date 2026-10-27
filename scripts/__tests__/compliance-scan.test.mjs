@@ -1241,6 +1241,15 @@ test('C7-SECRET: 주석 속 PEM 헤더도 실패', async () => {
   expectFail(scan(await makeRoot({ source: (s) => { s['scripts/k.mjs'] = src; } })), 'C7-SECRET');
 });
 
+test('C7-SECRET: deploy/ 의 셸 스크립트·확장자 없는 Caddyfile 도 검사(예시 *.example 은 제외)', async () => {
+  const pem = j('# -----BEGIN ', 'OPENSSH PRIVATE KEY-----\n');
+  for (const f of ['deploy/deploy.sh', 'deploy/Caddyfile', 'deploy/compose.yaml']) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[f] = pem; } })), 'C7-SECRET');
+  }
+  const res = scan(await makeRoot({ source: (s) => { s['deploy/server.env.example'] = pem; } }));
+  assert.equal(res.json.findings.filter((x) => x.rule === 'C7-SECRET').length, 0);
+});
+
 test('C7-SECRET: git 추적 .env', async () => {
   const root = await makeRoot();
   writeFileSync(join(root, 'server', '.env'), 'X=1\n');

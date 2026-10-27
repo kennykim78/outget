@@ -1,0 +1,3 @@
+# deploy.sh 설정 — 서버 /opt/withsmall/deploy.conf(root 소유 0644, 시크릿 아님). bootstrap.sh --image-repo 가 만든다.
+#   GHCR 이미지 저장소(소문자). 태그는 deploy.sh 인자 sha-<12>.
+WS_IMAGE_REPO=ghcr.io/__OWNER__/__REPO__

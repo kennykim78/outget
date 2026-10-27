@@ -1,0 +1,66 @@
+# WithSmall 운영 compose(내부 테스트). 배포 위치: /opt/withsmall/compose.yaml — 상대 경로는 이 파일 기준.
+#   이미지 태그는 deploy.sh 가 state/image.env(WS_IMAGE=ghcr.io/<owner>/<repo>:sha-<12>)로만 바꾼다.
+#   시크릿은 server.env·caddy.env(0600, 저장소 밖)에서만. 이 파일에 값 없음.
+#   로그: journald(bootstrap.sh 가 7일·500M 보관) — 앱·Caddy 모두 IP·요청 주소를 남기지 않는다(docs/ops/deploy.md 7절).
+#   불변식 ④ 결제 없음 · ⑧ 위치 저장 없음 — 이 구성은 두 컨테이너(app·caddy)뿐.
+name: withsmall
+
+services:
+  app:
+    image: ${WS_IMAGE:?WS_IMAGE 필요 - deploy.sh 로 기동}
+    restart: unless-stopped
+    env_file:
+      - ./server.env
+    volumes:
+      - ./data:/data
+    # 호스트 포트 없음 — caddy 만 내부 네트워크로 접근한다.
+    expose:
+      - "3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: journald
+      options:
+        tag: withsmall-app
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    # basic_auth 사용자·bcrypt 해시(WS_BASIC_USER·WS_BASIC_HASH). env_file 이어야 한다 — compose 파일 보간에 해시의 $ 가 먹히지 않게.
+    env_file:
+      - ./caddy.env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    logging:
+      driver: journald
+      options:
+        tag: withsmall-caddy
+
+volumes:
+  # 인증서·ACME 계정. 지우면 재발급(발급 한도 주의, 위험 R12).
+  caddy_data:
+  caddy_config:

@@ -18,6 +18,7 @@ import {
   EVENT_LOG_RETENTION_DAYS,
   REACTION_RETENTION_DAYS,
   RETENTION_INTERVAL_MS,
+  SERVER_LOG_RETENTION_DAYS,
   TOMBSTONE_RETENTION_DAYS,
   UNUSED_USER_RETENTION_DAYS,
 } from '../privacy/policy.js';
@@ -31,6 +32,7 @@ export const POLICY_PERIODS = Object.freeze({
   REACTION_RETENTION_DAYS,
   BACKUP_RETENTION_DAYS,
   TOMBSTONE_RETENTION_DAYS,
+  SERVER_LOG_RETENTION_DAYS,
 });
 export type PolicyPeriodName = keyof typeof POLICY_PERIODS;
 
@@ -50,9 +52,8 @@ export type DerivedName = keyof typeof DERIVED;
 export const KENNY_PLACEHOLDERS = Object.freeze([
   'officerName', // K-2 개인정보 보호책임자 실명
   'officerEmail', // K-2 전용 메일
-  'hostingProvider', // K-3 호스팅 사업자
-  'hostingRegion', // K-3 서버 위치(국가·지역)
-  'hostingLogRetention', // K-3 호스팅 접속 기록 보관 기간
+  // K-3 호스팅 사업자·서버 위치·접속 기록은 Kenny 2026-10-27 확정(Oracle Cloud, 일본 도쿄, 웹 접속 기록 없음) — 본문에 직접 쓴다.
+  'hostingContact', // K-3 Oracle 이전받는 자 연락처(제28조의8제2항제3호) — 2026-10-27 신설
   'resendContact', // K-3 이전받는 자 연락처(제28조의8제2항제3호)
   'resendLogRetention', // K-3 Resend 발송 기록 보관 기간(대시보드 확인)
   'effectiveDate', // K-4 시행일 = 공개 배포일
@@ -139,10 +140,11 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
               ['이용 통계', { text: '화면·기능 이름, 고른 친구 종류, 이 기기의 무작위 값, 받은 날짜, 기기에서 보낸 시각, 찾지 못한 동물 이름으로 입력한 검색어', meta: '받는 때: 화면과 기능을 쓸 때' }],
               ['반응 집계', { text: '반응 종류와 대상, 날짜와 IP 주소 앞부분으로 만든 원래 주소를 그대로 남기지 않는 값', meta: '받는 때: 반응을 남길 때' }],
               ['남용 방지', { text: 'IP 주소(서버 메모리에서만 쓰고 저장하지 않아요)', meta: '받는 때: 요청할 때' }],
-              ['서버 접속 기록', { text: 'IP 주소, 요청 시각, 요청 주소(호스팅 사업자가 남겨요)', meta: '받는 때: 사이트에 접속할 때' }],
+              ['서버 오류 기록', { text: '오류가 난 시각과 내용. 메일 보내기에 실패하면 앞 글자만 남기고 가린 이메일 주소가 함께 남아요. IP 주소와 요청 주소는 남기지 않아요.', meta: '받는 때: 서버에 오류가 날 때' }],
             ],
           },
         },
+        { p: '접속한 IP 주소가 담긴 웹 접속 기록은 남기지 않아요.' },
         { p: '이름, 전화번호, 집 주소, 실시간 위치는 받지 않아요.' },
         { p: '검색어에 이메일이나 전화번호 형식이 있으면 받지 않아요. 검색어에 이름 같은 개인정보는 넣지 말아 주세요.' },
         { p: '병원 제보에는 병원 이름·주소·전화번호·진료 동물만 받아요. 제보한 사람의 정보는 받지 않아요.' },
@@ -166,7 +168,8 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
               ['서버 백업', '{policy:BACKUP_RETENTION_DAYS}일이 지난 백업 파일은 정기 정리 때 지워요.'],
               ['삭제 기록', '지운 뒤 {policy:TOMBSTONE_RETENTION_DAYS}일 보관하고, 백업에서 복원한 계정을 다시 지운 경우에는 그날부터 같은 기간을 다시 보관해요. 지운 이메일 주소가 백업에서 되살아나지 않게, 원래 주소를 그대로 남기지 않는 값(해시)으로만 남겨요.'],
               ['남용 방지용 IP 주소', '저장하지 않아요. 서버 메모리에서 짧은 시간 동안만 세요.'],
-              ['서버 접속 기록', '호스팅 사업자가 {{KENNY:hostingLogRetention}} 동안 보관해요.'],
+              ['웹 접속 기록', '남기지 않아요.'],
+              ['서버 오류 기록', '{policy:SERVER_LOG_RETENTION_DAYS}일이 지나면 자동으로 지워요.'],
             ],
           },
         },
@@ -202,7 +205,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             head: ['맡기는 곳', '맡기는 일'],
             rows: [
               ['Resend, Inc.', '저장 연결 링크 메일 보내기'],
-              ['{{KENNY:hostingProvider}}', '서버와 데이터베이스 운영(호스팅)'],
+              ['Oracle Corporation(Oracle Cloud Infrastructure)', '서버와 데이터베이스 운영(호스팅)'],
             ],
           },
         },
@@ -213,7 +216,8 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
       title: '국외 이전',
       legal: '시행령 제31조제1항제2호 · 법 제28조의8제2항',
       blocks: [
-        { p: '저장 연결 링크 메일을 보내려고 이메일 주소를 미국의 메일 발송 서비스로 보내요. 메일 발송을 맡기는 데 필요한 이전이라 아래 내용을 이 처리방침에 공개해요.' },
+        { p: '개인정보는 아래 두 곳으로 국외 이전돼요. 처리를 맡기는 데 필요한 이전이라 아래 내용을 이 처리방침에 공개해요.' },
+        { p: '저장 연결 링크 메일을 보내려고 이메일 주소를 미국의 메일 발송 서비스로 보내요.' },
         {
           ul: [
             '이전 근거: 개인정보 보호법 제28조의8제1항제3호(계약 이행에 필요한 처리위탁, 처리방침 공개)',
@@ -225,7 +229,20 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             '거부 방법과 효과: 이메일 저장을 쓰지 않으면 이전되지 않아요. 이때 준비 내용은 이 기기에만 저장돼요.',
           ],
         },
-        { p: '서버 위치: {{KENNY:hostingRegion}}' },
+        // Kenny 2026-10-27: 호스팅 Oracle Cloud(ap-tokyo-1). 서버에 저장·처리하는 개인정보 전부가 일본 서버에 있다.
+        { p: '서비스 서버와 데이터베이스를 일본 도쿄에 있는 클라우드 서버에서 운영해요. 그래서 서버가 받는 개인정보는 모두 일본으로 이전돼요.' },
+        {
+          ul: [
+            '이전 근거: 개인정보 보호법 제28조의8제1항제3호(계약 이행에 필요한 처리위탁, 처리방침 공개)',
+            "이전하는 항목: 서버가 받는 개인정보 전부('받는 개인정보 항목' 표의 항목)",
+            '이전하는 국가: 일본(도쿄)',
+            '이전 시기와 방법: 사이트를 쓰는 동안 요청할 때마다 암호화된 통신(HTTPS)으로 서버에 보내 저장해요.',
+            '이전받는 곳: Oracle Corporation(Oracle Cloud Infrastructure, 연락처 {{KENNY:hostingContact}})',
+            "이전받는 곳의 이용 목적과 보유 기간: 서버와 데이터베이스 운영(호스팅), 보유 기간은 '보유 기간' 표와 같아요.",
+            '거부 방법과 효과: 이메일 저장과 반응을 쓰지 않으면 그 정보는 이전되지 않아요. 사이트를 쓰면 이용 통계와 남용 방지에 쓰는 정보는 서버로 보내져요.',
+          ],
+        },
+        { p: '서버 위치: 일본(도쿄)' },
       ],
     },
     {

@@ -1,0 +1,153 @@
+# WithSmall 내부 테스트 배포(Oracle Cloud ap-tokyo-1, A1.Flex arm64). 수동 실행만(workflow_dispatch) — Kenny 2026-10-27.
+#   흐름: build-push(GHCR private, sha-<12> 태그, QEMU arm64) → deploy(SSH 강제 명령 deploy-gate.sh → deploy.sh) → 외부 확인(basic_auth 401).
+#   CI 게이트(ci.yml)가 초록인 커밋에서만 실행한다 — build-push 첫 단계가 GitHub API 로 이 커밋(GITHUB_SHA)의 ci.yml 최신 실행이
+#   completed·success 인지 확인하고, 아니면 빌드 전에 멈춘다(QA122 LOW-4). ci.yml 은 pull_request·main push 에서 돈다 → PR 이 열린 커밋이어야 한다.
+#   (이미지 빌드 자체도 프리렌더·seed validate·산출물 컴플라이언스를 다시 돈다.)
+#   시크릿은 GitHub Secrets 에서 env 로만 받는다 — build-arg·로그·저장소에 없음. 빌드 인자는 Variables(공개 값).
+#   Repository Secrets: DEPLOY_SSH_KEY · DEPLOY_HOST · DEPLOY_KNOWN_HOSTS · DEPLOY_USER
+#   Repository Variables: SITE_ORIGIN · WS_INDEXABLE · VITE_NAVER_MAP_CLIENT_ID · TARGET_PLATFORM
+#   environment: 는 쓰지 않는다(비공개 저장소의 Environments 지원은 요금제에 따라 다름 — 저장소 수준 Secrets/Variables 로 충분).
+#   주의: GitHub 는 workflow_dispatch 워크플로 파일이 기본 브랜치(main)에 있어야 실행 버튼·API 를 연다 — docs/ops/deploy.md 8절.
+name: Deploy (internal test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: deploy = 이 커밋을 빌드·배포 / rollback = 서버의 직전 이미지로
+        type: choice
+        options:
+          - deploy
+          - rollback
+        default: deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-internal-test
+  cancel-in-progress: false
+
+jobs:
+  build-push:
+    name: build + push (GHCR)
+    if: inputs.action == 'deploy'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    timeout-minutes: 90
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Require green CI (ci.yml) on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          q='.workflow_runs | sort_by(.created_at) | last | if . == null then "none none" else "\(.status) \(.conclusion // "none")" end'
+          latest="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&per_page=50" --jq "$q")"
+          echo "ci.yml latest run on ${GITHUB_SHA::12}: $latest"
+          if [ "$latest" != "completed success" ]; then
+            echo "ci.yml 이 이 커밋에서 초록이 아니다(없음·진행 중·실패) — PR 로 CI 를 통과시킨 커밋만 배포한다"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Image name and tag
+        id: meta
+        env:
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+        run: |
+          set -eu
+          case "$SITE_ORIGIN" in
+            https://*) ;;
+            *) echo "vars.SITE_ORIGIN 은 https 오리진이어야 한다"; exit 1 ;;
+          esac
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (arm64)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ vars.TARGET_PLATFORM || 'linux/arm64' }}
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          build-args: |
+            SITE_ORIGIN=${{ vars.SITE_ORIGIN }}
+            WS_INDEXABLE=${{ vars.WS_INDEXABLE || '0' }}
+            VITE_NAVER_MAP_CLIENT_ID=${{ vars.VITE_NAVER_MAP_CLIENT_ID }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: deploy (SSH forced command)
+    needs: build-push
+    if: ${{ always() && (needs.build-push.result == 'success' || (inputs.action == 'rollback' && needs.build-push.result == 'skipped')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: SSH key and known_hosts
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run on server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          ACTION: ${{ inputs.action }}
+          TAG: ${{ needs.build-push.outputs.tag }}
+        run: |
+          set -eu
+          if [ "$ACTION" = "deploy" ]; then CMD="deploy $TAG"; else CMD="rollback"; fi
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=20 \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=4 \
+            "$DEPLOY_USER@$DEPLOY_HOST" "$CMD"
+
+      - name: External check (basic_auth 401 expected)
+        env:
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+        run: |
+          set -eu
+          code=000
+          for i in 1 2 3 4 5 6; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/" || true)"
+            [ "$code" = "401" ] && break
+            sleep 5
+          done
+          echo "external status: $code"
+          [ "$code" = "401" ]
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

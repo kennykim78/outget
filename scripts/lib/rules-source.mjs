@@ -597,6 +597,8 @@ export function scanSources(root, ctx, notes) {
     /* 루트 없음은 상위에서 처리 */
   }
   walk(join(root, '.github', 'workflows'), extra);
+  // 배포 구성(deploy/ — compose·Caddyfile·*.sh): 시크릿 패턴(C7)만 해당. 예시(*.example)는 아래에서 건너뛴다(값 0 은 deploy-config.test.mjs).
+  walk(join(root, 'deploy'), extra);
   for (const p of ['client/package.json', 'server/package.json', 'client/index.html', 'client/vite.config.ts']) {
     const abs = join(root, ...p.split('/'));
     if (existsSync(abs)) extra.push(abs);
@@ -607,7 +609,7 @@ export function scanSources(root, ctx, notes) {
     const rel = relPosix(root, abs);
     const ext = extname(abs);
     if (abs.endsWith('.example')) continue;
-    if (ext && !TEXT_EXT.has(ext) && !/^Dockerfile/.test(basename(abs))) continue;
+    if (ext && !TEXT_EXT.has(ext) && !/^Dockerfile/.test(basename(abs)) && !(rel.startsWith('deploy/') && ext === '.sh')) continue;
     let text;
     try {
       text = readFileSync(abs, 'utf8');

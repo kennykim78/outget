@@ -1,2 +1,5 @@
 # 셸 스크립트는 Linux 컨테이너에서 실행 — Windows autocrlf 체크아웃에서도 LF 고정(R6 entrypoint)
 *.sh text eol=lf
+# deploy/ 는 통째로 서버에 복사된다(scp -r deploy) — env 예시·Caddyfile·compose 도 LF 고정.
+#   bootstrap.sh 의 시크릿 채우기는 줄 전체 일치라 CRLF 면 값이 안 채워진다(QA122 MED-2). bootstrap 도 \r 을 벗긴다(이중 방어).
+deploy/** text eol=lf

@@ -20,6 +20,12 @@ export const BACKUP_RETENTION_DAYS = 7;
  *   WS_BACKUP_MAX_AGE_DAYS 는 이 값(=BACKUP_RETENTION_DAYS) 이하만 허용(101 MED-1).
  */
 export const TOMBSTONE_RETENTION_DAYS = 7;
+/**
+ * 서버 오류 기록(컨테이너 stdout/stderr → journald) 7일 — deploy/bootstrap.sh JOURNAL_DAYS(journald MaxRetentionSec)와 같아야 한다
+ *   (패리티: scripts/__tests__/deploy-config.test.mjs). 웹 접속 기록(IP·요청 주소)은 앱·Caddy 모두 남기지 않는다(deploy/Caddyfile).
+ *   앱이 하는 일이 아니라 호스트 설정이 지키는 값 — 정리 작업(retention.ts)은 이 값을 쓰지 않는다.
+ */
+export const SERVER_LOG_RETENTION_DAYS = 7;
 /** 매직 토큰 만료 후 보존. 0 = 만료 즉시 삭제 대상(이메일 담긴 행 최소 보존). */
 export const MAGIC_TOKEN_RETENTION_MS = 0;
 /** 세션 만료·폐기 후 보존. 0 = 즉시 삭제 대상. */
