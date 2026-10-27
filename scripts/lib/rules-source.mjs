@@ -45,6 +45,14 @@ const MAP_HOST_RE = /(?:[a-z0-9*-]+\.)*(?:map\.naver\.com|pstatic\.net)\b/gi;
 /** 매치가 하위 도메인 없는 웹 호스트 map.naver.com 인가 — 앞 글자가 호스트 문자면(위장 'xmap.naver.com' 등) SDK 쪽으로(fail-closed). */
 const isBareWebMapHost = (line, m) => m[0].toLowerCase() === 'map.naver.com' && !/[a-z0-9*.-]/i.test(line.charAt(m.index - 1));
 const SHOP_API_RE = /openapi\.naver\.com/i;
+// 쇼핑 오픈API 호스트 예외(2026-10-27): DEV_SEARCH_CHECK_FILE 에서만, 그 줄의 모든 출현이 정확히 'https://openapi.naver.com/'(소문자,
+//   하위/위장 도메인·포트·userinfo·http 불가). 그 밖의 파일은 전면 금지 유지.
+const SHOP_API_ANY_RE = /[a-z0-9.@:/-]*openapi\.naver\.com[^\s'"`]?/gi;
+function shopApiLineAllowed(rel, line) {
+  if (rel !== DEV_SEARCH_CHECK_FILE) return false;
+  const ms = line.match(SHOP_API_ANY_RE) ?? [];
+  return ms.length > 0 && ms.every((m) => m === 'https://openapi.naver.com/');
+}
 
 const BANNED_LIBS = ['puppeteer', 'puppeteer-core', 'playwright', 'playwright-core', 'cheerio', 'crawlee', 'node-cron', 'undici', 'axios', 'got'];
 const BANNED_SCOPES = ['@playwright/', '@crawlee/', '@puppeteer/'];
@@ -63,7 +71,14 @@ const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/i;
 // C1-FETCH 외부 호스트 허용목록(R6 B4 — Kenny 결정: 메일 공급자 Resend). 호스트 → 허용 파일(정확 경로).
 //   https 만, 호스트 정확 일치(대소문자 구분 — 대문자 표기·하위/상위 도메인은 불허, fail-closed), 포트·userinfo 붙으면 불허.
 //   그 파일 밖에서 같은 호스트로 호출하거나, 그 파일에서 다른 외부 호스트로 호출하면 여전히 FAIL. 상품·외부 사이트 본문·이미지 수집과 무관(불변식 1).
-const FETCH_HOST_ALLOW = Object.freeze({ 'api.resend.com': Object.freeze(['server/src/save/mail.ts']) });
+//   2026-10-27(Kenny: 검색 키워드 실효성 검증 = 네이버 검색 API + 쿠팡 파트너스 API): 개발 전용 도구 한 파일만(CI·빌드·서버 비포함).
+//   결과는 _workspace 에 상품명·카테고리만(가격·판매처·이미지·링크 저장 0) — 상품 수집이 아니라 공식 API 로 검색어 품질만 본다.
+export const DEV_SEARCH_CHECK_FILE = 'scripts/dev/check-search-keywords.mjs';
+const FETCH_HOST_ALLOW = Object.freeze({
+  'api.resend.com': Object.freeze(['server/src/save/mail.ts']),
+  'openapi.naver.com': Object.freeze([DEV_SEARCH_CHECK_FILE]),
+  'api-gateway.coupang.com': Object.freeze([DEV_SEARCH_CHECK_FILE]),
+});
 /** ABS_URL_RE 매치 m(문자열 txt 안)이 허용목록 호출인가. */
 function fetchHostAllowed(rel, txt, m) {
   const files = Object.prototype.hasOwnProperty.call(FETCH_HOST_ALLOW, m[2]) ? FETCH_HOST_ALLOW[m[2]] : null;
@@ -191,7 +206,7 @@ function scanCode(rel, text, ctx) {
 
     // C1-SDK
     codeL.forEach((l, i) => {
-      if (SHOP_API_RE.test(l)) add('C1-SDK', 'FAIL', rel, i + 1, '쇼핑 오픈API 호스트 전면 금지');
+      if (SHOP_API_RE.test(l) && !shopApiLineAllowed(rel, l)) add('C1-SDK', 'FAIL', rel, i + 1, '쇼핑 오픈API 호스트 전면 금지');
       MAP_HOST_RE.lastIndex = 0;
       let mm;
       let sdk = false;

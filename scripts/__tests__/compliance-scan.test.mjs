@@ -560,6 +560,54 @@ test('C1-SDK: 쇼핑 오픈API 호스트 전면 금지(허용 파일 안이어�
   expectFail(scan(await makeRoot({ source: (s) => { s['client/src/map/x.ts'] = src; } })), 'C1-SDK');
 });
 
+// 2026-10-27(Kenny: 검색 키워드 실효성 검증): 쇼핑 오픈API·쿠팡 게이트웨이 호스트는 개발 전용 도구 한 파일에서만.
+const DEV_SEARCH_FILE = 'scripts/dev/check-search-keywords.mjs';
+const COUPANG_GW_HOST = j('api-gate', 'way.coupang.com');
+const devSearchSrc = (naverUrl, coupangUrl) =>
+  j(
+    "export const NAVER = '", naverUrl, "';\n",
+    "export const CP = '", coupangUrl, "';\n",
+    'await ', FETCH, '(NAVER);\n',
+    'await ', FETCH, '(CP);\n',
+    'await ', FETCH, "('", naverUrl, "?query=x');\n",
+  );
+const devOk = () => devSearchSrc(j(HTTPS, OPENAPI_HOST, '/v1/search/shop.json'), j(HTTPS, COUPANG_GW_HOST, '/v2/x'));
+
+test('C1-FETCH·C1-SDK 허용: scripts/dev/check-search-keywords.mjs 의 https 쇼핑 오픈API·쿠팡 게이트웨이 호출 → 통과', async () => {
+  const res = scan(await makeRoot({ source: (s) => { s[DEV_SEARCH_FILE] = devOk(); } }));
+  expectClean(res);
+  assert.ok(!rulesOf(res).includes('C1-FETCH') && !rulesOf(res).includes('C1-SDK'), JSON.stringify(res.json?.findings));
+});
+
+test('허용 밖: 같은 코드가 다른 파일(형제·scripts·server·client·테스트)에 있으면 C1-SDK·C1-FETCH FAIL 유지', async () => {
+  for (const rel of ['scripts/dev/other.mjs', 'scripts/check-search-keywords.mjs', 'scripts/__tests__/check-search-keywords.mjs', 'server/src/x.ts', 'client/src/x.ts', 'e2e/x.ts']) {
+    const res = scan(await makeRoot({ source: (s) => { s[rel] = devOk(); } }));
+    expectFail(res, 'C1-SDK');
+    expectFail(res, 'C1-FETCH');
+  }
+  // 쿠팡 게이트웨이만 있어도 다른 파일이면 C1-FETCH.
+  const cp = j("export const CP = '", HTTPS, COUPANG_GW_HOST, "/v2/x';\nawait ", FETCH, '(CP);\n');
+  expectFail(scan(await makeRoot({ source: (s) => { s['scripts/x.mjs'] = cp; } })), 'C1-FETCH');
+});
+
+test('허용 파일이라도 http·하위/위장 도메인·포트·userinfo·대문자·다른 외부 호스트 → FAIL', async () => {
+  const badNaver = [
+    j('htt', 'p://', OPENAPI_HOST, '/v1'),
+    j(HTTPS, 'x.', OPENAPI_HOST, '/v1'),
+    j(HTTPS, OPENAPI_HOST, '.evil.example/v1'),
+    j(HTTPS, OPENAPI_HOST, ':8443/v1'),
+    j(HTTPS, 'u@', OPENAPI_HOST, '/v1'),
+    j(HTTPS, OPENAPI_HOST.toUpperCase(), '/v1'),
+  ];
+  for (const url of badNaver) {
+    const res = scan(await makeRoot({ source: (s) => { s[DEV_SEARCH_FILE] = devSearchSrc(url, j(HTTPS, COUPANG_GW_HOST, '/v2/x')); } }));
+    assert.equal(res.code, 1, `${url}: ${JSON.stringify(res.json?.findings)}`);
+  }
+  for (const url of [j(HTTPS, 'shop.example/p'), j(HTTPS, 'x.', COUPANG_GW_HOST, '/v2'), j('htt', 'p://', COUPANG_GW_HOST, '/v2')]) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[DEV_SEARCH_FILE] = devSearchSrc(j(HTTPS, OPENAPI_HOST, '/v1'), url); } })), 'C1-FETCH');
+  }
+});
+
 test('C1-SEEDURL: imageAsset 외부 URL', async () => {
   const res = scan(await makeRoot({ seed: (d) => { d['curated-products.json'][0].imageAsset = j(HTTPS, 'cdn.x/a.jpg'); } }));
   expectFail(res, 'C1-SEEDURL');
