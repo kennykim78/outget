@@ -1,0 +1,127 @@
+{
+  "v": 1,
+  "packet": "guinea-pig-core-2026-10",
+  "doc": "docs/planning-artifacts/기니피그-핵심행-확인표.md",
+  "note": "확인표 A·D(☑) → ROW_CHECKED(건초 D1·펠릿 D2 행은 reviewerType VET_PUBLISHED_SOURCE), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-27 조사 _workspace/105_research_guineapig.md(인용 원문 그대로). 케이지 최소 106×61×46cm 막힌 바닥 = 1마리 기준(Kenny 2026-10-27 결정, 값별 하한 2도메인 이상 — decisions.md be-gp-s9 수용). 최소 규격 행(케이지·베딩·갉기 거리)은 연결된 A 항목이 전부 ☑일 때만 서명된다. 패킷 밖(DRAFT 유지): Taxon cavia-porcellus(노출 조건 밖, 확인표에 초안 기록만), 저울 req-guineapig-scale(HEALTH, 국내 출처 없음 V08 — 햄스터 2종과 같이 비노출), 기존 용품 설명 supply-items(cage·bedding·food 등 — 드워프 C 일괄에서 서명, 여기 넣으면 미서명 시 DRAFT로 되돌린다). 새 용품 5종(playpen·hay·hay-rack·nail-clipper·brush)은 C 일괄. 상품(B)은 기니피그 상품이 없어 없음.",
+  "reviewerType": "EXPERIENCED_KEEPER",
+  "rowChecked": [
+    {
+      "file": "supply-requirements.json",
+      "id": "req-guineapig-cage",
+      "items": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-guineapig-bedding",
+      "items": [
+        "A8",
+        "A9",
+        "A10"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-guineapig-chew",
+      "items": [
+        "A11"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-guineapig-hay",
+      "items": [
+        "D1"
+      ],
+      "reviewerType": "VET_PUBLISHED_SOURCE"
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-guineapig-food",
+      "items": [
+        "D2"
+      ],
+      "reviewerType": "VET_PUBLISHED_SOURCE"
+    }
+  ],
+  "bulk": {
+    "item": "C",
+    "rows": [
+      {
+        "file": "animal-types.json",
+        "id": "guinea-pig"
+      },
+      {
+        "file": "care-profiles.json",
+        "id": "cp-guineapig"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "playpen"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "hay"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "hay-rack"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "nail-clipper"
+      },
+      {
+        "file": "supply-items.json",
+        "id": "brush"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-playpen"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-hay-rack"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-water"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-food-bowl"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-hideout"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-tubes"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-nail-clipper"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-brush"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-carrier"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-guineapig-thermo"
+      }
+    ]
+  }
+}

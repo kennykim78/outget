@@ -97,7 +97,7 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
         }
       }
     }
-    expect(n).toBe(2 * 98); // 콘텐츠 8파일 98행 × 2 (BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5)
+    expect(n).toBe(2 * 114); // 콘텐츠 8파일 114행 × 2 (BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16)
   });
   it('해시는 키 순서·optionLabels·검수 메타와 무관, 사실 1글자 변경에는 반응', () => {
     const r = clone(rowOf(realSeed(), 'supplyRequirements', 'req-dwarf-cage'));
@@ -551,5 +551,137 @@ describe('골든 패킷 — 확인표 A·C·D, 패킷 밖 행(저울·구성안�
     const { seed } = signGolden({ ...r, checked: (r.checked as string[]).filter((x) => x !== 'A11') });
     expect(rowOf(seed, 'supplyRequirements', 'req-syrian-cage').reviewStatus).toBe('DRAFT');
     expect(rowOf(seed, 'supplyRequirements', 'req-syrian-wheel').reviewStatus).toBe('VERIFIED');
+  });
+});
+
+// be-gp-s14(2026-10-27): 기니피그 서명 패킷(scripts/review-packets/guinea-pig-core.json) + 확인표(기니피그-핵심행-확인표.md).
+describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED_SOURCE), 패킷 밖(Taxon·저울·기존 용품) DRAFT 유지', () => {
+  type Packet = DwarfPacket & { reviewerType: string };
+  const PACKETS_DIR = join(ROOT, 'scripts', 'review-packets');
+  const GP_PACKET_PATH = join(PACKETS_DIR, 'guinea-pig-core.json');
+  const GP_UNSIGNED_PATH = join(PACKETS_DIR, 'guinea-pig-core.result.unsigned.json');
+  const gpPacket = (): Packet => JSON.parse(readFileSync(GP_PACKET_PATH, 'utf8')) as Packet;
+  const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '기니피그-핵심행-확인표.md'), 'utf8');
+  const signGp = (result: Record<string, unknown>, packet: Packet = gpPacket()) => {
+    const s = clone(realSeed());
+    const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
+    for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
+    return { seed: s, manifest: res.manifest };
+  };
+  const allChecked = (): Record<string, unknown> => {
+    const p = gpPacket();
+    return { format: applyMjs.RESULT_FORMAT, packet: p.packet, signedBy: 'kenny', checkedAt: NOW, checked: [...new Set(p.rowChecked.flatMap((r) => r.items))], bulkSignedAt: NOW };
+  };
+  const bytes = (dir: string): Record<string, string> =>
+    Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
+
+  it('구성: 최소 규격 3행(케이지 A1~A7·베딩 A8~A10·갉기 A11) + 건초 D1·펠릿 D2(VET_PUBLISHED_SOURCE) + C 일괄 17행, 패킷 밖 행 0', () => {
+    const p = gpPacket();
+    expect(p.reviewerType).toBe('EXPERIENCED_KEEPER');
+    expect(Object.fromEntries(p.rowChecked.map((r) => [r.id, r.items]))).toEqual({
+      'req-guineapig-cage': ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'],
+      'req-guineapig-bedding': ['A8', 'A9', 'A10'],
+      'req-guineapig-chew': ['A11'],
+      'req-guineapig-hay': ['D1'],
+      'req-guineapig-food': ['D2'],
+    });
+    expect((p.rowChecked as Array<{ id: string; reviewerType?: string }>).filter((r) => r.reviewerType !== undefined).map((r) => [r.id, r.reviewerType])).toEqual([
+      ['req-guineapig-hay', 'VET_PUBLISHED_SOURCE'],
+      ['req-guineapig-food', 'VET_PUBLISHED_SOURCE'],
+    ]);
+    expect(p.bulk.rows).toHaveLength(17);
+    const ids = [...p.rowChecked, ...p.bulk.rows].map((r) => `${r.file}#${r.id}`);
+    for (const out of ['supply-requirements.json#req-guineapig-scale', 'taxa.json#cavia-porcellus']) expect(ids).not.toContain(out);
+    // 새 용품 5종만 — 기존 용품(드워프 C 일괄 소유)은 넣지 않는다.
+    expect(ids.filter((x) => x.startsWith('supply-items.json#')).sort()).toEqual(['brush', 'hay', 'hay-rack', 'nail-clipper', 'playpen'].map((x) => `supply-items.json#${x}`));
+    expect(ids.filter((x) => x.startsWith('setup-bundles.json#') || x.startsWith('curated-products.json#') || x.startsWith('compatibility-rules.json#'))).toEqual([]);
+    // 기니피그 요구사항 16행 = 패킷 15행 + 저울(패킷 밖)
+    const gpReqs = realSeed().supplyRequirements.filter((r) => r.careProfileId === 'cp-guineapig').map((r) => `supply-requirements.json#${r.id}`);
+    expect(gpReqs).toHaveLength(16);
+    expect(gpReqs.filter((x) => !ids.includes(x))).toEqual(['supply-requirements.json#req-guineapig-scale']);
+    // 최소 규격이 있는 기니피그 요구사항은 전부 ROW_CHECKED 대상(V10 — 일괄 승인 불가)
+    const withMin = realSeed().supplyRequirements.filter((r) => r.careProfileId === 'cp-guineapig' && (r.minSpec?.rules?.length ?? 0) > 0).map((r) => r.id);
+    const rowIds = p.rowChecked.map((r) => r.id);
+    expect(withMin.filter((id) => !rowIds.includes(id))).toEqual([]);
+    // 확인표 A·D 항목 집합 = 패킷 항목 집합, B 상품 없음
+    const docA = [...new Set([...doc().matchAll(/^\| (A\d+) \|/gm)].map((x) => x[1]))].sort();
+    expect(p.rowChecked.flatMap((r) => r.items).filter((x) => x.startsWith('A')).sort()).toEqual(docA);
+    expect([...doc().matchAll(/^\| (D\d-[a-z]) /gm)].map((x) => x[1])).toEqual(['D1-a', 'D1-b', 'D1-c', 'D2-a', 'D2-b', 'D2-c']);
+    expect(doc()).toMatch(/## B\. 상품\r?\n\r?\n- 없음\./);
+  });
+
+  it('패킷끼리 대상 행이 겹치지 않는다(한 패킷의 미서명 결과가 다른 패킷의 서명 행을 DRAFT 로 되돌리지 않게)', () => {
+    const owner = new Map<string, string>();
+    for (const f of readdirSync(PACKETS_DIR).filter((x) => x.endsWith('.json') && !x.includes('.result.'))) {
+      const p = JSON.parse(readFileSync(join(PACKETS_DIR, f), 'utf8')) as Packet;
+      for (const r of [...p.rowChecked, ...p.bulk.rows]) {
+        const k = `${r.file}#${r.id}`;
+        expect([k, owner.get(k)]).toEqual([k, undefined]);
+        owner.set(k, f);
+      }
+    }
+    expect([...owner.values()].filter((f) => f === 'guinea-pig-core.json')).toHaveLength(22);
+  });
+
+  it('미서명 결과 파일 → 대상 22행 DRAFT·매니페스트 0, 디스크 시드와 사실·검수 표기 동일', () => {
+    const unsigned = JSON.parse(readFileSync(GP_UNSIGNED_PATH, 'utf8')) as Record<string, unknown>;
+    const { seed, manifest } = signGp(unsigned);
+    expect(manifest).toEqual([]);
+    expect(seed).toEqual(realSeed());
+  });
+
+  it('전 ☑·C·D1·D2(가짜 결과, 메모리) → 22행 VERIFIED(ROW_CHECKED 5 · AI_RESEARCH_BULK 17), 건초·펠릿만 VET_PUBLISHED_SOURCE, validate errors 0 — Taxon·저울·기존 용품 DRAFT', () => {
+    const { seed, manifest } = signGp(allChecked());
+    expect(manifest).toHaveLength(22);
+    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(['req-guineapig-bedding', 'req-guineapig-cage', 'req-guineapig-chew', 'req-guineapig-food', 'req-guineapig-hay']);
+    for (const id of ['req-guineapig-hay', 'req-guineapig-food']) {
+      const r = rowOf(seed, 'supplyRequirements', id);
+      expect(r).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', reviewBasis: 'ROW_CHECKED', contentKind: 'FOOD' });
+      expect((r.source as Array<{ url: string }>).some((x) => x.url.startsWith('https://koreascience.kr/'))).toBe(true); // V08 국내 출처 K1
+    }
+    const res = run(rawOf(seed), manifest);
+    expect(res.errors).toEqual([]);
+    for (const [key, id] of [['supplyRequirements', 'req-guineapig-scale'], ['taxa', 'cavia-porcellus'], ['supplyItems', 'cage'], ['supplyItems', 'food']] as const) {
+      expect([id, rowOf(seed, key, id).reviewStatus]).toEqual([id, 'DRAFT']);
+    }
+    expect(rowOf(seed, 'animalTypes', 'guinea-pig')).toMatchObject({ reviewStatus: 'VERIFIED', reviewBasis: 'AI_RESEARCH_BULK', status: 'PLANNED' }); // 공개 상태는 서명 대상 아님
+  });
+
+  it('부분 확인: 케이지 A7(법 문장)·베딩 A10(무분진 권장)·펠릿 D2 가 빠지면 그 행만 DRAFT', () => {
+    const r = allChecked();
+    const { seed } = signGp({ ...r, checked: (r.checked as string[]).filter((x) => !['A7', 'A10', 'D2'].includes(x)) });
+    for (const id of ['req-guineapig-cage', 'req-guineapig-bedding', 'req-guineapig-food']) expect([id, rowOf(seed, 'supplyRequirements', id).reviewStatus]).toEqual([id, 'DRAFT']);
+    for (const id of ['req-guineapig-chew', 'req-guineapig-hay']) expect([id, rowOf(seed, 'supplyRequirements', id).reviewStatus]).toEqual([id, 'VERIFIED']);
+  });
+
+  it('D1 ☑ 인데 건초 행 reviewerType 을 EXPERIENCED_KEEPER 로 내리면 → V03(FOOD 최소 VET_PUBLISHED_SOURCE)', () => {
+    const p = gpPacket();
+    const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-guineapig-hay' ? { ...r, reviewerType: 'EXPERIENCED_KEEPER' } : r)) };
+    const { seed, manifest } = signGp(allChecked(), q);
+    expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['req-guineapig-hay']);
+  });
+
+  it('CLI round-trip(임시 사본): 가짜 전 ☑ → seed:validate 0 → 미서명 결과로 되돌리면 원래 바이트', async () => {
+    const seed = tempCopy(SEED_DIR);
+    const draft = tempCopy(DRAFT_DIR);
+    const before = bytes(seed);
+    const beforeDraft = bytes(draft);
+    const resDir = mkdtempSync(join(tmpdir(), 'withsmall-sigres-'));
+    temps.push(resDir);
+    const all = writeJson(resDir, 'gp-all.json', allChecked());
+    const args = ['--packet', GP_PACKET_PATH, '--seed', seed, '--draft', draft, '--now', NOW];
+    const a = applyCli([...args, '--result', all]);
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 5 · AI_RESEARCH_BULK 17');
+    expect(a.code).toBe(0);
+    expect(JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8'))).toHaveLength(22);
+    const v = await validateCli(seed);
+    expect(v.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
+    expect(v.code).toBe(0);
+    expect((await validateCli(draft)).code).toBe(0);
+    expect(equivMjs.compareDirs(seed, draft)).toEqual([]);
+    expect(equivMjs.compareDirs(SEED_DIR, seed).filter((x) => !x.startsWith(SIGNATURE_FILE))).toEqual([]); // 사실 필드 0 변경
+    expect(applyCli([...args, '--result', GP_UNSIGNED_PATH]).code).toBe(0);
+    expect(bytes(seed)).toEqual(before);
+    expect(bytes(draft)).toEqual(beforeDraft);
   });
 });

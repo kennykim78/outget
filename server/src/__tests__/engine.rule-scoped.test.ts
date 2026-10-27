@@ -232,17 +232,26 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     if (!r) throw new Error(`fixture: ${id} 없음`);
     return r as Rec;
   };
+  // 메커니즘 테스트용: S9 기니피그 요구사항(참조 6필드)을 뺀 시드 — 참조 0 상태에서 해소 경로를 본다.
+  const withoutGp = () => {
+    const raw = fresh();
+    raw.supplyRequirements = (raw.supplyRequirements ?? []).filter((x) => (x as Rec).careProfileId !== 'cp-guineapig');
+    return raw;
+  };
   const scopedWarns = (raw: ReturnType<typeof fresh>) =>
     validateSeed(raw, { now: NOW }).warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`);
 
-  it('실시드: 7필드 전부 WARN(ERROR 아님 — S8 playpen.floorType +1)', () => {
+  it('실시드: S9 요구사항 착지 후 playpen.floorType 1필드만 WARN(ERROR 아님)', () => {
     const res = validateSeed(fresh(), { now: NOW });
     expect(res.errors).toEqual([]);
-    expect(scopedWarns(fresh())).toHaveLength(7);
+    expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType']);
+  });
+  it('기니피그 요구사항을 빼면 7필드 전부 WARN(S9 가 6필드 경고를 해소한 출처)', () => {
+    expect(scopedWarns(withoutGp())).toHaveLength(7);
   });
 
   it('요구사항 행의 when key 가 참조하면 그 필드 경고 해소', () => {
-    const raw = fresh();
+    const raw = withoutGp();
     const req = find(raw.supplyRequirements, 'req-syrian-cage') as { recommendedSpec: RuleSet };
     req.recommendedSpec = { rules: [...req.recommendedSpec.rules, { key: 'heightCm', op: 'gte', value: 30, reason: '픽스처', when: [{ key: 'floorType', op: 'eq', value: 'MESH' }] }] };
     expect(scopedWarns(raw)).not.toContain('cage.specSchema.floorType');
@@ -250,7 +259,8 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
   });
 
   it('AnimalType.careOverrides 의 규칙만 참조해도 해소(해석 후 규칙 기준)', () => {
-    const raw = fresh();
+    const raw = withoutGp();
+    expect(scopedWarns(raw)).toContain('hideout.specSchema.entrances');
     const at = find(raw.animalTypes, 'hamster-golden') as { careOverrides: Record<string, unknown> };
     at.careOverrides = { requirements: { hideout: { recommendedSpec: { rules: [{ key: 'entrances', op: 'gte', value: 2, reason: '픽스처' }] } } } };
     expect(scopedWarns(raw)).not.toContain('hideout.specSchema.entrances');

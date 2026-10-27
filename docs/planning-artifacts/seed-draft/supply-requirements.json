@@ -1556,5 +1556,1007 @@
         "accessedAt": "2026-10-24"
       }
     ]
+  },
+  {
+    "id": "req-guineapig-cage",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "cage",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "넓은 바닥을 뛰어다니는 동물이에요. 동물보호법 시행규칙도 마리당 사육공간 기준을 둬요.",
+    "caution": "이 크기는 1마리 기준이에요. 2마리 이상 함께 지내니 한 마리 늘 때마다 넓혀요.",
+    "avoid": "바닥 106×61cm 미만 · 망 바닥(철망·격자) · 유리 수조 · 위까지 막혀 바람이 통하지 않는 수조형 · 케이지 하나만으로 지내는 방식",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "floorWcm",
+          "op": "gte",
+          "value": 106,
+          "reason": "바닥 가로 106cm 미만은 수의 매뉴얼이 1마리에 제시한 최소에 못 미쳐요"
+        },
+        {
+          "key": "floorDcm",
+          "op": "gte",
+          "value": 61,
+          "reason": "바닥 세로 61cm 미만은 1마리 최소 바닥에 못 미쳐요"
+        },
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 46,
+          "reason": "높이 46cm 미만은 수의 매뉴얼이 제시한 높이에 못 미쳐요"
+        },
+        {
+          "key": "floorType",
+          "op": "eq",
+          "value": "SOLID",
+          "reason": "철망·격자 바닥은 발을 다치게 할 수 있어 막힌 바닥이어야 해요"
+        },
+        {
+          "key": "type",
+          "op": "not_in",
+          "value": [
+            "GLASS_TANK"
+          ],
+          "reason": "유리 수조는 바람이 잘 통하지 않아 권하지 않아요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 50,
+          "reason": "독일 수의사 동물보호협회는 높이 50cm 이상을 제시해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 대형 케이지",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/providing-a-home-for-a-guinea-pig",
+        "title": "Providing a Home for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs",
+        "title": "Housing and Nutrition of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-guinea-pig",
+        "title": "The ideal home for your guinea pigs – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/documents/1494939/7712578/P12How+to+take+care+of+your+guinea+pigs.pdf",
+        "title": "How to take care of your guinea pigs – RSPCA (소책자 PDF)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rvc.ac.uk/Media/Default/Beaumont%20Sainsbury%20Animal%20Hospital/documents/caring-for-your-guniea-pig.pdf",
+        "title": "RVC Exotics Service – Guinea Pig Care (caring-for-your-guinea-pig)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/flDownload.do?gubun=&flSeq=159546699&bylClsCd=110201",
+        "title": "동물보호법 시행규칙 [별표 2] 반려동물에 대한 사육ㆍ관리ㆍ보호 의무 (국가법령정보센터)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://koreascience.kr/article/JAKO201156539825696.pdf",
+        "title": "최연식, 「실험동물의 특성, 질병 및 연구 <Guinea Pig>」, 대한수의사회지 2011. 02",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-playpen",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "playpen",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "케이지 밖에서 매일 뛰어다닐 운동 공간이 따로 있으면 좋아요.",
+    "caution": "바닥은 미끄럽지 않은 면으로 깔고 전선은 치워요.",
+    "avoid": "카펫 바닥 · 개·고양이가 드나드는 곳",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "floorWcm",
+          "op": "gte",
+          "value": 183,
+          "reason": "동물복지 단체는 운동 공간 가로 183cm 이상을 제시해요"
+        },
+        {
+          "key": "floorDcm",
+          "op": "gte",
+          "value": 100,
+          "reason": "운동 공간 세로 100cm 이상이 제시돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 울타리 펜스",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-guinea-pig",
+        "title": "The ideal home for your guinea pigs – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/documents/1494939/7712578/P12How+to+take+care+of+your+guinea+pigs.pdf",
+        "title": "How to take care of your guinea pigs – RSPCA (소책자 PDF)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/providing-a-home-for-a-guinea-pig",
+        "title": "Providing a Home for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-hay",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "hay",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "식사의 대부분이 건초예요. 계속 씹어야 장이 움직이고 평생 자라는 이빨이 닳아요.",
+    "caution": "6개월 미만·임신 중이면 알팔파가 필요할 수 있어 병원에 문의해요.",
+    "avoid": "먼지 많은 건초 · 잔디 깎은 풀",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "hayType",
+          "op": "in",
+          "value": [
+            "TIMOTHY",
+            "ORCHARD",
+            "MEADOW"
+          ],
+          "reason": "다 자란 기니피그에는 티모시·오차드·목초 건초가 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 티모시 건초",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/diet",
+        "title": "A healthy diet for guinea pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/your-guinea-pig-s-diet",
+        "title": "Your guinea pig's diet – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs",
+        "title": "Housing and Nutrition of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rvc.ac.uk/Media/Default/Beaumont%20Sainsbury%20Animal%20Hospital/documents/caring-for-your-guniea-pig.pdf",
+        "title": "RVC Exotics Service – Guinea Pig Care (caring-for-your-guinea-pig)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://koreascience.kr/article/JAKO201156539825696.pdf",
+        "title": "최연식, 「실험동물의 특성, 질병 및 연구 <Guinea Pig>」, 대한수의사회지 2011. 02",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-hay-rack",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "hay-rack",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "건초를 바닥에서 띄워 깨끗하고 마르게 둬요.",
+    "caution": "낮게 달아 고개를 들지 않고 먹게 해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "covered",
+          "op": "eq",
+          "value": true,
+          "reason": "안쪽에 다는 거치대는 덮개가 있어야 들어가 끼지 않아요",
+          "when": [
+            {
+              "key": "mount",
+              "op": "eq",
+              "value": "INSIDE"
+            }
+          ]
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 건초 급여기",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-food",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "food",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "비타민 C를 몸에서 만들지 못해 비타민 C를 넣은 전용 펠릿으로 채워요.",
+    "caution": "밀봉해 서늘한 곳에 두고 매일 새로 덜어 줘요.",
+    "avoid": "곡물·씨앗이 섞인 알록달록한 혼합 사료 · 토끼용 펠릿 · 당분 많은 간식",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "form",
+          "op": "not_in",
+          "value": [
+            "MIX"
+          ],
+          "reason": "곡물 혼합 사료는 골라 먹게 돼 피해요"
+        },
+        {
+          "key": "forSpecies",
+          "op": "eq",
+          "value": "GUINEA_PIG",
+          "reason": "토끼용 펠릿은 기니피그에 필요한 비타민 C가 모자라요"
+        },
+        {
+          "key": "vitaminC",
+          "op": "eq",
+          "value": true,
+          "reason": "비타민 C를 몸에서 만들지 못해 먹이로 채워야 해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "baseType",
+          "op": "eq",
+          "value": "GRASS",
+          "reason": "다 자란 기니피그에는 티모시·목초 기반 펠릿이 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 펠릿 비타민C",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/diet",
+        "title": "A healthy diet for guinea pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/your-guinea-pig-s-diet",
+        "title": "Your guinea pig's diet – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/nutritional-problems-of-guinea-pigs",
+        "title": "Nutritional Problems of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs",
+        "title": "Housing and Nutrition of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rvc.ac.uk/Media/Default/Beaumont%20Sainsbury%20Animal%20Hospital/documents/caring-for-your-guniea-pig.pdf",
+        "title": "RVC Exotics Service – Guinea Pig Care (caring-for-your-guinea-pig)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://koreascience.kr/article/JAKO201156539825696.pdf",
+        "title": "최연식, 「실험동물의 특성, 질병 및 연구 <Guinea Pig>」, 대한수의사회지 2011. 02",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-water",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "water",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "깨끗한 물을 늘 마실 수 있어야 해요.",
+    "caution": "매일 물을 갈고 꼭지가 막히지 않았는지 봐요.",
+    "avoid": "물에 타는 비타민·영양제",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 급수기",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs",
+        "title": "Housing and Nutrition of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/diet",
+        "title": "A healthy diet for guinea pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-food-bowl",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "food-bowl",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "무겁고 쉽게 엎어지지 않는 그릇이 맞아요.",
+    "caution": "함께 지내는 마리 수만큼 둬요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "CERAMIC",
+          "reason": "무거운 도자기 그릇은 잘 엎어지지 않아요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 도자기 사료 그릇",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/diet-for-a-guinea-pig",
+        "title": "Diet for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/your-guinea-pig-s-diet",
+        "title": "Your guinea pig's diet – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/company",
+        "title": "Keeping Guinea Pigs Together – RSPCA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-bedding",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "bedding",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "파고들며 지내요. 바닥을 마르고 부드럽게 두면 발바닥이 덜 상해요.",
+    "caution": "먼지 적은 것 위에 건초를 깔고 젖은 곳은 매일 치워요.",
+    "avoid": "삼나무·소나무 대팻밥 · 솜·인형 솜 같은 섬유형 · 톱밥 가루 · 고양이 모래",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "not_in",
+          "value": [
+            "CEDAR_PINE",
+            "FLUFFY"
+          ],
+          "reason": "삼나무·소나무는 호흡기를 자극하고 솜류는 가닥이 감길 수 있어 피해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "dustFree",
+          "op": "eq",
+          "value": true,
+          "reason": "먼지가 적은 바닥재가 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 무분진 베딩",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/providing-a-home-for-a-guinea-pig",
+        "title": "Providing a Home for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs",
+        "title": "Housing and Nutrition of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rvc.ac.uk/Media/Default/Beaumont%20Sainsbury%20Animal%20Hospital/documents/caring-for-your-guniea-pig.pdf",
+        "title": "RVC Exotics Service – Guinea Pig Care (caring-for-your-guinea-pig)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/guinea-pigs-as-pets",
+        "title": "Guinea pigs as pets – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-guinea-pig",
+        "title": "The ideal home for your guinea pigs – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/documents/1494939/7712578/P12How+to+take+care+of+your+guinea+pigs.pdf",
+        "title": "How to take care of your guinea pigs – RSPCA (소책자 PDF)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-hideout",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "hideout",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "숨을 곳이 없으면 긴장해요. 다 같이 한꺼번에 숨을 수 있어야 해요.",
+    "caution": "마리 수보다 하나 더 두고, 여름엔 플라스틱이 더워질 수 있어요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "entrances",
+          "op": "gte",
+          "value": 2,
+          "reason": "독일 수의사 동물보호협회는 출입구 2개 이상을 제시해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 은신처 출입구 2개",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/housing-and-nutrition-of-guinea-pigs",
+        "title": "Housing and Nutrition of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/behaviour",
+        "title": "Guinea pig behaviour – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/how-to-keep-guinea-pigs-cool-in-the-summer",
+        "title": "How to Keep Guinea Pigs Cool in the Summer – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/guinea-pigs-as-pets",
+        "title": "Guinea pigs as pets – PDSA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-tubes",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "tubes",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "굴처럼 지나다니며 숨는 걸 좋아해요.",
+    "caution": "안쪽 지름이 13cm 이상인지 확인해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "innerDiameterCm",
+          "op": "gte",
+          "value": 13,
+          "reason": "수의 매뉴얼은 지름 13cm 이상 통로를 제시해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 터널",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/providing-a-home-for-a-guinea-pig",
+        "title": "Providing a Home for a Guinea Pig – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/behaviour",
+        "title": "Guinea pig behaviour – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-chew",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "chew",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "이빨이 평생 자라서 갉을 거리가 있어야 해요.",
+    "caution": "약품 처리를 하지 않은 나무인지 확인해요.",
+    "avoid": "소금·미네랄 덩어리 · 벚나무 가지 · 플라스틱 장난감",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "UNTREATED_WOOD",
+          "reason": "약품 처리를 하지 않은 나무를 써요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 갉기 나무 무처리",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rvc.ac.uk/Media/Default/Beaumont%20Sainsbury%20Animal%20Hospital/documents/caring-for-your-guniea-pig.pdf",
+        "title": "RVC Exotics Service – Guinea Pig Care (caring-for-your-guinea-pig)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-nail-clipper",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "nail-clipper",
+    "priority": "RECOMMENDED",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "발톱이 계속 자라서 길어지면 걷기 불편해져요.",
+    "caution": "처음에는 병원에서 자르는 방법을 배워요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "type",
+          "op": "in",
+          "value": [
+            "SMALL_ANIMAL",
+            "HUMAN"
+          ],
+          "reason": "수의 매뉴얼은 소동물용이나 사람용 발톱깎이를 제시해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 발톱깎이",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.law.go.kr/LSW/flDownload.do?gubun=&flSeq=159546699&bylClsCd=110201",
+        "title": "동물보호법 시행규칙 [별표 2] 반려동물에 대한 사육ㆍ관리ㆍ보호 의무 (국가법령정보센터)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/routine-care-of-guinea-pigs",
+        "title": "Routine Care of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/guinea-pigs/anatomy-physiology-and-behavior-of-guinea-pigs",
+        "title": "Anatomy, Physiology, and Behavior of Guinea Pigs – MSD Veterinary Manual (전문가판, Sadar)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/health",
+        "title": "Guinea pig health and welfare – RSPCA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-brush",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "brush",
+    "priority": "OPTIONAL",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "털이 긴 기니피그는 털이 엉키지 않게 자주 빗어요.",
+    "caution": "털이 짧으면 부드러운 솔로 충분해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 빗 브러시",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/health",
+        "title": "Guinea pig health and welfare – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/routine-care-of-guinea-pigs",
+        "title": "Routine Care of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-carrier",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "carrier",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "처음 데려올 때와 병원에 갈 때 써요.",
+    "caution": "함께 지내는 기니피그와 같이 옮기고 익숙한 건초를 넣어요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 이동장",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/guinea-pig-care",
+        "title": "Guinea Pig Care and Wellbeing Advice – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/unique-needs-of-guinea-pigs",
+        "title": "Unique Needs of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-thermo",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "thermo",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "더위에 약하고 편하게 지내는 온도 폭이 좁아요.",
+    "caution": "방 온도가 26℃를 넘지 않는지 자주 봐요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 온습도계",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/guinea-pigs/unique-needs-of-guinea-pigs",
+        "title": "Unique Needs of Guinea Pigs – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/environment",
+        "title": "Creating a Good Home for Guinea Pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/guinea-pig/how-to-keep-guinea-pigs-cool-in-the-summer",
+        "title": "How to Keep Guinea Pigs Cool in the Summer – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-guinea-pig",
+        "title": "The ideal home for your guinea pigs – PDSA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-guineapig-scale",
+    "careProfileId": "cp-guineapig",
+    "supplyItemId": "scale",
+    "priority": "RECOMMENDED",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "체중을 꾸준히 재면 몸 상태 변화를 일찍 알아챌 수 있어요.",
+    "caution": "짧은 사이 체중이 크게 변하면 병원에 문의해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 주방 저울",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "HEALTH",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_159_Meerschweinchen_1.pdf&did=40",
+        "title": "TVT Merkblatt Nr. 159 – Heimtiere: Meerschweinchen (Stand: Oktober 2020)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/guinea-pig-health",
+        "title": "Guinea pig health – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/guineapigs/diet",
+        "title": "A healthy diet for guinea pigs – RSPCA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   }
 ]

@@ -44,7 +44,7 @@ describe('planSeedWrites — real seed', () => {
       careProfile: 3, // R7 A4: cp-hamster-dwarf(DRAFT) 추가, 기니피그 S7: cp-guineapig(DRAFT)
       animalType: 6,
       supplyItem: 20, // R7-B: sand-bath-box 신설(모래목욕 통·모래 분리, 안 A), 기니피그 S8: playpen·hay·hay-rack·nail-clipper·brush
-      supplyRequirement: 29, // R7-B: 드워프 15(서명 11 + 모래 2(v0.3) + 사료·저울 DRAFT)
+      supplyRequirement: 45, // R7-B: 드워프 15(서명 11 + 모래 2(v0.3) + 사료·저울 DRAFT) · 기니피그 S9 +16(DRAFT)
       compatibilityRule: 3, // R7-B: cr-dwarf-wheel-cage-bedding·cr-dwarf-tubes-cage, BE92: 공용 2·골든 튜브 삭제 + cr-syrian-wheel-cage-bedding
       setupBundle: 6, // R7-B: sb-dwarf-budget·balanced·reuse(v0.3)
       curatedProduct: 17, // R7-B: cp-dw-001~017(v0.3, SLOT 아님)
