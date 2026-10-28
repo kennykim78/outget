@@ -1371,6 +1371,32 @@ test('C7-SECRET QA148 LOW-1: 낱말로 시작하는 이름·YAML 맵·Dockerfile
   }
 });
 
+test('C7-SECRET 150 LOW-2: 루트 *.sh·.github 전체 스캔, _KEY 이름·URL 자격 증명(코드 아닌 파일) → FAIL, 자리·변수·코드는 통과', async () => {
+  const cases = [
+    ['docker-entrypoint.sh', j('export SIGNING', '_KEY=', HEX64, '\n')],
+    ['.github/dependabot.yml', j('registries:\n  x:\n    ENCRYPTION', '_KEY: ', HEX64, '\n')],
+    ['.github/scripts/x.sh', j('DEPLOY', '_KEY=', HEX64, '\n')],
+    ['.github/CODEOWNERS', j('# ', 'gh', 'p_', GH36, '\n')],
+    ['deploy/compose.yaml', j('      - DATABASE_URL=postgres://ws:', 'S3cretPassw0rd', '@db:5432/ws\n')],
+    ['scripts/dev/pull.sh', j('git clone ', HTTPS, 'kenny:', 'Zx9TokenValueQ', '@git.example.org/r.git\n')],
+  ];
+  for (const [f, text] of cases) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.ok(res.json.findings.some((x) => x.rule === 'C7-SECRET' && x.file === f), `${f}: ${JSON.stringify(text)}`);
+  }
+  const clean = [
+    ['.github/workflows/x.yml', j('          DEPLOY_SSH', '_KEY: ${{ secrets.DEPLOY_SSH', '_KEY }}\n          key: playwright-${{ runner.os }}-lock\n')],
+    ['deploy/deploy.sh', j('URL=', HTTPS, '<user>:<token>@host/x\nU2=', HTTPS, 'user@host/x\nDB=postgres://${DB_USER}:${DB_PASS}@db/ws\n')],
+    ['docker-entrypoint.sh', j('CACHE', '_KEY=short\nexport SSH_PUBLIC', '_KEY="$(cat /k.pub)"\n')],
+    // 코드 파일: _KEY 상수·URL 자격 증명 형태는 코드 아닌 파일 규칙이라 적용하지 않는다(코드 문자열 검사는 기존 규칙 몫).
+    ['server/src/k.ts', j('export const STORAGE', '_KEY = "ws.state.v1.something-long";\n')],
+  ];
+  for (const [f, text] of clean) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.equal(c7Count(res), 0, `${f}: ${JSON.stringify(res.json.findings.filter((x) => x.rule === 'C7-SECRET'))}`);
+  }
+});
+
 // ── C8 산출물 안전 ──────────────────────────────────────────
 test('C8-OUT-SAFE: 외부 script src', async () => {
   const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</body>', j('<script src="', HTTPS, 'cdn.x/y.js"></script></body>')); } }));

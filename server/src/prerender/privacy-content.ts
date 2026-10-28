@@ -170,6 +170,8 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
               ['남용 방지용 IP 주소', '저장하지 않아요. 서버 메모리에서 짧은 시간 동안만 세요.'],
               ['웹 접속 기록', '남기지 않아요.'],
               ['서버 오류 기록', '{policy:SERVER_LOG_RETENTION_DAYS}일이 지나면 자동으로 지워요.'],
+              // security 150 MED-B: deploy/bootstrap.sh ADMIN_LOG_DAYS=366(logrotate daily·rotate·maxage) 와 같아야 한다(deploy-config.test.mjs 패리티).
+              ['운영자 접속 기록', '서버에 들어온 운영자의 기록이에요. 1년 동안 보관하고, 1년이 지나면 자동으로 지워요.'],
             ],
           },
         },
@@ -301,6 +303,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             '반응 집계용 값은 원래 값을 알아볼 수 없게 만들어서, IP 주소 자체는 저장하지 않아요.',
             '메일 발송 기록에는 이메일 주소를 가린 형태로만 남겨요.',
             '데이터베이스와 백업에 접근할 수 있는 사람을 운영자로 제한하고, 접근에 쓰는 비밀값은 코드와 따로 관리해요.',
+            '서버에 들어온 운영자의 접속 기록(접속 시각, 접속한 곳의 IP 주소, 한 작업)은 1년 동안 따로 보관하고 점검해요. 이 기록에는 이용자의 이메일 주소를 남기지 않아요.',
           ],
         },
       ],

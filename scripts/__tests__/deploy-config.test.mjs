@@ -552,15 +552,21 @@ test('139 LOW-5: --admin-user 검사(인수만) — 없음·root·deploy·형식
   assert.equal(run([], { ...env0, SUDO_USER: 'root' }).status, 1);
 });
 
-test('139 MED-3: 운영자 접속 기록 1년 — 매시·vacuum 직전 내보내기, auth·authpriv, logrotate ≥ 12개월, 웹·앱 기록 7일 그대로', () => {
-  const months = Number(/^ADMIN_LOG_MONTHS=(\d+)$/m.exec(BOOTSTRAP)[1]);
-  assert.ok(months >= 13, '매월 순환에서 가장 오래된 파일이 지워질 때 ≥ 12개월');
+test('139 MED-3 / 150 MED-B: 운영자 접속 기록 1년 — 매시·vacuum 직전 내보내기, auth·authpriv, logrotate 매일 366개·366일, 웹·앱 기록 7일 그대로', () => {
+  const days = Number(/^ADMIN_LOG_DAYS=(\d+)$/m.exec(BOOTSTRAP)[1]);
+  assert.ok(days >= 365 && days <= 366, `'1년' 문자 그대로(${days}일)`);
+  assert.doesNotMatch(BOOTSTRAP, /ADMIN_LOG_MONTHS/);
   const lr = heredoc('/etc/logrotate.d/withsmall-admin');
   assert.match(lr, /^\/var\/log\/withsmall-admin\/access\.log \{$/m);
-  assert.match(lr, /^\tmonthly$/m);
-  assert.match(lr, /^\trotate \$\{ADMIN_LOG_MONTHS\}$/m);
+  assert.match(lr, /^\tdaily$/m);
+  assert.match(lr, /^\trotate \$\{ADMIN_LOG_DAYS\}$/m);
+  assert.match(lr, /^\tmaxage \$\{ADMIN_LOG_DAYS\}$/m);
+  assert.match(lr, /^\tifempty$/m, '빈 날도 순환 — 파일 하나 = 하루');
   assert.match(lr, /^\tcreate 0600 root root$/m);
-  assert.doesNotMatch(lr, /maxage|daily|weekly/);
+  assert.doesNotMatch(lr, /notifempty|monthly|weekly/);
+  // 처리방침 보유 기간 표의 '운영자 접속 기록' 행이 1년이라고 말한다(패리티).
+  const pc = read('server', 'src', 'prerender', 'privacy-content.ts');
+  assert.match(pc, /\['운영자 접속 기록', '[^']*1년[^']*'\]/);
   const timer = heredoc('/etc/systemd/system/withsmall-admin-log.timer');
   assert.match(timer, /^OnCalendar=hourly$/m);
   assert.match(timer, /^Persistent=true$/m);
@@ -611,6 +617,18 @@ echo "$total" > "$cf"
       `${H} sshd[105]: pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by ubuntu(uid=0)`,
       `${H} sshd[106]: Failed publickey for ubuntux from 198.51.100.9 port 2 ssh2`,
       `${H} ws-admin-deploy: 종료 코드 0`,
+      // 150 MED-A: 운영 계정 이름을 댄 스캐너 줄 — 1년 기록에 없어야 한다(198.51.100.x 는 아래에서 전부 없음을 본다).
+      `${H} sshd[110]: Connection closed by authenticating user ubuntu 198.51.100.20 port 3 [preauth]`,
+      `${H} sshd[111]: Failed publickey for ubuntu from 198.51.100.21 port 4 ssh2: ED25519 SHA256:zzz`,
+      `${H} sshd[112]: Disconnected from authenticating user deploy 198.51.100.22 port 5 [preauth]`,
+      `${H} sshd-session[113]: Invalid user ubuntu-old from 198.51.100.23 port 6`,
+      `${H} sshd[114]: error: maximum authentication attempts exceeded for ubuntu from 198.51.100.24 port 7 ssh2 [preauth]`,
+      `${H} sshd-session[115]: Failed password for deploy from 198.51.100.25 port 8 ssh2`,
+      // 150 LOW-1: 비 ASCII 로컬 파트·IDN·= 붙은 형태도 통째로 가린다.
+      `${H} sudo[116]:   ubuntu : TTY=pts/0 ; PWD=/home/ubuntu ; USER=deploy ; COMMAND=/usr/bin/x --email=홍길동@예시.한국 --to jörg@bücher.example`,
+      // 남아야 하는 운영 줄: 세션 닫힘·logind.
+      `${H} sshd[117]: pam_unix(sshd:session): session closed for user ubuntu`,
+      `${H} systemd-logind[118]: New session 4 of user ubuntu.`,
     ];
     writeFileSync(join(dir, 'journal'), `${lines.join('\n')}\n`);
     const sep = process.platform === 'win32' ? ';' : ':';
@@ -618,10 +636,13 @@ echo "$total" > "$cf"
     let r = run();
     assert.equal(r.status, 0, r.stderr);
     const log1 = readFileSync(join(dir, 'out', 'access.log'), 'utf8');
-    const got = log1.trim().split('\n').map((l) => /(sshd|sudo|ws-admin-deploy)(\[\d+\])?:/.exec(l)?.[0]);
-    assert.deepEqual(got, ['sshd[100]:', 'sudo[102]:', 'ws-admin-deploy[103]:', 'sshd[105]:', 'ws-admin-deploy:']);
-    assert.ok(!log1.includes('198.51.100'), '운영 계정이 아닌 시도(IP)는 1년 기록에 없다');
+    const got = log1.trim().split('\n').map((l) => /(sshd|sudo|ws-admin-deploy|systemd-logind)(\[\d+\])?:/.exec(l)?.[0]);
+    assert.deepEqual(got, ['sshd[100]:', 'sudo[102]:', 'ws-admin-deploy[103]:', 'sshd[105]:', 'ws-admin-deploy:', 'sudo[116]:', 'sshd[117]:', 'systemd-logind[118]:']);
+    assert.ok(!log1.includes('198.51.100'), '스캐너 시도(운영 계정 이름을 댄 것 포함)의 IP 는 1년 기록에 없다');
+    assert.doesNotMatch(log1, /preauth|Failed |Invalid user|authenticating user/);
     assert.ok(!log1.includes('mail.example.com') && log1.includes('--email <email>'), '이메일 가림');
+    assert.ok(log1.includes('--email=<email> --to <email>'), '비 ASCII·IDN 이메일 가림');
+    assert.ok(!/홍길동|예시\.한국|jörg|bücher/.test(log1));
     assert.match(readFileSync(join(dir, 'argv.log'), 'utf8'), /SYSLOG_FACILITY=4 SYSLOG_FACILITY=10/);
     // 이어 읽기: 새 줄만 덧붙는다.
     writeFileSync(join(dir, 'journal'), `${lines.join('\n')}\n${H} sshd[107]: Accepted publickey for ubuntu from 203.0.113.6 port 1 ssh2\n`);
@@ -678,4 +699,12 @@ test('QA148 MED-1: SQLITE_TMPDIR 는 /data 볼륨 안(백업 폴더·erasures �
 test('QA148 INFO-1: caddy.env.example 의 hash-password 이미지 = compose caddy 이미지', () => {
   const img = /^\s+image: (caddy:\S+)$/m.exec(COMPOSE)[1];
   assert.ok(read('deploy', 'caddy.env.example').includes(`docker run --rm -it ${img} caddy hash-password`));
+});
+
+test('bootstrap: 호스트 이름이 배포·관리 계정 이름과 같으면 변경 전에 멈춘다(QA152 LOW-1)', () => {
+  const guard = BOOTSTRAP.indexOf('host_short=');
+  assert.ok(guard > 0, 'host_short 가드');
+  assert.match(BOOTSTRAP, /case "\$host_short" in\s*\n\s*"\$DEPLOY_USER"\|"\$ADMIN_USER"\) die /);
+  // 시스템을 바꾸는 첫 단계(OS 확인) 전에 있어야 한다.
+  assert.ok(guard < BOOTSTRAP.indexOf('[ -r /etc/os-release ]'), '가드가 OS 확인보다 앞');
 });

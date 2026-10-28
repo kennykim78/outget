@@ -160,10 +160,15 @@ const SECRET_RES = [
 ];
 // 코드가 아닌 파일(deploy/·워크플로·env·yml·셸·Caddyfile·Dockerfile)에만: bcrypt 해시(basic_auth WS_BASIC_HASH 등).
 //   코드에는 의도한 더미 해시가 있다(server/src/auth/user.repo.ts DUMMY_PASSWORD_HASH — 타이밍 균등화, 원문 폐기).
-const SECRET_NAME = String.raw`(?=[A-Z])[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]*`;
+//   이름: SECRET·TOKEN·… 을 품은 이름, 또는 _KEY 로 끝나는 이름(SIGNING_KEY·ENCRYPTION_KEY 등 — security 150 LOW-2, 코드 아닌 파일만).
+const SECRET_NAME = String.raw`(?=[A-Z])[A-Z0-9_]*(?:(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]*|_KEY)`;
 const SECRET_VALUE = String.raw`['"]?(?![$<{])[^\s'"<>{}()#]{16,}`;
 const NONCODE_SECRET_RES = [
   /\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/,
+  // env·셸 KEY=값 의 _KEY 변형(SECRET_RES 의 = 형태는 _KEY 끝 이름을 보지 않는다 — 코드의 상수 오탐 방지) — 150 LOW-2.
+  new RegExp(String.raw`^\s*(?:-\s+)?(?:export\s+)?${SECRET_NAME}\s*=\s*${SECRET_VALUE}`),
+  // URL 안 자격 증명(scheme://사용자:비밀@호스트) — 150 LOW-2. 자리(<>)·변수($·{})는 제외.
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@'"<>{}$]+:[^\s/@'"<>{}$]{3,}@[A-Za-z0-9.-]+/,
   // YAML 맵(compose environment: 아래 KEY: 값, 따옴표 있든 없든) — QA148 LOW-1.
   new RegExp(String.raw`^\s*(?:-\s+)?${SECRET_NAME}\s*:\s+${SECRET_VALUE}`),
   // Dockerfile ENV KEY=값 · ENV KEY 값 · ARG KEY=값 — QA148 LOW-1.
@@ -620,12 +625,13 @@ export function scanSources(root, ctx, notes) {
   const extra = [];
   try {
     for (const ent of readdirSync(root, { withFileTypes: true })) {
-      if (ent.isFile() && (TEXT_EXT.has(extname(ent.name)) || /^Dockerfile/.test(ent.name))) extra.push(join(root, ent.name));
+      if (ent.isFile() && (TEXT_EXT.has(extname(ent.name)) || extname(ent.name) === '.sh' || /^Dockerfile/.test(ent.name))) extra.push(join(root, ent.name));
     }
   } catch {
     /* 루트 없음은 상위에서 처리 */
   }
-  walk(join(root, '.github', 'workflows'), extra);
+  // .github 전체(워크플로·dependabot·CODEOWNERS·액션 등 — security 150 LOW-2). 루트 *.sh(docker-entrypoint.sh 등)도 위에서.
+  walk(join(root, '.github'), extra);
   // 배포 구성(deploy/ — compose·Caddyfile·*.sh): 시크릿 패턴(C7)만 해당. 예시(*.example)는 아래에서 건너뛴다(값 0 은 deploy-config.test.mjs).
   walk(join(root, 'deploy'), extra);
   for (const p of ['client/package.json', 'server/package.json', 'client/index.html', 'client/vite.config.ts']) {
@@ -639,7 +645,7 @@ export function scanSources(root, ctx, notes) {
     const ext = extname(abs);
     if (abs.endsWith('.example')) continue;
     if (DEPLOY_REAL_ENV_RE.test(rel)) add('C7-SECRET', 'FAIL', rel, null, '배포 실값 env 파일이 작업 트리에 있다 — 서버(/opt/withsmall)에만 둔다(저장소에는 *.example 만)');
-    if (ext && !TEXT_EXT.has(ext) && !/^Dockerfile/.test(basename(abs)) && !(rel.startsWith('deploy/') && ext === '.sh')) continue;
+    if (ext && !TEXT_EXT.has(ext) && !/^Dockerfile/.test(basename(abs)) && ext !== '.sh') continue; // 셸 스크립트는 어디서든(deploy/·.github/·루트·scripts/ — 150 LOW-2)
     let text;
     try {
       text = readFileSync(abs, 'utf8');

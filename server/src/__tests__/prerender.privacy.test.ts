@@ -128,6 +128,28 @@ describe('/privacy 본문(P8·P10)', () => {
     expect(textOf(main)).not.toMatch(/회원|가입/);
   });
 
+  it('보호 조치: 운영자 접속 기록 1년 별도 보관 문장(MED-3) + 웹 접속 기록 미보관·서버 오류 기록 문구 유지', () => {
+    const text = textOf(/<main[\s\S]*<\/main>/.exec(html)?.[0] ?? '');
+    expect(text).toContain(
+      '서버에 들어온 운영자의 접속 기록(접속 시각, 접속한 곳의 IP 주소, 한 작업)은 1년 동안 따로 보관하고 점검해요. 이 기록에는 이용자의 이메일 주소를 남기지 않아요.',
+    );
+    expect(text).toContain('접속한 IP 주소가 담긴 웹 접속 기록은 남기지 않아요.');
+    expect(text).toContain('일이 지나면 자동으로 지워요.');
+  });
+
+  it('보유 기간 표: 운영자 접속 기록 1년 행(security 150 MED-B) — 다른 행과 같은 2칸, 웹 접속 기록·서버 오류 기록 행 유지', () => {
+    const sec = PRIVACY_POLICY.sections.find((s) => s.id === 'retention');
+    const tb = sec?.blocks.find((b) => 'table' in b);
+    if (!tb || !('table' in tb)) throw new Error('보유 기간 표 없음');
+    const row = tb.table.rows.find((r) => r[0] === '운영자 접속 기록');
+    expect(row).toEqual(['운영자 접속 기록', '서버에 들어온 운영자의 기록이에요. 1년 동안 보관하고, 1년이 지나면 자동으로 지워요.']);
+    for (const r of tb.table.rows) expect(r).toHaveLength(2);
+    expect(tb.table.rows.map((r) => r[0])).toEqual(expect.arrayContaining(['웹 접속 기록', '서버 오류 기록']));
+    const html2 = /<section[^>]*id="privacy-retention"[\s\S]*?<\/section>/.exec(html)?.[0] ?? '';
+    expect(textOf(html2)).toContain('운영자 접속 기록');
+    expect(textOf(html2)).toContain('1년 동안 보관하고, 1년이 지나면 자동으로 지워요.');
+  });
+
   it('해요체: 문단(p)·intro 는 "요." 또는 "요" 로 끝난다(라벨형 문단 서버 위치는 예외)', () => {
     const paras = [...PRIVACY_POLICY.intro, ...PRIVACY_POLICY.sections.flatMap((s) => s.blocks.flatMap((b) => ('p' in b ? [b.p] : [])))];
     for (const p of paras) {

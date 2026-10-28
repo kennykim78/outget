@@ -12,7 +12,7 @@
 #        7일 보장: 활성 파일 MaxFileSec=1day 로 매일 순환 + 매일 타이머 journalctl --rotate --vacuum-time=(7-2)d(QA122 HIGH-1).
 #     3b) 운영자 접속 기록만 따로 1년(security 139 MED-3, Kenny 승인 "운영자 기록만 따로 1년 보관"): 매시 타이머(+ vacuum 직전)가
 #        journald 의 auth·authpriv 기록 중 운영 계정(deploy·관리 계정) 줄과 deploy.sh 단계 줄(ws-admin-deploy)만 골라
-#        /var/log/withsmall-admin/access.log(0600 root)에 덧붙인다 — 이메일 형태는 가린다. logrotate 매월·13개(≥ 12개월, ≤ 14개월).
+#        /var/log/withsmall-admin/access.log(0600 root)에 덧붙인다 — 스캐너 줄(인증 전·실패) 빼고, 이메일 형태는 가린다. logrotate 매일·366개·366일(= 1년).
 #        앱·Caddy 기록(withsmall-*)·웹 접속 기록은 여기에 들어가지 않는다(그대로 journald 7일 · 웹 접속 기록 0).
 #     4) 방화벽: Ubuntu 는 iptables INPUT 의 Oracle 기본 REJECT 앞에 80·443/tcp·443/udp(ufw 쓰지 않음), Oracle Linux 는 firewalld.
 #        OCI 콘솔 Security List 인그레스도 따로 열어야 한다(docs/ops/deploy.md 8절).
@@ -34,8 +34,9 @@ SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT=/opt/withsmall
 DEPLOY_USER=deploy
 JOURNAL_DAYS=7
-# 운영자 접속 기록 보관(개월, logrotate monthly rotate) — 13 = 가장 오래된 기록이 지워질 때 최소 12개월(안전성 확보조치 기준 제8조 1년 이상).
-ADMIN_LOG_MONTHS=13
+# 운영자 접속 기록 보관 일수(logrotate daily rotate·maxage) — 366 = 1년(윤년 포함). 처리방침 보유 기간 '운영자 접속 기록 1년'과 같아야 한다
+#   (안전성 확보조치 기준 제8조 1년 이상 · security 150 MED-B: '1년'을 문자 그대로 — 패리티 deploy-config.test.mjs).
+ADMIN_LOG_DAYS=366
 IMAGE_REPO=""
 PUBKEY=""
 ADMIN_USER="${SUDO_USER:-}"
@@ -81,6 +82,11 @@ if [ "${WS_BOOTSTRAP_ARGS_ONLY:-0}" = "1" ]; then log "인수 검사 통과(WS_B
 admin_home="$(getent passwd "$ADMIN_USER" | cut -d: -f6)"
 [ -n "$admin_home" ] || die "관리 계정 $ADMIN_USER 없음 — --admin-user 확인"
 [ -s "$admin_home/.ssh/authorized_keys" ] || die "$admin_home/.ssh/authorized_keys 가 비었다 — AllowUsers 적용 시 잠긴다"
+# 운영자 기록 export 는 계정 이름으로 줄을 고르는데 줄 머리에 호스트 이름이 있다 — 같으면 거의 모든 auth 줄이 1년 기록에 들어간다(QA152 LOW-1).
+host_short="$(hostname -s 2>/dev/null || hostname)"
+case "$host_short" in
+  "$DEPLOY_USER"|"$ADMIN_USER") die "호스트 이름($host_short)이 계정 이름과 같다 — hostnamectl set-hostname withsmall 등으로 바꾼 뒤 다시 실행" ;;
+esac
 for f in compose.yaml Caddyfile deploy.sh deploy-gate.sh server.env.example caddy.env.example; do
   [ -f "$SRC_DIR/$f" ] || die "$SRC_DIR/$f 없음 — deploy/ 폴더 전체를 올린다"
 done
@@ -178,7 +184,7 @@ systemctl restart systemd-journald
 VACUUM_DAYS=$((JOURNAL_DAYS - 2))
 # ── 3b) 운영자 접속 기록 1년(MED-3) — vacuum 이 지우기 전에 내보낸다(아래 vacuum 서비스 ExecStartPre + 매시 타이머) ──
 #   고르는 것: journald SYSLOG_FACILITY=4(auth: sshd·logind)·10(authpriv: sudo·pam·deploy.sh 의 ws-admin-deploy) 중
-#     운영 계정 이름이 낱말로 들어간 줄 + ws-admin-deploy 줄. 그 밖(모르는 계정으로 두드린 시도 등)은 7일 journald 에만.
+#     운영 계정 이름이 낱말로 들어간 줄 + ws-admin-deploy 줄, 그중 sshd 인증 전·실패 줄([preauth]·Failed·Invalid user·끊김)은 뺀다. 그 밖은 7일 journald 에만.
 #   이메일 형태(sudo 명령줄의 --email 등)는 <email> 로 가린다 — 이용자 정보가 1년 기록에 들어가지 않게.
 #   커서 파일로 이어 읽는다(중복·누락 없음). 실패하면 커서를 되돌려 다음 실행이 다시 읽는다.
 install -d -m 0700 -o root -g root /var/log/withsmall-admin /var/lib/withsmall-admin
@@ -212,12 +218,19 @@ if ! journalctl --quiet --no-pager --utc -o short-iso-precise --cursor-file="$S/
 fi
 # grep 1 = 고를 줄 없음(정상). 2 이상 = 오류 → 커서 되돌림.
 rc=0
-grep -E " ws-admin-deploy(\[[0-9]+\])?: |[^[:alnum:]_.-]($alt)([^[:alnum:]_.-]|\$)" "$S/export.tmp" > "$S/export.grep" || rc=$?
+# 계정 이름 뒤 경계에서 '.' 은 허용(logind "New session 4 of user ubuntu." 처럼 문장 끝 마침표).
+grep -E " ws-admin-deploy(\[[0-9]+\])?: |[^[:alnum:]_.-]($alt)([^[:alnum:]_-]|\$)" "$S/export.tmp" > "$S/export.grep" || rc=$?
 if [ "$rc" -gt 1 ]; then rm -f "$S/export.grep"; restore; exit 1; fi
-if ! sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' "$S/export.grep" > "$S/export.sel"; then rm -f "$S/export.grep"; restore; exit 1; fi
-if ! cat "$S/export.sel" >> "$OUT"; then rm -f "$S/export.grep"; restore; exit 1; fi
+# 운영 계정 이름을 대고 두드린 스캐너 줄(security 150 MED-A)은 1년 기록에서 뺀다 — 인증 전·실패·끊김(접속한 곳 IP 가 제3자).
+#   남는 것: Accepted(로그인 성공), session opened/closed, sudo, logind, ws-admin-deploy.
+rc=0
+grep -v -E " sshd(-session)?(\[[0-9]+\])?: .*(\[preauth\]|Failed |Invalid user|Connection closed by authenticating user|Disconnected from authenticating user)" "$S/export.grep" > "$S/export.op" || rc=$?
+if [ "$rc" -gt 1 ]; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
+# 이메일 가림(security 150 LOW-1): 공백·= 가 아닌 글자 덩어리 안의 @ 는 통째로 <email> — 비 ASCII 로컬 파트·IDN 도.
+if ! sed -E 's/[^[:space:]=]+@[^[:space:]]+/<email>/g' "$S/export.op" > "$S/export.sel"; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
+if ! cat "$S/export.sel" >> "$OUT"; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
 chmod 0600 "$OUT"
-rm -f "$S/export.tmp" "$S/export.grep" "$S/export.sel" "$S/cursor.prev"
+rm -f "$S/export.tmp" "$S/export.grep" "$S/export.op" "$S/export.sel" "$S/cursor.prev"
 EOT
 chmod 0700 /usr/local/sbin/withsmall-admin-log-export
 cat > /etc/systemd/system/withsmall-admin-log.service <<'EOT'
@@ -241,15 +254,17 @@ RandomizedDelaySec=5min
 WantedBy=timers.target
 EOT
 cat > /etc/logrotate.d/withsmall-admin <<EOT
-# WithSmall 운영자 접속 기록 — 매월 순환, ${ADMIN_LOG_MONTHS}개 보관(가장 오래된 기록이 지워질 때 12개월 이상). bootstrap.sh 가 작성.
+# WithSmall 운영자 접속 기록 — 매일 순환, ${ADMIN_LOG_DAYS}개·${ADMIN_LOG_DAYS}일 보관(= 1년, 처리방침 '운영자 접속 기록 1년'). bootstrap.sh 가 작성.
+#   ifempty: 빈 날도 순환해 파일 하나 = 하루 → rotate 개수가 곧 일수. maxage 는 개수와 별개로 나이 상한.
 /var/log/withsmall-admin/access.log {
-	monthly
-	rotate ${ADMIN_LOG_MONTHS}
+	daily
+	rotate ${ADMIN_LOG_DAYS}
+	maxage ${ADMIN_LOG_DAYS}
 	dateext
 	compress
 	delaycompress
 	missingok
-	notifempty
+	ifempty
 	create 0600 root root
 }
 EOT
