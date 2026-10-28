@@ -237,6 +237,71 @@ describe('spa — manifest file 경로 이탈(containedFile, Q1 D2)', () => {
   });
 });
 
+// CI(ubuntu)·로컬(Windows) 동일 동작: manifest 가 가리키는 파일이 없음·디렉터리·역슬래시 경로면 OS 무관하게 사용자 정의 404.
+//   역슬래시 경로 sub\inner.html 은 Windows 에선 실제 파일(dist/sub/inner.html), Linux 에선 없는 파일명 — 둘 다 404 여야 한다.
+describe('spa — manifest 파일 누락·역슬래시 → 사용자 정의 404(OS 무관)', () => {
+  const BACKSLASH = String.fromCharCode(0x5c);
+  const build = (with404: boolean): Express => {
+    const dist = join(tmp('missing'), 'dist');
+    mkdirSync(join(dist, 'sub'), { recursive: true });
+    writeFileSync(join(dist, 'index.html'), TEMPLATE);
+    writeFileSync(join(dist, 'sub', 'inner.html'), '<p>inner-page</p>');
+    if (with404) writeFileSync(join(dist, '404.html'), '<p>not-found-page</p>');
+    const manifest = {
+      v: 1,
+      seedDigest: 'a'.repeat(64),
+      indexable: false,
+      routes: [
+        { path: '/inner', file: 'sub/inner.html', kind: 'HOME', indexable: false },
+        { path: '/bs', file: `sub${BACKSLASH}inner.html`, kind: 'HOME', indexable: false },
+        { path: '/missing', file: 'missing.html', kind: 'HOME', indexable: false },
+        { path: '/dir', file: 'sub', kind: 'HOME', indexable: false },
+        { path: '/vet/missing', file: 'vet-missing.html', kind: 'VET', indexable: false },
+        { path: '/404', file: '404.html', kind: 'NOT_FOUND', indexable: false },
+      ],
+    };
+    writeFileSync(join(dist, 'prerender-manifest.json'), JSON.stringify(manifest));
+    return appFor(dist);
+  };
+  let app: Express;
+  let bare: Express;
+  beforeAll(() => {
+    app = build(true);
+    bare = build(false);
+  });
+
+  it('대조: 정상 슬래시 경로는 200', async () => {
+    const r = await request(app).get('/inner');
+    expect(r.status).toBe(200);
+    expect(r.text).toContain('inner-page');
+  });
+
+  it.each(['/bs', '/missing', '/dir'])('%s → 404 + 404.html 본문 + SPA CSP(Express 기본 404 아님)', async (p) => {
+    const r = await request(app).get(p);
+    expect(r.status).toBe(404);
+    expect(r.text).toContain('not-found-page');
+    expect(r.text).not.toContain('inner-page');
+    expect(r.headers['content-type']).toMatch(/^text\/html/);
+    expect(r.headers['content-security-policy']).toBe(SPA_CSP);
+  });
+
+  it('/vet/missing → 404.html, CSP 는 경로 규칙 그대로(VET)', async () => {
+    const r = await request(app).get('/vet/missing');
+    expect(r.status).toBe(404);
+    expect(r.text).toContain('not-found-page');
+    expect(r.headers['content-security-policy']).toBe(VET_CSP);
+  });
+
+  it('404.html 도 없으면 text/plain 404(무한 재귀 없음)', async () => {
+    for (const p of ['/bs', '/missing', '/dir', '/nope']) {
+      const r = await request(bare).get(p);
+      expect(r.status).toBe(404);
+      expect(r.headers['content-type']).toMatch(/^text\/plain/);
+      expect(r.text).toBe('Not Found');
+    }
+  });
+});
+
 // R5 B3-3(D21, SEC L4): CSP 경로 분리 — 기본은 외부 출처 0·unsafe-inline 스크립트 0, 네이버 지도 호스트는 /vet·/vet/* 에만.
 describe('CSP 경로 분리(D21)', () => {
   const directive = (csp: string, name: string): string =>

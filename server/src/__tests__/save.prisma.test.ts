@@ -2,6 +2,7 @@
 //   1회용 소비·15분 경계·세션 만료/폐기·스냅샷 upsert, DB 행에 원문 토큰·세션 id 0, User passwordHash null 허용.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { sqliteDatasourceUrl } from '../db/sqlite-url.js';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -33,7 +34,7 @@ function statements(sql: string): string[] {
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'ws-save-prisma-'));
   const url = `file:${join(dir, 'test.db').replace(/\\/g, '/')}`;
-  prisma = new PrismaClient({ datasourceUrl: url });
+  prisma = new PrismaClient({ datasourceUrl: sqliteDatasourceUrl(url) });
   const names = readdirSync(MIGRATIONS, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)

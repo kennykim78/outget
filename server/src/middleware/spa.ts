@@ -125,12 +125,24 @@ function loadManifest(clientDist: string): Map<string, ManifestRoute> | null {
   return out;
 }
 
-/** dist 내부의 실제 파일만(path.resolve 포함 검사). */
+/**
+ * dist 내부 경로만(path.resolve 포함 검사). 역슬래시·NUL 은 OS 무관하게 거부 — Windows 에선 구분자, Linux 에선
+ *   파일명 문자라 같은 manifest 가 OS 마다 다르게 해석되지 않게(CI ubuntu ↔ 로컬 Windows 동일 동작).
+ */
 function containedFile(root: string, rel: string): string | null {
+  if (/[\\\0]/.test(rel)) return null;
   const base = path.resolve(root);
   const abs = path.resolve(base, rel);
   if (!abs.startsWith(base + path.sep)) return null;
   return abs;
+}
+
+function isRegularFile(p: string): boolean {
+  try {
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
 }
 
 // ── R6 F2a: 사전 압축본(.br/.gz) 협상 ─────────────────────────────────────────
@@ -234,7 +246,11 @@ function sendNegotiated(req: Request, res: Response, file: string, cache: Map<st
     return;
   }
   res.sendFile(target, (err) => {
-    if (!err || res.headersSent) return;
+    if (!err) return;
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
     res.removeHeader('Content-Encoding');
     res.removeHeader('ETag');
     res.removeHeader('Content-Type');
@@ -288,14 +304,33 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
     // 프리렌더 모드(D16): manifest 라우트 → 파일, /save → 셸, 그 외 404.html(404).
     const shell = fs.existsSync(path.join(clientDist, 'shell.html')) ? path.join(clientDist, 'shell.html') : indexHtml;
     const notFound = path.join(clientDist, '404.html');
+    // 대상 파일이 없거나(manifest 가 가리키는 파일 누락·디렉터리) 읽기 실패 → 사용자 정의 404.html(404).
+    //   404.html 자체가 없거나 읽기 실패할 때만 text/plain 404. 어느 OS 에서도 같은 응답(Express 기본 404 로 새지 않음).
+    const plainNotFound = (res: Response): void => {
+      res.removeHeader('Content-Encoding');
+      res.removeHeader('ETag');
+      res.status(404).type('text/plain').send('Not Found');
+    };
     const sendHtml = (req: Request, res: Response, file: string, status: number, csp: string): void => {
-      if (!fs.existsSync(file)) {
-        res.status(404).type('text/plain').send('Not Found');
+      const isNotFoundPage = file === notFound;
+      const onFail = (): void => {
+        if (isNotFoundPage) plainNotFound(res);
+        else sendHtml(req, res, notFound, 404, csp);
+      };
+      if (!isRegularFile(file)) {
+        onFail();
         return;
       }
       res.status(status);
       res.setHeader('Content-Security-Policy', csp);
-      sendNegotiated(req, res, file, variants, () => res.sendFile(file));
+      sendNegotiated(req, res, file, variants, () =>
+        res.sendFile(file, (err) => {
+          if (!err) return;
+          // 콜백을 주면 express 기본 next(err)(소켓 파기)가 빠진다 — 헤더 뒤 실패는 직접 끊는다(QA141).
+          if (!res.headersSent) onFail();
+          else res.destroy();
+        }),
+      );
     };
     const prerendered: RequestHandler = (req, res, next) => {
       if ((req.method !== 'GET' && req.method !== 'HEAD') || !isSpaHtmlRequest(req.path)) {

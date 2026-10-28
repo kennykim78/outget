@@ -2,6 +2,7 @@
 //   마이그레이션 증명: 새 마이그레이션은 ErasureTombstone 테이블 1개만 만든다.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { sqliteDatasourceUrl } from '../db/sqlite-url.js';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -34,7 +35,7 @@ const open: { dir: string; prisma: PrismaClient }[] = [];
 
 async function freshDb(): Promise<PrismaClient> {
   const dir = mkdtempSync(join(tmpdir(), 'ws-privacy-'));
-  const prisma = new PrismaClient({ datasourceUrl: `file:${join(dir, 'test.db').replace(/\\/g, '/')}` });
+  const prisma = new PrismaClient({ datasourceUrl: sqliteDatasourceUrl(`file:${join(dir, 'test.db').replace(/\\/g, '/')}`) });
   open.push({ dir, prisma });
   const names = readdirSync(MIGRATIONS, { withFileTypes: true })
     .filter((d) => d.isDirectory())
@@ -110,7 +111,7 @@ describe('마이그레이션', () => {
 
     // 실제 적용: 이 마이그레이션 직전 상태에 옛 행 → 적용 후 retainUntil = erasedAt + 7일(정규 ISO)
     const tdir = mkdtempSync(join(tmpdir(), 'ws-privacy-'));
-    const prisma = new PrismaClient({ datasourceUrl: `file:${join(tdir, 'test.db').replace(/\\/g, '/')}` });
+    const prisma = new PrismaClient({ datasourceUrl: sqliteDatasourceUrl(`file:${join(tdir, 'test.db').replace(/\\/g, '/')}`) });
     open.push({ dir: tdir, prisma });
     const names = readdirSync(MIGRATIONS, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
     for (const n of names.slice(0, names.indexOf(dir!))) {

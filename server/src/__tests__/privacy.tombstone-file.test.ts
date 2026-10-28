@@ -2,6 +2,7 @@
 //   실제 SQLite 파일(prisma/migrations 적용)로 "묘비 있는 DB → 묘비 없는 옛 DB 파일로 덮어쓰기 → 파일만으로 재적용" 을 재현.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { sqliteDatasourceUrl } from '../db/sqlite-url.js';
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -48,7 +49,7 @@ function tmp(): string {
 }
 
 function connect(dbFile: string): PrismaClient {
-  const c = new PrismaClient({ datasourceUrl: `file:${dbFile.replace(/\\/g, '/')}` });
+  const c = new PrismaClient({ datasourceUrl: sqliteDatasourceUrl(`file:${dbFile.replace(/\\/g, '/')}`) });
   clients.push(c);
   return c;
 }

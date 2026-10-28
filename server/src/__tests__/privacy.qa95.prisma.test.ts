@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../app.js';
 import { makePrismaRepos, type Repos } from '../db/repos.js';
+import { sqliteDatasourceUrl } from '../db/sqlite-url.js';
 import { PrismaUserRepository } from '../auth/user.prisma.repo.js';
 import type { UserRepository } from '../auth/user.repo.js';
 import { PrismaRetentionStore } from '../privacy/retention.prisma.js';
@@ -40,7 +41,8 @@ const open: { dir: string; prisma: PrismaClient }[] = [];
 
 async function freshDb(): Promise<PrismaClient> {
   const dir = mkdtempSync(join(tmpdir(), 'ws-qa95-'));
-  const prisma = new PrismaClient({ datasourceUrl: `file:${join(dir, 'test.db').replace(/\\/g, '/')}` });
+  // 운영(db/prisma.ts)과 같은 URL 보정 — SQLite 연결 1개. 없으면 2 vCPU(CI)에서 삭제 트랜잭션이 만료돼 DELETE 500(db/sqlite-url.ts).
+  const prisma = new PrismaClient({ datasourceUrl: sqliteDatasourceUrl(`file:${join(dir, 'test.db').replace(/\\/g, '/')}`) });
   open.push({ dir, prisma });
   const names = readdirSync(MIGRATIONS, { withFileTypes: true })
     .filter((d) => d.isDirectory())
