@@ -146,7 +146,34 @@ const SECRET_RES = [
   /api[_-]?key\s*[:=]\s*['"][A-Za-z0-9]{16,}/i,
   /JWT[_A-Z]*SECRET\s*[:=]\s*['"][A-Za-z0-9_-]{16,}['"]/,
   /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/,
+  // security 139 MED-1 — 배포 실값 형태.
+  //   env·셸·compose 줄의 따옴표 없는(또는 있는) 값: 줄 시작 KEY=값(선택 export·YAML 목록 '- '). 이름에 SECRET·TOKEN·PASSWORD·PASSWD·
+  //   API_KEY·PRIVATE_KEY·_HASH 가 있고(이름이 그 낱말로 시작해도 — PASSWORD=·TOKEN=·SECRET_KEY_BASE=, QA148 LOW-1) 값이 16자 이상 리터럴.
+  //   값은 변수·치환 $·자리 <>·{} 로 시작하지 않아야 하고, 중간의 $ 는 값의 일부로 본다(무작위 비밀번호). __SET_ME__ 는 10자라 걸리지 않는다.
+  //   YAML 맵(KEY: 값)·Dockerfile ENV/ARG 형태는 아래 NONCODE_SECRET_RES(코드 파일의 객체 리터럴 KEY: process.env.X 오탐 방지).
+  /^\s*(?:-\s+)?(?:export\s+)?(?=[A-Z])[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]*\s*=\s*['"]?(?![$<{])[^\s'"<>{}()]{16,}/,
+  // GitHub 토큰(classic ghp_ · OAuth gho_ · 사용자-서버 ghu_ · 서버-서버 ghs_ · 갱신 ghr_ · fine-grained github_pat_).
+  /\bgh[pousr]_[A-Za-z0-9]{36,}\b/,
+  /\bgithub_pat_[A-Za-z0-9]{22,}_[A-Za-z0-9]{40,}\b/,
+  // Resend API 키(re_<8>_<24> 형태, 대문자·숫자를 섞음 — 스네이크 식별자 re_foo_bar 와 구분).
+  /\bre_(?=[A-Za-z0-9_]*[0-9])(?=[A-Za-z0-9_]*[A-Z])[A-Za-z0-9]{6,}_[A-Za-z0-9]{16,}\b/,
 ];
+// 코드가 아닌 파일(deploy/·워크플로·env·yml·셸·Caddyfile·Dockerfile)에만: bcrypt 해시(basic_auth WS_BASIC_HASH 등).
+//   코드에는 의도한 더미 해시가 있다(server/src/auth/user.repo.ts DUMMY_PASSWORD_HASH — 타이밍 균등화, 원문 폐기).
+const SECRET_NAME = String.raw`(?=[A-Z])[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]*`;
+const SECRET_VALUE = String.raw`['"]?(?![$<{])[^\s'"<>{}()#]{16,}`;
+const NONCODE_SECRET_RES = [
+  /\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/,
+  // YAML 맵(compose environment: 아래 KEY: 값, 따옴표 있든 없든) — QA148 LOW-1.
+  new RegExp(String.raw`^\s*(?:-\s+)?${SECRET_NAME}\s*:\s+${SECRET_VALUE}`),
+  // Dockerfile ENV KEY=값 · ENV KEY 값 · ARG KEY=값 — QA148 LOW-1.
+  new RegExp(String.raw`^\s*(?:ENV|ARG)\s+${SECRET_NAME}(?:\s*=\s*|\s+)${SECRET_VALUE}`),
+];
+// 배포 실값 파일 이름(MED-1): deploy/ 아래 *.env(server.env·caddy.env 등)는 서버에만 — 작업 트리에 있으면(추적 여부 무관) FAIL.
+//   *.env.example 은 예시(값 0 은 deploy-config.test.mjs). 저장소 어디서든 git 이 추적하는 *.env 도 FAIL(checkTrackedEnv).
+const DEPLOY_REAL_ENV_RE = /^deploy\/(?:.*\/)?[^/]+\.env$/;
+//   server.env · prod.env.local 은 잡고, config.env.test.ts · x.env.json 같은 코드·데이터 파일은 잡지 않는다.
+const TRACKED_ENV_RE = /^[^.][^/]*\.env(?:\.(?!(?:[cm]?[jt]sx?|json|ya?ml|md|txt|example)$)[A-Za-z0-9_-]+)?$/;
 
 const isTestFile = (rel) => /(^|\/)__tests__\//.test(rel) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) || rel.startsWith('client/src/test/');
 
@@ -575,7 +602,9 @@ function checkTrackedEnv(root, add, notes) {
   }
   for (const f of ls.stdout.split('\0').filter(Boolean)) {
     const b = f.split('/').pop();
-    if (/^\.env(\..*)?$/.test(b) && !b.endsWith('.example')) add('C7-SECRET', 'FAIL', f, null, 'git 추적 중인 .env 파일');
+    if (b.endsWith('.example')) continue;
+    // .env · .env.local · server.env · caddy.env · prod.env.local 등(MED-1: 예전엔 점으로 시작하는 .env* 만 봤다).
+    if (/^\.env(\..*)?$/.test(b) || TRACKED_ENV_RE.test(b)) add('C7-SECRET', 'FAIL', f, null, 'git 추적 중인 .env 파일');
   }
 }
 
@@ -609,6 +638,7 @@ export function scanSources(root, ctx, notes) {
     const rel = relPosix(root, abs);
     const ext = extname(abs);
     if (abs.endsWith('.example')) continue;
+    if (DEPLOY_REAL_ENV_RE.test(rel)) add('C7-SECRET', 'FAIL', rel, null, '배포 실값 env 파일이 작업 트리에 있다 — 서버(/opt/withsmall)에만 둔다(저장소에는 *.example 만)');
     if (ext && !TEXT_EXT.has(ext) && !/^Dockerfile/.test(basename(abs)) && !(rel.startsWith('deploy/') && ext === '.sh')) continue;
     let text;
     try {
@@ -620,6 +650,7 @@ export function scanSources(root, ctx, notes) {
     // C7-SECRET — 원문 줄(주석 속 키도 유출)
     lines(text).forEach((l, i) => {
       for (const re of SECRET_RES) if (re.test(l)) add('C7-SECRET', 'FAIL', rel, i + 1, `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…`);
+      if (!CODE_EXT.has(ext)) for (const re of NONCODE_SECRET_RES) if (re.test(l)) add('C7-SECRET', 'FAIL', rel, i + 1, `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…`);
     });
     if (['package.json', 'client/package.json', 'server/package.json'].includes(rel)) {
       scanPackage(rel, text, ctx);

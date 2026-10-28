@@ -3,6 +3,9 @@
 #   시크릿은 server.env·caddy.env(0600, 저장소 밖)에서만. 이 파일에 값 없음.
 #   로그: journald(bootstrap.sh 가 7일·500M 보관) — 앱·Caddy 모두 IP·요청 주소를 남기지 않는다(docs/ops/deploy.md 7절).
 #   불변식 ④ 결제 없음 · ⑧ 위치 저장 없음 — 이 구성은 두 컨테이너(app·caddy)뿐.
+#   격리(security 139 LOW-2): 두 컨테이너 모두 read_only 루트 + tmpfs /tmp(noexec) — 쓰기는 볼륨(app /data · caddy /data·/config)과 /tmp 뿐.
+#     이미지의 /app 은 root 소유(Dockerfile) → app 사용자는 코드를 바꾸지 못한다. 자원 상한: A1.Flex 2 OCPU / 12 GB 기준(mem·cpus·pids).
+#   caddy 이미지는 다이제스트 고정(LOW-3) — 갱신 절차 docs/ops/deploy.md 6절 '베이스 이미지 갱신'.
 name: withsmall
 
 services:
@@ -11,6 +14,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./server.env
+    # SQLite 임시 파일을 /data 볼륨 안에(QA148 MED-1 — read_only 에서 tmpfs /tmp 64m 로 떨어지면 큰 DB 의 VACUUM 실패). 이미지 ENV 와 같은 값.
+    environment:
+      - SQLITE_TMPDIR=/data/.sqlite-tmp
     volumes:
       - ./data:/data
     # 호스트 포트 없음 — caddy 만 내부 네트워크로 접근한다.
@@ -23,6 +29,12 @@ services:
       retries: 3
       start_period: 60s
       start_interval: 2s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 256
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -33,7 +45,8 @@ services:
         tag: withsmall-app
 
   caddy:
-    image: caddy:2.10-alpine
+    # caddy:2.11-alpine(2.11.7) 멀티 아키텍처 인덱스 다이제스트 — 2026-10-28 고정.
+    image: caddy:2.11-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
     restart: unless-stopped
     depends_on:
       app:
@@ -49,6 +62,12 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 128
     security_opt:
       - no-new-privileges:true
     cap_drop:

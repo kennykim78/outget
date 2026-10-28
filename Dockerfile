@@ -8,8 +8,12 @@
 #     WS_INDEXABLE              선택. 1 일 때만 robots Allow — 기본 0(비공개). 공개 결정은 Kenny.
 #   예: docker build --build-arg SITE_ORIGIN=https://staging.example --build-arg VITE_NAVER_MAP_CLIENT_ID=<id> -t withsmall .
 
+# 베이스 이미지는 다이제스트 고정(security 139 LOW-3 — 같은 태그가 다른 내용으로 바뀌어도 빌드가 따라가지 않는다).
+#   node:22-alpine 멀티 아키텍처 인덱스 다이제스트(amd64 CI · arm64 운영 모두 포함). 갱신 절차: docs/ops/deploy.md 6절 '베이스 이미지 갱신'
+#   (Dependabot docker 생태계가 주 1회 갱신 PR — .github/dependabot.yml). 세 단계가 같은 다이제스트여야 한다(deploy-config.test.mjs).
+
 # ── 1) client 빌드 (vite → client/dist) ──────────────────────────────────────
-FROM node:22-alpine AS client-build
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS client-build
 WORKDIR /app
 # 워크스페이스 설치를 위해 루트 + client 매니페스트 복사 후 client 의존성 설치.
 COPY package.json package-lock.json ./
@@ -25,7 +29,7 @@ ENV VITE_NAVER_MAP_CLIENT_ID=${VITE_NAVER_MAP_CLIENT_ID}
 RUN npm run build --workspace client
 
 # ── 2) server 빌드 (prisma generate + tsc → dist) ────────────────────────────
-FROM node:22-alpine AS server-build
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS server-build
 WORKDIR /app
 # Prisma 엔진은 libssl 버전을 감지해 고른다 — alpine 기본 이미지엔 openssl 이 없어 openssl-1.1 엔진으로 잘못 떨어지고
 #   런타임 migrate deploy 가 "Could not parse schema engine response" 로 실패했다(R6 A2 컨테이너 검증에서 재현). generate·runtime 모두 설치.
@@ -57,9 +61,13 @@ RUN NODE_ENV=production node scripts/prerender.mjs \
  && node scripts/compliance-scan.mjs --require-output
 
 # ── 3) runtime (prod 의존성 + dist + prisma + client/dist) ───────────────────
-FROM node:22-alpine AS runtime
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runtime
+# SQLITE_TMPDIR(QA148 MED-1): SQLite 임시 파일(VACUUM 은 살아 있는 데이터 크기만큼)을 /data 볼륨 안에 둔다 — read_only 루트에서는
+#   /var/tmp 가 쓰기 불가라 tmpfs /tmp(64m)로 떨어져 DB 가 약 64MB 를 넘으면 VACUUM 이 "database or disk is full" 로 실패했다.
+#   엔트리포인트가 0700 으로 만든다. /data/backup(정리 대상)·erasures.jsonl 과 겹치지 않는 숨김 폴더.
 ENV NODE_ENV=production \
     DATABASE_URL=file:/data/prod.db \
+    SQLITE_TMPDIR=/data/.sqlite-tmp \
     PORT=3001
 WORKDIR /app
 # Prisma 엔진 libssl(위 server-build 와 같은 이유).
@@ -94,8 +102,10 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 COPY scripts/prune-backups.sh ./scripts/prune-backups.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-# /data 볼륨(SQLite prod.db) — 비루트 유저가 쓸 수 있도록 소유권 부여.
-RUN mkdir -p /data && chown -R node:node /data /app
+# /data 볼륨(SQLite prod.db) — 비루트 유저가 쓸 수 있도록 /data 만 소유권 부여.
+#   /app 은 root 소유 그대로(COPY·npm ci 가 root) — app 사용자(node)는 코드·의존성·프리렌더 산출물을 바꾸지 못한다(security 139 LOW-2).
+#   운영 compose 는 여기에 read_only + tmpfs /tmp 를 더한다(deploy/compose.yaml) — 쓰기는 /data 볼륨과 /tmp 뿐.
+RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]
 
 USER node

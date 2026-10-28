@@ -1,16 +1,23 @@
 #!/bin/sh
 # WithSmall 새 호스트 준비(Oracle Cloud A1.Flex arm64 — Ubuntu 24.04 권장, Oracle Linux 8/9 도 처리). root 로 한 번 실행, 여러 번 실행해도 결과가 같다(멱등).
 #   사용(이 저장소의 deploy/ 폴더를 서버에 올린 뒤):
-#     sudo sh deploy/bootstrap.sh --image-repo ghcr.io/<owner>/<repo> --deploy-pubkey "ssh-ed25519 AAAA... gha-deploy"
+#     sudo sh deploy/bootstrap.sh --image-repo ghcr.io/<owner>/<repo> --deploy-pubkey "ssh-ed25519 AAAA... gha-deploy" [--admin-user ubuntu]
+#     --admin-user: SSH 로 들어올 관리 계정(기본 = sudo 를 부른 사용자 SUDO_USER). sshd AllowUsers 는 deploy + 이 계정뿐 — 이 계정에
+#       ~/.ssh/authorized_keys 가 없으면 잠김을 막으려고 아무것도 바꾸기 전에 멈춘다.
 #   하는 일:
 #     1) 자동 보안 업데이트(unattended-upgrades / dnf-automatic) · 시간대 UTC
 #     2) Docker 공식 저장소에서 docker-ce + compose 플러그인(arm64·amd64 자동)
 #     3) journald 7일·500M(앱·Caddy 로그 = journald, 개인정보 처리방침 '서버 오류 기록 7일'과 같은 값 — policy.ts SERVER_LOG_RETENTION_DAYS)
 #        syslog 사본 0: ForwardToSyslog=no + rsyslog 가 있으면 withsmall-* 태그를 버린다(imjournal 경로 포함) — 사본이 logrotate 4주를 따르지 않게.
 #        7일 보장: 활성 파일 MaxFileSec=1day 로 매일 순환 + 매일 타이머 journalctl --rotate --vacuum-time=(7-2)d(QA122 HIGH-1).
+#     3b) 운영자 접속 기록만 따로 1년(security 139 MED-3, Kenny 승인 "운영자 기록만 따로 1년 보관"): 매시 타이머(+ vacuum 직전)가
+#        journald 의 auth·authpriv 기록 중 운영 계정(deploy·관리 계정) 줄과 deploy.sh 단계 줄(ws-admin-deploy)만 골라
+#        /var/log/withsmall-admin/access.log(0600 root)에 덧붙인다 — 이메일 형태는 가린다. logrotate 매월·13개(≥ 12개월, ≤ 14개월).
+#        앱·Caddy 기록(withsmall-*)·웹 접속 기록은 여기에 들어가지 않는다(그대로 journald 7일 · 웹 접속 기록 0).
 #     4) 방화벽: Ubuntu 는 iptables INPUT 의 Oracle 기본 REJECT 앞에 80·443/tcp·443/udp(ufw 쓰지 않음), Oracle Linux 는 firewalld.
 #        OCI 콘솔 Security List 인그레스도 따로 열어야 한다(docs/ops/deploy.md 8절).
-#     5) deploy 사용자(docker 그룹) + 강제 명령 키(restrict,command=deploy-gate.sh) · sshd 강화(비밀번호·root 로그인 끔)
+#     5) deploy 사용자(docker 그룹) + 강제 명령 키(restrict,command=deploy-gate.sh) · sshd 강화(비밀번호·root 로그인 끔,
+#        AllowUsers deploy·관리 계정, TCP·에이전트·X11·소켓 포워딩·터널 끔 — security 139 LOW-5)
 #     6) /opt/withsmall/{bin,state,data,data/backup}: data 는 1000:1000 750(컨테이너 node 사용자)
 #     7) compose.yaml·Caddyfile·deploy.sh·deploy-gate.sh 복사, deploy.conf 작성, server.env·caddy.env 없으면 예시로 만든다(0600, deploy 소유).
 #        server.env 의 시크릿 3개(__SET_ME__)는 이 서버에서 openssl 로 채운다 — 값은 출력하지 않는다. caddy.env 는 Kenny 가 채운다.
@@ -27,13 +34,17 @@ SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT=/opt/withsmall
 DEPLOY_USER=deploy
 JOURNAL_DAYS=7
+# 운영자 접속 기록 보관(개월, logrotate monthly rotate) — 13 = 가장 오래된 기록이 지워질 때 최소 12개월(안전성 확보조치 기준 제8조 1년 이상).
+ADMIN_LOG_MONTHS=13
 IMAGE_REPO=""
 PUBKEY=""
+ADMIN_USER="${SUDO_USER:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --image-repo) IMAGE_REPO="${2:-}"; shift 2 ;;
     --deploy-pubkey) PUBKEY="${2:-}"; shift 2 ;;
+    --admin-user) ADMIN_USER="${2:-}"; shift 2 ;;
     *) die "알 수 없는 인수: $1" ;;
   esac
 done
@@ -58,8 +69,18 @@ if ! printf '%s' "$PUBKEY" | awk '{ for (i = 3; i <= NF; i++) if ($i ~ /^(ssh-|e
   die "--deploy-pubkey 에 키가 둘 이상 — 키 하나만"
 fi
 unset key_b64
+# 관리 계정 이름: 소문자 POSIX 이름, root·deploy 불가(AllowUsers 에 그대로 들어간다).
+case "$ADMIN_USER" in
+  ''|root) die "--admin-user <관리 계정> 필요(sudo 로 실행하면 기본값 = 부른 사용자) — root 불가" ;;
+  "$DEPLOY_USER") die "--admin-user 는 배포 계정($DEPLOY_USER)과 달라야 한다" ;;
+  -*|*[!a-z0-9_-]*) die "--admin-user 형식 오류(소문자·숫자·_·- 만)" ;;
+esac
 if [ "${WS_BOOTSTRAP_ARGS_ONLY:-0}" = "1" ]; then log "인수 검사 통과(WS_BOOTSTRAP_ARGS_ONLY)"; exit 0; fi
 [ "$(id -u)" = "0" ] || die "root 로 실행(sudo)"
+# 잠김 방지(LOW-5): AllowUsers 로 관리 계정만 남기기 전에 그 계정이 키로 들어올 수 있는지 먼저 본다 — 아무것도 바꾸기 전.
+admin_home="$(getent passwd "$ADMIN_USER" | cut -d: -f6)"
+[ -n "$admin_home" ] || die "관리 계정 $ADMIN_USER 없음 — --admin-user 확인"
+[ -s "$admin_home/.ssh/authorized_keys" ] || die "$admin_home/.ssh/authorized_keys 가 비었다 — AllowUsers 적용 시 잠긴다"
 for f in compose.yaml Caddyfile deploy.sh deploy-gate.sh server.env.example caddy.env.example; do
   [ -f "$SRC_DIR/$f" ] || die "$SRC_DIR/$f 없음 — deploy/ 폴더 전체를 올린다"
 done
@@ -77,13 +98,13 @@ log "OS=$OS ${VERSION_ID:-} arch=$(uname -m)"
 if [ "$OS" = ubuntu ]; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -q
-  apt-get install -yq ca-certificates curl gnupg unattended-upgrades iptables-persistent openssl
+  apt-get install -yq ca-certificates curl gnupg unattended-upgrades iptables-persistent openssl logrotate
   cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOT'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 EOT
 else
-  dnf -y install ca-certificates curl dnf-automatic openssl firewalld dnf-plugins-core
+  dnf -y install ca-certificates curl dnf-automatic openssl firewalld dnf-plugins-core logrotate
   sed -i 's/^apply_updates *=.*/apply_updates = yes/' /etc/dnf/automatic.conf || true
   systemctl enable --now dnf-automatic.timer
 fi
@@ -155,12 +176,92 @@ systemctl restart systemd-journald
 # 매일: 활성 파일을 닫고(--rotate) 마지막 항목이 (일수-2)일보다 오래된 보관 파일 삭제.
 #   파일 하나 = 최대 하루(+타이머 지연) → 가장 오래된 항목의 최대 나이 ≈ (일수-2) + 1 + 지연·누락 여유 1일 ≤ 일수.
 VACUUM_DAYS=$((JOURNAL_DAYS - 2))
+# ── 3b) 운영자 접속 기록 1년(MED-3) — vacuum 이 지우기 전에 내보낸다(아래 vacuum 서비스 ExecStartPre + 매시 타이머) ──
+#   고르는 것: journald SYSLOG_FACILITY=4(auth: sshd·logind)·10(authpriv: sudo·pam·deploy.sh 의 ws-admin-deploy) 중
+#     운영 계정 이름이 낱말로 들어간 줄 + ws-admin-deploy 줄. 그 밖(모르는 계정으로 두드린 시도 등)은 7일 journald 에만.
+#   이메일 형태(sudo 명령줄의 --email 등)는 <email> 로 가린다 — 이용자 정보가 1년 기록에 들어가지 않게.
+#   커서 파일로 이어 읽는다(중복·누락 없음). 실패하면 커서를 되돌려 다음 실행이 다시 읽는다.
+install -d -m 0700 -o root -g root /var/log/withsmall-admin /var/lib/withsmall-admin
+printf '# bootstrap.sh 가 작성 — 운영자 접속 기록에 남길 계정(sshd AllowUsers 와 같다).\n%s\n%s\n' "$DEPLOY_USER" "$ADMIN_USER" > /etc/withsmall-admin-users
+chmod 0644 /etc/withsmall-admin-users
+cat > /usr/local/sbin/withsmall-admin-log-export <<'EOT'
+#!/bin/sh
+# WithSmall 운영자 접속 기록 내보내기(security 139 MED-3) — deploy/bootstrap.sh 가 설치. root, 매시 + journal vacuum 직전.
+set -eu
+umask 077
+LC_ALL=C
+export LC_ALL
+OUT=/var/log/withsmall-admin/access.log
+S=/var/lib/withsmall-admin
+alt=""
+while IFS= read -r u; do
+  case "$u" in ''|'#'*) continue ;; esac
+  case "$u" in -*|*[!a-z0-9_-]*) echo "withsmall-admin-log: 계정 이름 형식 오류(/etc/withsmall-admin-users)" >&2; exit 1 ;; esac
+  alt="${alt:+$alt|}$u"
+done < /etc/withsmall-admin-users
+[ -n "$alt" ] || { echo "withsmall-admin-log: 계정 없음" >&2; exit 1; }
+mkdir -p "$S" /var/log/withsmall-admin
+restore() {
+  if [ -f "$S/cursor.prev" ]; then mv -f "$S/cursor.prev" "$S/cursor"; else rm -f "$S/cursor"; fi
+  rm -f "$S/export.tmp" "$S/export.sel"
+}
+rm -f "$S/cursor.prev"
+if [ -f "$S/cursor" ]; then cp "$S/cursor" "$S/cursor.prev"; fi
+if ! journalctl --quiet --no-pager --utc -o short-iso-precise --cursor-file="$S/cursor" SYSLOG_FACILITY=4 SYSLOG_FACILITY=10 > "$S/export.tmp"; then
+  restore; exit 1
+fi
+# grep 1 = 고를 줄 없음(정상). 2 이상 = 오류 → 커서 되돌림.
+rc=0
+grep -E " ws-admin-deploy(\[[0-9]+\])?: |[^[:alnum:]_.-]($alt)([^[:alnum:]_.-]|\$)" "$S/export.tmp" > "$S/export.grep" || rc=$?
+if [ "$rc" -gt 1 ]; then rm -f "$S/export.grep"; restore; exit 1; fi
+if ! sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' "$S/export.grep" > "$S/export.sel"; then rm -f "$S/export.grep"; restore; exit 1; fi
+if ! cat "$S/export.sel" >> "$OUT"; then rm -f "$S/export.grep"; restore; exit 1; fi
+chmod 0600 "$OUT"
+rm -f "$S/export.tmp" "$S/export.grep" "$S/export.sel" "$S/cursor.prev"
+EOT
+chmod 0700 /usr/local/sbin/withsmall-admin-log-export
+cat > /etc/systemd/system/withsmall-admin-log.service <<'EOT'
+[Unit]
+Description=WithSmall operator access log export (1 year, separate from 7-day journald)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/withsmall-admin-log-export
+EOT
+cat > /etc/systemd/system/withsmall-admin-log.timer <<'EOT'
+[Unit]
+Description=WithSmall operator access log export (hourly)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
+EOT
+cat > /etc/logrotate.d/withsmall-admin <<EOT
+# WithSmall 운영자 접속 기록 — 매월 순환, ${ADMIN_LOG_MONTHS}개 보관(가장 오래된 기록이 지워질 때 12개월 이상). bootstrap.sh 가 작성.
+/var/log/withsmall-admin/access.log {
+	monthly
+	rotate ${ADMIN_LOG_MONTHS}
+	dateext
+	compress
+	delaycompress
+	missingok
+	notifempty
+	create 0600 root root
+}
+EOT
+chmod 0644 /etc/logrotate.d/withsmall-admin
 cat > /etc/systemd/system/withsmall-journal-vacuum.service <<EOT
 [Unit]
 Description=WithSmall journal ${JOURNAL_DAYS}-day retention (privacy policy SERVER_LOG_RETENTION_DAYS)
 
 [Service]
 Type=oneshot
+# 지우기 전에 운영자 접속 기록을 내보낸다(실패해도 7일 정리는 한다 — 앞의 '-').
+ExecStartPre=-/usr/local/sbin/withsmall-admin-log-export
 ExecStart=/usr/bin/journalctl --rotate --vacuum-time=${VACUUM_DAYS}d
 EOT
 cat > /etc/systemd/system/withsmall-journal-vacuum.timer <<'EOT'
@@ -177,6 +278,7 @@ WantedBy=timers.target
 EOT
 systemctl daemon-reload
 systemctl enable --now withsmall-journal-vacuum.timer
+systemctl enable --now withsmall-admin-log.timer
 # rsyslog: ForwardToSyslog=no 는 imuxsock(Ubuntu) 경로만 끊는다. imjournal(Oracle Linux 기본)은 저널을 직접 읽으므로
 #   컨테이너 태그(compose logging.options.tag = withsmall-*)는 rsyslog 에서 버린다 — /var/log/syslog·messages 에 사본 0.
 if [ -d /etc/rsyslog.d ] || command -v rsyslogd >/dev/null 2>&1; then
@@ -204,14 +306,21 @@ chown "$DEPLOY_USER:$DEPLOY_USER" "$home/.ssh/authorized_keys"
 chmod 0600 "$home/.ssh/authorized_keys"
 
 mkdir -p /etc/ssh/sshd_config.d
-cat > /etc/ssh/sshd_config.d/10-withsmall.conf <<'EOT'
+# 10-* 는 클라우드 이미지의 50-cloud-init.conf 보다 앞 — sshd 는 처음 읽은 값을 쓴다.
+cat > /etc/ssh/sshd_config.d/10-withsmall.conf <<EOT
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin no
-X11Forwarding no
 MaxAuthTries 3
 # authorized_keys environment=·~/.ssh/environment 로 WS_* 등 env 주입 금지 — 기본값에 기대지 않고 명시(QA133 INFO-11).
 PermitUserEnvironment no
+# 로그인 계정은 배포 계정과 관리 계정뿐, 포워딩·터널 전부 끔(security 139 LOW-5). 배포 키는 restrict 로 이미 막혀 있고, 이것은 관리 계정까지.
+AllowUsers ${DEPLOY_USER} ${ADMIN_USER}
+AllowTcpForwarding no
+AllowAgentForwarding no
+AllowStreamLocalForwarding no
+X11Forwarding no
+PermitTunnel no
 EOT
 if sshd -t; then
   systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || log "sshd reload 실패 — 재부팅 시 적용"
@@ -254,5 +363,8 @@ if [ ! -f "$ROOT/caddy.env" ]; then
 fi
 chown "$DEPLOY_USER:$DEPLOY_USER" "$ROOT/server.env" "$ROOT/caddy.env"
 chmod 0600 "$ROOT/server.env" "$ROOT/caddy.env"
+
+# 운영자 접속 기록 첫 내보내기(지금 journald 에 있는 것부터).
+systemctl start withsmall-admin-log.service 2>/dev/null || log "운영자 접속 기록 첫 내보내기 실패 — systemctl status withsmall-admin-log.service 확인"
 
 log "완료. 다음: (1) caddy.env 채우기 (2) deploy 사용자로 GHCR 로그인 (3) DNS 확인 후 첫 배포 — docs/ops/deploy.md 8절"

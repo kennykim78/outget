@@ -14,3 +14,10 @@
 /server/src/seed/fact-fields.json @kennykim78
 /server/src/seed/validate-review.ts @kennykim78
 /.github/CODEOWNERS @kennykim78
+# 배포·CI·이미지(security 139 MED-5) — 서버 권한·시크릿 경로를 바꾸는 파일. 무료 플랜은 강제되지 않는다(위 효력 조건과 같음, Kenny 판단).
+/deploy/ @kennykim78
+/.github/workflows/ @kennykim78
+/.github/dependabot.yml @kennykim78
+/Dockerfile @kennykim78
+/docker-entrypoint.sh @kennykim78
+/.dockerignore @kennykim78

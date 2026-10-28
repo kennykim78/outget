@@ -26,6 +26,15 @@ if ! WS_BACKUP_DIR="$BACKUP_DIR" sh "$PRUNE_SH" --check; then
   exit 1
 fi
 
+# SQLite 임시 폴더(QA148 MED-1) — read_only 루트에서 VACUUM 임시 DB 가 tmpfs /tmp(64m)에 갇히지 않게 /data 볼륨 안(Dockerfile ENV).
+#   0700(다른 사용자 읽기 불가). 만들 수 없으면 기동하지 않는다(VACUUM = 삭제 뒤 파기가 조용히 깨지는 것보다 낫다).
+if [ -n "${SQLITE_TMPDIR:-}" ]; then
+  if ! { mkdir -p "$SQLITE_TMPDIR" && chmod 0700 "$SQLITE_TMPDIR" && [ -w "$SQLITE_TMPDIR" ]; }; then
+    log "SQLITE_TMPDIR $SQLITE_TMPDIR not writable — not starting"
+    exit 1
+  fi
+fi
+
 # 0) env
 log "env check"
 if ! node dist/config/env.js; then

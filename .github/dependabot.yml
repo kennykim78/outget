@@ -1,0 +1,51 @@
+# Dependabot(security 139 MED-4·LOW-3) — 주 1회 갱신 PR. 병합은 사람이(CI 초록 + 리뷰), 자동 병합 없음.
+#   github-actions: 워크플로의 커밋 SHA 고정(uses: owner/action@<sha> # vX.Y.Z)을 SHA·버전 주석째 갱신한다.
+#   npm: 워크스페이스 루트 하나(package-lock.json 이 루트에만 있다 — client·server 는 같은 잠금 파일).
+#   docker: Dockerfile 의 node:22-alpine@sha256 다이제스트 · docker-compose: deploy/compose.yaml 의 caddy 다이제스트.
+#     갱신 PR 을 병합하기 전 확인 순서는 docs/ops/deploy.md 6절 '베이스 이미지 갱신'.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 2
+    ignore:
+      # node 메이저(22 → 24 등)는 엔진 범위(package.json engines)와 함께 사람이 판단한다.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: caddy
+        update-types: [version-update:semver-major]

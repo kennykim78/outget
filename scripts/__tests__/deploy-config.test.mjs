@@ -383,7 +383,7 @@ test('QA127 LOW-8: bootstrap 시크릿은 어떤 명령의 argv 에도 없다(aw
 });
 
 test('QA122 LOW-2: --deploy-pubkey 는 한 줄·키 하나만(개행·CR·키 둘·base64 아님 거부)', { skip: !SH_BIN }, () => {
-  const run = (key) => spawnSync(SH_BIN, [fwdp(join(ROOT, 'deploy', 'bootstrap.sh')), '--image-repo', 'ghcr.io/owner/repo', '--deploy-pubkey', key], {
+  const run = (key) => spawnSync(SH_BIN, [fwdp(join(ROOT, 'deploy', 'bootstrap.sh')), '--image-repo', 'ghcr.io/owner/repo', '--deploy-pubkey', key, '--admin-user', 'ubuntu'], {
     encoding: 'utf8',
     env: { ...process.env, WS_BOOTSTRAP_ARGS_ONLY: '1' },
   });
@@ -428,4 +428,254 @@ test('QA122 LOW-4: deploy.yml build-push 첫 단계가 이 커밋의 ci.yml 최�
   assert.match(guard, /\[ "\$latest" != "completed success" \]/);
   assert.match(guard, /exit 1/);
   assert.ok(existsSync(join(ROOT, '.github', 'workflows', 'ci.yml')));
+});
+
+// ── security 139 / lane 145 ───────────────────────────────────
+const CI = read('.github', 'workflows', 'ci.yml');
+const DOCKERFILE = read('Dockerfile');
+const DEPLOY_SH_TEXT = read('deploy', 'deploy.sh');
+
+test('139 MED-4: 모든 서드파티 Action 은 40자 커밋 SHA + 버전 주석, checkout 은 persist-credentials: false', () => {
+  for (const [name, wf] of [['ci.yml', CI], ['deploy.yml', WORKFLOW]]) {
+    const uses = [...wf.matchAll(/^\s*(?:-\s+)?uses:\s*(.+)$/gm)].map((m) => m[1].trim());
+    assert.ok(uses.length > 0, name);
+    for (const u of uses) {
+      if (u.startsWith('./')) continue; // 로컬 액션은 고정 대상 아님
+      assert.match(u, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/, `${name}: ${u}`);
+    }
+    // checkout 마다 바로 아래 with: 에 persist-credentials: false.
+    const lines = wf.split('\n');
+    lines.forEach((l, i) => {
+      if (!/uses:\s*actions\/checkout@/.test(l)) return;
+      const ind = /^(\s*)/.exec(l)[1].length;
+      const block = [];
+      for (let k = i + 1; k < lines.length && (lines[k].trim() === '' || /^(\s*)/.exec(lines[k])[1].length >= ind) && !/^\s*- /.test(lines[k]); k++) block.push(lines[k]);
+      assert.ok(block.some((b) => /^\s+persist-credentials: false\s*$/.test(b)), `${name}:${i + 1} checkout persist-credentials`);
+    });
+  }
+});
+
+test('139 MED-4: dependabot — github-actions·npm 주 1회(+ docker·compose 다이제스트)', () => {
+  const dep = read('.github', 'dependabot.yml');
+  assert.match(dep, /^version: 2$/m);
+  const eco = [...dep.matchAll(/- package-ecosystem: (\S+)\n\s+directory: (\S+)\n\s+schedule:\n\s+interval: (\S+)/g)].map((m) => [m[1], m[2], m[3]]);
+  const by = Object.fromEntries(eco.map(([e, d, i]) => [e, { d, i }]));
+  for (const e of ['github-actions', 'npm', 'docker', 'docker-compose']) assert.equal(by[e]?.i, 'weekly', e);
+  assert.equal(by['github-actions'].d, '/');
+  assert.equal(by.npm.d, '/');
+  assert.equal(by['docker-compose'].d, '/deploy');
+});
+
+test('139 LOW-1: deploy.yml — require-main 이 먼저, build-push·deploy(rollback 포함)는 main 일 때만', () => {
+  const jobs = [...WORKFLOW.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1]);
+  assert.deepEqual(jobs, ['require-main', 'build-push', 'deploy']);
+  const rm = WORKFLOW.slice(WORKFLOW.indexOf('  require-main:'), WORKFLOW.indexOf('\n  build-push:'));
+  assert.match(rm, /REF: \$\{\{ github\.ref \}\}/);
+  assert.match(rm, /if \[ "\$REF" != "refs\/heads\/main" \]; then/);
+  assert.match(rm, /exit 1/);
+  const bp = WORKFLOW.slice(WORKFLOW.indexOf('  build-push:'), WORKFLOW.indexOf('\n  deploy:'));
+  assert.match(bp, /^ {4}needs: require-main$/m);
+  assert.match(bp, /^ {4}if: inputs\.action == 'deploy' && github\.ref == 'refs\/heads\/main'$/m);
+  const dp = WORKFLOW.slice(WORKFLOW.indexOf('\n  deploy:'));
+  assert.match(dp, /^ {4}needs: \[require-main, build-push\]$/m);
+  const cond = /^ {4}if: (.+)$/m.exec(dp)[1];
+  assert.match(cond, /needs\.require-main\.result == 'success'/);
+  assert.match(cond, /github\.ref == 'refs\/heads\/main'/);
+});
+
+test('139 LOW-2: compose — app·caddy 모두 read_only + tmpfs /tmp(noexec) + mem·cpus·pids 상한, cap 전부 제거', () => {
+  const svc = (name) => new RegExp(`^ {2}${name}:\\n((?: {4,}.*\\n|\\n)+)`, 'm').exec(COMPOSE)[1];
+  for (const name of ['app', 'caddy']) {
+    const s = svc(name);
+    assert.match(s, /^ {4}read_only: true$/m, name);
+    assert.match(s, /^ {4}tmpfs:\n {6}- \/tmp:rw,noexec,nosuid,nodev,size=\d+m$/m, name);
+    assert.match(s, /^ {4}mem_limit: \d+[mg]$/m, name);
+    assert.match(s, /^ {4}cpus: \d+(\.\d+)?$/m, name);
+    assert.match(s, /^ {4}pids_limit: \d+$/m, name);
+    assert.match(s, /cap_drop:\n\s+- ALL/, name);
+    assert.match(s, /no-new-privileges:true/, name);
+  }
+  // app 쓰기는 /data 볼륨뿐(+ tmpfs).
+  assert.deepEqual([...svc('app').matchAll(/^ {6}- (\.\/\S+):(\S+)$/gm)].map((m) => m[2]), ['/data']);
+});
+
+test('139 LOW-2: Dockerfile — /app 은 root 소유 그대로(chown 은 /data 만), 비루트 실행', () => {
+  assert.doesNotMatch(DOCKERFILE, /chown[^\n]*\/app/, '/app chown 금지');
+  assert.match(DOCKERFILE, /^RUN mkdir -p \/data && chown node:node \/data$/m);
+  assert.match(DOCKERFILE, /^USER node$/m);
+  // CI 스모크도 운영과 같은 격리(read-only·tmpfs·상한)로 기동하고 /app 쓰기 불가를 확인한다.
+  assert.match(CI, /--read-only --tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
+  assert.match(CI, /--memory 1g --cpus 1\.5 --pids-limit 256/);
+  assert.match(CI, /if \[ -w "\$d" \]; then echo "writable: \$d"; exit 1; fi/);
+});
+
+test('139 LOW-3: 베이스·Caddy 이미지 다이제스트 고정(세 단계 같은 node 다이제스트)', () => {
+  const froms = [...DOCKERFILE.matchAll(/^FROM (\S+)/gm)].map((m) => m[1]);
+  assert.equal(froms.length, 3);
+  for (const f of froms) assert.match(f, /^node:22-alpine@sha256:[0-9a-f]{64}$/, f);
+  assert.equal(new Set(froms).size, 1, '세 단계 같은 다이제스트');
+  const images = [...COMPOSE.matchAll(/^\s+image: (\S+)$/gm)].map((m) => m[1]);
+  const caddy = images.filter((i) => i.startsWith('caddy:'));
+  assert.equal(caddy.length, 1);
+  assert.match(caddy[0], /^caddy:2\.\d+-alpine@sha256:[0-9a-f]{64}$/);
+  // 문서의 해시 생성 명령도 같은 이미지(태그만 다르면 다른 Caddy 로 해시를 만든다).
+  const doc = read('docs', 'ops', 'deploy.md');
+  assert.ok(doc.includes(caddy[0]), 'deploy.md 의 caddy hash-password 이미지 = compose 이미지');
+});
+
+test('139 LOW-5: sshd 드롭인 — AllowUsers deploy·관리 계정, 포워딩·터널 끔, 잠김 확인이 바꾸기 전', () => {
+  const body = heredoc('/etc/ssh/sshd_config.d/10-withsmall.conf');
+  const kv = Object.fromEntries(body.split('\n').filter((l) => l && !l.startsWith('#')).map((l) => [l.split(' ')[0], l.split(' ').slice(1).join(' ')]));
+  assert.equal(kv.AllowUsers, '${DEPLOY_USER} ${ADMIN_USER}');
+  for (const k of ['AllowTcpForwarding', 'AllowAgentForwarding', 'AllowStreamLocalForwarding', 'X11Forwarding', 'PermitTunnel', 'PasswordAuthentication', 'PermitRootLogin', 'PermitUserEnvironment']) {
+    assert.equal(kv[k], 'no', k);
+  }
+  const lock = BOOTSTRAP.indexOf('[ -s "$admin_home/.ssh/authorized_keys" ] || die');
+  assert.ok(lock > 0, '관리 계정 authorized_keys 확인');
+  for (const later of ['apt-get update', 'cat > /etc/ssh/sshd_config.d/10-withsmall.conf', 'systemctl restart docker']) {
+    assert.ok(lock < BOOTSTRAP.indexOf(later), `잠김 확인이 ${later} 보다 앞`);
+  }
+});
+
+test('139 LOW-5: --admin-user 검사(인수만) — 없음·root·deploy·형식 오류 거부, SUDO_USER 기본값', { skip: !SH_BIN }, () => {
+  const K1 = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl gha-deploy';
+  const env0 = { ...process.env, WS_BOOTSTRAP_ARGS_ONLY: '1' };
+  delete env0.SUDO_USER;
+  const run = (extra, env = env0) => spawnSync(SH_BIN, [fwdp(join(ROOT, 'deploy', 'bootstrap.sh')), '--image-repo', 'ghcr.io/owner/repo', '--deploy-pubkey', K1, ...extra], { encoding: 'utf8', env });
+  assert.equal(run(['--admin-user', 'ubuntu']).status, 0);
+  assert.equal(run([], { ...env0, SUDO_USER: 'ubuntu' }).status, 0);
+  for (const bad of [[], ['--admin-user', ''], ['--admin-user', 'root'], ['--admin-user', 'deploy'], ['--admin-user', 'Ubuntu'], ['--admin-user', 'a b'], ['--admin-user', '-x'], ['--admin-user', 'u;id']]) {
+    const r = run(bad);
+    assert.equal(r.status, 1, JSON.stringify(bad));
+    assert.match(r.stderr, /admin-user/, JSON.stringify(bad));
+  }
+  assert.equal(run([], { ...env0, SUDO_USER: 'root' }).status, 1);
+});
+
+test('139 MED-3: 운영자 접속 기록 1년 — 매시·vacuum 직전 내보내기, auth·authpriv, logrotate ≥ 12개월, 웹·앱 기록 7일 그대로', () => {
+  const months = Number(/^ADMIN_LOG_MONTHS=(\d+)$/m.exec(BOOTSTRAP)[1]);
+  assert.ok(months >= 13, '매월 순환에서 가장 오래된 파일이 지워질 때 ≥ 12개월');
+  const lr = heredoc('/etc/logrotate.d/withsmall-admin');
+  assert.match(lr, /^\/var\/log\/withsmall-admin\/access\.log \{$/m);
+  assert.match(lr, /^\tmonthly$/m);
+  assert.match(lr, /^\trotate \$\{ADMIN_LOG_MONTHS\}$/m);
+  assert.match(lr, /^\tcreate 0600 root root$/m);
+  assert.doesNotMatch(lr, /maxage|daily|weekly/);
+  const timer = heredoc('/etc/systemd/system/withsmall-admin-log.timer');
+  assert.match(timer, /^OnCalendar=hourly$/m);
+  assert.match(timer, /^Persistent=true$/m);
+  assert.match(BOOTSTRAP, /systemctl enable --now withsmall-admin-log\.timer/);
+  const vac = heredoc('/etc/systemd/system/withsmall-journal-vacuum.service');
+  assert.match(vac, /^ExecStartPre=-\/usr\/local\/sbin\/withsmall-admin-log-export$/m, 'vacuum 전에 내보내되 실패해도 7일 정리');
+  assert.ok(vac.indexOf('ExecStartPre=') < vac.indexOf('ExecStart='));
+  const ex = heredoc('/usr/local/sbin/withsmall-admin-log-export');
+  assert.match(ex, /SYSLOG_FACILITY=4 SYSLOG_FACILITY=10/);
+  assert.match(ex, /--cursor-file=/);
+  assert.doesNotMatch(ex, /withsmall-app|withsmall-caddy|_SYSTEMD_UNIT|CONTAINER/, '앱·Caddy 기록은 내보내지 않는다');
+  // 7일 쪽은 그대로(처리방침 SERVER_LOG_RETENTION_DAYS) — journald 드롭인·vacuum 일수 불변, Caddy 접속 기록 0 불변(위 테스트들).
+  assert.match(BOOTSTRAP, /^JOURNAL_DAYS=7$/m);
+  // deploy.sh 단계 줄은 authpriv 로(내보내기가 고른다), 태그는 withsmall-* 가 아니다(rsyslog 버림 규칙·앱 기록과 구분).
+  assert.match(DEPLOY_SH_TEXT, /"\$ADMIN_LOGGER" -p authpriv\.info -t ws-admin-deploy -- "\$\*"/);
+  assert.match(ex, / ws-admin-deploy/);
+});
+
+test('139 MED-3: 내보내기 동작 — 운영 계정 줄·deploy 단계 줄만, 이메일 가림, 커서로 이어 읽기, 실패 시 커서 되돌림', { skip: !SH_BIN }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ws-adminlog-'));
+  try {
+    for (const d of ['bin', 'out', 'state']) mkdirSync(join(dir, d));
+    const P = (x) => fwdp(join(dir, x));
+    writeFileSync(join(dir, 'users'), '# c\ndeploy\nubuntu\n');
+    const ex = heredoc('/usr/local/sbin/withsmall-admin-log-export')
+      .replaceAll('/var/log/withsmall-admin', P('out'))
+      .replaceAll('/var/lib/withsmall-admin', P('state'))
+      .replaceAll('/etc/withsmall-admin-users', P('users'));
+    writeFileSync(join(dir, 'export.sh'), `${ex}\n`);
+    // 가짜 journalctl: 커서 = 읽은 줄 수. FAKE_JFAIL 이 있으면 커서를 쓴 뒤 실패(최악 경우).
+    writeFileSync(join(dir, 'bin', 'journalctl'), `#!/bin/sh
+printf '%s\\n' "$*" >> '${P('argv.log')}'
+cf=""
+for a in "$@"; do case "$a" in --cursor-file=*) cf="\${a#--cursor-file=}" ;; esac; done
+start=0; [ -f "$cf" ] && start=$(cat "$cf")
+total=$(wc -l < '${P('journal')}' | tr -d ' ')
+tail -n +$((start + 1)) '${P('journal')}'
+echo "$total" > "$cf"
+[ ! -f '${P('jfail')}' ]
+`, { mode: 0o755 });
+    const H = '2026-10-28T01:00:00.000000+00:00 ws-host';
+    const lines = [
+      `${H} sshd[100]: Accepted publickey for deploy from 203.0.113.5 port 5000 ssh2: ED25519 SHA256:abc`,
+      `${H} sshd[101]: Invalid user admin from 198.51.100.7 port 4000`,
+      `${H} sudo[102]:   ubuntu : TTY=pts/0 ; PWD=/home/ubuntu ; USER=deploy ; COMMAND=/usr/bin/docker exec x node dist/privacy/cli-erase.js --email some.one+x@mail.example.com`,
+      `${H} ws-admin-deploy[103]: 시작: deploy sha-aaaaaaaaaaaa (pid 9, 기록 state/deploy.log)`,
+      `${H} sshd[104]: Connection closed by 198.51.100.8 port 1 [preauth]`,
+      `${H} sshd[105]: pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by ubuntu(uid=0)`,
+      `${H} sshd[106]: Failed publickey for ubuntux from 198.51.100.9 port 2 ssh2`,
+      `${H} ws-admin-deploy: 종료 코드 0`,
+    ];
+    writeFileSync(join(dir, 'journal'), `${lines.join('\n')}\n`);
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const run = () => spawnSync(SH_BIN, [P('export.sh')], { encoding: 'utf8', env: { ...process.env, PATH: `${join(dir, 'bin')}${sep}${process.env.PATH}` } });
+    let r = run();
+    assert.equal(r.status, 0, r.stderr);
+    const log1 = readFileSync(join(dir, 'out', 'access.log'), 'utf8');
+    const got = log1.trim().split('\n').map((l) => /(sshd|sudo|ws-admin-deploy)(\[\d+\])?:/.exec(l)?.[0]);
+    assert.deepEqual(got, ['sshd[100]:', 'sudo[102]:', 'ws-admin-deploy[103]:', 'sshd[105]:', 'ws-admin-deploy:']);
+    assert.ok(!log1.includes('198.51.100'), '운영 계정이 아닌 시도(IP)는 1년 기록에 없다');
+    assert.ok(!log1.includes('mail.example.com') && log1.includes('--email <email>'), '이메일 가림');
+    assert.match(readFileSync(join(dir, 'argv.log'), 'utf8'), /SYSLOG_FACILITY=4 SYSLOG_FACILITY=10/);
+    // 이어 읽기: 새 줄만 덧붙는다.
+    writeFileSync(join(dir, 'journal'), `${lines.join('\n')}\n${H} sshd[107]: Accepted publickey for ubuntu from 203.0.113.6 port 1 ssh2\n`);
+    assert.equal(run().status, 0);
+    const log2 = readFileSync(join(dir, 'out', 'access.log'), 'utf8');
+    assert.equal(log2, `${log1}${H} sshd[107]: Accepted publickey for ubuntu from 203.0.113.6 port 1 ssh2\n`);
+    // journalctl 실패: 커서 되돌림 → 기록 그대로, 다음 실행이 같은 줄을 다시 읽는다.
+    writeFileSync(join(dir, 'journal'), `${readFileSync(join(dir, 'journal'), 'utf8')}${H} sshd[108]: Disconnected from user deploy 203.0.113.5 port 5000\n`);
+    writeFileSync(join(dir, 'jfail'), '');
+    r = run();
+    assert.notEqual(r.status, 0);
+    assert.equal(readFileSync(join(dir, 'out', 'access.log'), 'utf8'), log2);
+    assert.equal(readFileSync(join(dir, 'state', 'cursor'), 'utf8').trim(), String(lines.length + 1));
+    rmSync(join(dir, 'jfail'));
+    assert.equal(run().status, 0);
+    assert.match(readFileSync(join(dir, 'out', 'access.log'), 'utf8'), /sshd\[108\]: Disconnected from user deploy/);
+    assert.deepEqual(readdirSync(join(dir, 'state')).sort(), ['cursor']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('139 LOW-7: deploy.sh 고아 짝 파일 정리 일수 = prune-backups.sh POLICY_MAX_AGE = policy.ts BACKUP_RETENTION_DAYS', () => {
+  const policy = Number(/export const BACKUP_RETENTION_DAYS = (\d+);/.exec(read('server', 'src', 'privacy', 'policy.ts'))[1]);
+  const prune = Number(/^POLICY_MAX_AGE=(\d+)$/m.exec(read('scripts', 'prune-backups.sh'))[1]);
+  const dep = Number(/^BACKUP_MAX_AGE_DAYS=(\d+)$/m.exec(DEPLOY_SH_TEXT)[1]);
+  assert.equal(dep, policy);
+  assert.equal(prune, policy);
+  assert.match(DEPLOY_SH_TEXT, /-mmin \+'"\$\(\(BACKUP_MAX_AGE_DAYS \* 1440\)\)"'/);
+});
+
+test('139 MED-5: CODEOWNERS — deploy/·workflows·Dockerfile 등록', () => {
+  const co = read('.github', 'CODEOWNERS');
+  for (const p of ['/deploy/', '/.github/workflows/', '/Dockerfile', '/.github/dependabot.yml', '/docker-entrypoint.sh']) {
+    assert.match(co, new RegExp(`^${p.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')} @kennykim78$`, 'm'), p);
+  }
+});
+
+test('QA148 MED-1: SQLITE_TMPDIR 는 /data 볼륨 안(백업 폴더·erasures 밖) — 이미지 ENV·compose·CI 스모크 같은 값, 엔트리포인트가 0700 으로 만든다', () => {
+  const want = '/data/.sqlite-tmp';
+  const runtime = DOCKERFILE.slice(DOCKERFILE.indexOf('AS runtime'));
+  assert.ok(runtime.split('\n').some((l) => l.trim() === `SQLITE_TMPDIR=${want} \\`), 'Dockerfile runtime ENV');
+  assert.ok(COMPOSE.includes(`    environment:\n      - SQLITE_TMPDIR=${want}\n`), 'compose app environment');
+  assert.ok(CI.includes(`-e SQLITE_TMPDIR=${want} \\\n`), 'ci.yml 스모크');
+  const ep = read('docker-entrypoint.sh');
+  assert.match(ep, /mkdir -p "\$SQLITE_TMPDIR" && chmod 0700 "\$SQLITE_TMPDIR"/);
+  assert.ok(ep.indexOf('mkdir -p "$SQLITE_TMPDIR"') < ep.indexOf('log "migrate deploy"'), '마이그레이션·VACUUM 전에 만든다');
+  // 백업 정리(prod-*.db, /data/backup)·삭제 기록(/data/erasures.jsonl)과 겹치지 않는다.
+  assert.ok(!want.startsWith('/data/backup'));
+  assert.ok(!/prod-.*\.db/.test(want));
+  assert.notEqual(want, '/data');
+});
+
+test('QA148 INFO-1: caddy.env.example 의 hash-password 이미지 = compose caddy 이미지', () => {
+  const img = /^\s+image: (caddy:\S+)$/m.exec(COMPOSE)[1];
+  assert.ok(read('deploy', 'caddy.env.example').includes(`docker run --rm -it ${img} caddy hash-password`));
 });

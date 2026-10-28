@@ -66,6 +66,8 @@ function deploy(h, args, extraEnv = {}) {
       WS_SKIP_MODE_CHECK: WIN ? '1' : '0',
       FAKE_DIR: fwd(h.fake),
       FAKE_DATA: fwd(join(h.root, 'data')),
+      // 운영자 기록(MED-3) 끔 — 테스트가 러너의 journald 에 쓰지 않게. 켠 경로는 아래 'MED-3' 테스트가 가짜 logger 로 본다.
+      WS_ADMIN_LOGGER: '',
       ...extraEnv,
     },
   });
@@ -393,6 +395,7 @@ for (const [sig, code] of [['SIGTERM', 143], ['SIGHUP', 129], ['SIGINT', 130]]) 
           WS_HEALTH_INTERVAL: '0',
           FAKE_DIR: fwd(h.fake),
           FAKE_DATA: fwd(join(h.root, 'data')),
+          WS_ADMIN_LOGGER: '',
         },
       });
       let stderr = '';
@@ -452,6 +455,7 @@ const envFor = (h, extra = {}) => ({
   WS_SKIP_MODE_CHECK: WIN ? '1' : '0',
   FAKE_DIR: fwd(h.fake),
   FAKE_DATA: fwd(join(h.root, 'data')),
+  WS_ADMIN_LOGGER: '',
   ...extra,
 });
 const data = (h, f) => join(h.root, 'data', f);
@@ -1276,5 +1280,138 @@ test('deploy-gate: 그 밖은 전부 거부(종료 2, deploy.sh 실행 0)', () =
     const r = gate(bad);
     assert.equal(r.status, 2, JSON.stringify(bad));
     assert.equal(r.stdout, '', JSON.stringify(bad));
+  }
+});
+
+// ── QA138 INFO-12: 한쪽만 빈 마이그레이션 목록(docker 성공·출력 없음) = "알 수 없음" → deploy·rollback 모두 app 을 멈추기 전에 거부 ──
+//   변이 J1("둘 다 빌 때만 알 수 없음")을 잡는다 — 한쪽만 빈 목록을 '다름'으로 보면 rollback 이 불필요한 predeploy 복원(그 뒤 데이터 손실)으로 간다.
+test('QA138 INFO-12: deploy — 새 이미지 목록만 비었거나 지금 이미지 목록만 비었으면 거부(app·DB·current 그대로)', () => {
+  for (const emptyTag of [T2, T1]) {
+    const h = t1ThenBadT2();
+    try {
+      writeFileSync(join(h.fake, 'mig', emptyTag), '');
+      const ups = upCount(h);
+      const r = deploy(h, ['deploy', T2]);
+      assertUntouched(h, r, ups);
+      assert.doesNotMatch(out(r), /마이그레이션 목록이 다르다/, `${emptyTag}: '다름'으로 진행`);
+      assert.equal(running(h), `${REPO}:${T1}`);
+      assert.equal(readData(h, 'prod.db'), 'v1');
+      assert.equal(st(h, 'current'), `${REPO}:${T1}`);
+      assert.deepEqual(backups(h, /-predeploy\.db$/), []);
+    } finally {
+      rmSync(h.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('QA138 INFO-12: rollback — current 목록만 비었거나 previous 목록만 비었으면 거부(복원 0, DB·current·previous 그대로)', () => {
+  for (const emptyTag of [T2, T1]) {
+    const h = host();
+    try {
+      assert.equal(deploy(h, ['deploy', T1]).status, 0);
+      writeFileSync(data(h, 'prod.db'), 'v1');
+      writeFileSync(join(h.fake, 'mig', T2), '0001_init 0002_new ');
+      assert.equal(deploy(h, ['deploy', T2]).status, 0); // 마이그레이션 다름 — predeploy 기록 있음
+      writeFileSync(data(h, 'prod.db'), 'v2-after-deploy');
+      writeFileSync(join(h.fake, 'mig', emptyTag), '');
+      const ups = upCount(h);
+      const r = deploy(h, ['rollback']);
+      assertUntouched(h, r, ups);
+      assert.doesNotMatch(out(r), /배포 전 백업 복원/);
+      assert.equal(running(h), `${REPO}:${T2}`);
+      assert.equal(readData(h, 'prod.db'), 'v2-after-deploy', `${emptyTag}: 배포 뒤 데이터가 복원으로 사라짐`);
+      assert.equal(st(h, 'current'), `${REPO}:${T2}`);
+      assert.equal(st(h, 'previous'), `${REPO}:${T1}`);
+      assert.deepEqual(backups(h, /-prerollback\.db$/), []);
+    } finally {
+      rmSync(h.root, { recursive: true, force: true });
+    }
+  }
+});
+
+// ── security 139 LOW-7: 고아 짝 파일(짝 prod-*.db 없는 -journal·-wal·-shm) 7일 넘으면 정리 ──
+test('139 LOW-7: 성공한 deploy·rollback 뒤 7일 넘은 고아 짝 파일만 지운다(짝 있는 것·새 고아·다른 이름은 그대로)', () => {
+  const h = host();
+  try {
+    assert.equal(deploy(h, ['deploy', T1]).status, 0);
+    const b = (f) => join(h.root, 'data', 'backup', f);
+    const old = (Date.now() - 8 * 86400 * 1000) / 1000;
+    const files = {
+      'prod-20200101T000000Z-faileddeploy.db-journal': true, // 고아·오래됨 → 지움
+      'prod-20200101T000001Z.db-wal': true, // 고아·오래됨 → 지움
+      'prod-20200101T000002Z.db-shm': true, // 고아·오래됨 → 지움
+      'prod-20200101T000003Z.db': false, // 짝 본체(prune-backups.sh 담당) → 그대로
+      'prod-20200101T000003Z.db-journal': false, // 짝 있음 → 그대로
+      'prod-20990101T000000Z.db-journal': false, // 고아지만 새것(7일 안) → 그대로
+      'notes.db-journal': false, // 이름 형식 밖 → 그대로
+      'prod-20200101T000004Z.db-wal': false, // 고아·2일(7일 안) → 그대로(QA148 INFO-5: 나이 조건을 행동으로 고정)
+    };
+    const twoDays = (Date.now() - 2 * 86400 * 1000) / 1000;
+    for (const f of Object.keys(files)) {
+      writeFileSync(b(f), 'x');
+      if (f === 'prod-20200101T000004Z.db-wal') utimesSync(b(f), twoDays, twoDays);
+      else if (f !== 'prod-20990101T000000Z.db-journal') utimesSync(b(f), old, old);
+    }
+    let r = deploy(h, ['deploy', T2]);
+    assert.equal(r.status, 0, out(r));
+    for (const [f, gone] of Object.entries(files)) assert.equal(existsSync(b(f)), !gone, `${f} ${gone ? '남음' : '지워짐'}`);
+    assert.match(readFileSync(join(h.root, 'state', 'deploy.log'), 'utf8'), /orphan sidecar pruned prod-20200101T000000Z-faileddeploy\.db-journal/);
+    // rollback 성공 뒤에도 돈다.
+    writeFileSync(b('prod-20200101T000009Z.db-wal'), 'x');
+    utimesSync(b('prod-20200101T000009Z.db-wal'), old, old);
+    r = deploy(h, ['rollback']);
+    assert.equal(r.status, 0, out(r));
+    assert.equal(existsSync(b('prod-20200101T000009Z.db-wal')), false);
+  } finally {
+    rmSync(h.root, { recursive: true, force: true });
+  }
+});
+
+test('139 LOW-7: 고아 정리가 실패해도 배포 결과(종료 0·state)는 그대로, 실패는 기록', () => {
+  const h = host();
+  try {
+    assert.equal(deploy(h, ['deploy', T1]).status, 0);
+    writeFileSync(join(h.fake, 'noorphan'), '');
+    const r = deploy(h, ['deploy', T2]);
+    assert.equal(r.status, 0, out(r));
+    assert.equal(st(h, 'current'), `${REPO}:${T2}`);
+    assert.equal(st(h, 'previous'), `${REPO}:${T1}`);
+    assert.ok(out(r).includes('고아 짝 파일 정리 실패(무시)'), out(r));
+    assert.ok(calls(h).includes('orphan sidecar'), '정리 명령이 불렸다');
+  } finally {
+    rmSync(h.root, { recursive: true, force: true });
+  }
+});
+
+// ── security 139 MED-3: deploy.sh 단계 줄 → syslog authpriv(ws-admin-deploy) — 운영자 접속 기록 1년의 입력 ──
+test('139 MED-3: log() 줄마다 logger -p authpriv.info -t ws-admin-deploy, 시크릿·env 내용 0, logger 실패해도 배포 계속', () => {
+  const h = host();
+  try {
+    const lg = join(h.fake, 'logger');
+    const rec = fwd(join(h.fake, 'logger.log'));
+    writeFileSync(lg, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${rec}'\n`, { mode: 0o755 });
+    let r = deploy(h, ['deploy', T1], { WS_ADMIN_LOGGER: fwd(lg) });
+    assert.equal(r.status, 0, out(r));
+    const lines = readFileSync(join(h.fake, 'logger.log'), 'utf8').trim().split('\n');
+    assert.ok(lines.length >= 3, lines.join('\n'));
+    for (const l of lines) assert.match(l, /^-p authpriv\.info -t ws-admin-deploy -- /, l);
+    const body = lines.join('\n');
+    assert.match(body, new RegExp(`시작: deploy ${T1}`));
+    assert.match(body, new RegExp(`OK ${REPO}:${T1}`));
+    assert.match(body, /종료 코드 0/);
+    // server.env 의 값(JWT_ACCESS_SECRET=x)·caddy.env 해시 자리는 보내지 않는다.
+    assert.doesNotMatch(body, /JWT_ACCESS_SECRET|WS_BASIC_HASH/);
+    // FAIL 줄도 운영자 기록에 남는다(거부·실패를 1년 기록으로 확인).
+    r = deploy(h, ['deploy', 'sha-zz'], { WS_ADMIN_LOGGER: fwd(lg) });
+    assert.equal(r.status, 2);
+    assert.match(readFileSync(join(h.fake, 'logger.log'), 'utf8'), /-- usage: deploy\.sh deploy sha-<12 hex>/);
+    // 늘 실패하는 logger 여도 배포는 끝까지(종료 0).
+    const bad = join(h.fake, 'badlogger');
+    writeFileSync(bad, '#!/bin/sh\nexit 7\n', { mode: 0o755 });
+    r = deploy(h, ['deploy', T2], { WS_ADMIN_LOGGER: fwd(bad) });
+    assert.equal(r.status, 0, out(r));
+    assert.equal(st(h, 'current'), `${REPO}:${T2}`);
+  } finally {
+    rmSync(h.root, { recursive: true, force: true });
   }
 });

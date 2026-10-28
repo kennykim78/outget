@@ -8,6 +8,9 @@
 #   Repository Variables: SITE_ORIGIN · WS_INDEXABLE · VITE_NAVER_MAP_CLIENT_ID · TARGET_PLATFORM
 #   environment: 는 쓰지 않는다(비공개 저장소의 Environments 지원은 요금제에 따라 다름 — 저장소 수준 Secrets/Variables 로 충분).
 #   주의: GitHub 는 workflow_dispatch 워크플로 파일이 기본 브랜치(main)에 있어야 실행 버튼·API 를 연다 — docs/ops/deploy.md 8절.
+#   main 에서만(security 139 LOW-1): 첫 job require-main 이 github.ref == refs/heads/main 이 아니면 실패 → build-push·deploy(rollback 포함) 모두 안 돈다.
+#     운영자 실수 방지 장치다 — 다른 브랜치의 워크플로 파일은 이 검사를 지울 수 있으므로 시크릿 보호 경계는 아니다(docs/ops/deploy.md 8절 E).
+#   서드파티 Action 은 커밋 SHA 고정(뒤 주석 = 버전, LOW/MED-4) — 갱신은 Dependabot(.github/dependabot.yml) PR 로만.
 name: Deploy (internal test)
 
 on:
@@ -29,9 +32,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  require-main:
+    name: require main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Dispatch ref must be main
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -eu
+          echo "dispatch ref: $REF"
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "배포·롤백은 main 에서만 실행한다(Run workflow → Branch: main) — docs/ops/deploy.md 8절 E"
+            exit 1
+          fi
+
   build-push:
     name: build + push (GHCR)
-    if: inputs.action == 'deploy'
+    needs: require-main
+    if: inputs.action == 'deploy' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -55,8 +75,9 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Image name and tag
         id: meta
         env:
@@ -71,22 +92,21 @@ jobs:
           echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU (arm64)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
         with:
           platforms: arm64
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           platforms: ${{ vars.TARGET_PLATFORM || 'linux/arm64' }}
@@ -103,8 +123,8 @@ jobs:
 
   deploy:
     name: deploy (SSH forced command)
-    needs: build-push
-    if: ${{ always() && (needs.build-push.result == 'success' || (inputs.action == 'rollback' && needs.build-push.result == 'skipped')) }}
+    needs: [require-main, build-push]
+    if: ${{ always() && needs.require-main.result == 'success' && github.ref == 'refs/heads/main' && (needs.build-push.result == 'success' || (inputs.action == 'rollback' && needs.build-push.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -140,7 +160,7 @@ jobs:
         run: |
           set -eu
           code=000
-          for i in 1 2 3 4 5 6; do
+          for _ in 1 2 3 4 5 6; do
             code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/" || true)"
             [ "$code" = "401" ] && break
             sleep 5

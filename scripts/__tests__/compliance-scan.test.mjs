@@ -1261,6 +1261,116 @@ test('C7-SECRET: git 추적 .env', async () => {
   assert.equal(res.json.findings.filter((f) => f.rule === 'C7-SECRET').length, 1);
 });
 
+// ── C7 시크릿 — 배포 실값 형태(security 139 MED-1) ──────────────
+//   위반 문자열은 전부 j(...)로 조립(이 파일도 실트리 스캔 대상). 값은 형태만 맞춘 가짜.
+const HEX64 = 'a1b2c3d4'.repeat(8);
+const GH36 = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8';
+const RESEND = j('re', '_', 'Ab3dEf9h', '_', 'KxYz12QwErTy56UiOp78AsDf');
+const BCRYPT = j('$', '2a', '$', '14', '$', 'abcdefghijklmnopqrstuvABCDEFGHIJKLMNOPQRSTUVWXYZ01234'.slice(0, 53));
+const c7Count = (res) => res.json.findings.filter((f) => f.rule === 'C7-SECRET' && f.severity === 'FAIL').length;
+
+test('C7-SECRET MED-1: 따옴표 없는 env 값·export·YAML 목록·GitHub 토큰·Resend 키·bcrypt 해시 → FAIL', async () => {
+  const cases = [
+    ['deploy/compose.yaml', j('JWT_ACCESS', '_SECRET=', HEX64, '\n')],
+    ['deploy/deploy.sh', j('export REACTION_KEY', '_SECRET=', HEX64, '\n')],
+    ['deploy/compose.yaml', j('    environment:\n      - JWT_REFRESH', '_SECRET=', HEX64, '\n')],
+    ['scripts/tool.mjs', j('// token ', 'gh', 'p_', GH36, '\n')],
+    ['deploy/Caddyfile', j('# ', 'gh', 's_', GH36, '\n')],
+    ['scripts/tool.mjs', j("const t = '", 'github', '_pat_', '11ABCDEFG0123456789abc', '_', 'x'.repeat(10), 'Y'.repeat(30), 'z9'.repeat(10), "';\n")],
+    ['server/src/mail.ts', j("const key = '", RESEND, "';\n")],
+    ['deploy/deploy.sh', j('MAIL_KEY=', RESEND, '\n')],
+    ['deploy/Caddyfile', j('\tbasic_auth {\n\t\tkenny ', BCRYPT, '\n\t}\n')],
+    ['deploy/deploy.sh', j("WS_BASIC", "_HASH='", BCRYPT, "'\n")],
+    ['.github/workflows/x.yml', j('        env:\n          GH_DEPLOY', '_TOKEN=', GH36, '\n')],
+  ];
+  for (const [f, text] of cases) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    expectFail(res, 'C7-SECRET');
+    assert.ok(res.json.findings.some((x) => x.rule === 'C7-SECRET' && x.file === f), `${f}: ${JSON.stringify(text)}`);
+  }
+});
+
+test('C7-SECRET MED-1: 오탐 없음 — 자리표시·변수·치환·secrets 식·짧은 값·스네이크 식별자·예시 파일·테스트 픽스처', async () => {
+  const clean = [
+    ['deploy/compose.yaml', j('JWT_ACCESS', '_SECRET=__SET_ME__\nWS_BASIC', "_HASH='__SET_ME__'\n")],
+    ['deploy/deploy.sh', j('JWT_ACCESS', '_SECRET="$(openssl rand -hex 32)"\nREACTION_KEY', '_SECRET="$REACTION_KEY', '_SECRET"\n')],
+    ['.github/workflows/x.yml', j('          JWT_ACCESS', '_SECRET="$(openssl rand -hex 32)"\n          GH_TOKEN: ${{ github.token }}\n          password: ${{ secrets.GITHUB', '_TOKEN }}\n')],
+    ['deploy/Caddyfile', j('\tbasic_auth {\n\t\t{$WS_BASIC_USER} {$WS_BASIC', '_HASH}\n\t}\n')],
+    ['deploy/deploy.sh', j("WS_BASIC", "_HASH='<해시>'\nAPI", '_TOKEN=${API', '_TOKEN:-}\n')],
+    ['server/src/config/env.ts', j('  JWT_ACCESS', '_SECRET: z.string().min(32),\n  const re_validate_inputvalues_and_more = 1;\n')],
+    ['scripts/tool.mjs', j("const re_compute_value = 're_', 'ab_cd';\nconst x = 'ghp_short';\n")],
+    // 코드 안 bcrypt 더미 해시(타이밍 균등화 — user.repo.ts DUMMY_PASSWORD_HASH)는 시크릿이 아니다(bcrypt 규칙은 코드가 아닌 파일만).
+    ['server/src/auth/dummy.ts', j("export const DUMMY_PASSWORD_HASH = '", BCRYPT, "';\n")],
+    ['server/src/__tests__/hardening.test.ts', j("await ", FETCH, "('", HTTPS, "evil.example.com/x');\nconst PASSWORD_HINT = 'x';\n")],
+  ];
+  for (const [f, text] of clean) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.equal(c7Count(res), 0, `${f}: ${JSON.stringify(res.json.findings.filter((x) => x.rule === 'C7-SECRET'))}`);
+  }
+  // 예시 파일은 값이 있어도 건너뛴다(값 0 은 deploy-config.test.mjs 가 본다).
+  const ex = scan(await makeRoot({ source: (s) => { s['deploy/server.env.example'] = j('JWT_ACCESS', '_SECRET=', HEX64, '\n'); } }));
+  assert.equal(c7Count(ex), 0);
+});
+
+test('C7-SECRET MED-1: deploy/*.env 실값 파일은 작업 트리에 있기만 해도 FAIL(추적 여부 무관), *.env.example 은 통과', async () => {
+  for (const f of ['deploy/server.env', 'deploy/caddy.env', 'deploy/sub/x.env']) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = 'NODE_ENV=production\n'; } }));
+    expectFail(res, 'C7-SECRET');
+    assert.ok(res.json.findings.some((x) => x.rule === 'C7-SECRET' && x.file === f && /배포 실값 env/.test(x.message)), f);
+  }
+  const ok = scan(await makeRoot({ source: (s) => { s['deploy/server.env.example'] = 'NODE_ENV=production\n'; s['deploy/deploy.conf.example'] = 'WS_IMAGE_REPO=\n'; } }));
+  assert.equal(c7Count(ok), 0);
+});
+
+test('C7-SECRET MED-1: git 추적 *.env(점으로 시작하지 않는 server.env·prod.env.local 도), 예시는 제외', async () => {
+  const root = await makeRoot();
+  mkdirSync(join(root, 'config'), { recursive: true });
+  writeFileSync(join(root, 'config', 'server.env'), 'X=1\n');
+  writeFileSync(join(root, 'config', 'prod.env.local'), 'X=1\n');
+  writeFileSync(join(root, 'config', 'server.env.example'), 'X=\n');
+  writeFileSync(join(root, 'config', 'environment.ts'), 'export const x = 1;\n');
+  writeFileSync(join(root, 'config', 'config.env.test.ts'), 'export const x = 1;\n');
+  writeFileSync(join(root, 'config', 'x.env.json'), '{}\n');
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['add', '-f', 'config/server.env', 'config/prod.env.local', 'config/server.env.example', 'config/environment.ts', 'config/config.env.test.ts', 'config/x.env.json'], { cwd: root });
+  const res = scan(root);
+  expectFail(res, 'C7-SECRET');
+  const files = res.json.findings.filter((f) => f.rule === 'C7-SECRET').map((f) => f.file).sort();
+  assert.deepEqual(files, ['config/prod.env.local', 'config/server.env']);
+});
+
+test('C7-SECRET QA148 LOW-1: 낱말로 시작하는 이름·YAML 맵·Dockerfile ENV/ARG·값 안의 $ → FAIL', async () => {
+  const cases = [
+    ['deploy/deploy.sh', j('PASS', 'WORD=', HEX64, '\n')],
+    ['deploy/deploy.sh', j('TOK', 'EN=', HEX64, '\n')],
+    ['deploy/deploy.sh', j('SECRET', '_KEY_BASE=', HEX64, '\n')],
+    ['deploy/deploy.sh', j('API', '_KEY=', HEX64, '\n')],
+    ['deploy/deploy.sh', j('DEPLOY_PASS', 'WORD=Sup3r$3cretValue99xQ\n')],
+    ['deploy/compose.yaml', j('    environment:\n      JWT_ACCESS', '_SECRET: ', HEX64, '\n')],
+    ['deploy/compose.yaml', j('    environment:\n      JWT_ACCESS', "_SECRET: '", HEX64, "'\n")],
+    ['.github/workflows/x.yml', j('        env:\n          DEPLOY', '_TOKEN: ', GH36, '\n')],
+    ['Dockerfile', j('FROM node:22-alpine\nENV JWT_ACCESS', '_SECRET=', HEX64, '\n')],
+    ['Dockerfile', j('FROM node:22-alpine\nENV API', '_TOKEN ', HEX64, '\n')],
+    ['Dockerfile', j('FROM node:22-alpine\nARG DEPLOY_PASS', 'WORD=', HEX64, '\n')],
+  ];
+  for (const [f, text] of cases) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.ok(res.json.findings.some((x) => x.rule === 'C7-SECRET' && x.file === f), `${f}: ${JSON.stringify(text)}`);
+  }
+  const clean = [
+    // 코드 객체 리터럴 KEY: 식(콜론 형태는 코드 파일에 적용하지 않는다).
+    ['server/src/config/env2.ts', j('  JWT_ACCESS', '_SECRET: process.env.JWT_ACCESS_SECRET_VALUE_LONG,\n')],
+    ['.github/workflows/x.yml', j('          GH', '_TOKEN: ${{ github.token }}\n          API', '_TOKEN: <토큰>\n')],
+    ['deploy/compose.yaml', j('    environment:\n      - SQLITE_TMPDIR=/data/.sqlite-tmp\n      JWT_ACCESS', '_SECRET: ${JWT_ACCESS', '_SECRET}\n')],
+    ['Dockerfile', j('FROM node:22-alpine\nARG VITE_NAVER_MAP_CLIENT_ID=\nENV SECRET', '_FILE /run/s\nARG API', '_TOKEN\n')],
+    ['deploy/deploy.sh', j('TOK', 'EN="$(cat /run/secrets/token_file_path)"\nPASS', 'WORD=$DEPLOY_PASSWORD_FROM_ENV\n')],
+  ];
+  for (const [f, text] of clean) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.equal(c7Count(res), 0, `${f}: ${JSON.stringify(res.json.findings.filter((x) => x.rule === 'C7-SECRET'))}`);
+  }
+});
+
 // ── C8 산출물 안전 ──────────────────────────────────────────
 test('C8-OUT-SAFE: 외부 script src', async () => {
   const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</body>', j('<script src="', HTTPS, 'cdn.x/y.js"></script></body>')); } }));

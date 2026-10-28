@@ -26,8 +26,9 @@
 | `WS_BACKUP_KEEP` | 보관 개수(기본 5, 1 이상 정수. 0·음수·비숫자면 기동 중단) |
 | `WS_BACKUP_MAX_AGE_DAYS` | 보관 일수(기본 7, 1~7 정수 — 처리방침 백업 보관 7일, 8 이상이면 기동 거부). 개수와 나이 둘 다 적용 |
 | `WS_CLIENT_DIST` | 클라이언트 dist 경로. 개발·테스트 전용, 운영(`NODE_ENV=production`)에서는 무시 |
+| `SQLITE_TMPDIR` | SQLite 임시 파일 폴더. 이미지 기본 `/data/.sqlite-tmp`(compose·CI 스모크도 같은 값, 엔트리포인트가 0700 으로 만든다). read_only 루트에서 비우면 tmpfs `/tmp`(64m)로 떨어져 DB 가 약 64MB 를 넘으면 VACUUM(삭제 뒤 파기)이 실패한다(QA148 MED-1). `/data/backup` 밖이라 백업 정리와 무관 |
 | `WS_ERASURE_FILE` | 삭제 기록 파일. 기본 `/data/erasures.jsonl` — **백업 폴더 밖**에 둔다 |
-| `WS_ALLOW_PRIVACY_PLACEHOLDER` | `1`이면 `/privacy`에 `{{KENNY:` 자리표시가 남아도 기동(경고). 점검·CI 전용, 공개 운영 금지 — 운영 기동 시 처리방침에 자리표시가 있으면 기동을 거부한다 |
+| `WS_ALLOW_PRIVACY_PLACEHOLDER` | `1`이면 `/privacy`에 `{{KENNY:` 자리표시가 남아도 기동(경고). 점검·CI·내부 테스트 전용, 공개 운영 금지 — 운영 기동 시 처리방침에 자리표시가 있으면 기동을 거부한다. **공개 빌드(빌드 인자 WS_INDEXABLE=1 → prerender-manifest.json indexable=true)에서는 이 값이 있어도 무시하고 거부한다**(security 139 MED-2). 내부 테스트는 WS_INDEXABLE=0 유지 |
 
 백업 나이는 런타임 규칙(`now − N×24h`보다 오래된 파일)과 같게 분 단위로 판정한다. 7일이 지난 백업은 다음 정리 작업(기동 시·24시간마다) 때 지워진다 — 실제로는 최대 약 8일 남을 수 있다.
 
@@ -48,6 +49,7 @@
    - 컨테이너: `node dist/privacy/cli-erase.js --email <addr>`
    - `--email` 값이 셸 기록(history)에 남으므로 실행 후 해당 기록을 지운다(bash: `history -d <번호>`, 그 외 셸은 해당 셸 방식).
    - 삭제 후 `VACUUM`은 CLI가 자동 수행한다.
+   - `sudo` 로 실행하면 명령줄(이메일 포함)이 journald(7일)에 남는다. 1년 보관하는 운영자 접속 기록(7절)에는 이메일 형태를 `<email>` 로 가려 넣는다.
 4. 출력은 건수만 나온다(이메일·식별자 없음). 건수와 처리일만 내부 기록하고 회신한다.
 
 ## 5. 자동 파기 주기
@@ -60,16 +62,16 @@
 
 | 파일 | 서버 위치 | 역할 |
 |---|---|---|
-| `compose.yaml` | `/opt/withsmall/compose.yaml` | `app`(이미지 `WS_IMAGE`, 호스트 포트 없음) + `caddy`(80·443). 로그 journald |
+| `compose.yaml` | `/opt/withsmall/compose.yaml` | `app`(이미지 `WS_IMAGE`, 호스트 포트 없음) + `caddy`(80·443, 이미지 다이제스트 고정). 둘 다 `read_only` 루트 + tmpfs `/tmp`(noexec) + `mem_limit`·`cpus`·`pids_limit`, cap 전부 제거. 로그 journald |
 | `Caddyfile` | `/opt/withsmall/Caddyfile` | basic_auth · `X-Robots-Tag: noindex` · `-Server` · www → apex 302 · 접속 기록 0(7절) |
 | `deploy.sh` | `/opt/withsmall/bin/deploy.sh` | `deploy sha-<12>` / `rollback` |
 | `deploy-gate.sh` | `/opt/withsmall/bin/deploy-gate.sh` | SSH 강제 명령. `deploy sha-<16진 12자>`·`rollback` 외 전부 거부 |
-| `bootstrap.sh` | (1회 실행) | 새 호스트 준비(8절) |
+| `bootstrap.sh` | (1회 실행) | 새 호스트 준비(8절). sshd `AllowUsers deploy <관리 계정>`·포워딩 끔, 운영자 접속 기록 1년(7절) |
 | `server.env.example` | `/opt/withsmall/server.env`(0600, deploy 소유) | 앱 런타임 env. 시크릿 3개는 bootstrap 이 서버에서 생성 |
 | `caddy.env.example` | `/opt/withsmall/caddy.env`(0600) | `WS_BASIC_USER`·`WS_BASIC_HASH`(bcrypt, 작은따옴표) |
 | `deploy.conf.example` | `/opt/withsmall/deploy.conf` | `WS_IMAGE_REPO=ghcr.io/<owner>/<repo>`(소문자) |
 
-흐름: GitHub Actions `Deploy (internal test)`(수동 실행만) → `build-push`(첫 단계: 이 커밋의 `ci.yml` 최신 실행이 completed·success 가 아니면 중단 — `ci.yml` 은 pull_request·main push 에서만 돌므로 **PR 이 열려 CI 가 초록인 커밋**만 배포된다, QEMU arm64, GHCR 비공개, 태그 `sha-<커밋 12자>`, provenance 끔) → `deploy`(SSH `deploy sha-…`) → 외부 확인(`401` = basic_auth 가 앞에 있음).
+흐름: GitHub Actions `Deploy (internal test)`(수동 실행만, **main 에서만** — 첫 job `require-main` 이 `github.ref != refs/heads/main` 이면 실패하고 build-push·deploy·rollback 모두 돌지 않는다, security 139 LOW-1) → `build-push`(첫 단계: 이 커밋의 `ci.yml` 최신 실행이 completed·success 가 아니면 중단 — `ci.yml` 은 pull_request·main push 에서만 돌므로 **PR 이 열려 CI 가 초록인 커밋**만 배포된다, QEMU arm64, GHCR 비공개, 태그 `sha-<커밋 12자>`, provenance 끔) → `deploy`(SSH `deploy sha-…`) → 외부 확인(`401` = basic_auth 가 앞에 있음).
 
 `deploy.sh deploy <tag>` 순서:
 
@@ -78,7 +80,7 @@
 3. 현재 이미지와 새 이미지의 `prisma/migrations` 목록 비교. 한쪽이라도 목록을 읽지 못하면(docker 실패·빈 목록) '같음'으로 보지 않고 **배포하지 않는다**(app·DB 그대로, 종료 1 — QA133 LOW-12). rollback 도 같다.
 4. `app` 정지 → 배포 전 백업 `data/backup/prod-<UTC>-predeploy.db`(이름이 `prod-*.db`라 7일·5개 정리 대상 — 처리방침 백업 7일과 같음). DB 가 있는데 백업이 실패하면 배포하지 않고 이전 이미지를 다시 띄운다(종료 1).
 5. `state/image.env` 교체 → `compose up -d` → 헬스(기본 150초, 컨테이너 `/health`).
-6. 성공: `state/current`·`state/previous`·`state/predeploy` 갱신, current·previous 밖 이미지 삭제.
+6. 성공: `state/current`·`state/previous`·`state/predeploy` 갱신, current·previous 밖 이미지 삭제, `data/backup` 의 고아 짝 파일 정리(짝 `prod-*.db` 가 없는 `prod-*.db-journal`·`-wal`·`-shm` 중 7일 넘은 것 — `prune-backups.sh` 는 `.db` 기준이라 짝 없는 사본이 남던 것, security 139 LOW-7). rollback 성공 뒤에도 같다.
 7. 실패: `app` 정지 → 마이그레이션이 달랐으면 배포 전 백업을 `prod.db`로 복원 → 이전 이미지로 기동. 종료 코드 1(롤백 성공) / 3(롤백도 실패). 마이그레이션이 다른데 복원을 못 하면 이전 이미지를 새 스키마 DB 위에 띄우지 않고 **app 정지 상태로 종료 3**(수동 복원). 배포 전에 DB 가 없었으면(첫 DB) 새 이미지가 만든 DB 를 `data/backup/prod-<UTC>-faileddeploy.db` 로 치우고 이전 이미지를 'DB 없음' 상태에서 띄운다(치우지 못하면 정지, 종료 3).
    - 복원 순서(rollback 도 같음): 남은 `prod.db.restore` 치움 → 백업을 `prod.db.restore` 로 복사 → **지금 DB(+ `-journal`·`-wal`)를 `data/backup/prod-<UTC>-prerollback.db` 로 복사** → 지금 DB 의 `-journal`·`-wal`·`-shm` 을 옆(`.prerestore`)으로 옮김 → `mv prod.db.restore prod.db`. 마지막 `mv` 가 실패하면 옮긴 짝 파일을 되돌린다(지금 DB 와 그 journal 그대로). 성공 뒤에만 옮긴 짝 파일을 지운다. `prerollback`·`faileddeploy` 도 `prod-*.db` 이름이라 7일·5개 정리 대상.
 8. SSH 끊김·러너 취소: 배포 키는 `restrict`(pty 없음)라 끊겨도 HUP 가 오지 않고, 다음 출력 쓰기에서 SIGPIPE 가 난다. `deploy.sh` 는 SIGPIPE 를 무시하고 화면 출력 실패를 무시하며, docker 출력은 화면이 아니라 `state/deploy.log` 로만 보낸다 → **끊겨도 끝까지 진행**(성공·자동 롤백까지). 결과는 서버의 `state/deploy.log`(이번 실행)·`state/deploy.log.1`(직전 실행)에 남는다(이미지 태그·단계·docker 출력, 접속 IP 없음). 마지막 줄이 `종료 코드 N` 이다. 워크플로가 끊겨 실패로 보이면 다음 배포 전에 관리자가 이 파일로 결과를 본다(`sudo -u deploy tail -n 20 /opt/withsmall/state/deploy.log` — `state/` 는 0700 deploy 소유라 관리 계정은 `sudo -u deploy` 필요).
@@ -92,8 +94,23 @@
 
 - 상태 보기: `sudo -u deploy docker compose -p withsmall -f /opt/withsmall/compose.yaml --env-file /opt/withsmall/state/image.env ps`, 로그 `sudo journalctl -t withsmall-app --since -30min`, 배포 기록 `sudo -u deploy cat /opt/withsmall/state/deploy.log`(직전 실행 `deploy.log.1`, 마지막 줄 `종료 코드 N`).
 - 복원: 3절과 같다. `app` 정지 → `data/backup/`의 원하는 `prod-*.db`를 `data/prod.db`로 복사(이미지 안 `sh`로: `sudo -u deploy docker run --rm --entrypoint sh -v /opt/withsmall/data:/data <이미지> -c 'cp /data/backup/<파일> /data/prod.db'`) → `state/image.env`를 원하는 이미지로(`echo 'WS_IMAGE=<이미지>' | sudo -u deploy tee /opt/withsmall/state/image.env`) → `sudo -u deploy docker compose … up -d`(위 상태 보기와 같은 옵션).
+  - **헬스가 초록이 된 뒤 `state/current` 를 띄운 이미지로 맞춘다**(QA138 LOW-14): `echo '<이미지>' | sudo -u deploy tee /opt/withsmall/state/current`. 맞추지 않으면 다음 배포의 마이그레이션 비교·자동 롤백 기준이 실제로 돌고 있지 않은 옛 이미지가 된다. `state/previous` 가 띄운 이미지와 같으면 지운다(`sudo -u deploy rm /opt/withsmall/state/previous` — rollback 이 같은 이미지로 '되돌리지' 않게), `state/predeploy` 는 이 복원과 맞지 않으므로 지운다(`sudo -u deploy rm -f /opt/withsmall/state/predeploy` — 다음 rollback 이 엉뚱한 백업을 복원하지 않게, 그 경우 rollback 은 거부되고 수동 복원).
+- **마이그레이션 목록을 못 읽어 deploy·rollback 이 계속 거부되면**(QA138 LOW-14 — 메시지 `마이그레이션 목록을 읽지 못함(<current> / <새 이미지>)`, app·DB 는 그대로): 거의 늘 `state/current` 이미지 쪽 문제다(새 이미지는 방금 pull 됨).
+  1. 원인 보기: `sudo -u deploy tail -n 30 /opt/withsmall/state/deploy.log`(docker 오류 줄).
+  2. 지금 이미지가 로컬에 있는지: `sudo -u deploy docker image inspect "$(sudo -u deploy cat /opt/withsmall/state/current)" >/dev/null && echo present`. 없으면 `sudo -u deploy docker pull "$(sudo -u deploy cat /opt/withsmall/state/current)"` 뒤 같은 배포를 다시 보낸다.
+  3. 레지스트리에서도 지워졌으면(패키지 정리 등): 먼저 지금 DB 를 백업한다(`app` 정지 → `sudo -u deploy docker run --rm --network none --entrypoint sh -v /opt/withsmall/data:/data <돌던 것과 같은 커밋의 이미지 또는 아무 앱 이미지> -c 'cp /data/prod.db /data/backup/prod-'"$(date -u +%Y%m%dT%H%M%SZ)"'-manual.db'` → `up -d`). 그다음 **돌던 이미지와 같은 마이그레이션 목록을 가진, 존재하는 태그**를 고른다 — 같은 커밋을 다시 빌드·푸시하는 것이 가장 확실하다(main 에서 그 커밋으로 `deploy`, 또는 로컬 `docker build` 뒤 같은 태그로 push). 고른 태그를 `echo 'ghcr.io/<owner>/<repo>:sha-<12>' | sudo -u deploy tee /opt/withsmall/state/current` 로 적고 배포를 다시 보낸다.
+  4. 하지 말 것: `state/current` 를 지워 '첫 배포'로 만드는 것 — 진행은 되지만 배포 전 백업·마이그레이션 비교·자동 롤백이 모두 빠지고 `previous` 도 없어 rollback 이 안 된다.
+  5. 디스크·docker 데몬 장애면(`df -h /`, `systemctl status docker`) 그것부터 고친다 — 고친 뒤 같은 명령이 그대로 통과한다.
 - 남은 잠금: 보통은 같은 명령 재실행으로 회수된다(위 10). 바로 풀어야 하면 다른 배포가 없는지(`sudo -u deploy cat /opt/withsmall/state/.lock/info` 의 pid) 확인 후 `sudo -u deploy rm -r /opt/withsmall/state/.lock`.
 - `state/dbchange` 가 남아 배포가 거부되면: 내용(`sudo -u deploy cat /opt/withsmall/state/dbchange` — 어느 배포·복원 도중이었는지)과 `deploy.log` 를 보고, `state/image.env` 의 이미지와 `data/prod.db` 의 스키마가 맞는지 확인·필요하면 위 복원(원래 DB 는 그 줄에 적힌 `배포 전 백업` 파일) → `sudo -u deploy rm /opt/withsmall/state/dbchange` → 배포 키로 같은 명령을 다시 보낸다.
+
+**베이스 이미지 갱신(security 139 LOW-3).** `Dockerfile` 의 `node:22-alpine` 세 단계와 `compose.yaml` 의 `caddy` 는 다이제스트(`@sha256:…`)로 고정한다 — 같은 태그가 다른 내용으로 바뀌어도 빌드·배포가 따라가지 않는다. 지금 값: `caddy:2.11-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f`(2.11.7, 2026-10-28 고정), node 는 `Dockerfile` 머리 주석.
+
+1. Dependabot(`.github/dependabot.yml`, 매주 월요일)이 `docker`(Dockerfile)·`docker-compose`(deploy/compose.yaml) 갱신 PR 을 연다. 손으로 할 때: `docker buildx imagetools inspect node:22-alpine`·`docker buildx imagetools inspect caddy:2.11-alpine` 의 맨 위 `Digest:`(멀티 아키텍처 **인덱스** 다이제스트 — 아래 플랫폼별 다이제스트가 아니다)를 넣는다. node 는 세 `FROM` 줄을 같은 값으로(테스트가 본다).
+2. PR 에서 CI 초록 확인 — `docker build + boot smoke` 가 read-only·상한 그대로 기동하는지, `scripts/__tests__/deploy-config.test.mjs` 가 다이제스트 형식·문서 일치를 본다(caddy 를 바꾸면 이 절의 값과 8절 B3 명령도 같은 값으로).
+3. caddy 마이너 변경(2.11 → 2.12)이면 로컬에서 한 번: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" -e WS_BASIC_USER=u -e WS_BASIC_HASH='<아무 bcrypt>' <새 이미지> caddy validate --config /etc/caddy/Caddyfile` 와 401·502 응답에 `X-Robots-Tag` 가 붙고 `Server` 가 없는지(2026-10-28 2.11.7 에서 확인).
+4. 병합 → main 에서 `deploy`. caddy 이미지만 바뀐 경우에도 서버의 `/opt/withsmall/compose.yaml` 은 bootstrap 이 복사한 것이므로 `sudo install -m 0644 deploy/compose.yaml /opt/withsmall/compose.yaml` 로 바꾼 뒤 배포(또는 `sudo -u deploy docker compose … up -d caddy`).
+5. Actions(SHA 고정, `uses: owner/action@<40자> # vX.Y.Z`)도 Dependabot `github-actions` PR 로만 바꾼다 — 손으로 바꿀 때는 `git ls-remote https://github.com/<owner>/<action>.git refs/tags/vX.Y.Z` 의 커밋 SHA(주석 태그면 `^{}` 줄).
 
 ## 7. 로그·접속 기록 (처리방침과 같아야 함)
 
@@ -101,7 +118,16 @@
 - 남는 것: 앱 기동·오류 기록(메일 실패 시 가린 이메일 `a***@g***.com` 형태), Caddy 인증서 발급 기록. 모두 journald, **7일·500M**(`bootstrap.sh` `JOURNAL_DAYS` = `policy.ts` `SERVER_LOG_RETENTION_DAYS`).
 - 7일 보장(QA122 HIGH-1): journald `MaxRetentionSec` 는 닫힌(archived) 파일만 지우고 활성 파일은 기본 한 달까지 열려 있다. 그래서 `bootstrap.sh` 가 (1) 드롭인 `/etc/systemd/journald.conf.d/zz-withsmall.conf` 에 `MaxFileSec=1day`(매일 순환)·`MaxRetentionSec=7day`·`ForwardToSyslog=no`, (2) 매일 타이머 `withsmall-journal-vacuum.timer` → `journalctl --rotate --vacuum-time=5d`(파일 하나가 최대 하루 + 타이머 지연 여유 하루 → 가장 오래된 항목 ≤ 7일)를 둔다.
 - syslog 사본 0: rsyslog 가 깔린 이미지(Ubuntu `/usr/lib/systemd/journald.conf.d/syslog.conf` 가 ForwardToSyslog=yes 를 켬, logrotate 4주)에서도 `/var/log/syslog`·`/var/log/messages` 에 앱·Caddy 기록이 남지 않게 — `ForwardToSyslog=no`(드롭인 이름 `zz-` 가 `syslog.conf` 뒤라 이긴다) + `/etc/rsyslog.d/00-withsmall-drop.conf`(`withsmall-*` 태그 `stop`, Oracle Linux 의 `imjournal` 경로도 막음). 컨테이너 로그 드라이버는 compose 에서 서비스마다 `journald`(json-file 은 시간 기준 정리가 없어 쓰지 않는다).
-- 호스트 sshd 기록(SSH 시도 IP 포함): Ubuntu 에서는 `ForwardToSyslog=no` 가 withsmall 만이 아니라 **모든** syslog 전달을 끄므로(QA127 INFO-1) `/var/log/auth.log`·`/var/log/syslog` 에는 드롭인 적용 뒤 새 기록이 쌓이지 않고, sshd 기록은 **journald 에만 7일**(같은 `MaxRetentionSec`·vacuum) 남는다 — 보기 `journalctl -u ssh --since -1d`(Oracle Linux 는 imjournal 경로라 `/var/log/secure` 에도 남는다). 판단(BE128): 보관이 4주(logrotate) → 7일로 짧아져 개인정보 쪽으로는 낫고, 침입 조사 창은 7일이면 내부 테스트에 충분하다고 보고 그대로 둔다. 적용 전 `auth.log` 옛 파일은 logrotate 가 4주 안에 지운다. '웹 접속 기록'이 아니라 처리방침과 모순은 아니지만 공개 전 법적 확인(9절) 때 함께 본다(보관을 늘리려면 sshd 만 따로 syslog 로 보내는 설정 + 처리방침 검토).
+- 호스트 sshd 기록(SSH 시도 IP 포함): Ubuntu 에서는 `ForwardToSyslog=no` 가 withsmall 만이 아니라 **모든** syslog 전달을 끄므로(QA127 INFO-1) `/var/log/auth.log`·`/var/log/syslog` 에는 드롭인 적용 뒤 새 기록이 쌓이지 않고, sshd 기록 전체는 **journald 에 7일**(같은 `MaxRetentionSec`·vacuum) 남는다 — 보기 `journalctl -u ssh --since -1d`(Oracle Linux 는 imjournal 경로라 `/var/log/secure` 에도 남는다).
+- **운영자 접속 기록만 따로 1년**(security 139 MED-3, Kenny 승인 "운영자 기록만 따로 1년 보관" — 안전성 확보조치 기준 제8조 개인정보취급자 접속기록 1년 이상): `bootstrap.sh` 가 `/usr/local/sbin/withsmall-admin-log-export` 를 설치하고 **매시**(`withsmall-admin-log.timer`) + **journal vacuum 직전**(`withsmall-journal-vacuum.service` 의 `ExecStartPre`) 실행한다.
+  - 고르는 것: journald 의 `SYSLOG_FACILITY=4`(auth — sshd·logind)·`10`(authpriv — sudo·pam) 줄 중 **운영 계정 이름**(`/etc/withsmall-admin-users` = `deploy` + `--admin-user`, sshd `AllowUsers` 와 같음)이 낱말로 들어간 줄과, `deploy.sh` 단계 줄(태그 `ws-admin-deploy` — `log()` 가 `logger -p authpriv.info` 로 보냄: 시작·이미지 태그·단계·결과·종료 코드). 운영 계정이 아닌 이름으로 두드린 시도(`Invalid user …`)·사전 인증 끊김은 **고르지 않는다**(7일 journald 에만).
+  - 저장: `/var/log/withsmall-admin/access.log`(폴더 0700·파일 0600 root). 이메일 형태는 `<email>` 로 가린다(4절 삭제 명령 등). 커서 파일(`/var/lib/withsmall-admin/cursor`)로 이어 읽어 중복·누락이 없고, 실패하면 커서를 되돌려 다음 실행이 다시 읽는다. `deploy.sh` 의 docker 출력(`state/deploy.log`)은 지금처럼 두 번만.
+  - 보관: `/etc/logrotate.d/withsmall-admin` — 매월 순환, 13개(`ADMIN_LOG_MONTHS`) → 가장 오래된 기록이 지워질 때 12개월 이상(최대 약 14개월). 정기 점검: 월 1회 `sudo tail -n 50 /var/log/withsmall-admin/access.log`(모르는 IP 의 `Accepted`·예정 없는 `sudo` 확인).
+  - 바뀌지 않는 것: 웹 접속 기록 0(Caddy·앱), 앱·Caddy 기록(`withsmall-*`)과 그 밖의 호스트 기록은 journald 7일(`SERVER_LOG_RETENTION_DAYS`) 그대로 — 내보내기는 auth·authpriv 만 읽고 `withsmall-*` 태그를 고르지 않는다.
+  - 처리방침: 이 기록은 이용자가 아니라 운영자(와 배포 러너)의 서버 접속 기록이라 '웹 접속 기록 남기지 않음'·'서버 오류 기록 7일' 문구와 모순되지 않는다. 다만 '개인정보 보호 조치' 항목에 한 줄을 더하는 것을 권장한다(문구는 `_workspace/145_be_infra_hardening.md`, 공개 전 법적 확인 9절과 함께).
+  - 관리 계정은 하나(`--admin-user`)다. 바꾸면 bootstrap 을 다시 돌려 `/etc/withsmall-admin-users`·`AllowUsers` 를 함께 바꾼다 — 목록 밖 계정의 sudo 는 1년 기록에 들어가지 않는다(QA148 INFO-3). sudo 명령줄에 비밀을 넣지 않는다(`docker login --password-stdin` — 이메일 외 값은 가리지 않고 1년 남는다, INFO-4).
+  - 서버 확인: `systemctl list-timers withsmall-admin-log.timer`, `sudo systemctl start withsmall-admin-log.service && sudo tail -n 5 /var/log/withsmall-admin/access.log`, `sudo logrotate -d /etc/logrotate.d/withsmall-admin`(오류 없음).
+- sshd 강화(security 139 LOW-5, `/etc/ssh/sshd_config.d/10-withsmall.conf`): `AllowUsers deploy <관리 계정>`, `AllowTcpForwarding no`·`AllowAgentForwarding no`·`AllowStreamLocalForwarding no`·`X11Forwarding no`·`PermitTunnel no`(배포 키는 `restrict` 로 이미 막혀 있고 이것은 관리 계정까지). `bootstrap.sh` 는 관리 계정의 `~/.ssh/authorized_keys` 가 비었으면 아무것도 바꾸기 전에 멈춘다(잠김 방지). 관리 계정을 바꾸려면 `--admin-user` 로 bootstrap 을 다시 돌린다(멱등). 확인: `sudo sshd -T | grep -E '^(allowusers|allowtcpforwarding|allowagentforwarding|x11forwarding|permittunnel|permituserenvironment) '`.
 - 하지 않는 것: OCI VCN Flow Logs·OCI Logging 에이전트 켜기(접속 IP 가 남는다). 켜려면 처리방침부터 바꾼다.
 - 로그를 바꾸는 변경(접속 기록 켜기, 보관 일수 변경)은 처리방침 변경 = 공개 후 시행 7일 전 고지.
 
@@ -121,12 +147,12 @@
 **B. 서버 (Kenny 관리 계정 `ubuntu`로 SSH)**
 
 1. GitHub Actions 용 배포 키 쌍을 **Kenny PC 에서** 만든다: `ssh-keygen -t ed25519 -C gha-deploy -f withsmall_deploy -N ""` (비밀키 `withsmall_deploy` 는 GitHub Secret 에만, PC 사본은 등록 뒤 삭제).
-2. 저장소 `deploy/` 폴더와 공개키를 서버로 복사(`scp -r deploy withsmall_deploy.pub ubuntu@<IP>:~/`) → 서버에서 `sudo sh ~/deploy/bootstrap.sh --image-repo ghcr.io/<owner 소문자>/<repo 소문자> --deploy-pubkey "$(cat ~/withsmall_deploy.pub)"`(공개키 내용을 따옴표로).
-3. `caddy.env` 채우기: `docker run --rm -it caddy:2.10-alpine caddy hash-password`(대화형, 평문이 셸 기록에 남지 않음) → `sudo -u deploy sh -c 'umask 077; cat > /opt/withsmall/caddy.env'` 로 `WS_BASIC_USER=<사용자>`, `WS_BASIC_HASH='<해시>'`(작은따옴표) 입력.
+2. 저장소 `deploy/` 폴더와 공개키를 서버로 복사(`scp -r deploy withsmall_deploy.pub ubuntu@<IP>:~/`) → 서버에서 `sudo sh ~/deploy/bootstrap.sh --image-repo ghcr.io/<owner 소문자>/<repo 소문자> --deploy-pubkey "$(cat ~/withsmall_deploy.pub)" --admin-user ubuntu`(공개키 내용을 따옴표로. `--admin-user` 를 빼면 sudo 를 부른 사용자. sshd `AllowUsers` 가 deploy + 이 계정만 남기므로 **bootstrap 뒤 새 터미널에서 관리 계정 SSH 접속이 되는지 먼저 확인**하고 기존 세션을 닫는다).
+3. `caddy.env` 채우기: `docker run --rm -it caddy:2.11-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f caddy hash-password`(대화형, 평문이 셸 기록에 남지 않음) → `sudo -u deploy sh -c 'umask 077; cat > /opt/withsmall/caddy.env'` 로 `WS_BASIC_USER=<사용자>`, `WS_BASIC_HASH='<해시>'`(작은따옴표) 입력.
 4. GHCR 로그인(deploy 사용자): GitHub → Settings → Developer settings → **classic PAT**, 범위 `read:packages`만, 만료일 지정(위험 R11) → `sudo -u deploy docker login ghcr.io -u <github 사용자> --password-stdin`(붙여넣고 Enter, Ctrl-D).
 5. 호스트 키 지문 기록: `ssh-keyscan -t ed25519 <예약 IP>` 출력(한 줄)을 `DEPLOY_KNOWN_HOSTS` 로. 지문은 서버에서 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` 와 같은지 확인.
 6. 확인: `sudo iptables -L INPUT -n --line-numbers`(80·443 ACCEPT 가 REJECT 보다 위), `ls -l /opt/withsmall`(server.env·caddy.env `-rw-------`), `journalctl --disk-usage`.
-7. 로그 보관 확인(처리방침 '서버 오류 기록 7일'): `systemd-analyze cat-config systemd/journald.conf | grep -E 'ForwardToSyslog|MaxFileSec|MaxRetentionSec'`(마지막 값이 `no`·`1day`·`7day`), `systemctl list-timers withsmall-journal-vacuum.timer`(다음 실행 있음), `dpkg -l rsyslog`(있으면 `ls /etc/rsyslog.d/00-withsmall-drop.conf`). 첫 배포 뒤 `journalctl -t withsmall-app --since -1h | head`(기록이 journald 에 있음), `journalctl -u ssh --since -1h | head`(sshd 기록도 journald 에), `sudo grep -c withsmall /var/log/syslog`(파일이 있으면 0 — Ubuntu 는 전달 자체가 꺼져 자명하게 0, Oracle Linux 는 `/var/log/messages` 로 확인해야 rsyslog 버림 규칙 검증이 된다).
+7. 로그 보관 확인(처리방침 '서버 오류 기록 7일'): `systemd-analyze cat-config systemd/journald.conf | grep -E 'ForwardToSyslog|MaxFileSec|MaxRetentionSec'`(마지막 값이 `no`·`1day`·`7day`), `systemctl list-timers withsmall-journal-vacuum.timer`(다음 실행 있음), `dpkg -l rsyslog`(있으면 `ls /etc/rsyslog.d/00-withsmall-drop.conf`). 첫 배포 뒤 `journalctl -t withsmall-app --since -1h | head`(기록이 journald 에 있음), `journalctl -u ssh --since -1h | head`(sshd 기록도 journald 에), `sudo grep -c withsmall /var/log/syslog`(파일이 있으면 0 — Ubuntu 는 전달 자체가 꺼져 자명하게 0, Oracle Linux 는 `/var/log/messages` 로 확인해야 rsyslog 버림 규칙 검증이 된다). 운영자 접속 기록(7절): 첫 배포 뒤 `sudo systemctl start withsmall-admin-log.service && sudo grep -c ws-admin-deploy /var/log/withsmall-admin/access.log`(1 이상), `sudo grep -c withsmall-app /var/log/withsmall-admin/access.log`(0).
 
 **C. DNS (LETO — DNS 는 LETO 유지)**
 
@@ -143,7 +169,7 @@
 **E. 첫 배포**
 
 0. 배포할 커밋에 `ci.yml` 이 초록이어야 한다(PR 을 열어 CI 를 돌린다 — 없거나 진행 중·실패면 `build-push` 첫 단계에서 멈춘다).
-1. Actions → `Deploy (internal test)` → Run workflow → 브랜치 `feat/withsmall-phase0`, action `deploy`. (CLI: `gh workflow run deploy.yml --ref feat/withsmall-phase0 -f action=deploy`.) QEMU arm64 빌드라 15~40분.
+1. Actions → `Deploy (internal test)` → Run workflow → 브랜치 **`main`**, action `deploy`. (CLI: `gh workflow run deploy.yml --ref main -f action=deploy`.) main 이 아니면 첫 job `require-main` 이 실패하고 아무것도 빌드·배포하지 않는다(security 139 LOW-1 — 운영자 실수 방지이지 보안 경계는 아니다: 다른 브랜치의 워크플로 파일은 이 검사를 지울 수 있다). 그래서 이 브랜치가 main 에 합쳐진 뒤부터 배포한다. QEMU arm64 빌드라 15~40분.
 2. 성공 기준: `build-push` 초록 → `deploy` 로그 `[deploy] OK ghcr.io/...:sha-…` → 외부 확인 `external status: 401`.
 3. 브라우저로 `https://withsmall.kr` → basic_auth 창 → 홈. `/privacy` 에 국외 이전(일본·Oracle) 블록, 페이지 끝 자리표시 경고는 내부 테스트라 정상(`WS_ALLOW_PRIVACY_PLACEHOLDER=1`).
 4. 저장 연결(메일)은 Resend 인증 전이라 503(저장 불가 안내)이 정상.
@@ -151,8 +177,9 @@
 
 ## 9. 공개 전환 체크리스트 (D8, Kenny 결정)
 
+- [ ] **순서: 자리표시를 먼저 채운 뒤에 WS_INDEXABLE=1 로 재빌드** — 공개 빌드는 자리표시가 남으면 WS_ALLOW_PRIVACY_PLACEHOLDER=1 이어도 기동을 거부한다(app 헬스 실패 → deploy.sh 자동 롤백)
 - [ ] 처리방침 자리표시 전부 채움(`officerName`·`officerEmail`·`hostingContact`·`resendContact`·`resendLogRetention`·`effectiveDate`) → `server.env` 에서 `WS_ALLOW_PRIVACY_PLACEHOLDER` 줄 삭제
-- [ ] 접속 기록·개인정보 처리 시스템 접속 기록 보관 의무 법적 확인(웹 접속 기록 0 유지 가능한지)
+- [ ] 접속 기록·개인정보 처리 시스템 접속 기록 보관 의무 법적 확인(웹 접속 기록 0 유지 가능한지). 운영자 접속 기록 1년은 구현됨(7절, Kenny 승인) — 처리방침 '개인정보 보호 조치' 문구 추가 여부 함께 확인
 - [ ] Variables `WS_INDEXABLE=1` 후 재빌드 · Caddyfile 에서 basic_auth·`X-Robots-Tag` 제거 · www 302 → 308 · deploy.yml 외부 확인 401 → 200
 - [ ] HSTS 단계 적용(짧은 max-age 부터)
 - [ ] Resend 발신 도메인 인증 + `MAIL_TRANSPORT=resend`(10절)

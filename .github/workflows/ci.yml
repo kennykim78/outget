@@ -15,12 +15,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -81,10 +82,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Docker build (no push)
         run: docker build --build-arg SITE_ORIGIN=https://ci.example -t ws-ci .
+
+      # 운영 compose(deploy/compose.yaml)와 같은 격리로 기동한다 — read_only 루트 + tmpfs /tmp + 자원 상한 + cap 전부 제거(security 139 LOW-2).
+      - name: Image /app is not writable by the app user (root-owned)
+        run: |
+          set -eu
+          docker run --rm --entrypoint sh ws-ci -c 'id -u; for d in /app /app/server /app/server/dist /app/client/dist /app/node_modules; do if [ -w "$d" ]; then echo "writable: $d"; exit 1; fi; done; [ -w /data ]'
 
       - name: Boot smoke (/health)
         run: |
@@ -95,6 +103,9 @@ jobs:
           JWT_REFRESH_SECRET="$(openssl rand -hex 32)"
           REACTION_KEY_SECRET="$(openssl rand -hex 32)"
           docker run -d --name ws-ci-smoke -p 3001:3001 \
+            --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --memory 1g --cpus 1.5 --pids-limit 256 \
+            --cap-drop ALL --security-opt no-new-privileges:true \
             -e NODE_ENV=production \
             -e PORT=3001 \
             -e PUBLIC_ORIGIN=https://ci.example \
@@ -104,10 +115,11 @@ jobs:
             -e TRUST_PROXY=0 \
             -e DATABASE_URL=file:/data/prod.db \
             -e WS_ALLOW_PRIVACY_PLACEHOLDER=1 \
+            -e SQLITE_TMPDIR=/data/.sqlite-tmp \
             -v "$VOL:/data" \
             ws-ci
           ok=0
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS http://localhost:3001/health | grep -q '"ok":true'; then ok=1; break; fi
             sleep 2
           done
@@ -123,10 +135,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -138,7 +151,7 @@ jobs:
         run: npm run prisma:generate --workspace server
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}

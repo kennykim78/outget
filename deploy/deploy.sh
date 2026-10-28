@@ -19,8 +19,13 @@
 #     표시를 쓰지 못하면 DB 를 바꾸는 단계로 가지 않는다(이전 이미지 재기동, 종료 1 — QA133 INFO-10).
 #   출력에 시크릿 없음(env 파일 내용은 읽어 검사만 하고 출력하지 않는다). 외부로 나가는 요청은 레지스트리 pull 뿐.
 #   백업 이름은 prod-*.db 형식 → 컨테이너 엔트리포인트의 prune-backups.sh 가 7일·5개 규칙으로 함께 정리한다(처리방침 백업 7일).
+#   운영자 기록 1년(security 139 MED-3, Kenny 승인 "운영자 기록만 따로 1년 보관"): log() 의 단계 줄(태그·단계·결과, 시크릿·접속 IP 없음)을
+#     syslog authpriv.info 태그 ws-admin-deploy 로도 보낸다 → journald → bootstrap.sh 의 내보내기가 /var/log/withsmall-admin/ 에 1년 보관.
+#     docker 출력(state/deploy.log)은 그대로 두 번만. logger 가 없거나 실패해도 배포는 계속한다.
+#   고아 짝 파일(LOW-7): 성공 뒤 data/backup 의 prod-*.db-journal·-wal·-shm 중 짝 prod-*.db 가 없고 7일(처리방침 백업 보관)을 넘긴 것을 지운다
+#     — prune-backups.sh 는 prod-*.db 를 기준으로만 지우므로 짝 없는 사본(예: DB 없이 남은 journal)이 계속 남던 것.
 #   테스트용 재정의(env): WS_ROOT WS_DOCKER WS_HOST_ARCH WS_HEALTH_TIMEOUT WS_HEALTH_INTERVAL WS_LOCK_STALE_SEC WS_LOCK_TEST_PAUSE
-#     — scripts/__tests__/deploy-sh.test.mjs.
+#     WS_ADMIN_LOGGER(빈 값 = 운영자 기록 끔) — scripts/__tests__/deploy-sh.test.mjs.
 set -eu
 LC_ALL=C
 export LC_ALL
@@ -36,10 +41,15 @@ PROJECT=withsmall
 LOCK_STALE_SEC="${WS_LOCK_STALE_SEC:-600}"
 # 서버 쪽 기록(잠금을 잡은 뒤 설정). 비어 있으면 화면(SSH)에만.
 LOG=""
+# 운영자 기록(MED-3). 설정 안 됨 = logger(있으면), 빈 값 = 끔. PermitUserEnvironment no 라 배포 키로는 바꿀 수 없다.
+if [ "${WS_ADMIN_LOGGER+set}" = set ]; then ADMIN_LOGGER="$WS_ADMIN_LOGGER"; elif command -v logger >/dev/null 2>&1; then ADMIN_LOGGER="logger"; else ADMIN_LOGGER=""; fi
+# 백업 보관 일수 — scripts/prune-backups.sh POLICY_MAX_AGE · server/src/privacy/policy.ts BACKUP_RETENTION_DAYS 와 같아야 한다(deploy-config.test.mjs).
+BACKUP_MAX_AGE_DAYS=7
 
 # 화면 출력은 실패해도(SSH 끊김 = EPIPE) 멈추지 않는다 — set -e 라 `|| true` 필수(QA127 MED-3).
 log() {
   if [ -n "$LOG" ]; then printf '%s [deploy] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$LOG" 2>/dev/null || true; fi
+  if [ -n "$ADMIN_LOGGER" ]; then "$ADMIN_LOGGER" -p authpriv.info -t ws-admin-deploy -- "$*" </dev/null >/dev/null 2>&1 || true; fi
   { printf '[deploy] %s\n' "$*"; } 2>/dev/null || true
 }
 fail() { log "FAIL: $*" >&2; exit 1; }
@@ -247,6 +257,18 @@ prune_images() {
   "$DOCKER" image prune -f >/dev/null 2>&1 || true
 }
 
+# 고아 짝 파일 정리(LOW-7): 짝 prod-*.db 가 없는 prod-*.db-journal·-wal·-shm 중 BACKUP_MAX_AGE_DAYS 일을 넘긴 것만 지운다(분 단위 — prune-backups.sh 와 같은 판정).
+#   짝이 있는 사본은 prune-backups.sh 가 .db 와 함께 지운다. 실패해도 배포 결과에는 영향 없음(기록만).
+prune_orphan_sidecars() {
+  img="$1"
+  s='cd /data/backup 2>/dev/null || exit 0
+find . -maxdepth 1 -type f \( -name "prod-*.db-journal" -o -name "prod-*.db-wal" -o -name "prod-*.db-shm" \) -mmin +'"$((BACKUP_MAX_AGE_DAYS * 1440))"' | while IFS= read -r f; do
+  b="${f%-journal}"; b="${b%-wal}"; b="${b%-shm}"
+  if [ ! -e "$b" ]; then rm -f "$f" && echo "orphan sidecar pruned ${f#./}"; fi
+done'
+  "$DOCKER" run --rm --network none --entrypoint sh -v "$DATA:/data" "$img" -c "$s" >>"$LOG" 2>&1 || log "고아 짝 파일 정리 실패(무시) — data/backup 확인"
+}
+
 cmd_deploy() {
   tag="$1"
   valid_tag "$tag" || usage
@@ -294,6 +316,7 @@ cmd_deploy() {
     state_put current "$new"
     settle_dbchange
     prune_images
+    prune_orphan_sidecars "$new"
     log "OK $new"
     return 0
   fi
@@ -367,6 +390,7 @@ cmd_rollback() {
     state_put previous "$cur"
     rm -f "$STATE/predeploy"
     settle_dbchange
+    prune_orphan_sidecars "$prev"
     log "OK $prev"
     return 0
   fi

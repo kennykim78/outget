@@ -10,6 +10,7 @@
 #         $FAKE_DIR/migfail(마이그레이션 목록 조회 docker run 이 목록 일부를 찍은 뒤 125 로 실패 — 비었으면 모든 이미지, 아니면 적힌 태그만, QA133 LOW-12)
 #         $FAKE_DIR/slow_prune(초 — 성공 뒤 image ls 중 대기, settle 뒤 신호 테스트, QA133 LOW-13)
 #         $FAKE_DIR/restore_mvfail(복원 스크립트의 마지막 mv 만 실패 — QA127 LOW-5) · $FAKE_DIR/nodiscard(새 DB 치우기 실패 — LOW-6)
+#         $FAKE_DIR/noorphan(고아 짝 파일 정리 docker run 실패 — security 139 LOW-7)
 set -eu
 D="${FAKE_DIR:?}"
 printf '%s\n' "$*" >> "$D/calls.log"
@@ -55,6 +56,10 @@ case "$1" in
       *prod.db.restore*)
         if [ -f "$D/norestore" ]; then exit 1; fi
         if [ -f "$D/restore_mvfail" ]; then script="$(printf '%s' "$script" | sed 's#^mv /data/prod.db.restore /data/prod.db ||#false ||#')"; fi
+        s="$(printf '%s' "$script" | sed "s#/data#$host#g")"
+        sh -c "$s" ;;
+      *"orphan sidecar"*)
+        if [ -f "$D/noorphan" ]; then exit 1; fi
         s="$(printf '%s' "$script" | sed "s#/data#$host#g")"
         sh -c "$s" ;;
       *faileddeploy*)
