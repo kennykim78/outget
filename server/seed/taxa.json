@@ -158,5 +158,55 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "meriones-unguiculatus",
+    "scientificName": "Meriones unguiculatus",
+    "koreanName": "몽골리안저빌",
+    "legal": {
+      "animalProtectionAct6": false,
+      "cites": false,
+      "designatedWildlifeWhitelist": null,
+      "note": "저빌을 데려오거나 보내거나 기를 때, 그리고 폐사했을 때 시·군·구에 신고하는 제도가 있어요(야생생물법 제21조제3항, 2025년 12월 14일 시행)."
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "LEGAL",
+    "source": [
+      {
+        "url": "https://www.law.go.kr/법령/동물보호법시행규칙/제3조",
+        "title": "동물보호법 시행규칙 제3조 (국가법령정보센터)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://speciesplus.net/species#/taxon_concepts?taxonomy=cites_eu&taxon_concept_query=Meriones&geo_entities_ids=&geo_entity_scope=cites&page=1",
+        "title": "Species+ — \"Meriones\" 검색",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.mammaldiversity.org/taxon/1002969/",
+        "title": "Mammal Diversity Database — Meriones unguiculatus (Mongolian Jird)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.law.go.kr/법령/야생생물보호및관리에관한법률",
+        "title": "야생생물 보호 및 관리에 관한 법률 제21조제3항 (국가법령정보센터)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000269772",
+        "title": "양도·양수 등의 신고 제외 대상 (기후에너지환경부고시 제2025-56호, 국가법령정보센터)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://wims.mcee.go.kr/wims/minwon/info/info01001l.do",
+        "title": "야생동물종합관리시스템(WIMS) 생물종 검색 — Meriones unguiculatus",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   }
 ]

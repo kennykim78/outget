@@ -426,7 +426,8 @@
             "GUINEA_PIG",
             "RABBIT",
             "HAMSTER",
-            "MULTI"
+            "MULTI",
+            "GERBIL"
           ],
           "optional": true,
           "ruleScoped": true,
@@ -434,7 +435,8 @@
             "GUINEA_PIG": "기니피그용",
             "RABBIT": "토끼용",
             "HAMSTER": "햄스터용",
-            "MULTI": "여러 동물용"
+            "MULTI": "여러 동물용",
+            "GERBIL": "저빌용"
           }
         },
         {

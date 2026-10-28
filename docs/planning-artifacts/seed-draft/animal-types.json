@@ -116,17 +116,36 @@
       "저빌",
       "gerbil"
     ],
-    "taxonId": null,
-    "careProfileId": null,
+    "taxonId": "meriones-unguiculatus",
+    "careProfileId": "cp-gerbil-mongolian",
     "careOverrides": {},
     "mascot": "gerbil",
+    "oneLiner": "2마리 이상 함께 · 새벽과 해질녘에 활발 · 성체 10~12cm",
+    "seoTitle": null,
+    "seoDescription": null,
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
     "contentKind": "CARE",
-    "source": []
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/company",
+        "title": "Keeping Gerbils Together – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/description-and-physical-characteristics-of-gerbils",
+        "title": "Description and Physical Characteristics of Gerbils – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   },
   {
     "id": "guinea-pig",

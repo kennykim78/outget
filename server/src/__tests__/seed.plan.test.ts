@@ -40,12 +40,12 @@ describe('planSeedWrites — real seed', () => {
       vetClinic: count('vetClinic'),
       testimonial: count('testimonial'),
     }).toEqual({
-      taxon: 4, // R7 A4: 드워프 Taxon 2행(phodopus-sungorus·campbelli, DRAFT) 추가, 기니피그 S7: cavia-porcellus(DRAFT)
-      careProfile: 3, // R7 A4: cp-hamster-dwarf(DRAFT) 추가, 기니피그 S7: cp-guineapig(DRAFT)
+      taxon: 5, // R7 A4: 드워프 Taxon 2행(phodopus-sungorus·campbelli, DRAFT) 추가, 기니피그 S7: cavia-porcellus(DRAFT), 저빌 126: meriones-unguiculatus(DRAFT)
+      careProfile: 4, // R7 A4: cp-hamster-dwarf(DRAFT) 추가, 기니피그 S7: cp-guineapig(DRAFT), 저빌 126: cp-gerbil-mongolian(DRAFT)
       animalType: 6,
       supplyItem: 20, // R7-B: sand-bath-box 신설(모래목욕 통·모래 분리, 안 A), 기니피그 S8: playpen·hay·hay-rack·nail-clipper·brush
-      supplyRequirement: 45, // R7-B: 드워프 15(서명 11 + 모래 2(v0.3) + 사료·저울 DRAFT) · 기니피그 S9 +16(DRAFT)
-      compatibilityRule: 3, // R7-B: cr-dwarf-wheel-cage-bedding·cr-dwarf-tubes-cage, BE92: 공용 2·골든 튜브 삭제 + cr-syrian-wheel-cage-bedding
+      supplyRequirement: 59, // R7-B: 드워프 15(서명 11 + 모래 2(v0.3) + 사료·저울 DRAFT) · 기니피그 S9 +16(DRAFT) · 저빌 126 +14(DRAFT)
+      compatibilityRule: 4, // R7-B: cr-dwarf-wheel-cage-bedding·cr-dwarf-tubes-cage, BE92: 공용 2·골든 튜브 삭제 + cr-syrian-wheel-cage-bedding, 저빌 126: cr-gerbil-wheel-cage-bedding
       setupBundle: 6, // R7-B: sb-dwarf-budget·balanced·reuse(v0.3)
       curatedProduct: 17, // R7-B: cp-dw-001~017(v0.3, SLOT 아님)
       vetClinic: 0,

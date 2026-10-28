@@ -2558,5 +2558,933 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "req-gerbil-cage",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "cage",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "굴을 깊게 파고 뒷다리로 서는 동물이라 베딩을 깊게 깔아도 위 공간이 남아야 해요.",
+    "caution": "2마리 기준 크기라 한 마리 늘 때마다 바닥을 넓히고, 수조형은 철망 뚜껑을 덮어요.",
+    "avoid": "철망으로만 된 케이지 · 철망 선반 · 표준 수조 뚜껑",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "floorWcm",
+          "op": "gte",
+          "value": 100,
+          "reason": "바닥 가로 100cm 미만은 2마리 기준 최소에 못 미쳐요"
+        },
+        {
+          "key": "floorDcm",
+          "op": "gte",
+          "value": 50,
+          "reason": "바닥 세로 50cm 미만은 2마리 기준 최소에 못 미쳐요"
+        },
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 50,
+          "reason": "높이 50cm 미만이면 베딩을 깊게 깔고 일어설 공간이 모자라요"
+        },
+        {
+          "key": "type",
+          "op": "not_in",
+          "value": [
+            "WIRE"
+          ],
+          "reason": "철망 케이지는 발을 다치거나 철망을 갉아 이빨이 상할 수 있어요"
+        },
+        {
+          "key": "floorType",
+          "op": "eq",
+          "value": "SOLID",
+          "reason": "바닥은 망이 아닌 막힌 면이어야 해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 80,
+          "reason": "독일 수의사 동물보호협회는 아래 수조 50cm 위에 철망 칸 30cm를 더한 높이를 제시해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 수조 100x50",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/gerbils",
+        "title": "Gerbils – MSD Veterinary Manual (Exotic and Laboratory Animals, 전문가판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-bedding",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "bedding",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "땅속에 굴을 파고 그 안에서 자고 먹이를 모아 두는 동물이에요.",
+    "caution": "20cm 이상 깊게 깔고 건초·종이 상자를 섞어요.",
+    "avoid": "삼나무·소나무 대팻밥 · 톱밥 · 솜처럼 가닥이 갈라지거나 발이 엉키는 둥지재 · 잉크 묻은 신문지",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "not_in",
+          "value": [
+            "CEDAR_PINE"
+          ],
+          "reason": "삼나무·소나무 대팻밥에는 기름 성분이 있어 피해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "scented",
+          "op": "eq",
+          "value": false,
+          "reason": "향을 넣지 않은 베딩이 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 종이 베딩 대용량",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://spca.bc.ca/wp-content/uploads/2026/02/PFH-Toolkit-Care-Guide-Gerbil.pdf",
+        "title": "Caring for your gerbil – BC SPCA (PDF 2026-02)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/rodents-housing",
+        "title": "Rodents – Housing – VCA Animal Hospitals",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-gerbils",
+        "title": "The ideal home for your gerbils – PDSA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-water",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "water",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "항상 깨끗한 물을 마실 수 있어야 해요.",
+    "caution": "꼭지가 베딩에 묻히지 않게 높이 달고 매일 새거나 막히지 않았는지 봐요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "kind",
+          "op": "eq",
+          "value": "BOTTLE",
+          "reason": "그릇은 엎어지거나 베딩에 묻히기 쉬워 물병이 권장돼요"
+        },
+        {
+          "key": "mount",
+          "op": "eq",
+          "value": "HANG",
+          "reason": "수조 뚜껑이나 위쪽에 거는 물병이 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 급수기 걸이형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/diet",
+        "title": "What To Feed Your Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/wp-content/uploads/2026/07/02035-PS-Gerbil-small-pets-care-guide-web-0726-AW.pdf",
+        "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-food",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "food",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "저빌용 주식을 기본으로 하고, 씨앗이나 사람 음식 위주로 주지 않아요.",
+    "caution": "베딩 위에 흩어 주고 숨겨 둔 상한 먹이는 치워요.",
+    "avoid": "해바라기씨 위주 급여 · 당분 많은 간식 · 포도·대황",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "forSpecies",
+          "op": "in",
+          "value": [
+            "GERBIL",
+            "MULTI"
+          ],
+          "reason": "저빌용이나 저빌을 포함한 여러 동물용 사료여야 해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "forSpecies",
+          "op": "eq",
+          "value": "GERBIL",
+          "reason": "저빌 전용으로 표시된 사료가 권장돼요"
+        },
+        {
+          "key": "proteinPct",
+          "op": "gte",
+          "value": 18,
+          "reason": "수의 매뉴얼은 조단백 18~20% 사료를 제시해요"
+        },
+        {
+          "key": "proteinPct",
+          "op": "lte",
+          "value": 20,
+          "reason": "수의 매뉴얼은 조단백 18~20% 사료를 제시해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 전용 사료",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/gerbils",
+        "title": "Gerbils – MSD Veterinary Manual (Exotic and Laboratory Animals, 전문가판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/diet",
+        "title": "What To Feed Your Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/wp-content/uploads/2026/07/02035-PS-Gerbil-small-pets-care-guide-web-0726-AW.pdf",
+        "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-food-bowl",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "food-bowl",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "먹이는 흩어 주는 방법이 권장되고, 그릇을 쓰면 도자기나 스테인리스가 맞아요.",
+    "caution": "베딩에 묻히지 않는 자리에 둬요.",
+    "avoid": "플라스틱 그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "in",
+          "value": [
+            "CERAMIC",
+            "METAL"
+          ],
+          "reason": "도자기나 스테인리스 그릇이 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 도자기 사료 그릇",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/diet",
+        "title": "What To Feed Your Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/wp-content/uploads/2026/07/02035-PS-Gerbil-small-pets-care-guide-web-0726-AW.pdf",
+        "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-hideout",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "hideout",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "놀라면 숨고, 어두운 곳에서 함께 자며 먹이를 모아 둬요.",
+    "caution": "어두운 둥지 상자에 무지 휴지나 종이를 넣어 줘요.",
+    "avoid": "플라스틱 은신처",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "not_in",
+          "value": [
+            "PLASTIC"
+          ],
+          "reason": "플라스틱은 갉아 삼키거나 날카롭게 깨질 수 있어 피해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "entrances",
+          "op": "gte",
+          "value": 2,
+          "reason": "출입구가 여럿이면 힘센 개체가 다른 개체를 안에 가두지 못해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 은신처 나무",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/behaviour",
+        "title": "Gerbil Behaviour and Body Language – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-gerbils",
+        "title": "The ideal home for your gerbils – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-sand-bath",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "sand-bath",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "모래에 뒹굴며 털이 기름지지 않게 손질해요.",
+    "caution": "베딩에 묻히지 않게 받침 위에 두고 더러워지면 걸러요.",
+    "avoid": "칼슘 첨가 모래 · 날카로운 석영 모래",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "sandType",
+          "op": "eq",
+          "value": "CHINCHILLA_SAND",
+          "reason": "친칠라용 모래가 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 목욕 모래 친칠라 샌드",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/gerbils",
+        "title": "Gerbils – MSD Veterinary Manual (Exotic and Laboratory Animals, 전문가판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/wp-content/uploads/2026/07/02035-PS-Gerbil-small-pets-care-guide-web-0726-AW.pdf",
+        "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-gerbils",
+        "title": "The ideal home for your gerbils – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://spca.bc.ca/wp-content/uploads/2026/02/PFH-Toolkit-Care-Guide-Gerbil.pdf",
+        "title": "Caring for your gerbil – BC SPCA (PDF 2026-02)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/health",
+        "title": "Caring For Your Pet Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-sand-bath-box",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "sand-bath-box",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "모래를 담아 둘 통이에요. 큰 유리나 도자기 그릇을 쓰기도 해요.",
+    "caution": "얕은 통이나 옆으로 눕힌 유리병도 쓸 수 있어요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 모래 목욕통 유리",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/health",
+        "title": "Caring For Your Pet Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://spca.bc.ca/wp-content/uploads/2026/02/PFH-Toolkit-Care-Guide-Gerbil.pdf",
+        "title": "Caring for your gerbil – BC SPCA (PDF 2026-02)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-wheel",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "wheel",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "달릴 때 등이 U자로 굽으면 지름이 작아요. 꼬리와 발이 끼지 않는 막힌 판이 맞아요.",
+    "caution": "쳇바퀴만 두지 말고 굴·터널 놀거리를 함께 둬요.",
+    "avoid": "살대·망 바닥 쳇바퀴",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "surface",
+          "op": "eq",
+          "value": "SOLID",
+          "reason": "살대나 망 사이에 꼬리와 발이 끼어 다칠 수 있어요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "diameterCm",
+          "op": "gte",
+          "value": 30,
+          "reason": "달릴 때 등이 U자로 굽으면 쳇바퀴가 작다는 뜻이에요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 쳇바퀴 30cm",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_62_Tierschutzwidriges_Zubeh%C3%B6r_Heimtiere__Jan._2010_geaendert_April_2024__01.pdf&did=60",
+        "title": "TVT Merkblatt Nr. 62 – Tierschutzwidriges Zubehör (Stand Jan. 2010, geändert April 2024)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/wp-content/uploads/2026/07/02035-PS-Gerbil-small-pets-care-guide-web-0726-AW.pdf",
+        "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/behaviour",
+        "title": "Gerbil Behaviour and Body Language – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://spca.bc.ca/wp-content/uploads/2026/02/PFH-Toolkit-Care-Guide-Gerbil.pdf",
+        "title": "Caring for your gerbil – BC SPCA (PDF 2026-02)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/rodents-housing",
+        "title": "Rodents – Housing – VCA Animal Hospitals",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-tubes",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "tubes",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "굴처럼 어두운 통로를 지나고 숨는 걸 좋아해요.",
+    "caution": "갉아도 되는 나무·건초·종이 재질로 골라요.",
+    "avoid": "투명 플라스틱 튜브 · 지름 5cm 미만",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "innerDiameterCm",
+          "op": "gte",
+          "value": 5,
+          "reason": "지름 5cm보다 좁으면 몸이 끼일 수 있어요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 나무 터널",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/behaviour",
+        "title": "Gerbil Behaviour and Body Language – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-chew",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "chew",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "버드나무·과일나무 가지처럼 갉을 나무를 넣어 줘요.",
+    "caution": "약을 치지 않은 나무인지 확인해요.",
+    "avoid": "주목·호랑가시·담쟁이 가지 · 색소 들어간 갉기 막대",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "UNTREATED_WOOD",
+          "reason": "약을 치지 않은 나무가 권장돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 갉기 나무 무처리",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/health",
+        "title": "Caring For Your Pet Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/wp-content/uploads/2026/07/02035-PS-Gerbil-small-pets-care-guide-web-0726-AW.pdf",
+        "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-hay",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "hay",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "굴과 둥지를 만드는 재료로 베딩에 섞어 줘요.",
+    "caution": "베딩과 섞으면 굴이 잘 무너지지 않아요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "hayType",
+          "op": "in",
+          "value": [
+            "TIMOTHY",
+            "MEADOW"
+          ],
+          "reason": "티모시나 목초 건초가 제시돼요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 건초",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-carrier",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "carrier",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "케이지를 청소하는 동안 잠시 옮겨 둘 곳이 필요해요.",
+    "caution": "지내던 베딩을 넉넉히 넣어 줘요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 이동장 소형",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://woodgreen.org.uk/pet-advice/gerbil/how-to-house-your-gerbils/",
+        "title": "How to house your gerbils – Woodgreen Pets Charity",
+        "accessedAt": "2026-10-27"
+      }
+    ]
+  },
+  {
+    "id": "req-gerbil-thermo",
+    "careProfileId": "cp-gerbil-mongolian",
+    "supplyItemId": "thermo",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "실내 20~24℃, 습도 50% 이하인지 숫자로 확인해요.",
+    "caution": "습도까지 보이는 온습도계로 골라요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 온습도계",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": [
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/gerbils",
+        "title": "Gerbils – MSD Veterinary Manual (Exotic and Laboratory Animals, 전문가판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/the-ideal-home-for-your-gerbils",
+        "title": "The ideal home for your gerbils – PDSA",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   }
 ]

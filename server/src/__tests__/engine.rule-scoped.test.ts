@@ -232,10 +232,10 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     if (!r) throw new Error(`fixture: ${id} 없음`);
     return r as Rec;
   };
-  // 메커니즘 테스트용: S9 기니피그 요구사항(참조 6필드)을 뺀 시드 — 참조 0 상태에서 해소 경로를 본다.
+  // 메커니즘 테스트용: S9 기니피그 요구사항(참조 6필드)·저빌 126 요구사항(floorType·forSpecies·entrances 참조)을 뺀 시드 — 참조 0 상태에서 해소 경로를 본다.
   const withoutGp = () => {
     const raw = fresh();
-    raw.supplyRequirements = (raw.supplyRequirements ?? []).filter((x) => (x as Rec).careProfileId !== 'cp-guineapig');
+    raw.supplyRequirements = (raw.supplyRequirements ?? []).filter((x) => !['cp-guineapig', 'cp-gerbil-mongolian'].includes((x as Rec).careProfileId as string));
     return raw;
   };
   const scopedWarns = (raw: ReturnType<typeof fresh>) =>
@@ -246,7 +246,7 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     expect(res.errors).toEqual([]);
     expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType']);
   });
-  it('기니피그 요구사항을 빼면 7필드 전부 WARN(S9 가 6필드 경고를 해소한 출처)', () => {
+  it('기니피그·저빌 요구사항을 빼면 7필드 전부 WARN(S9 가 6필드 경고를 해소한 출처)', () => {
     expect(scopedWarns(withoutGp())).toHaveLength(7);
   });
 

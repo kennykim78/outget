@@ -7,7 +7,15 @@ import { createCatalog, listResolvedRequirements, type SeedBundle } from '../eng
 import { SEED_FILES, asSeedBundle, type RawSeed, type Rec, type SeedKey } from '../seed/common.js';
 import { readSeedDirRaw } from '../seed/read.js';
 import { isDomesticDomain } from '../seed/validate-review.js';
-import { REQUIRED_ITEMS_BY_PROFILE, TRIVIAL_LEGAL_GENERA, genusOf, isLegalTrivial, isTaxonLegallyTrivial } from '../seed/validate-gates.js';
+import {
+  REQUIRED_ITEMS_BY_PROFILE,
+  TRIVIAL_LEGAL_SPECIES,
+  genusOf,
+  isLegalNotGating,
+  isLegalTrivial,
+  isTaxonLegallyTrivial,
+  speciesOf,
+} from '../seed/validate-gates.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, promotedTwo } from './fixtures/prerender-seed.js';
 
@@ -277,6 +285,135 @@ describe('기니피그 ACTIVE 전 게이트(QA118 X01·X02)', () => {
   });
 });
 
+/** 저빌(126 S2)을 메모리에서 ACTIVE + 체인(타입·사육 프로필·REQUIRED 요구사항 전부·용품) VERIFIED 로 — 디스크 시드는 DRAFT·PLANNED 그대로. */
+const GB_FIXED = ['bedding', 'cage', 'food', 'hideout', 'sand-bath', 'water'];
+const gerbilActive = (): Required<RawSeed> => {
+  const s = fresh();
+  const at = row(s, 'animalTypes', 'gerbil-mongolian');
+  at.status = 'ACTIVE';
+  verify(at, 'EXPERIENCED_KEEPER');
+  verify(row(s, 'careProfiles', 'cp-gerbil-mongolian'), 'EXPERIENCED_KEEPER');
+  for (const r of s.supplyRequirements as Rec[]) {
+    if (r.careProfileId !== 'cp-gerbil-mongolian' || r.priority !== 'REQUIRED') continue;
+    verify(r, 'VET_PUBLISHED_SOURCE');
+    verify(row(s, 'supplyItems', r.supplyItemId as string), 'EXPERIENCED_KEEPER');
+  }
+  // 사료(FOOD) 행: 104 는 국내(.kr) 수의 출처를 찾지 못했다 → 디스크 행은 VERIFIED 가 되면 V08. 게이트(X01·X02)만 보려고
+  //   메모리 사본에만 자리표시 국내 출처를 붙인다(실제 출처 아님 — 디스크·패킷에는 없음, ACTIVE 전 보강 필요는 확인표 D).
+  const food = row(s, 'supplyRequirements', 'req-gerbil-food');
+  food.source = [...(food.source as Rec[]), { url: 'https://fixture.example.kr/gerbil-food', title: '픽스처 국내 출처(메모리 전용)', accessedAt: '2026-10-27' }];
+  return s;
+};
+const gerbilX = (s: RawSeed, rule: string) => errs(validateSeed(s, { now: NOW }), rule).filter((i) => i.id === 'gerbil-mongolian');
+
+describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 NOT_GATING_KENNY)', () => {
+  it('디스크: gerbil-mongolian PLANNED · Taxon meriones-unguiculatus DRAFT·AI_DRAFT · legal act6 false/cites false/화이트리스트 null', () => {
+    const at = row(BASE, 'animalTypes', 'gerbil-mongolian');
+    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'DRAFT', 'AI_DRAFT']);
+    const t = row(BASE, 'taxa', 'meriones-unguiculatus');
+    expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
+    expect(t.legal).toMatchObject({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
+    expect(isTaxonLegallyTrivial(t)).toBe(true);
+  });
+
+  it('X01 집합: cp-gerbil-mongolian = cage·food·water·bedding·hideout·sand-bath(쳇바퀴·건초 없음), 동결', () => {
+    expect([...REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']].sort()).toEqual(GB_FIXED);
+    expect(REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']).not.toContain('wheel');
+    expect(REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']).not.toContain('hay');
+    expect(Object.isFrozen(REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian'])).toBe(true);
+  });
+
+  it('실시드 14행이 집합을 충족: 각 항목 행 있음·REQUIRED(해석 전·후), wheel 은 RECOMMENDED', () => {
+    const rows = (BASE.supplyRequirements as Rec[]).filter((r) => r.careProfileId === 'cp-gerbil-mongolian');
+    expect(rows.length).toBe(14);
+    for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']) {
+      const r = rows.find((x) => x.supplyItemId === id);
+      expect(r, id).toBeDefined();
+      expect(r?.priority, id).toBe('REQUIRED');
+    }
+    expect(rows.find((x) => x.supplyItemId === 'wheel')?.priority).toBe('RECOMMENDED');
+    const cat = createCatalog(asSeedBundle(BASE));
+    const resolved = new Map(listResolvedRequirements(cat, 'gerbil-mongolian').map((r) => [r.supplyItemId, r.priority]));
+    for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']) expect(resolved.get(id), id).toBe('REQUIRED');
+  });
+
+  it('(a·b) 메모리 ACTIVE + REQUIRED 체인 VERIFIED, 미검수 Taxon act6 false(디스크) / null → X01 0 · X02 0', () => {
+    expect(gerbilX(gerbilActive(), 'X01')).toEqual([]);
+    expect(gerbilX(gerbilActive(), 'X02')).toEqual([]);
+    const s = gerbilActive();
+    (row(s, 'taxa', 'meriones-unguiculatus').legal as Rec).animalProtectionAct6 = null;
+    expect(gerbilX(s, 'X02')).toEqual([]);
+    expect(validateSeed(s, { now: NOW }).errors.filter((i) => i.id === 'gerbil-mongolian')).toEqual([]);
+  });
+
+  const x02Cases: Array<[string, (t: Rec) => void]> = [
+    ['(c) act6 true(6종이라는 사실과 다른 값)', (t) => ((t.legal as Rec).animalProtectionAct6 = true)],
+    ['(d) cites true', (t) => ((t.legal as Rec).cites = true)],
+    ['화이트리스트 true', (t) => ((t.legal as Rec).designatedWildlifeWhitelist = true)],
+    ['act6 키 누락', (t) => delete (t.legal as Rec).animalProtectionAct6],
+    ['(e) 허용목록 밖 속 Pachyuromys duprasi(펫테일저빌)', (t) => (t.scientificName = 'Pachyuromys duprasi')],
+    ['같은 속 다른 종 Meriones crassus', (t) => (t.scientificName = 'Meriones crassus')],
+  ];
+  for (const [name, mutate] of x02Cases) {
+    it(`X02: 저빌 ACTIVE + 미검수 Taxon ${name} → X02(gerbil-mongolian taxonId)`, () => {
+      const s = gerbilActive();
+      mutate(row(s, 'taxa', 'meriones-unguiculatus'));
+      expect(gerbilX(s, 'X02').map((i) => `${i.id} ${i.path}`)).toEqual(['gerbil-mongolian taxonId']);
+    });
+  }
+
+  it('legal null → 구조 단계에서 ERROR(게이트 전 차단, fail-closed)', () => {
+    const s = gerbilActive();
+    row(s, 'taxa', 'meriones-unguiculatus').legal = null;
+    const e = validateSeed(s, { now: NOW }).errors.filter((i) => i.id === 'meriones-unguiculatus');
+    expect(e.length).toBeGreaterThan(0);
+  });
+
+  it('X02: 같은 값이라도 Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0 (act6 true 주입)', () => {
+    const s = gerbilActive();
+    const t = row(s, 'taxa', 'meriones-unguiculatus');
+    (t.legal as Rec).animalProtectionAct6 = true;
+    verify(t, 'OFFICIAL_SOURCE');
+    expect(gerbilX(s, 'X02')).toEqual([]);
+  });
+
+  it('(g) X01: 메모리 ACTIVE 에서 sand-bath 요구사항 행 삭제 → X01 requirements.sand-bath', () => {
+    const s = gerbilActive();
+    s.supplyRequirements = (s.supplyRequirements as Rec[]).filter((r) => r.id !== 'req-gerbil-sand-bath');
+    expect(gerbilX(s, 'X01').map((i) => i.path)).toEqual(['requirements.sand-bath']);
+  });
+
+  for (const lowered of ['RECOMMENDED', 'OPTIONAL', 'NOT_NOW']) {
+    it(`X01(집합 기반): VERIFIED sand-bath 행 priority REQUIRED → ${lowered} → X01 requirements.sand-bath`, () => {
+      const s = gerbilActive();
+      const sb = row(s, 'supplyRequirements', 'req-gerbil-sand-bath');
+      expect(sb.reviewStatus).toBe('VERIFIED');
+      sb.priority = lowered;
+      expect(gerbilX(s, 'X01').map((i) => i.path)).toEqual(['requirements.sand-bath']);
+    });
+  }
+
+  it('V08: 디스크 사료 행(국내 출처 0)을 그대로 VERIFIED 로 올리면 V08 — 국내 수의 출처 없이는 사료 체인이 열리지 않는다', () => {
+    const s = gerbilActive();
+    const food = row(s, 'supplyRequirements', 'req-gerbil-food');
+    food.source = (food.source as Array<{ url: string }>).filter((x) => !x.url.includes('.kr/'));
+    expect(errs(validateSeed(s, { now: NOW }), 'V08').map((i) => i.id)).toEqual(['req-gerbil-food']);
+    expect((row(BASE, 'supplyRequirements', 'req-gerbil-food').source as Array<{ url: string }>).some((x) => new URL(x.url).hostname.endsWith('.kr'))).toBe(false);
+  });
+
+  it('X01: 사료 행 DRAFT(FOOD 미검수) → X01 requirements.food', () => {
+    const s = gerbilActive();
+    Object.assign(row(s, 'supplyRequirements', 'req-gerbil-food'), { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+    expect(gerbilX(s, 'X01').map((i) => i.path)).toEqual(['requirements.food']);
+  });
+
+  it('PLANNED(디스크) 저빌은 대상 아님 — Taxon cites true 주입해도 X02 0', () => {
+    const s = fresh();
+    (row(s, 'taxa', 'meriones-unguiculatus').legal as Rec).cites = true;
+    expect(gerbilX(s, 'X02')).toEqual([]);
+  });
+});
+
 describe('V08 — FOOD/HEALTH VERIFIED 국내 출처 1개 이상(G-3)', () => {
   it('isDomesticDomain: .kr·.한국(punycode) 만', () => {
     expect(isDomesticDomain('snu.ac.kr')).toBe(true);
@@ -342,24 +479,80 @@ describe('X02 — ACTIVE 타입 Taxon 미검수 ∧ 법 판단 필요(M-1, 제�
     expect(isLegalTrivial(null)).toBe(false);
   });
 
-  it('M-2 genusOf·isTaxonLegallyTrivial: 허용목록 속(Mesocricetus·Phodopus·Cavia) ∧ 불리언 자명만', () => {
-    expect(TRIVIAL_LEGAL_GENERA).toEqual(['Mesocricetus', 'Phodopus', 'Cavia']);
-    expect(Object.isFrozen(TRIVIAL_LEGAL_GENERA)).toBe(true);
+  it('M-2 · 보안 129 LOW-1: 종 허용목록(앞 두 단어) — 햄스터 3종·Cavia porcellus = PET_ACT6, Meriones unguiculatus = NOT_GATING_KENNY, 동결', () => {
+    expect(TRIVIAL_LEGAL_SPECIES).toEqual({
+      'Mesocricetus auratus': 'PET_ACT6',
+      'Phodopus sungorus': 'PET_ACT6',
+      'Phodopus campbelli': 'PET_ACT6',
+      'Cavia porcellus': 'PET_ACT6',
+      'Meriones unguiculatus': 'NOT_GATING_KENNY',
+    });
+    expect(Object.isFrozen(TRIVIAL_LEGAL_SPECIES)).toBe(true);
+    // 허용목록 = 실시드 Taxon 학명 집합(로보로브스키 등 Taxon 없는 종은 넣지 않는다).
+    expect(Object.keys(TRIVIAL_LEGAL_SPECIES).sort()).toEqual((BASE.taxa as Rec[]).map((t) => t.scientificName as string).sort());
     expect(genusOf('Mesocricetus auratus')).toBe('Mesocricetus');
     expect(genusOf('Phodopus')).toBe('Phodopus');
     expect(genusOf('mesocricetus auratus')).toBeNull();
     expect(genusOf('Meso-cricetus auratus')).toBeNull();
     expect(genusOf(null)).toBeNull();
-    const ok = { animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null };
-    expect(isTaxonLegallyTrivial({ scientificName: 'Phodopus sungorus', legal: ok })).toBe(true);
-    expect(isTaxonLegallyTrivial({ scientificName: 'Mesocricetus auratus', legal: ok })).toBe(true);
-    expect(isTaxonLegallyTrivial({ scientificName: 'Meriones unguiculatus', legal: ok })).toBe(false);
-    expect(isTaxonLegallyTrivial({ scientificName: 'Mesocricetusx auratus', legal: ok })).toBe(false);
-    expect(isTaxonLegallyTrivial({ scientificName: 'Phodopus sungorus', legal: { ...ok, cites: true } })).toBe(false);
+    expect(speciesOf('Mesocricetus auratus')).toBe('Mesocricetus auratus');
+    expect(speciesOf('  Cavia porcellus  ')).toBe('Cavia porcellus');
+    expect(speciesOf('Phodopus sungorus sungorus')).toBe('Phodopus sungorus'); // 아종 이하 무시
+    expect(speciesOf('Meriones unguiculatus (Milne-Edwards, 1867)')).toBe('Meriones unguiculatus');
+    expect(speciesOf('Mesocricetus auratus Waterhouse, 1839')).toBe('Mesocricetus auratus');
+    // 교잡·기타 꼬리는 첫 종으로 읽지 않는다(QA137 LOW-2, 보안 144 LOW-1 — 허용 목록).
+    for (const hybrid of [
+      'Meriones unguiculatus × Meriones crassus',
+      'Meriones unguiculatus x Meriones crassus',
+      'Meriones unguiculatus X Meriones crassus',
+      'Meriones unguiculatus ✕ Meriones crassus',
+      'Meriones unguiculatus х Meriones crassus',
+      'Meriones unguiculatus x',
+      'Meriones unguiculatus (x Meriones crassus)',
+      'Meriones unguiculatus x​Meriones',
+      'Meriones unguiculatus hybrid',
+      'Cavia porcellus×aperea',
+    ])
+      expect([hybrid, speciesOf(hybrid)]).toEqual([hybrid, null]);
+    for (const bad of ['Phodopus', 'Cavia Porcellus', 'cavia porcellus', 'Cavia  porcellus', 'Cavia porcellus2', null, 3]) expect([bad, speciesOf(bad)]).toEqual([bad, null]);
   });
 
-  for (const sci of ['Meriones unguiculatus', 'Melopsittacus undulatus', 'mesocricetus auratus']) {
-    it(`M-2: 허용목록 밖 학명(${sci}) + 자명 불리언 + 미검수 Taxon → X02`, () => {
+  it('M-2 · LOW-1 isTaxonLegallyTrivial: 같은 속의 다른 종·허용목록 밖 종은 불리언이 자명이어도 false', () => {
+    const ok = { animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null };
+    const ng = { animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null };
+    expect(isTaxonLegallyTrivial({ scientificName: 'Phodopus sungorus', legal: ok })).toBe(true);
+    expect(isTaxonLegallyTrivial({ scientificName: 'Phodopus campbelli', legal: ok })).toBe(true);
+    expect(isTaxonLegallyTrivial({ scientificName: 'Mesocricetus auratus', legal: ok })).toBe(true);
+    expect(isTaxonLegallyTrivial({ scientificName: 'Cavia porcellus', legal: ok })).toBe(true);
+    for (const sci of ['Cavia aperea', 'Mesocricetus brandti', 'Pachyuromys duprasi', 'Phodopus roborovskii', 'Meriones crassus', 'Mesocricetusx auratus', 'Cavia', 'Cavia porcellusx']) {
+      expect([sci, isTaxonLegallyTrivial({ scientificName: sci, legal: ok })]).toEqual([sci, false]);
+      expect([sci, isTaxonLegallyTrivial({ scientificName: sci, legal: ng })]).toEqual([sci, false]);
+    }
+    expect(isTaxonLegallyTrivial({ scientificName: 'Phodopus sungorus', legal: { ...ok, cites: true } })).toBe(false);
+    // 근거가 섞이지 않는다: PET_ACT6 종에 6종 밖(false) 값 → false, NOT_GATING_KENNY 종(저빌)에 6종(true) 값 → false.
+    expect(isTaxonLegallyTrivial({ scientificName: 'Cavia porcellus', legal: ng })).toBe(false);
+    expect(isTaxonLegallyTrivial({ scientificName: 'Meriones unguiculatus', legal: ok })).toBe(false);
+    expect(isTaxonLegallyTrivial({ scientificName: 'Meriones unguiculatus', legal: ng })).toBe(true);
+  });
+
+  it('isLegalNotGating(Kenny 2026-10-27 저빌): act6·cites·화이트리스트 모두 null/false 만 — act6 true·cites true·화이트리스트 true·키 누락 거부', () => {
+    for (const act6 of [null, false]) {
+      for (const cites of [null, false]) {
+        for (const w of [null, false]) expect(isLegalNotGating({ animalProtectionAct6: act6, cites, designatedWildlifeWhitelist: w })).toBe(true);
+      }
+    }
+    expect(isLegalNotGating({ animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null })).toBe(false);
+    expect(isLegalNotGating({ animalProtectionAct6: false, cites: true, designatedWildlifeWhitelist: null })).toBe(false);
+    expect(isLegalNotGating({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: true })).toBe(false);
+    expect(isLegalNotGating({ animalProtectionAct6: 'false', cites: false, designatedWildlifeWhitelist: null })).toBe(false);
+    expect(isLegalNotGating({ cites: false, designatedWildlifeWhitelist: null })).toBe(false); // act6 누락
+    expect(isLegalNotGating({ animalProtectionAct6: false, designatedWildlifeWhitelist: null })).toBe(false); // cites 누락
+    expect(isLegalNotGating({ animalProtectionAct6: false, cites: false })).toBe(false); // 화이트리스트 누락
+    expect(isLegalNotGating(null)).toBe(false);
+  });
+
+  for (const sci of ['Melopsittacus undulatus', 'mesocricetus auratus', 'Cavia aperea', 'Mesocricetus brandti', 'Pachyuromys duprasi']) {
+    it(`M-2 · LOW-1: 허용목록 밖 학명(${sci}) + 자명 불리언 + 미검수 Taxon → X02`, () => {
       const s = fresh();
       row(s, 'taxa', 'mesocricetus-auratus').scientificName = sci;
       const x = errs(validateSeed(s, { now: NOW }), 'X02');
@@ -368,10 +561,18 @@ describe('X02 — ACTIVE 타입 Taxon 미검수 ∧ 법 판단 필요(M-1, 제�
     });
   }
 
+  it('M-2: 저빌 학명 + 6종 불리언(act6 true) + 미검수 Taxon → X02(NOT_GATING_KENNY 는 act6 true 거부)', () => {
+    const s = fresh();
+    row(s, 'taxa', 'mesocricetus-auratus').scientificName = 'Meriones unguiculatus';
+    const x = errs(validateSeed(s, { now: NOW }), 'X02');
+    expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-golden taxonId']);
+    expect(x[0].message).toContain('NOT_GATING_KENNY');
+  });
+
   it('M-2: 허용목록 밖이라도 Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0', () => {
     const s = fresh();
     const t = row(s, 'taxa', 'mesocricetus-auratus');
-    t.scientificName = 'Meriones unguiculatus';
+    t.scientificName = 'Pachyuromys duprasi';
     verify(t, 'OFFICIAL_SOURCE');
     expect(errs(validateSeed(s, { now: NOW }), 'X02')).toEqual([]);
   });

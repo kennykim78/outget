@@ -8,9 +8,14 @@
 //        (b) 그 밖의 요구사항: 해석 후 REQUIRED 인데 노출 불가 → ERROR(기존 규칙).
 //        타입 자체가 비노출이면 대상 아님(W-EXPOSURE-ZERO 가 보고).
 //   X02(제품기획 §9 대비): ACTIVE 타입의 대표 Taxon 이 공개 불가(isTaxonExposable=false: 미검수·AI_DRAFT·만료)인데
-//        법 판단이 "자명하지 않은" 경우 ERROR. 자명 = 학명 속(genus)이 코드 허용목록(TRIVIAL_LEGAL_GENERA, 보안 79 M-2 —
-//        Kenny K-4 되돌림 취지: 햄스터는 법 검토 불요) ∧ animalProtectionAct6 === true ∧ cites === false
-//        ∧ designatedWildlifeWhitelist ∈ {null, false}. 허용목록 밖은 legal 불리언과 무관하게 Taxon VERIFIED 필요
+//        법 판단이 "자명하지 않은" 경우 ERROR. 자명 = 학명 앞 두 단어(속 종소명)가 코드 허용목록(TRIVIAL_LEGAL_SPECIES,
+//        보안 79 M-2 · 보안 129 LOW-1: 속이 아니라 종 단위 — 법 근거가 종이다) ∧ 그 종의 근거별 불리언 조건:
+//          PET_ACT6(햄스터 3종·기니피그, Kenny K-4 되돌림 취지: 시행규칙 제3조 반려동물 — 법 검토 불요)
+//            = animalProtectionAct6 === true ∧ cites === false ∧ designatedWildlifeWhitelist ∈ {null, false}
+//          NOT_GATING_KENNY(몽골리안저빌, Kenny 2026-10-27: 분양을 하지 않는 서비스라 법 상태는 노출 조건이 아니다)
+//            = animalProtectionAct6 ∈ {null, false} ∧ cites ∈ {null, false} ∧ designatedWildlifeWhitelist ∈ {null, false}
+//              — act6 === true 는 거부(저빌은 제3조 6종 밖 — 사실과 다른 값 차단), cites true 거부.
+//        허용목록 밖은 legal 불리언과 무관하게 Taxon VERIFIED 필요
 //        (미검수 Taxon 의 불리언은 AI_DRAFT 가 쓴 값일 수 있어 그것만으로 자명 판정하지 않는다).
 //        (반려동물 6종은 야생생물법 제2조제4호바목에 따라 지정관리 야생동물 대상이 아니므로 화이트리스트 null 은 "미해당".)
 //   구조·참조 오류가 없을 때만 호출된다(validate.ts).
@@ -27,13 +32,32 @@ export const REQUIRED_ITEMS_BY_PROFILE: Readonly<Record<string, readonly string[
   'cp-hamster-dwarf': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'wheel']),
   // 기니피그(QA118 X01, 2026-10-27): 쳇바퀴 없음(기니피그에 쓰지 않는다 — 105 근거·req-guineapig 16행) · 건초(hay)가 필수.
   'cp-guineapig': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'hay']),
+  // 몽골리안저빌(126 S2, 2026-10-27): 쳇바퀴는 권장(RECOMMENDED — 104 T1·R2 '선택적 제공')이라 넣지 않는다 · 모래 목욕(sand-bath)이 필수.
+  'cp-gerbil-mongolian': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'sand-bath']),
 });
 
+/** X02 허용 근거. PET_ACT6 = 시행규칙 제3조 반려동물(불리언 isLegalTrivial), NOT_GATING_KENNY = Kenny 결정으로 법 상태가 노출 조건 아님(isLegalNotGating). */
+export type TrivialLegalBasis = 'PET_ACT6' | 'NOT_GATING_KENNY';
+
 /**
- * X02 자명 허용목록 — 학명 속(Kenny 승인 범위: 햄스터 Mesocricetus·Phodopus)
- *   + Cavia(기니피그, QA118 X02 오케스트레이터 결정 2026-10-27: 동물보호법 시행규칙 제3조에 반려동물로 명시 — K-4 되돌림 취지와 동일).
+ * X02 자명 허용목록 — 학명 앞 두 단어(속 종소명) → 근거. 코드 고정(시드 편집으로 넓힐 수 없음, 보안 79 M-2).
+ *   종 단위(보안 129 LOW-1, 2026-10-27): 법 근거가 종(예: Cavia porcellus)이라 같은 속의 다른 종(Cavia aperea·Mesocricetus brandti)은 밖.
+ *   - 햄스터 3종(Kenny 승인 범위: K-4 되돌림) — 실시드 Taxon 3행. (Phodopus roborovskii 는 Taxon 이 없어 넣지 않는다.)
+ *   - Cavia porcellus(기니피그, QA118 X02 오케스트레이터 결정 2026-10-27: 시행규칙 제3조에 반려동물로 명시 — K-4 취지와 동일).
+ *   - Meriones unguiculatus(몽골리안저빌, Kenny 2026-10-27: 분양을 하지 않고 이미 데려온 동물의 준비물을 잇는 서비스라
+ *     법 상태는 노출 조건이 아니다 — 126 S2). 저빌은 제3조 6종 밖이므로 PET_ACT6 이 아니라 NOT_GATING_KENNY.
  */
-export const TRIVIAL_LEGAL_GENERA: readonly string[] = Object.freeze(['Mesocricetus', 'Phodopus', 'Cavia']);
+export const TRIVIAL_LEGAL_SPECIES: Readonly<Record<string, TrivialLegalBasis>> = Object.freeze({
+  'Mesocricetus auratus': 'PET_ACT6',
+  'Phodopus sungorus': 'PET_ACT6',
+  'Phodopus campbelli': 'PET_ACT6',
+  'Cavia porcellus': 'PET_ACT6',
+  'Meriones unguiculatus': 'NOT_GATING_KENNY',
+});
+
+function trivialBasisOf(species: string | null): TrivialLegalBasis | null {
+  return species !== null && Object.prototype.hasOwnProperty.call(TRIVIAL_LEGAL_SPECIES, species) ? TRIVIAL_LEGAL_SPECIES[species] : null;
+}
 
 function requiredItemsFor(careProfileId: string): readonly string[] | null {
   return Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, careProfileId)
@@ -48,18 +72,43 @@ export function genusOf(scientificName: unknown): string | null {
   return m ? m[1] : null;
 }
 
-/** X02: 법 불리언 조합이 "판단 불요" 형태인가(허용목록 판정과 함께 쓴다 — 단독으로는 자명 판정 아님). */
+/**
+ * 학명 "Genus species"(속 대문자 시작 + 종소명 소문자). 뒤에는 아종 한 단어와 ASCII 명명자·연도만 허용하고,
+ *   그 밖(교잡 "× / x"·"hybrid"·유니코드 기호·괄호 안 다른 종)은 null — 허용 목록 방식(QA137 LOW-2 → 보안 144 LOW-1).
+ */
+export function speciesOf(scientificName: unknown): string | null {
+  if (typeof scientificName !== 'string') return null;
+  const m = /^([A-Z][a-z]+) ([a-z]+)(?: (?!(?:x|hybrid)$)[a-z]{2,})?(?: \(?[A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*)*,? \d{4}\)?)?$/.exec(
+    scientificName.trim(),
+  );
+  return m ? `${m[1]} ${m[2]}` : null;
+}
+
+const nullOrFalse = (v: unknown): boolean => v === null || v === false;
+
+/** X02 PET_ACT6: 법 불리언 조합이 "판단 불요" 형태인가(허용목록 판정과 함께 쓴다 — 단독으로는 자명 판정 아님). */
 export function isLegalTrivial(legal: unknown): boolean {
   const l = asRec(legal);
   if (!l) return false;
-  const w = l.designatedWildlifeWhitelist;
-  return l.animalProtectionAct6 === true && l.cites === false && (w === null || w === false);
+  return l.animalProtectionAct6 === true && l.cites === false && nullOrFalse(l.designatedWildlifeWhitelist);
 }
 
-/** X02: 미검수 Taxon 으로도 ACTIVE 가 허용되는가 = 속 허용목록 ∧ isLegalTrivial(legal). */
+/**
+ * X02 NOT_GATING_KENNY(Kenny 2026-10-27): 6종 밖(act6 null·false) ∧ CITES 아님(null·false) ∧ 백색목록 표시 아님(null·false).
+ *   act6 === true 는 거부(이 근거의 종은 제3조 6종이 아니다 — 사실과 다른 값 차단). 키 누락(undefined)도 거부(fail-closed).
+ */
+export function isLegalNotGating(legal: unknown): boolean {
+  const l = asRec(legal);
+  if (!l) return false;
+  return nullOrFalse(l.animalProtectionAct6) && nullOrFalse(l.cites) && nullOrFalse(l.designatedWildlifeWhitelist);
+}
+
+/** X02: 미검수 Taxon 으로도 ACTIVE 가 허용되는가 = 종 허용목록 ∧ 그 종 근거의 불리언 조건. */
 export function isTaxonLegallyTrivial(taxon: { scientificName?: unknown; legal?: unknown }): boolean {
-  const g = genusOf(taxon.scientificName);
-  return g !== null && TRIVIAL_LEGAL_GENERA.includes(g) && isLegalTrivial(taxon.legal);
+  const basis = trivialBasisOf(speciesOf(taxon.scientificName));
+  if (basis === 'PET_ACT6') return isLegalTrivial(taxon.legal);
+  if (basis === 'NOT_GATING_KENNY') return isLegalNotGating(taxon.legal);
+  return false;
 }
 
 export function checkPublishGates(ctx: Ctx, raw: RawSeed): void {
@@ -134,11 +183,15 @@ export function checkPublishGates(ctx: Ctx, raw: RawSeed): void {
     if (!taxon) continue; // R01 이 보고.
     if (isTaxonExposable(cat, at.taxonId, ctx.now) || isTaxonLegallyTrivial(taxon)) continue;
     const l = asRec(taxon.legal);
-    const g = genusOf(taxon.scientificName);
+    const sp = speciesOf(taxon.scientificName);
+    const basis = trivialBasisOf(sp);
     const shown = l
       ? `animalProtectionAct6=${String(l.animalProtectionAct6)}, cites=${String(l.cites)}, designatedWildlifeWhitelist=${String(l.designatedWildlifeWhitelist)}`
       : 'legal 없음';
-    const genusNote = g !== null && TRIVIAL_LEGAL_GENERA.includes(g) ? `속 ${g}` : `속 ${String(g)} 허용목록(${TRIVIAL_LEGAL_GENERA.join('·')}) 밖`;
+    const genusNote =
+      basis !== null
+        ? `종 ${String(sp)} (근거 ${basis} — 불리언 조건 불충족)`
+        : `종 ${String(sp)} 허용목록(${Object.keys(TRIVIAL_LEGAL_SPECIES).join('·')}) 밖`;
     ctx.out.error(
       'X02',
       'animalTypes',

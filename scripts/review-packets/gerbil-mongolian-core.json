@@ -1,0 +1,112 @@
+{
+  "v": 1,
+  "packet": "gerbil-mongolian-core-2026-10",
+  "doc": "docs/planning-artifacts/저빌-핵심행-확인표.md",
+  "note": "확인표 A(☑) → ROW_CHECKED(법 정보 Taxon meriones-unguiculatus 행은 reviewerType OFFICIAL_SOURCE — LEGAL 최소 등급), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-27 조사 _workspace/104_research_gerbil.md · 125_research_gerbil_legal.md(인용 원문 그대로). 케이지 최소 100×50×50cm 막힌 바닥·철망형 제외 = 2마리 기준(Kenny 2026-10-27, 넓히기는 주의 문장만). 법 안내 한 줄(Taxon legal.note)은 Kenny 2026-10-27 결정 — VERIFIED Taxon 일 때만 공개된다. 최소 규격 행(케이지·베딩·은신처·쳇바퀴·터널)은 연결된 A 항목이 전부 ☑일 때만 서명된다. 쳇바퀴 지름 30cm(A16)는 권장 수치, 베딩 솜류 둥지재(A11)는 피할 것 문장이다 — 둘 다 최소 규칙 아님(curator135 #2·#3, 서로 독립인 출처 2개일 때만 최소). 패킷 밖(DRAFT 유지): 사료 req-gerbil-food(FOOD — 국내 .kr 수의 출처가 없어 서명하면 V08 로 검증 실패, 확인표 D 참고), 기존 용품 설명 supply-items(드워프 C 일괄 소유 — 사료 대상 동물 저빌용 선택지 포함). 새 용품 0. 상품(B)·구성안은 저빌 것이 없어 없음.",
+  "reviewerType": "EXPERIENCED_KEEPER",
+  "rowChecked": [
+    {
+      "file": "taxa.json",
+      "id": "meriones-unguiculatus",
+      "items": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "reviewerType": "OFFICIAL_SOURCE"
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-gerbil-cage",
+      "items": [
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "A9"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-gerbil-bedding",
+      "items": [
+        "A10",
+        "A11",
+        "A12"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-gerbil-hideout",
+      "items": [
+        "A13",
+        "A14"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-gerbil-wheel",
+      "items": [
+        "A15",
+        "A16"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-gerbil-tubes",
+      "items": [
+        "A17"
+      ]
+    }
+  ],
+  "bulk": {
+    "item": "C",
+    "rows": [
+      {
+        "file": "animal-types.json",
+        "id": "gerbil-mongolian"
+      },
+      {
+        "file": "care-profiles.json",
+        "id": "cp-gerbil-mongolian"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-water"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-food-bowl"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-sand-bath"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-sand-bath-box"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-chew"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-hay"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-carrier"
+      },
+      {
+        "file": "supply-requirements.json",
+        "id": "req-gerbil-thermo"
+      },
+      {
+        "file": "compatibility-rules.json",
+        "id": "cr-gerbil-wheel-cage-bedding"
+      }
+    ]
+  }
+}

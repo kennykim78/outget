@@ -97,7 +97,7 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
         }
       }
     }
-    expect(n).toBe(2 * 114); // 콘텐츠 8파일 114행 × 2 (BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16)
+    expect(n).toBe(2 * 131); // 콘텐츠 8파일 131행 × 2 (BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
   });
   it('해시는 키 순서·optionLabels·검수 메타와 무관, 사실 1글자 변경에는 반응', () => {
     const r = clone(rowOf(realSeed(), 'supplyRequirements', 'req-dwarf-cage'));
@@ -681,6 +681,154 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
     expect(equivMjs.compareDirs(seed, draft)).toEqual([]);
     expect(equivMjs.compareDirs(SEED_DIR, seed).filter((x) => !x.startsWith(SIGNATURE_FILE))).toEqual([]); // 사실 필드 0 변경
     expect(applyCli([...args, '--result', GP_UNSIGNED_PATH]).code).toBe(0);
+    expect(bytes(seed)).toEqual(before);
+    expect(bytes(draft)).toEqual(beforeDraft);
+  });
+});
+
+// be-gerbil(2026-10-27, 126 S9): 저빌 서명 패킷(scripts/review-packets/gerbil-mongolian-core.json) + 확인표(저빌-핵심행-확인표.md).
+//   법 안내 한 줄(Taxon legal.note, Kenny 2026-10-27)은 확인표 A1~A3 → Taxon 행 OFFICIAL_SOURCE. 사료(FOOD)는 국내 출처 0 이라 패킷 밖.
+describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규격)·C, 패킷 밖(사료·기존 용품) DRAFT 유지', () => {
+  type Packet = DwarfPacket & { reviewerType: string };
+  const PACKETS_DIR = join(ROOT, 'scripts', 'review-packets');
+  const GB_PACKET_PATH = join(PACKETS_DIR, 'gerbil-mongolian-core.json');
+  const GB_UNSIGNED_PATH = join(PACKETS_DIR, 'gerbil-mongolian-core.result.unsigned.json');
+  const gbPacket = (): Packet => JSON.parse(readFileSync(GB_PACKET_PATH, 'utf8')) as Packet;
+  const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '저빌-핵심행-확인표.md'), 'utf8');
+  const signGb = (result: Record<string, unknown>, packet: Packet = gbPacket()) => {
+    const s = clone(realSeed());
+    const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
+    for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
+    return { seed: s, manifest: res.manifest };
+  };
+  const allChecked = (packet: Packet = gbPacket()): Record<string, unknown> => ({
+    format: applyMjs.RESULT_FORMAT,
+    packet: packet.packet,
+    signedBy: 'kenny',
+    checkedAt: NOW,
+    checked: [...new Set(packet.rowChecked.flatMap((r) => r.items))],
+    bulkSignedAt: NOW,
+  });
+  const bytes = (dir: string): Record<string, string> =>
+    Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
+  const ROW_IDS = ['meriones-unguiculatus', 'req-gerbil-bedding', 'req-gerbil-cage', 'req-gerbil-hideout', 'req-gerbil-tubes', 'req-gerbil-wheel'];
+
+  it('구성: 법 정보 A1~A3(OFFICIAL_SOURCE) + 최소 규격 5행(케이지 A4~A9·베딩 A10~A12·은신처 A13~A14·쳇바퀴 A15~A16·터널 A17) + C 일괄 11행, 사료 패킷 밖', () => {
+    const p = gbPacket();
+    expect(p.reviewerType).toBe('EXPERIENCED_KEEPER');
+    expect(Object.fromEntries(p.rowChecked.map((r) => [`${r.file}#${r.id}`, r.items]))).toEqual({
+      'taxa.json#meriones-unguiculatus': ['A1', 'A2', 'A3'],
+      'supply-requirements.json#req-gerbil-cage': ['A4', 'A5', 'A6', 'A7', 'A8', 'A9'],
+      'supply-requirements.json#req-gerbil-bedding': ['A10', 'A11', 'A12'],
+      'supply-requirements.json#req-gerbil-hideout': ['A13', 'A14'],
+      'supply-requirements.json#req-gerbil-wheel': ['A15', 'A16'],
+      'supply-requirements.json#req-gerbil-tubes': ['A17'],
+    });
+    expect((p.rowChecked as Array<{ id: string; reviewerType?: string }>).filter((r) => r.reviewerType !== undefined).map((r) => [r.id, r.reviewerType])).toEqual([
+      ['meriones-unguiculatus', 'OFFICIAL_SOURCE'],
+    ]);
+    expect(p.bulk.rows).toHaveLength(11);
+    const ids = [...p.rowChecked, ...p.bulk.rows].map((r) => `${r.file}#${r.id}`);
+    expect(ids).not.toContain('supply-requirements.json#req-gerbil-food');
+    expect(ids.filter((x) => x.startsWith('supply-items.json#') || x.startsWith('setup-bundles.json#') || x.startsWith('curated-products.json#'))).toEqual([]);
+    // 저빌 요구사항 14행 = 패킷 13행 + 사료(패킷 밖)
+    const gbReqs = realSeed().supplyRequirements.filter((r) => r.careProfileId === 'cp-gerbil-mongolian').map((r) => `supply-requirements.json#${r.id}`);
+    expect(gbReqs).toHaveLength(14);
+    expect(gbReqs.filter((x) => !ids.includes(x))).toEqual(['supply-requirements.json#req-gerbil-food']);
+    // 최소 규격이 있는 저빌 요구사항은 (사료 빼고) 전부 ROW_CHECKED 대상(V10 — 일괄 승인 불가)
+    const rowIds = p.rowChecked.map((r) => r.id);
+    const withMin = realSeed().supplyRequirements.filter((r) => r.careProfileId === 'cp-gerbil-mongolian' && (r.minSpec?.rules?.length ?? 0) > 0).map((r) => r.id);
+    expect(withMin.filter((id) => !rowIds.includes(id))).toEqual(['req-gerbil-food']);
+    // 확인표 A 항목 집합 = 패킷 항목 집합, B 상품 없음, D 는 패킷 밖 안내(표 행 0), 전부 ☐
+    const docA = [...new Set([...doc().matchAll(/^\| (A\d+) \|/gm)].map((x) => x[1]))].sort();
+    expect(p.rowChecked.flatMap((r) => r.items).sort()).toEqual(docA);
+    expect([...doc().matchAll(/^\| (D\d-[a-z]) /gm)]).toHaveLength(0);
+    expect(doc()).toMatch(/## B\. 상품\r?\n\r?\n- 없음\./);
+    expect(doc()).toMatch(/## D\. 사료\(수의 출처\) — 이번 패킷 밖/);
+    expect(doc()).not.toContain('| ☑ |');
+    expect(doc().split('| ☐ |').length - 1).toBe(17); // A1~A17 확인 칸 전부 ☐
+    // 법 안내 문장은 시드 그대로 확인표 A1 에 있다.
+    const note = (realSeed().taxa.find((t) => t.id === 'meriones-unguiculatus')?.legal as { note?: string } | undefined)?.note;
+    expect(typeof note).toBe('string');
+    expect(doc()).toContain(note as string);
+  });
+
+  it('패킷끼리 대상 행 겹침 0 — 저빌 17행', () => {
+    const owner = new Map<string, string>();
+    for (const f of readdirSync(PACKETS_DIR).filter((x) => x.endsWith('.json') && !x.includes('.result.'))) {
+      const p = JSON.parse(readFileSync(join(PACKETS_DIR, f), 'utf8')) as Packet;
+      for (const r of [...p.rowChecked, ...p.bulk.rows]) {
+        const k = `${r.file}#${r.id}`;
+        expect([k, owner.get(k)]).toEqual([k, undefined]);
+        owner.set(k, f);
+      }
+    }
+    expect([...owner.values()].filter((f) => f === 'gerbil-mongolian-core.json')).toHaveLength(17);
+  });
+
+  it('미서명 결과 파일 → 대상 17행 DRAFT·매니페스트 0, 디스크 시드와 사실·검수 표기 동일', () => {
+    const unsigned = JSON.parse(readFileSync(GB_UNSIGNED_PATH, 'utf8')) as Record<string, unknown>;
+    const { seed, manifest } = signGb(unsigned);
+    expect(manifest).toEqual([]);
+    expect(seed).toEqual(realSeed());
+  });
+
+  it('전 ☑·C(가짜 결과, 메모리) → 17행 VERIFIED(ROW_CHECKED 6 · AI_RESEARCH_BULK 11), Taxon 만 OFFICIAL_SOURCE, validate errors 0 — 사료·기존 용품 DRAFT, 타입 PLANNED', () => {
+    const { seed, manifest } = signGb(allChecked());
+    expect(manifest).toHaveLength(17);
+    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(ROW_IDS);
+    expect(rowOf(seed, 'taxa', 'meriones-unguiculatus')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'OFFICIAL_SOURCE', reviewBasis: 'ROW_CHECKED', contentKind: 'LEGAL' });
+    expect(rowOf(seed, 'supplyRequirements', 'req-gerbil-cage')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', reviewBasis: 'ROW_CHECKED' });
+    const res = run(rawOf(seed), manifest);
+    expect(res.errors).toEqual([]);
+    for (const [key, id] of [['supplyRequirements', 'req-gerbil-food'], ['supplyItems', 'cage'], ['supplyItems', 'food'], ['supplyItems', 'sand-bath']] as const) {
+      expect([id, rowOf(seed, key, id).reviewStatus]).toEqual([id, 'DRAFT']);
+    }
+    expect(rowOf(seed, 'animalTypes', 'gerbil-mongolian')).toMatchObject({ reviewStatus: 'VERIFIED', reviewBasis: 'AI_RESEARCH_BULK', status: 'PLANNED' });
+  });
+
+  it('부분 확인: 법 문장 A1·쳇바퀴 지름 A16 이 빠지면 그 행만 DRAFT', () => {
+    const r = allChecked();
+    const { seed } = signGb({ ...r, checked: (r.checked as string[]).filter((x) => !['A1', 'A16'].includes(x)) });
+    expect(rowOf(seed, 'taxa', 'meriones-unguiculatus').reviewStatus).toBe('DRAFT');
+    expect(rowOf(seed, 'supplyRequirements', 'req-gerbil-wheel').reviewStatus).toBe('DRAFT');
+    for (const id of ['req-gerbil-cage', 'req-gerbil-bedding', 'req-gerbil-hideout', 'req-gerbil-tubes']) expect([id, rowOf(seed, 'supplyRequirements', id).reviewStatus]).toEqual([id, 'VERIFIED']);
+  });
+
+  it('Taxon 행 reviewerType 을 빼면(패킷 기본 EXPERIENCED_KEEPER) → V03(LEGAL 은 정확히 OFFICIAL_SOURCE)', () => {
+    const p = gbPacket();
+    const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'meriones-unguiculatus' ? { file: r.file, id: r.id, items: r.items } : r)) };
+    const { seed, manifest } = signGb(allChecked(q), q);
+    expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['meriones-unguiculatus']);
+  });
+
+  it('사료를 D1(VET_PUBLISHED_SOURCE)로 패킷에 넣으면 → V08(국내 출처 0) — 패킷 밖으로 둔 이유', () => {
+    const p = gbPacket();
+    const q = { ...p, rowChecked: [...p.rowChecked, { file: 'supply-requirements.json', id: 'req-gerbil-food', items: ['D1'], reviewerType: 'VET_PUBLISHED_SOURCE' }] };
+    const { seed, manifest } = signGb(allChecked(q), q);
+    expect(errsOf(run(rawOf(seed), manifest), 'V08').map((i) => i.id)).toEqual(['req-gerbil-food']);
+  });
+
+  it('CLI round-trip(임시 사본): 가짜 전 ☑ → seed:validate 0 → 미서명 결과로 되돌리면 원래 바이트', async () => {
+    const seed = tempCopy(SEED_DIR);
+    const draft = tempCopy(DRAFT_DIR);
+    const before = bytes(seed);
+    const beforeDraft = bytes(draft);
+    const resDir = mkdtempSync(join(tmpdir(), 'withsmall-sigres-'));
+    temps.push(resDir);
+    const all = writeJson(resDir, 'gb-all.json', allChecked());
+    const args = ['--packet', GB_PACKET_PATH, '--seed', seed, '--draft', draft, '--now', NOW];
+    const a = applyCli([...args, '--result', all]);
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 6 · AI_RESEARCH_BULK 11');
+    expect(a.code).toBe(0);
+    expect(JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8'))).toHaveLength(17);
+    const v = await validateCli(seed);
+    expect(v.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
+    expect(v.code).toBe(0);
+    expect((await validateCli(draft)).code).toBe(0);
+    expect(equivMjs.compareDirs(seed, draft)).toEqual([]);
+    expect(equivMjs.compareDirs(SEED_DIR, seed).filter((x) => !x.startsWith(SIGNATURE_FILE))).toEqual([]); // 사실 필드 0 변경
+    expect(applyCli([...args, '--result', GB_UNSIGNED_PATH]).code).toBe(0);
     expect(bytes(seed)).toEqual(before);
     expect(bytes(draft)).toEqual(beforeDraft);
   });

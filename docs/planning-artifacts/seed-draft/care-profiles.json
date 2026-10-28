@@ -261,5 +261,114 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "cp-gerbil-mongolian",
+    "name": "몽골리안저빌 기본",
+    "taxonIds": [
+      "meriones-unguiculatus"
+    ],
+    "facts": {
+      "social": "GROUP",
+      "activity": "CREPUSCULAR",
+      "adultLengthCm": [
+        10,
+        12
+      ],
+      "tempC": [
+        20,
+        24
+      ],
+      "lifespanYears": [
+        3,
+        4
+      ],
+      "minHeadcount": 2
+    },
+    "careNotes": [
+      "같은 성별 2마리 이상을 함께 기르는 것이 기본이에요. 어릴 때부터 함께 자란 개체끼리 지내게 하고, 다 자란 개체를 나중에 새로 합치지 않아요.",
+      "꼬리를 잡고 들어 올리지 않아요. 꼬리 피부가 벗겨질 수 있어요.",
+      "습하지 않고(습도 50% 이하) 외풍이 없는 실내에 둬요. TV·청소기·흐르는 물처럼 초음파를 내는 것에서 떨어뜨려요.",
+      "청소할 때 더럽지 않은 헌 베딩을 조금 남겨 다시 넣어요. 냄새를 모두 없애면 다툼이 생길 수 있어요.",
+      "한쪽 구석만 오래 파는 행동이 이어지면 베딩 깊이나 어두운 은신처가 모자란다는 신호일 수 있어요."
+    ],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": [
+      {
+        "url": "https://www.tierschutz-tvt.de/alle-merkblaetter-und-stellungnahmen/?no_cache=1&download=TVT-MB_161_Heimtiere_Rennm%C3%A4use__Apr._2014__01.pdf&did=42",
+        "title": "TVT Merkblatt Nr. 161 – Heimtiere: Mongolische Rennmäuse (Stand: Apr. 2014)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils",
+        "title": "Keeping Gerbils As Pets – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/environment",
+        "title": "Creating a Good Home For Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/company",
+        "title": "Keeping Gerbils Together – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/health",
+        "title": "Caring For Your Pet Gerbils – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.rspca.org.uk/adviceandwelfare/pets/rodents/gerbils/behaviour",
+        "title": "Gerbil Behaviour and Body Language – RSPCA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.bluecross.org.uk/advice/gerbil/caring-for-your-gerbil",
+        "title": "Caring for your gerbil – Blue Cross",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.pdsa.org.uk/pet-help-and-advice/looking-after-your-pet/small-pets/is-a-gerbil-the-right-pet-for-you",
+        "title": "Is a gerbil the right pet for you? – PDSA",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/providing-a-home-for-a-gerbil",
+        "title": "Providing a Home for a Gerbil – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/gerbils/description-and-physical-characteristics-of-gerbils",
+        "title": "Description and Physical Characteristics of Gerbils – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/rodents/gerbils",
+        "title": "Gerbils – MSD Veterinary Manual (Exotic and Laboratory Animals, 전문가판)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://nc3rs.org.uk/3rs-resources/housing-and-husbandry-gerbil",
+        "title": "Housing and husbandry: Gerbil – NC3Rs",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://spca.bc.ca/wp-content/uploads/2026/02/PFH-Toolkit-Care-Guide-Gerbil.pdf",
+        "title": "Caring for your gerbil – BC SPCA (PDF 2026-02)",
+        "accessedAt": "2026-10-27"
+      },
+      {
+        "url": "https://animaldiversity.org/accounts/Meriones_unguiculatus/",
+        "title": "Meriones unguiculatus – Animal Diversity Web",
+        "accessedAt": "2026-10-27"
+      }
+    ]
   }
 ]
