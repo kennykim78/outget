@@ -52,6 +52,8 @@ export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOpt
   const limiters = makeAppLimiters(rateLimits);
 
   const app = express();
+  // 139 LOW-4: 프레임워크 노출 헤더(X-Powered-By: Express) 제거 — SPA·정적·API·오류 응답 모두.
+  app.disable('x-powered-by');
 
   // 프록시 홉 수만큼만 X-Forwarded-For 를 믿는다(0 = 무시). req.ip → 리미터·반응 익명 키의 IP.
   app.set('trust proxy', opts.trustProxy ?? parseTrustProxy(process.env));

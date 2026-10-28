@@ -34,6 +34,30 @@ describe('security headers', () => {
   });
 });
 
+describe('139 LOW-4 — X-Powered-By 없음', () => {
+  it('API·404·SPA(HTML)·CORS 거부 응답 모두 x-powered-by 헤더가 없다', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { createApp } = await import('../app.js');
+    const dist = mkdtempSync(join(tmpdir(), 'ws-xpb-'));
+    writeFileSync(join(dist, 'index.html'), '<!doctype html><title>t</title>');
+    const spaApp = createApp(undefined, { clientDist: dist });
+    expect(spaApp.get('x-powered-by')).toBe(false);
+    const rs = [
+      await request(app).get('/health'),
+      await request(app).get('/api/__no_such_route__'),
+      await request(app)
+        .get('/health')
+        .set('Origin', 'https://evil.example.com'),
+      await request(spaApp).get('/'),
+      await request(spaApp).get('/some/client/route'),
+    ];
+    expect(rs[3].text).toContain('<title>t</title>');
+    for (const r of rs) expect(r.headers['x-powered-by'], `${r.status} ${r.req.path}`).toBeUndefined();
+  });
+});
+
 describe('CORS rejection → error handler', () => {
   it('화이트리스트 외 Origin 요청 → 403 cors_forbidden', async () => {
     const res = await request(app)

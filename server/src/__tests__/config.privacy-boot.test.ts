@@ -13,6 +13,8 @@ import request from 'supertest';
 import {
   ALLOW_PRIVACY_PLACEHOLDER_ENV,
   bootClientDist,
+  INDEXABLE_ENV,
+  publicIndexing,
   clientDistCandidates,
   collectEnvProblems,
   JWT_SECRET_MIN,
@@ -73,6 +75,55 @@ describe('privacyPlaceholderCheck', () => {
     for (const v of ['0', 'true', 'yes', '']) {
       expect(privacyPlaceholderCheck({ ...PROD, [ALLOW_PRIVACY_PLACEHOLDER_ENV]: v }, d).problems, v).toHaveLength(1);
     }
+  });
+
+  it('139 MED-2: 공개 전환(WS_INDEXABLE=1) 이면 허용 변수를 무시하고 기동 거부 — 1 이 아닌 값은 공개 전환 아님', () => {
+    const d = distWith(WITH_PH);
+    for (const v of ['1', ' 1 ']) {
+      const r = privacyPlaceholderCheck({ ...PROD, [ALLOW_PRIVACY_PLACEHOLDER_ENV]: '1', [INDEXABLE_ENV]: v }, d);
+      expect(r.warnings, v).toEqual([]);
+      expect(r.problems, v).toHaveLength(1);
+      expect(r.problems[0]).toMatch(/운영 기동 거부/);
+      expect(r.problems[0]).toContain(`${INDEXABLE_ENV}=1`);
+      expect(r.problems[0]).toContain('139 MED-2');
+      expect(r.problems[0]).toContain('officerName, officerEmail');
+    }
+    // 허용 변수 없이 WS_INDEXABLE=1 → 역시 거부
+    expect(privacyPlaceholderCheck({ ...PROD, [INDEXABLE_ENV]: '1' }, d).problems).toHaveLength(1);
+    // WS_INDEXABLE 이 '1' 이 아니면(0·true·빈 값) 기존대로 경고 강등
+    for (const v of ['0', 'true', '']) {
+      const r = privacyPlaceholderCheck({ ...PROD, [ALLOW_PRIVACY_PLACEHOLDER_ENV]: '1', [INDEXABLE_ENV]: v }, d);
+      expect(r.problems, v).toEqual([]);
+      expect(r.warnings, v).toHaveLength(1);
+    }
+    // 자리표시가 없으면 공개 전환이어도 통과
+    expect(privacyPlaceholderCheck({ ...PROD, [INDEXABLE_ENV]: '1' }, distWith('<main>ok</main>'))).toEqual({ problems: [], warnings: [] });
+    // 비운영은 검사 안 함(공개 전환이어도)
+    expect(privacyPlaceholderCheck({ NODE_ENV: 'test', [INDEXABLE_ENV]: '1' }, d)).toEqual({ problems: [], warnings: [] });
+  });
+
+  it('139 MED-2: 빌드 산출 prerender-manifest.json indexable:true 도 공개 전환 — env 없이 허용 변수 무시', () => {
+    const man = (d: string, body: string): string => {
+      writeFileSync(join(d, 'prerender-manifest.json'), body);
+      return d;
+    };
+    const pubDist = man(distWith(WITH_PH), JSON.stringify({ v: 1, indexable: true, routes: [] }));
+    const r = privacyPlaceholderCheck({ ...PROD, [ALLOW_PRIVACY_PLACEHOLDER_ENV]: '1' }, pubDist);
+    expect(r.warnings).toEqual([]);
+    expect(r.problems).toHaveLength(1);
+    expect(r.problems[0]).toContain('prerender-manifest indexable:true');
+    expect(publicIndexing({}, pubDist)).toBe('prerender-manifest indexable:true');
+    // env 가 우선 근거
+    expect(publicIndexing({ [INDEXABLE_ENV]: '1' }, pubDist)).toBe(`${INDEXABLE_ENV}=1`);
+    // indexable:false·"true"(문자열)·손상·없음 → 근거 아님 → 허용 변수로 경고 강등
+    for (const body of [JSON.stringify({ v: 1, indexable: false }), JSON.stringify({ indexable: 'true' }), '{not json', 'null']) {
+      const d = man(distWith(WITH_PH), body);
+      expect(publicIndexing({}, d), body).toBeNull();
+      const ok = privacyPlaceholderCheck({ ...PROD, [ALLOW_PRIVACY_PLACEHOLDER_ENV]: '1' }, d);
+      expect(ok.problems, body).toEqual([]);
+      expect(ok.warnings, body).toHaveLength(1);
+    }
+    expect(publicIndexing({}, distWith(WITH_PH))).toBeNull();
   });
 
   it('자리표시 없음 → 통과(problems·warnings 0)', () => {
@@ -259,6 +310,15 @@ describe('env.ts 직접 실행 — 처리방침 자리표시', () => {
     expect(yes.status, yes.out).toBe(0);
     expect(yes.out).toMatch(/공개 운영 금지/);
     expect(yes.out).toMatch(/env ok/);
+  }, 120_000);
+
+  it('139 MED-2: 허용 변수 + WS_INDEXABLE=1 → exit 1(공개 전환 상태에서는 자리표시 기동 불가)', () => {
+    const { cwd } = layoutWith(WITH_PH);
+    const r = runMain({ ...base, [ALLOW_PRIVACY_PLACEHOLDER_ENV]: '1', [INDEXABLE_ENV]: '1' }, cwd);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/운영 기동 거부/);
+    expect(r.out).toContain('139 MED-2');
+    expect(r.out).not.toContain(secret);
   }, 120_000);
 
   it('101 MED-3: 운영에서 처리방침 페이지가 없으면 exit 1(허용 변수로도 통과 안 함)', () => {

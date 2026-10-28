@@ -8,6 +8,7 @@
 //     자리표시({{KENNY:)가 있으면 기동 거부. 예외는 WS_ALLOW_PRIVACY_PLACEHOLDER=1(CI 도커 스모크·점검용, 경고 로그). 빌드(compliance C9)는 WARN 만.
 //     101 MED-3: 검사 대상 경로 = SPA 서빙과 같은 resolveClientDist(middleware/spa.ts 가 이 함수를 쓴다). 운영에서 페이지가 없어도 기동 거부.
 //     101 L-1: 판정은 '{{KENNY:' 포함 여부(키 모양 무관) — 키 목록은 표시용 보조.
+//     139 MED-2: 공개 전환(WS_INDEXABLE=1 또는 빌드 산출 prerender-manifest.json 의 indexable:true)이면 허용 변수를 무시하고 기동 거부.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -72,6 +73,8 @@ function normOrigin(raw: string): string {
  *   JWT_* = JWT_SECRET_MIN, TRUST_PROXY = parseTrustProxy. 동적 import 로 순환 의존(이 모듈 ← save·reaction)을 피한다.
  */
 export const ALLOW_PRIVACY_PLACEHOLDER_ENV = 'WS_ALLOW_PRIVACY_PLACEHOLDER';
+/** 사이트 색인 허용(공개 전환) 변수 — prerender/cli.ts 와 같은 이름. */
+export const INDEXABLE_ENV = 'WS_INDEXABLE';
 /** 자리표시 판정 표식(L-1: 이것만 있으면 거부 — 닫는 괄호·키 문자 모양 무관). */
 const PLACEHOLDER_MARK = '{{KENNY:';
 /** 표시용 키 추출(보조). 닫는 }} 까지 최대 64자, 못 찾으면 '?'. */
@@ -126,6 +129,7 @@ export const bootClientDist = (env: Env = process.env): string => resolveClientD
  * 운영(isProdLike)에서 <clientDist>/privacy/index.html 검사:
  *   · 파일 없음 → problems(기동 거부, 101 MED-3 — 처리방침 없이 공개 운영 금지)
  *   · '{{KENNY:' 포함 → problems(기동 거부, 키 목록 표시). WS_ALLOW_PRIVACY_PLACEHOLDER=1 이면 이 항목만 warnings 로 강등.
+ *     단 공개 전환(publicIndexing: WS_INDEXABLE=1 또는 manifest indexable:true)이면 강등하지 않는다(139 MED-2).
  *   비운영은 검사 안 함.
  */
 export function privacyPlaceholderCheck(env: Env, clientDist: string): EnvReport {
@@ -141,14 +145,34 @@ export function privacyPlaceholderCheck(env: Env, clientDist: string): EnvReport
   if (!text.includes(PLACEHOLDER_MARK)) return { problems, warnings };
   const keys = [...new Set([...text.matchAll(PLACEHOLDER_KEY_RE)].map((m) => m[1] || '?'))];
   const list = keys.length > 0 ? keys.join(', ') : '?';
-  if ((env[ALLOW_PRIVACY_PLACEHOLDER_ENV] ?? '').trim() === '1') {
+  const pub = publicIndexing(env, clientDist);
+  if ((env[ALLOW_PRIVACY_PLACEHOLDER_ENV] ?? '').trim() === '1' && pub === null) {
     warnings.push(`${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1: 처리방침 자리표시 {{KENNY:…}}(${list}) 가 남은 채 기동 — 공개 운영 금지(점검·CI 전용)`);
   } else {
     problems.push(
-      `privacy: 처리방침(/privacy)에 Kenny 미정 자리표시 {{KENNY:…}}(${list}) — 운영 기동 거부. 값을 채워 다시 빌드하거나, 점검용이면 ${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1`,
+      pub === null
+        ? `privacy: 처리방침(/privacy)에 Kenny 미정 자리표시 {{KENNY:…}}(${list}) — 운영 기동 거부. 값을 채워 다시 빌드하거나, 점검용이면 ${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1`
+        : `privacy: 처리방침(/privacy)에 Kenny 미정 자리표시 {{KENNY:…}}(${list}) — 공개 전환(${pub}) 상태라 ${ALLOW_PRIVACY_PLACEHOLDER_ENV} 무시, 운영 기동 거부(139 MED-2). 값을 채워 다시 빌드`,
     );
   }
   return { problems, warnings };
+}
+
+/**
+ * 공개 전환 여부(139 MED-2) — 근거 문자열, 아니면 null.
+ *   · env WS_INDEXABLE 이 '1'(앞뒤 공백 무시 — 거부 쪽으로 넓게)
+ *   · <clientDist>/prerender-manifest.json 의 indexable === true(빌드가 이미 색인 허용으로 나간 경우 — 런타임 env 와 무관)
+ *   manifest 없음·손상은 근거 아님(그 경우는 env 만 본다).
+ */
+export function publicIndexing(env: Env, clientDist: string): string | null {
+  if ((env[INDEXABLE_ENV] ?? '').trim() === '1') return `${INDEXABLE_ENV}=1`;
+  try {
+    const m = JSON.parse(readFileSync(join(clientDist, 'prerender-manifest.json'), 'utf8')) as { indexable?: unknown } | null;
+    if (m !== null && typeof m === 'object' && m.indexable === true) return 'prerender-manifest indexable:true';
+  } catch {
+    // 없음·손상 → 근거 아님
+  }
+  return null;
 }
 
 export interface CollectEnvOptions {
