@@ -143,7 +143,9 @@ function CompatSubcard({ compat, checkHref }: { compat: CageCompat; checkHref: s
             {x.message}
           </p>
         ))}
-        <p className="ws-t-meta">{COPY.supplyLayer.compatSubNote}</p>
+        <p className="ws-t-meta">
+          {compat.usedRecommended ? COPY.supplyLayer.compatSubNoteRecommended : COPY.supplyLayer.compatSubNote}
+        </p>
       </div>
     </div>
   );

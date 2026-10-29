@@ -258,3 +258,62 @@ describe('cageCompatOf(엔진 위임)', () => {
     expect(cageCompatOf(boom, golden.id, 'cage', ctx)).toEqual({ state: 'none' });
   });
 });
+
+describe('L4 내 케이지 서브카드 meta 문구 — usedRecommended(작업 179, 디자인 177: 문구 출처만 분기)', () => {
+  const CAGE = JSON.stringify({ v: 1, type: 'WIRE', floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: '2026-10-01T00:00:00.000Z' });
+  const CAGE_SCHEMA = {
+    fields: [
+      { key: 'type', label: '형태', type: 'enum' as const, options: ['WIRE', 'LIVING_BOX'], optionLabels: { WIRE: '철망', LIVING_BOX: '리빙박스' } },
+      { key: 'floorWcm', label: '가로', type: 'number' as const, min: 1, max: 300 },
+      { key: 'floorDcm', label: '세로', type: 'number' as const, min: 1, max: 300 },
+      { key: 'heightCm', label: '높이', type: 'number' as const, min: 1, max: 300 },
+    ],
+  };
+  const withCage = () => {
+    const cageReq = req('cage', 'REQUIRED', '케이지');
+    cageReq.item = { ...cageReq.item, specSchema: CAGE_SCHEMA };
+    return pageWith([wheel(), cageReq]);
+  };
+  const engineWith = (compat: Record<string, unknown>) =>
+    ({
+      specCheck: () => ({ compat: { verdict: 'CHECK', reasons: [], checkedRuleIds: ['r1'] } }),
+      requirementCompat: () => compat,
+    }) as unknown as Engine;
+  const metaTexts = (d: HTMLElement) => Array.from(d.querySelectorAll('[data-ws-part="compat"] .ws-t-meta')).map((el) => el.textContent);
+
+  it('usedRecommended true → 권장 규격 문구, 기존 문구 없음', async () => {
+    localStorage.setItem(`ws.context.${golden.id}.cage`, CAGE);
+    vi.spyOn(compatDeps, 'load').mockResolvedValue(engineWith({ verdict: 'OK', reasons: [], checkedRuleIds: ['r1'], usedRecommended: true }));
+    const d = openL4(withCage());
+    await waitFor(() => expect(d.querySelector('.ws-compat')).not.toBeNull());
+    expect(metaTexts(d)).toContain(COPY.supplyLayer.compatSubNoteRecommended);
+    expect(metaTexts(d)).not.toContain(COPY.supplyLayer.compatSubNote);
+  });
+
+  it('usedRecommended 없음 → 기존 최소 규격 문구', async () => {
+    localStorage.setItem(`ws.context.${golden.id}.cage`, CAGE);
+    vi.spyOn(compatDeps, 'load').mockResolvedValue(engineWith({ verdict: 'CHECK', reasons: [], checkedRuleIds: ['r1'] }));
+    const d = openL4(withCage());
+    await waitFor(() => expect(d.querySelector('.ws-compat')).not.toBeNull());
+    expect(metaTexts(d)).toContain(COPY.supplyLayer.compatSubNote);
+    expect(metaTexts(d)).not.toContain(COPY.supplyLayer.compatSubNoteRecommended);
+  });
+
+  it('케이지 없음 → 등록 링크 유지, 두 문구 모두 없음', async () => {
+    vi.spyOn(compatDeps, 'load').mockResolvedValue(engineWith({ verdict: 'OK', reasons: [], checkedRuleIds: ['r1'], usedRecommended: true }));
+    const d = openL4(withCage());
+    await waitFor(() => expect(d.querySelector('[data-ws-part="compat"]')).not.toBeNull());
+    expect(within(d).getByRole('link', { name: COPY.supplyLayer.compatRegisterLink })).toHaveAttribute('href', '/hamster/golden/check/wheel');
+    expect(d.querySelector('.ws-compat')).toBeNull();
+    expect(d.textContent).not.toContain(COPY.supplyLayer.compatSubNoteRecommended);
+    expect(d.textContent).not.toContain(COPY.supplyLayer.compatSubNote);
+  });
+
+  it('cageCompatOf: 엔진 usedRecommended 를 그대로 전달, 없으면 필드 생략', () => {
+    const ctx = { ownedItems: { cage: { type: 'WIRE', floorWcm: 60, floorDcm: 40, heightCm: 35 } } };
+    const on = engineWith({ verdict: 'OK', reasons: [], checkedRuleIds: ['r'], usedRecommended: true });
+    const off = engineWith({ verdict: 'OK', reasons: [], checkedRuleIds: ['r'] });
+    expect(cageCompatOf(on, golden.id, 'wheel', ctx)).toEqual({ state: 'result', verdict: 'OK', reasons: [], usedRecommended: true });
+    expect(cageCompatOf(off, golden.id, 'wheel', ctx)).toEqual({ state: 'result', verdict: 'OK', reasons: [] });
+  });
+});

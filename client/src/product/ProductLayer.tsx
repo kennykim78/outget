@@ -3,7 +3,7 @@
 //   → "WithSmall 추천 이유"(템플릿만: reasonCodes + 케이지 호환 줄·규칙 문구) → "{용품명} 기준 보기 ›"(→ L4 — 용품 why 는 L4 에서, DR B-1).
 //   꼬리 [이 조건으로 찾기](채움) → SearchBlock 펼침 + meta 가격·판매처 안내.
 //   상품별 자유 문구 0(추천 이유는 copy 템플릿 + 케이지 등록 시 호환 규칙 문구만), 가격·판매처명·별점·"구매"·마스코트 0.
-//   케이지 호환은 표시만 — 결과가 무엇이든 노출·순서 불변(불변식 ③). counts GET 은 이 레이어에서만(C-R5-3).
+//   케이지 호환은 표시만 — 결과가 무엇이든 노출·순서 불변(불변식 ③). 판정 = 상품 실제 규격값 기준 엔진 productCageCompat(작업 183·185, 보유품 근거 없는 항목 제외). counts GET 은 이 레이어에서만(C-R5-3).
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COPY, formatCopy } from '@ws/copy';
 import { specLine, type PublicProduct, type PublicRequirement } from '@ws/engine';
@@ -15,11 +15,13 @@ import LikeToggle from '../reaction/LikeToggle';
 import { reactionCounts } from '../reaction/reactionStore';
 import SearchBlock from '../supply/SearchBlock';
 import { yearMonth } from '../supply/SupplyLayer';
-import { useCageCompat, type CageCompat } from '../supply/useCageCompat';
+import { useProductCageCompat, type CageCompat } from '../supply/useCageCompat';
 import Glyph, { type GlyphKind } from '../ui/Glyph';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
 import '../styles/layers.css';
+
+const EMPTY_SPEC: PublicProduct['specValues'] = {};
 
 export interface ReasonLine {
   glyph: GlyphKind;
@@ -90,7 +92,8 @@ export default function ProductLayer({ props, close }: LayerContentProps) {
   const cageSchema = page.data.requirements.find((r) => r.animalTypeId === typeId && r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null;
   const { cage } = useCage(typeId, { schema: cageSchema });
   const userCtx = useMemo(() => toUserContext(cage), [cage]);
-  const compat = useCageCompat(page.catalogUrl, typeId, product?.supplyItemId ?? '', userCtx);
+  // 작업 183(155 O-1): L7 은 상품 실제 규격값 × 내 케이지(엔진 productCageCompat, 작업 185) — 가상 기준값(requirementCompat) 아님.
+  const compat = useProductCageCompat(page.catalogUrl, typeId, product?.supplyItemId ?? '', product?.specValues ?? EMPTY_SPEC, userCtx);
 
   if (!product || !requirement || !type) return null;
   const p = product;

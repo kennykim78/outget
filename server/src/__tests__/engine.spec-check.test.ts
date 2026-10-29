@@ -10,6 +10,7 @@ import {
 } from '../engine/index.js';
 import type { Reason } from '../engine/index.js';
 import { deepFreeze, makeBundle } from './fixtures/engine-catalog.js';
+import { realSeed } from './fixtures/prerender-seed.js';
 
 const cat = createCatalog(makeBundle());
 const GOOD_SPINNER = { sizeCm: 30, face: 'FLAT', mount: 'FLOOR', quiet: true } as const;
@@ -125,6 +126,16 @@ describe('E9 compatibility', () => {
     expect(() => specCheck(cat, 'nobody', 'box', {})).toThrow(EngineLookupError);
     expect(() => specCheck(cat, 'critter', 'nothing', {})).toThrow(EngineLookupError);
     expect(() => specCheck(cat, 'ghost', 'box', {})).toThrow(EngineLookupError);
+  });
+
+  it('L5 불변(QA186 INFO-2): 실시드 드워프 tubes 안지름 6 × 케이지 h40 → compat OK(보유품 근거 단계는 L5 에 없음)', () => {
+    const real = createCatalog(realSeed());
+    const ctx = { ownedItems: { cage: { type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 40 } } };
+    expect(specCheck(real, 'hamster-dwarf', 'tubes', { innerDiameterCm: 6 }, ctx).compat).toEqual({
+      verdict: 'OK',
+      reasons: [],
+      checkedRuleIds: ['cr-dwarf-tubes-cage'],
+    });
   });
 });
 

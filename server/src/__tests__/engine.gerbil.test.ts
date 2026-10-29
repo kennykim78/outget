@@ -248,8 +248,16 @@ describe('S6 호환 cr-gerbil-wheel-cage-bedding — 지름 + 베딩 20cm ≤ �
     expect(specCheck(cat, G, 'wheel', { ...wheel, diameterCm: 31 }, cage(50)).compat.verdict).toBe('CHECK');
     expect(specCheck(cat, G, 'wheel', wheel, cage(80)).compat.verdict).toBe('OK');
   });
-  it('requirementCompat: 지름이 최소 규격에 없어(curator135 #2) 기준값이 없다 → NONE(체크리스트 △ 없음, 제품 단위 specCheck 만 판정)', () => {
-    for (const h of [50, 49, 30]) expect([h, requirementCompat(cat, G, 'wheel', cage(h)).verdict]).toEqual([h, 'NONE']);
+  it('requirementCompat: 지름이 최소 규격에 없어(curator135 #2) 권장 30cm 로 채움(155 안 A) → h50 OK · h49·h30 CHECK(△ 상한), usedRecommended', () => {
+    for (const [h, v] of [[50, 'OK'], [49, 'CHECK'], [30, 'CHECK']] as const) {
+      const c = requirementCompat(cat, G, 'wheel', cage(h));
+      expect([h, c.verdict, c.usedRecommended]).toEqual([h, v, true]);
+    }
+  });
+  it('requirementCompat: 케이지 없음·높이 미입력 → NONE 유지', () => {
+    expect(requirementCompat(cat, G, 'wheel').verdict).toBe('NONE');
+    const empty = requirementCompat(cat, G, 'wheel', { ownedItems: { cage: {} } });
+    expect([empty.verdict, empty.usedRecommended]).toEqual(['NONE', undefined]);
   });
   it('골든·드워프 프로필에는 저빌 범위 규칙이 걸리지 않는다', () => {
     for (const t of ['hamster-golden', 'hamster-dwarf']) {

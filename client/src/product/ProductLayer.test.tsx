@@ -2,7 +2,7 @@
 //   product_viewed·reaction_like, 케이지 호환 실패해도 노출·순서 불변(③), 가격·"구매" 0, SearchBlock 펼침.
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY, formatCopy } from '@ws/copy';
-import type { Engine, PublicRequirement, WsPageData } from '@ws/engine';
+import { createCatalog, createEngine, type CatalogInput, type Engine, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry, layerWsId } from '../app/layerRegistry';
@@ -179,9 +179,15 @@ describe('L7 ProductLayer', () => {
       cageKey(golden.id),
       JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: '2026-10-01T00:00:00.000Z' }),
     );
+    // 작업 183·185: L7 은 productCageCompat(상품 실제 값 + 보유품 근거)만 읽는다 — requirementCompat·specCheck 는 호출되면 안 된다.
     const engine = {
-      requirementCompat: () => ({ verdict: 'BELOW_MIN', reasons: [{ message: '케이지 높이가 바퀴보다 낮아요' }], checkedRuleIds: ['r1'] }),
-      specCheck: () => ({ compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] } }),
+      requirementCompat: () => {
+        throw new Error('L7 must not use requirementCompat');
+      },
+      specCheck: () => {
+        throw new Error('L7 must not use specCheck.compat');
+      },
+      productCageCompat: () => ({ verdict: 'BELOW_MIN', reasons: [{ message: '케이지 높이가 바퀴보다 낮아요' }], checkedRuleIds: ['r1'] }),
     } as unknown as Engine;
     vi.spyOn(compatDeps, 'load').mockResolvedValue(engine);
     const d = openL7();
@@ -212,6 +218,105 @@ describe('L7 ProductLayer', () => {
     act(() => layerStore.open('L7', { typeId: golden.id, productId: 'p2' }));
     d = screen.getByRole('dialog', { name: '합성 바퀴 B' });
     expect(d.querySelector('img')).toBeNull();
+  });
+});
+
+// 작업 183(155 O-1 · QA 180 MEDIUM-1): L7 호환 = 상품 실제 규격값 × 내 케이지(엔진 specCheck.compat).
+//   합성 카탈로그(테스트 전용): 골든 쳇바퀴 최소 28·권장 30, 규칙 a.diameterCm + 25 <= b.heightCm(CHECK).
+//   가상 기준값(requirementCompat, 28) 이면 높이 53 에서 OK 지만, 실제 30cm 상품은 55 > 53 → '호환' 아님.
+describe('L7 케이지 호환 — 상품 실제 규격값 기준(작업 183)', () => {
+  const META = { reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', verifiedBy: null, verifiedAt: '2026-09-30', contentKind: 'SPEC', source: [] };
+  const num = (key: string, label: string, min = 1, max = 200) => ({ key, label, type: 'number' as const, min, max });
+  const item = (id: string, fields: unknown[]) => ({
+    ...META, id, name: id, category: 'CAGE', glyph: 'G', lifecycle: 'DURABLE', specSchema: { fields }, compatibleAlternativeIds: [], description: 'd',
+  });
+  const creq = (id: string, min: unknown[], rec: unknown[] = []) => ({
+    ...META, id: `r-${id}`, careProfileId: golden.careProfileId, supplyItemId: id, priority: 'REQUIRED', orderHint: 'BEFORE_ARRIVAL',
+    why: 'w', caution: null, avoid: null, minSpec: { rules: min }, recommendedSpec: { rules: rec }, notNowReason: null, searchKeyword: null,
+  });
+  const CATALOG = {
+    animalTypes: [
+      { ...META, id: golden.id, group: 'SMALL_MAMMAL', displayName: '골든햄스터', status: 'ACTIVE', aliases: [], taxonId: null, careProfileId: golden.careProfileId, careOverrides: {} },
+    ],
+    careProfiles: [{ ...META, id: golden.careProfileId, name: 'p', taxonIds: [], facts: {}, careNotes: [] }],
+    supplyItems: [
+      item('cage', [num('floorWcm', '바닥 가로(cm)'), num('floorDcm', '바닥 세로(cm)'), num('heightCm', '높이(cm)')]),
+      item('wheel', [num('diameterCm', '지름(cm)', 5, 60)]),
+      item('tubes', [num('innerDiameterCm', '안지름(cm)', 1, 30)]),
+    ],
+    supplyRequirements: [
+      creq('cage', [{ key: 'heightCm', op: 'gte', value: 30, reason: 'r' }]),
+      creq('wheel', [{ key: 'diameterCm', op: 'gte', value: 28, reason: 'r' }], [{ key: 'diameterCm', op: 'gte', value: 30, reason: 'r' }]),
+      creq('tubes', [{ key: 'innerDiameterCm', op: 'gte', value: 5, reason: 'r' }]),
+    ],
+    compatibilityRules: [
+      { ...META, id: 'cr-wheel', a: 'wheel', b: 'cage', careProfileId: golden.careProfileId, rules: [{ expr: 'a.diameterCm + 25 <= b.heightCm', onFail: 'CHECK', message: '베딩 깊이 고려 높이 확인' }] },
+      // 작업 185(QA184 MEDIUM-1): 케이지(b)를 참조하지 않는 규칙 — 실시드 cr-dwarf-tubes-cage 와 같은 모양.
+      { ...META, id: 'cr-tubes', a: 'tubes', b: 'cage', careProfileId: golden.careProfileId, rules: [{ expr: 'a.innerDiameterCm >= 5', onFail: 'CHECK', message: '터널 안쪽 폭 확인' }] },
+    ],
+  } as unknown as CatalogInput;
+  const realEngine = createEngine(createCatalog(CATALOG));
+
+  const W30 = { ...product('w30', 'wheel', '바퀴 30'), specValues: { diameterCm: 30 } };
+  const WNONE = { ...product('wnone', 'wheel', '바퀴 미입력'), specValues: {} };
+  const pg = (): WsPageData => pageOf('TYPE', { requirements: [wheel()], products: [W30, WNONE] }, { typeId: golden.id, path: '/hamster/golden' });
+  const setCage = (heightCm: number) =>
+    localStorage.setItem(cageKey(golden.id), JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm, updatedAt: '2026-10-01T00:00:00.000Z' }));
+  const loaded = async () => {
+    await waitFor(() => expect(compatDeps.load).toHaveBeenCalled());
+    await act(async () => undefined);
+  };
+
+  beforeEach(() => {
+    vi.spyOn(compatDeps, 'load').mockResolvedValue(realEngine);
+  });
+
+  it('전제: 가상 기준값(requirementCompat)은 높이 53 에서 OK — 이 값으로 L7 을 그리면 과대 표시', () => {
+    expect(realEngine.requirementCompat(golden.id, 'wheel', { ownedItems: { cage: { floorWcm: 60, floorDcm: 40, heightCm: 53 } } }).verdict).toBe('OK');
+  });
+
+  it('30cm · 케이지 높이 53 → "호환" 줄 없음, △ 재확인 + 규칙 문구', async () => {
+    setCage(53);
+    const d = openL7('w30', pg());
+    await waitFor(() => expect(d.querySelector('[data-ws-reason="check"]')).toHaveTextContent(COPY.product.reasonCageCheck));
+    expect(d.textContent).not.toContain(COPY.product.reasonCageOk);
+    expect(d.textContent).toContain('베딩 깊이 고려 높이 확인');
+  });
+
+  it('30cm · 케이지 높이 55 → "내 케이지와 호환" ✓ 줄', async () => {
+    setCage(55);
+    const d = openL7('w30', pg());
+    await waitFor(() => expect(Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => li.textContent)).toContain(`✓${COPY.product.reasonCageOk}`));
+    expect(d.querySelector('[data-ws-reason="check"]')).toBeNull();
+  });
+
+  it('상품 지름 미입력 · 케이지 높이 200 → "호환" 없음(엔진 UNKNOWN → CHECK △)', async () => {
+    setCage(200);
+    const d = openL7('wnone', pg());
+    await waitFor(() => expect(d.querySelector('[data-ws-reason="check"]')).toHaveTextContent(COPY.product.reasonCageCheck));
+    expect(d.textContent).not.toContain(COPY.product.reasonCageOk);
+  });
+
+  it('케이지를 참조하지 않는 규칙(a.innerDiameterCm >= 5)이면 케이지가 있어도 "호환" 줄·규칙 문구 없음(작업 185)', async () => {
+    const T6 = { ...product('t6', 'tubes', '터널 6'), specValues: { innerDiameterCm: 6 } };
+    const pt = pageOf('TYPE', { requirements: [wheel(), req('tubes', 'REQUIRED', '터널')], products: [T6] }, { typeId: golden.id, path: '/hamster/golden' });
+    // 전제: specCheck 호환 단계(L5)는 이 규칙을 케이지 근거 없이 OK 로 본다 — L7 이 이 값을 쓰면 과대 표시.
+    expect(realEngine.specCheck(golden.id, 'tubes', { innerDiameterCm: 6 }, { ownedItems: { cage: { heightCm: 40 } } }).compat.verdict).toBe('OK');
+    setCage(40);
+    const d = openL7('t6', pt);
+    await loaded();
+    expect(d.textContent).not.toContain(COPY.product.reasonCageOk);
+    expect(d.querySelector('[data-ws-reason="check"]')).toBeNull();
+    expect(d.querySelector('[data-ws-reason="fail"]')).toBeNull();
+    expect(d.querySelector('[data-ws-reason-note="compat"]')).toBeNull();
+  });
+
+  it('케이지 없음 → 기존 동작(호환 줄·규칙 문구 0)', async () => {
+    const d = openL7('w30', pg());
+    await loaded();
+    const items = Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => li.textContent);
+    expect(items).toEqual([`✓${formatCopy(COPY.product.reasonSpecRecommended, { animal: golden.displayName })}`]);
+    expect(d.querySelector('[data-ws-reason-note="compat"]')).toBeNull();
   });
 });
 

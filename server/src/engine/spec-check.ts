@@ -33,6 +33,33 @@ function owned(ctx: UserContext | undefined, itemId: string): SpecValues | undef
   return v !== null && typeof v === 'object' ? v : undefined;
 }
 
+/**
+ * 가상 입력 판정 옵션(155 안 A, 182 의미 기반) — SKIP 모드(requirementCompat)에서만 읽는다. specCheck 실제 입력 경로는 옵션 없이 호출(불변).
+ *   recommendedInput: 권장 채움 입력(requirementBaseline.input). 기본 input 은 minSpecBaseline(최소만).
+ *   항목마다 ① 최소 입력으로 평가 → 확정이면 그대로(onFail 등급, 권장 근거 아님) ② ①이 UNKNOWN 일 때만 권장 채움 입력으로 평가 →
+ *   확정이면 실패는 CHECK 상한 + usedRecommended ③ 통과(true)를 낸 입력에서 보유품 값을 비워도 true 면 보유품을 실제로 쓰지 않은
+ *   통과 → 미판정(근거 없는 OK 방지 — 예: 드워프 tubes d6). 실패(false)는 보유품과 무관해도 판정 유지(187, fail-closed — 예:
+ *   tubes d4 → CHECK, 혼합 규칙의 보유품 무관 BELOW_MIN 유지). 정적 참조(exprRefs)가 아니라 실제 평가 결과로 판정하므로 삼항식의 선택되지
+ *   않은 분기는 근거·등급에 영향이 없다(181 ⓐⓑ). 평가기는 엄격 3값(UNKNOWN 피연산자 → UNKNOWN, false && UNKNOWN 도 UNKNOWN)이라
+ *   보유품 값을 비웠을 때 결과가 같다 ⇔ 선택된 경로에 보유품 참조가 없다.
+ */
+interface BaselineCompatOptions {
+  /** SKIP 모드(requirementCompat)에서만 읽는다. 있으면 ①②③ 전부. */
+  recommendedInput?: SpecValues;
+  /**
+   * ③ 보유품 근거 단계만 켠다(작업 185, L7 productCageCompat). CHECK 모드에서도 읽는다: UNKNOWN 은 그대로 CHECK(제외하지 않음 —
+   *   보유품을 비운 결과도 UNKNOWN 이라 근거 여부를 가릴 수 없으므로 판정 유지, fail-closed). 통과(true)만 보유품을 비워 다시
+   *   평가해 그래도 true 면 미판정, 실패(false)는 판정 유지(187). 판정 항목 0 인 규칙은 확인하지 않은 것으로 본다(→ 전부 0 이면 NONE).
+   */
+  ownedEvidence?: true;
+}
+
+type EvalResult = ReturnType<typeof evalExpr>;
+
+function safeEval(node: ReturnType<typeof parseExpr> | null, env: { a: SpecValues; b: SpecValues }): EvalResult {
+  return node ? evalExpr(node, env) : 'UNKNOWN';
+}
+
 function evaluateCompat(
   cat: EngineCatalog,
   careProfileId: string,
@@ -40,51 +67,78 @@ function evaluateCompat(
   input: SpecValues,
   ctx: UserContext | undefined,
   unknown: 'CHECK' | 'SKIP' = 'CHECK',
+  options?: BaselineCompatOptions,
 ): SpecCheckResult['compat'] {
   const reasons: Reason[] = [];
   const checkedRuleIds: string[] = [];
   if (!ctx) return { verdict: 'NONE', reasons, checkedRuleIds };
+  const recommendedInput = unknown === 'SKIP' ? options?.recommendedInput : undefined;
+  const ownedEvidence = recommendedInput !== undefined || options?.ownedEvidence === true;
+  let usedRecommended = false;
 
   for (const rule of cat.compatibilityRules) {
     if (rule.careProfileId && rule.careProfileId !== careProfileId) continue;
-    let aRaw: SpecValues | undefined;
-    let bRaw: SpecValues | undefined;
+    let ownedRaw: SpecValues | undefined;
+    let inputSide: 'a' | 'b';
     if (rule.a === supplyItemId && rule.b !== supplyItemId && owned(ctx, rule.b)) {
-      aRaw = input;
-      bRaw = owned(ctx, rule.b);
+      ownedRaw = owned(ctx, rule.b);
+      inputSide = 'a';
     } else if (rule.b === supplyItemId && rule.a !== supplyItemId && owned(ctx, rule.a)) {
-      aRaw = owned(ctx, rule.a);
-      bRaw = input;
+      ownedRaw = owned(ctx, rule.a);
+      inputSide = 'b';
     } else continue;
 
     const aSchema = cat.supplyItems.get(rule.a)?.specSchema ?? { fields: [] };
     const bSchema = cat.supplyItems.get(rule.b)?.specSchema ?? { fields: [] };
-    const env = { a: sanitizeSpecValues(aSchema, aRaw ?? {}), b: sanitizeSpecValues(bSchema, bRaw ?? {}) };
+    const envFor = (inputRaw: SpecValues, ownedValues: SpecValues) => {
+      const aRaw = inputSide === 'a' ? inputRaw : ownedValues;
+      const bRaw = inputSide === 'a' ? ownedValues : inputRaw;
+      return { a: sanitizeSpecValues(aSchema, aRaw ?? {}), b: sanitizeSpecValues(bSchema, bRaw ?? {}) };
+    };
+    const env = envFor(input, ownedRaw ?? {});
+    const recEnv = recommendedInput !== undefined ? envFor(recommendedInput, ownedRaw ?? {}) : null;
     let decided = 0;
+    let ruleUsedRecommended = false;
     const ruleReasons: Reason[] = [];
 
     (Array.isArray(rule.rules) ? rule.rules : []).forEach((entry, i) => {
-      let result: ReturnType<typeof evalExpr>;
+      let node: ReturnType<typeof parseExpr> | null = null;
       try {
-        result = evalExpr(parseExpr(entry.expr), env);
+        node = parseExpr(entry.expr);
       } catch (e) {
         if (!(e instanceof ExprSyntaxError)) throw e;
-        result = 'UNKNOWN';
+      }
+      let result: EvalResult = safeEval(node, env);
+      let usesRecommended = false;
+      let usedInput = input;
+      if (recommendedInput !== undefined && recEnv && result === 'UNKNOWN') {
+        // ① 최소 우선 → ② 최소로 확정되지 않을 때만 권장 보충.
+        result = safeEval(node, recEnv);
+        usedInput = recommendedInput;
+        usesRecommended = result !== 'UNKNOWN';
       }
       if (result === 'UNKNOWN' && unknown === 'SKIP') return;
+      // ③ 보유품 근거(187): 통과(true)가 보유품 값을 비워도 true 면 보유품을 쓰지 않은 통과 → 미판정(근거 없는 OK 방지).
+      //   실패(false)는 보유품과 무관해도 사실이므로 판정 유지(fail-closed — 등급·SKIP 경로의 권장 CHECK 상한 그대로).
+      //   CHECK 모드의 UNKNOWN(→ CHECK)도 빼지 않는다(비운 결과도 UNKNOWN — 근거 판별 불가, 판정 유지).
+      if (ownedEvidence && result === true && safeEval(node, envFor(usedInput, {})) === true) return;
       decided++;
+      if (usesRecommended) ruleUsedRecommended = true;
       if (result === true) return;
-      const verdict: Verdict = result === false && entry.onFail === 'BELOW_MIN' ? 'BELOW_MIN' : 'CHECK';
+      const verdict: Verdict =
+        result === false && entry.onFail === 'BELOW_MIN' && !usesRecommended ? 'BELOW_MIN' : 'CHECK';
       ruleReasons.push({ stage: 'COMPAT', kind: 'RULE', verdict, ruleId: `${rule.id}#${i}`, message: entry.message });
     });
-    // SKIP 모드에서 판정된 항목이 하나도 없으면 그 규칙은 확인하지 않은 것으로 본다(근거 없는 OK 방지).
-    if (unknown === 'SKIP' && decided === 0) continue;
+    // SKIP 모드·보유품 근거 모드에서 판정된 항목이 하나도 없으면 그 규칙은 확인하지 않은 것으로 본다(근거 없는 OK 방지).
+    if ((unknown === 'SKIP' || ownedEvidence) && decided === 0) continue;
     checkedRuleIds.push(rule.id);
     reasons.push(...ruleReasons);
+    if (ruleUsedRecommended) usedRecommended = true;
   }
 
   if (checkedRuleIds.length === 0) return { verdict: 'NONE', reasons, checkedRuleIds };
-  return { verdict: worstVerdict(reasons.map((r) => r.verdict)) as CompatVerdict, reasons, checkedRuleIds };
+  const verdict = worstVerdict(reasons.map((r) => r.verdict)) as CompatVerdict;
+  return usedRecommended ? { verdict, reasons, checkedRuleIds, usedRecommended: true } : { verdict, reasons, checkedRuleIds };
 }
 
 /**
@@ -128,6 +182,10 @@ export function specCheck(
  *   가상의 "최소 규격 제품" 입력으로 삼아 호환 단계만 계산한다(L4 서브카드·L2 △·홈 칩). 순수·결정적.
  *   가상 입력에 없는 키 때문에 UNKNOWN 인 항목은 건너뛴다(최소 규격이 정하지 않은 속성은 판정 근거가 아님);
  *   판정된 항목이 없는 규칙은 checkedRuleIds 에서 빠지고, 남은 규칙이 없으면 NONE.
+ *   155 안 A(Kenny 확정, 작업 178): 가상 입력 = requirementBaseline(최소 우선 + 최소가 정하지 않은 키만 권장 기준값).
+ *   182: 항목마다 최소 기준값만으로 먼저 평가(확정이면 onFail 등급 그대로), UNKNOWN 일 때만 권장 채움 입력으로 평가해
+ *   확정되면 실패는 CHECK 상한 + usedRecommended: true. 보유품 값을 비워도 통과인 항목은 판정하지 않는다(근거 없는 OK 방지);
+ *   보유품 무관 실패는 판정 유지(187).
  *   상품 노출·순서에는 쓰지 않는다(불변식 ③). 요구사항 없음 → EngineLookupError.
  */
 export function requirementCompat(
@@ -138,13 +196,84 @@ export function requirementCompat(
 ): SpecCheckResult['compat'] {
   const r = resolveRequirement(cat, animalTypeId, supplyItemId);
   if (!r) throw new EngineLookupError(`no requirement for ${animalTypeId} × ${supplyItemId}`);
-  return evaluateCompat(cat, r.careProfileId, supplyItemId, minSpecBaseline(r), userContext, 'SKIP');
+  return evaluateCompat(cat, r.careProfileId, supplyItemId, minSpecBaseline(r), userContext, 'SKIP', {
+    recommendedInput: requirementBaseline(r).input,
+  });
+}
+
+/**
+ * L7 상품 상세 호환(작업 185, QA184 MEDIUM-1): 상품의 실제 규격값 × 보유품(내 케이지 등). specCheck 의 호환 단계와 같은 CHECK 모드
+ *   (UNKNOWN → CHECK, onFail 등급 그대로, 제품 단계 무관) + 보유품 근거 단계(③): 통과가 보유품 값을 비워도 통과면 그 항목은
+ *   보유품과 무관 → 미판정, 판정 항목 0 → NONE(예: 드워프 tubes `a.innerDiameterCm >= 5` 는 d6 이면 케이지가 있어도 NONE).
+ *   보유품 무관 실패는 판정 유지(187: tubes d4 → CHECK, HEAD specCheck.compat 와 같음).
+ *   L5 specCheck 는 바꾸지 않는다. 표시 전용 — 상품 노출·정렬·meetsMinSpec 에는 쓰지 않는다(불변식 ③). 요구사항 없음 → EngineLookupError.
+ */
+export function productCageCompat(
+  cat: EngineCatalog,
+  animalTypeId: string,
+  supplyItemId: string,
+  specValues: SpecValues,
+  userContext?: UserContext,
+): SpecCheckResult['compat'] {
+  const r = resolveRequirement(cat, animalTypeId, supplyItemId);
+  if (!r) throw new EngineLookupError(`no requirement for ${animalTypeId} × ${supplyItemId}`);
+  return evaluateCompat(cat, r.careProfileId, supplyItemId, specValues ?? {}, userContext, 'CHECK', { ownedEvidence: true });
 }
 
 /** minSpec 기준값 → 가상 입력. gte 는 같은 키 중 가장 큰 값(가장 엄격한 하한), eq 는 단일 값만. */
 export function minSpecBaseline(r: Pick<ResolvedRequirement, 'minSpec'>): SpecValues {
+  return ruleSetBaseline(r.minSpec);
+}
+
+export interface RequirementBaseline {
+  /** 가상 "기준 제품" 입력 = minSpecBaseline ∪ (최소가 정하지 않은 키의 권장 기준값). */
+  input: SpecValues;
+  /** input 중 권장 규격에서 채운 키(정렬). */
+  recommendedKeys: string[];
+}
+
+/**
+ * requirementCompat 가상 입력(155 안 A, Kenny 확정): 최소 규격 기준값 우선, 최소가 정하지 않은 키만 recommendedSpec 의
+ *   when 없는 gte(같은 키 최댓값)·단일 eq 로 채운다. 채울 값이 같은 키의 minSpec 규칙(when 유무 무관)과 모순되면 채우지 않는다.
+ *   r 은 resolveRequirement 결과(careOverrides 반영)여야 한다(불변식 6). 노출·meetsMinSpec 에는 쓰지 않는다(불변식 3).
+ */
+export function requirementBaseline(r: Pick<ResolvedRequirement, 'minSpec' | 'recommendedSpec'>): RequirementBaseline {
+  const out: Record<string, number | boolean | string> = { ...(minSpecBaseline(r) as Record<string, number | boolean | string>) };
+  const rec = ruleSetBaseline(r.recommendedSpec);
+  const minRules = Array.isArray(r.minSpec?.rules) ? r.minSpec.rules : [];
+  const recommendedKeys: string[] = [];
+  for (const key of Object.keys(rec).sort()) {
+    if (key in out) continue;
+    const v = rec[key] as number | boolean | string;
+    if (minRules.some((m) => m && m.key === key && !condAccepts(m, v))) continue;
+    out[key] = v;
+    recommendedKeys.push(key);
+  }
+  return { input: out, recommendedKeys };
+}
+
+/** 단일 조건이 값 v 를 받아들이는가(모양이 이상한 규칙은 거부 = 채우지 않음, fail-closed). */
+function condAccepts(cond: { op: unknown; value: unknown }, v: number | boolean | string): boolean {
+  const { op, value } = cond;
+  switch (op) {
+    case 'gte':
+      return typeof value === 'number' && typeof v === 'number' && v >= value;
+    case 'lte':
+      return typeof value === 'number' && typeof v === 'number' && v <= value;
+    case 'eq':
+      return !Array.isArray(value) && v === value;
+    case 'in':
+      return Array.isArray(value) && value.includes(v);
+    case 'not_in':
+      return Array.isArray(value) && !value.includes(v);
+    default:
+      return false;
+  }
+}
+
+function ruleSetBaseline(ruleSet: ResolvedRequirement['minSpec'] | undefined): SpecValues {
   const out: Record<string, number | boolean | string> = {};
-  for (const rule of Array.isArray(r.minSpec?.rules) ? r.minSpec.rules : []) {
+  for (const rule of Array.isArray(ruleSet?.rules) ? ruleSet.rules : []) {
     if (!rule || (Array.isArray(rule.when) && rule.when.length > 0) || Array.isArray(rule.value)) continue;
     if (rule.op === 'gte' && typeof rule.value === 'number' && Number.isFinite(rule.value)) {
       const prev = out[rule.key];
@@ -214,6 +343,7 @@ export interface Engine {
   listResolvedRequirements(animalTypeId: string): ResolvedRequirement[];
   specCheck(animalTypeId: string, supplyItemId: string, input: SpecValues, userContext?: UserContext): SpecCheckResult;
   requirementCompat(animalTypeId: string, supplyItemId: string, userContext?: UserContext): SpecCheckResult['compat'];
+  productCageCompat(animalTypeId: string, supplyItemId: string, specValues: SpecValues, userContext?: UserContext): SpecCheckResult['compat'];
   /** animalType: id 또는 { displayName }. 알 수 없는 id → EngineLookupError. */
   buildSearchKeyword(animalType: string | Pick<AnimalTypeRec, 'displayName'>, r: ResolvedRequirement): string;
 }
@@ -225,6 +355,7 @@ export function createEngine(cat: EngineCatalog): Engine {
     listResolvedRequirements: (a) => listResolvedRequirements(cat, a),
     specCheck: (a, s, input, ctx) => specCheck(cat, a, s, input, ctx),
     requirementCompat: (a, s, ctx) => requirementCompat(cat, a, s, ctx),
+    productCageCompat: (a, s, v, ctx) => productCageCompat(cat, a, s, v, ctx),
     buildSearchKeyword: (a, r) => {
       if (typeof a !== 'string') return buildSearchKeyword(a, r);
       const at = cat.animalTypes.get(a);

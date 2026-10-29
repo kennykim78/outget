@@ -22,8 +22,8 @@ export {
 } from './rules.js';
 export type { RuleKind, SpecRead } from './rules.js';
 export { listResolvedRequirements, resolveRequirement } from './resolve.js';
-export { EngineLookupError, checkAnimalMinSpec, checkProfileMinSpec, createEngine, minSpecBaseline, requirementCompat, specCheck } from './spec-check.js';
-export type { Engine, MinSpecResult } from './spec-check.js';
+export { EngineLookupError, checkAnimalMinSpec, checkProfileMinSpec, createEngine, minSpecBaseline, productCageCompat, requirementBaseline, requirementCompat, specCheck } from './spec-check.js';
+export type { Engine, MinSpecResult, RequirementBaseline } from './spec-check.js';
 export { buildSearchKeyword } from './search-keyword.js';
 export { SPEC_WORDS, chipSpecText, ruleText, specLine } from './spec-text.js';
 export { naverMapSearchUrl } from './links.js';

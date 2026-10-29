@@ -91,7 +91,11 @@ export interface SpecCheckResult {
   /** worst(product, compat≠NONE) */
   verdict: Verdict;
   product: { verdict: Verdict; reasons: Reason[] };
-  compat: { verdict: CompatVerdict; reasons: Reason[]; checkedRuleIds: string[] };
+  /**
+   * usedRecommended(155 안 A, requirementCompat 전용): 판정된 항목 중 권장 규격으로 채운 가상 입력 키를 참조한 것이 있을 때만 true.
+   *   그 밖(specCheck 실제 입력 경로 포함)에는 필드 자체를 생략한다.
+   */
+  compat: { verdict: CompatVerdict; reasons: Reason[]; checkedRuleIds: string[]; usedRecommended?: true };
   /** product ++ compat */
   reasons: Reason[];
   /** compatibleAlternativeIds, verdict !== 'OK' 일 때만 */

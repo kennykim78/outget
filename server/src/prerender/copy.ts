@@ -180,6 +180,8 @@ export const COPY = deepFreeze({
     searchCopied: sent('복사했어요'),
     compatSubLabel: '내 케이지 기준',
     compatSubNote: sent('용품의 최소 규격을 넣어 본 결과예요'),
+    /** 155 안 A(작업 177 디자인 확정): requirementCompat.usedRecommended 일 때 compatSubNote 대신(클라이언트 분기 SupplyLayer.tsx, 작업 179). */
+    compatSubNoteRecommended: sent('최소 규격이 정하지 않은 값은 권장 규격을 넣어 본 결과예요'),
     compatRegisterLink: '내 케이지를 등록하면 맞는지 알려 드려요 ›',
     cageEntryRegister: '내 케이지 등록 ›',
     cageEntryEdit: '내 케이지 수정 ›',
