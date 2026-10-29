@@ -181,6 +181,27 @@ describe('P06 참조 수집(173)', () => {
     expect([noKey.errors, noKey.warnings]).toEqual([[], []]);
   });
 
+  // 175 — 합집합 ① 항(프로필 기본 행)만이 잡는 경우. 기본 행이 참조해도 override 해석 결과가 참조하지 않거나, 타입이 없으면 ② 항만으론 놓친다.
+  it('기본 행만 참조(override 가 같은 (key, op) 규칙을 비참조로 교체) → P06b 오류(합집합 ① 항)', () => {
+    const baseOnly = (s: Required<RawSeed>) => {
+      rules(gpReq(s).minSpec).push({ key: 'form', op: 'eq', value: 'PELLET', when: [{ key: 'coversThisAnimal', op: 'eq', value: true }], reason: '합성 규칙' });
+      gpType(s).careOverrides = { requirements: { food: { minSpec: { rules: [{ key: 'form', op: 'eq', value: 'PELLET', reason: '합성 교체 규칙' }] } } } };
+    };
+    const r = p06(withProduct(product({ specValues: sv, source: SRC, careProfileIds: TWO }), baseOnly));
+    expect(r.allErrors.filter((i) => i.rule !== 'P06')).toEqual([]);
+    expect(r.errors).toEqual(HIT);
+  });
+
+  it('AnimalType 이 하나도 없는 프로필이 참조해도 참조로 계산 → P06b 오류', () => {
+    const noType = (s: Required<RawSeed>) => {
+      rules(gpReq(s).minSpec).push({ ...coverRule });
+      gpType(s).careProfileId = 'cp-hamster-syrian'; // cp-guineapig 를 쓰는 AnimalType 0개.
+    };
+    const r = p06(withProduct(product({ specValues: sv, source: SRC, careProfileIds: TWO }), noType));
+    expect(r.allErrors.filter((i) => i.rule !== 'P06')).toEqual([]);
+    expect(r.errors).toEqual(HIT);
+  });
+
   it('두 프로필 공유 + 값 false → P06b 오류(값 무관 보수 규칙)', () => {
     const second = (s: Required<RawSeed>) => rules(gpReq(s).minSpec).push({ ...coverRule });
     const r = p06(withProduct(product({ specValues: { ...sv, coversThisAnimal: false }, careProfileIds: TWO }), second));
