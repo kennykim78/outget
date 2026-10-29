@@ -4,7 +4,10 @@ import { join, relative, sep } from 'node:path';
 
 export const EXCLUDE_DIRS = new Set(['node_modules', 'dist', 'dev-dist', '.git', 'coverage']);
 export const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']);
-export const TEXT_EXT = new Set([...CODE_EXT, '.json', '.yml', '.yaml', '.md', '.css', '.html', '.prisma', '.txt', '.env', '.sql']);
+// 키·설정 파일(QA198 LOW-1): 개인 키(.pem·.key — .crt 도 키를 함께 묶은 번들이 있어 넣는다)·TOML·INI·conf·properties·Terraform.
+//   소스 규칙에서 이 확장자들은 C7(시크릿)만 탄다(코드·시드·패키지·HTML 규칙은 확장자·경로로 따로 고른다).
+export const KEY_CONFIG_EXT = ['.pem', '.key', '.crt', '.toml', '.ini', '.conf', '.cfg', '.cnf', '.properties', '.tf', '.tfvars'];
+export const TEXT_EXT = new Set([...CODE_EXT, '.json', '.yml', '.yaml', '.md', '.css', '.html', '.prisma', '.txt', '.env', '.sql', ...KEY_CONFIG_EXT]);
 
 export const toPosix = (p) => p.split(sep).join('/');
 export const relPosix = (root, abs) => toPosix(relative(root, abs));

@@ -143,15 +143,17 @@ const CSP_EXT_HOST_RE = /naver|pstatic/i;
 
 const SECRET_RES = [
   /X-Naver-Client-(Id|Secret)\s*['"]?\s*[:=]\s*['"][^'"]+['"]/i,
-  /api[_-]?key\s*[:=]\s*['"][A-Za-z0-9]{16,}/i,
-  /JWT[_A-Z]*SECRET\s*[:=]\s*['"][A-Za-z0-9_-]{16,}['"]/,
+  // QA152 INFO-3 ②: JSON·따옴표 키("api_key": "…")도 — 키를 닫는 따옴표 허용.
+  /api[_-]?key['"]?\s*[:=]\s*['"][A-Za-z0-9]{16,}/i,
+  /JWT[_A-Z]{0,64}SECRET\s*[:=]\s*['"][A-Za-z0-9_-]{16,}['"]/,
   /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/,
   // security 139 MED-1 — 배포 실값 형태.
   //   env·셸·compose 줄의 따옴표 없는(또는 있는) 값: 줄 시작 KEY=값(선택 export·YAML 목록 '- '). 이름에 SECRET·TOKEN·PASSWORD·PASSWD·
   //   API_KEY·PRIVATE_KEY·_HASH 가 있고(이름이 그 낱말로 시작해도 — PASSWORD=·TOKEN=·SECRET_KEY_BASE=, QA148 LOW-1) 값이 16자 이상 리터럴.
   //   값은 변수·치환 $·자리 <>·{} 로 시작하지 않아야 하고, 중간의 $ 는 값의 일부로 본다(무작위 비밀번호). __SET_ME__ 는 10자라 걸리지 않는다.
   //   YAML 맵(KEY: 값)·Dockerfile ENV/ARG 형태는 아래 NONCODE_SECRET_RES(코드 파일의 객체 리터럴 KEY: process.env.X 오탐 방지).
-  /^\s*(?:-\s+)?(?:export\s+)?(?=[A-Z])[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]*\s*=\s*['"]?(?![$<{])[^\s'"<>{}()]{16,}/,
+  //   QA198 INFO-1: 이름 앞뒤 글자 수는 64자까지(긴 한 줄 '_TOKEN'×N 에서 되짚기가 줄 길이의 제곱으로 느는 것을 막는다 — 줄 길이에 비례).
+  /^\s*(?:-\s+)?(?:export\s+)?(?=[A-Z])[A-Z0-9_]{0,64}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]{0,64}\s*=\s*['"]?(?![$<{])[^\s'"<>{}()]{16,}/,
   // GitHub 토큰(classic ghp_ · OAuth gho_ · 사용자-서버 ghu_ · 서버-서버 ghs_ · 갱신 ghr_ · fine-grained github_pat_).
   /\bgh[pousr]_[A-Za-z0-9]{36,}\b/,
   /\bgithub_pat_[A-Za-z0-9]{22,}_[A-Za-z0-9]{40,}\b/,
@@ -161,19 +163,93 @@ const SECRET_RES = [
 // 코드가 아닌 파일(deploy/·워크플로·env·yml·셸·Caddyfile·Dockerfile)에만: bcrypt 해시(basic_auth WS_BASIC_HASH 등).
 //   코드에는 의도한 더미 해시가 있다(server/src/auth/user.repo.ts DUMMY_PASSWORD_HASH — 타이밍 균등화, 원문 폐기).
 //   이름: SECRET·TOKEN·… 을 품은 이름, 또는 _KEY 로 끝나는 이름(SIGNING_KEY·ENCRYPTION_KEY 등 — security 150 LOW-2, 코드 아닌 파일만).
-const SECRET_NAME = String.raw`(?=[A-Z])[A-Z0-9_]*(?:(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]*|_KEY)`;
+//   _KEY 뒤 인코딩 접미사(SIGNING_KEY_B64·ENCRYPTION_KEY_HEX 등 — QA152 INFO-3 ④)도 같은 이름으로 본다.
+//   접미사는 값 자체를 담는 인코딩 이름만(_KEY_PATH·_KEY_FILE·_KEY_ID·_KEY_PREFIX 는 경로·식별자라 제외 — 16자 넘는 경로 오탐).
+const KEY_SUFFIX = String.raw`_KEY\d*(?:_(?:B64|BASE64|B64URL|BASE64URL|HEX|PEM|DER|RAW|JWK|BYTES|VALUE|DATA))?`;
+//   QA198 INFO-1: 이름 앞뒤 글자 수 상한 64(위 SECRET_RES 와 같은 이유).
+const SECRET_NAME = String.raw`(?=[A-Z])[A-Z0-9_]{0,64}(?:(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]{0,64}|${KEY_SUFFIX})`;
 const SECRET_VALUE = String.raw`['"]?(?![$<{])[^\s'"<>{}()#]{16,}`;
 const NONCODE_SECRET_RES = [
   /\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/,
   // env·셸 KEY=값 의 _KEY 변형(SECRET_RES 의 = 형태는 _KEY 끝 이름을 보지 않는다 — 코드의 상수 오탐 방지) — 150 LOW-2.
   new RegExp(String.raw`^\s*(?:-\s+)?(?:export\s+)?${SECRET_NAME}\s*=\s*${SECRET_VALUE}`),
   // URL 안 자격 증명(scheme://사용자:비밀@호스트) — 150 LOW-2. 자리(<>)·변수($·{})는 제외.
-  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@'"<>{}$]+:[^\s/@'"<>{}$]{3,}@[A-Za-z0-9.-]+/,
+  //   QA152 INFO-3 ⑤: 스킴 대소문자 무관(HTTPS://), 비밀번호 중간의 $ 는 값의 일부(첫 글자 $·{·< 는 변수·자리라 제외).
+  //   QA198 INFO-1: 스킴은 32자까지(긴 'x-token'×N 한 줄에서 낱말 경계마다 줄 끝까지 스킴을 찾는 제곱 시간 방지 — 실제 스킴은 짧다).
+  /\b[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/[^\s/:@'"<>{}$]+:(?![$<{])[^\s/@'"<>{}]{3,}@[A-Za-z0-9.-]+/,
   // YAML 맵(compose environment: 아래 KEY: 값, 따옴표 있든 없든) — QA148 LOW-1.
   new RegExp(String.raw`^\s*(?:-\s+)?${SECRET_NAME}\s*:\s+${SECRET_VALUE}`),
   // Dockerfile ENV KEY=값 · ENV KEY 값 · ARG KEY=값 — QA148 LOW-1.
   new RegExp(String.raw`^\s*(?:ENV|ARG)\s+${SECRET_NAME}(?:\s*=\s*|\s+)${SECRET_VALUE}`),
 ];
+// QA152 INFO-3 ②③ — 코드 아닌 파일(docs·JSON·YAML·셸·md 등)의 소문자·camel·JSON 키 이름(`"api_key": "…"`·`secret_token=`·`accessToken:`).
+//   줄 시작이 아니어도(md 인라인 `KEY=값`·JSON 객체 안) 본다. 이름은 낱말 경계(구분자 _ . - 또는 camel 앞부분)로 낱말을 품어야 한다(tokens·passwordless·tokenCount 제외).
+//   값은 글자와 숫자를 둘 다 품은 리터럴만(산문 오탐 방지 — 무작위 키·토큰·비밀번호는 거의 숫자를 품는다), 자리표시(PLACEHOLDER_VALUE_RE)는 제외.
+//   길이 16자 이상 → FAIL, 8~15자 → WARN(짧은 실값과 짧은 예시를 형태로 가를 수 없다 — 사람이 본다). 8자 미만은 보지 않는다.
+const ci = (w) => [w, w[0].toUpperCase() + w.slice(1), w.toUpperCase()];
+const SECRET_WORD = ['secret', 'token', 'password', 'passwd', 'apikey', 'credential', 'credentials']
+  .flatMap(ci)
+  .concat(['api_key', 'api-key', 'apiKey', 'ApiKey', 'API_KEY', 'API-KEY', 'private_key', 'privateKey', 'PRIVATE_KEY', 'signing_key', 'signingKey', 'SIGNING_KEY', 'encryption_key', 'encryptionKey', 'ENCRYPTION_KEY'])
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+//   (구분자로 끝나는 앞부분 | camel 앞부분) 낱말 (구분자로 시작하는 뒷부분) — 이름 전체가 이름 글자로 둘러싸이지 않아야 한다.
+//   camel 뒷부분(tokenCount·passwordMinLength)은 설정·통계 이름이 많아 보지 않는다.
+//   QA198 INFO-1: 앞부분·뒷부분은 64자까지 — 무제한이면 'secret_'×20000 같은 긴 한 줄에서 앞부분×뒷부분 되짚기가 줄 길이의 제곱(140KB 에 수 초)이 된다.
+//   상한이 있으면 시작 위치마다 되짚기가 64² 이하이고, 시작 위치(이름 글자가 앞에 없는 곳)마다 런 길이로 묶여 줄 길이에 비례한다.
+//   줄 길이 상한으로 건너뛰지 않는 이유: 한 줄 JSON·압축 설정 속 시크릿을 놓치게 된다. 대신 130자 넘는 이름은 보지 않는다(실제 이름은 짧다).
+const SECRET_NAME_ANY = String.raw`(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9_.-]{0,64}[_.-]|[A-Za-z0-9]{0,64}[a-z0-9](?=[A-Z]))?(?:${SECRET_WORD})(?:[_.-][A-Za-z0-9_.-]{0,64})?(?![A-Za-z0-9_.-])`;
+const SECRET_KV_RE = new RegExp(String.raw`["']?(${SECRET_NAME_ANY})["']?\s*[:=]\s*["'\`]?(?![$<{%])([^\s'"\`<>{}()\[\]#,;|]+)`, 'g');
+// QA198 LOW-2 — 이름 뒷부분이 주소·경로·식별자·메타데이터를 뜻하면 값은 시크릿이 아니다(token_url·password_file·secret_path·signing_key_id·secret_name·token_hash).
+//   SECRET_RES·NONCODE 의 KEY_SUFFIX 가 _KEY_PATH·_KEY_FILE·_KEY_ID·_KEY_PREFIX 를 뺀 것과 같은 원칙. 이름 끝(구분자 뒤)만 본다(id_token·secret_id_token 은 그대로 본다).
+const NON_SECRET_NAME_TAIL_RE = /[_.-](?:url|uri|endpoint|path|file|dir|id|name|type|ttl|hash|length|len|count|header|prefix)$/i;
+// 값이 경로(/·./·../·~/ 로 시작, 경로 글자만)면 제외 — 단, 16자 이상이고 대문자·소문자·숫자를 모두 품은 마디가 있으면 무작위 값(base64 는 / 로 시작할 수 있다)으로 보고 제외하지 않는다.
+const PATH_VALUE_RE = /^(?:\/|\.{1,2}\/|~\/)[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]*)*$/;
+const RANDOM_SEG_RE = /^(?=[^/]*[a-z])(?=[^/]*[A-Z])(?=[^/]*\d)[^/]{16,}$/;
+const isPathValue = (v) => PATH_VALUE_RE.test(v) && !v.split('/').some((seg) => RANDOM_SEG_RE.test(seg));
+// 값이 자격 증명 없는 URL(scheme://host… 의 권한 부분에 @ 가 없음)이면 제외. 사용자 이름만 있는 https://TOKEN@host 도 토큰일 수 있어 @ 가 있으면 제외하지 않는다.
+//   URL 질의 속 ?access_token=… 은 값 시작부터 다시 찾아 따로 본다(아래 lastIndex).
+const URL_AUTHORITY_RE = /^[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/([^/?#]*)/;
+const isPlainUrlValue = (v) => {
+  const m = URL_AUTHORITY_RE.exec(v);
+  return m !== null && !m[1].includes('@');
+};
+// 권한 부분에 @ 가 있는 URL(사용자 이름·비밀번호 자리의 토큰)은 이름 뒷부분이 _url 이어도 제외하지 않는다(token_url=https://<토큰>@host).
+const hasUrlUserinfo = (v) => URL_AUTHORITY_RE.exec(v)?.[1].includes('@') === true;
+// 자리표시(docs·예시의 설명 값) — 값 전체가 이 형태면 시크릿이 아니다.
+//   __SET_ME__ · <토큰> · *** · xxxx · ... · … · changeme · your-token-here · example/sample/dummy/fake/placeholder/redacted 를 품은 값.
+const PLACEHOLDER_VALUE_RE = /^(?:_{2}[A-Za-z0-9_]+_{2}|[*xX#.…_-]{3,}|.*(?:change[_-]?me|replace[_-]?me|set[_-]?me|your[_-]|example|sample|dummy|fake|placeholder|redacted).*)$/i;
+const looksSecret = (v) => /[A-Za-z]/.test(v) && /[0-9]/.test(v) && !PLACEHOLDER_VALUE_RE.test(v);
+/** 코드 아닌 파일 한 줄의 소문자·JSON 키 시크릿 후보 → [{ severity, value }] */
+function secretKvHits(line) {
+  const out = [];
+  SECRET_KV_RE.lastIndex = 0;
+  let m;
+  while ((m = SECRET_KV_RE.exec(line)) !== null) {
+    const name = m[1];
+    const v = m[2];
+    if ((NON_SECRET_NAME_TAIL_RE.test(name) && !hasUrlUserinfo(v)) || isPathValue(v) || isPlainUrlValue(v)) {
+      // 제외한 값 안에 다른 이름=값(URL 질의의 access_token=…)이 있을 수 있다 — 값 시작부터 다시 찾는다(이름이 앞에 있어 항상 앞으로 나아간다).
+      SECRET_KV_RE.lastIndex = m.index + m[0].length - v.length;
+      continue;
+    }
+    if (v.length >= 8 && looksSecret(v)) out.push(v.length >= 16 ? 'FAIL' : 'WARN');
+  }
+  return out;
+}
+/**
+ * C7 한 줄 판정(원문 줄 — 주석 속 키도 유출). isCode=true 면 코드 파일(SECRET_RES 만), 아니면 NONCODE·소문자 키=값까지.
+ * QA198 INFO-1 회귀 테스트가 긴 한 줄 시간을 직접 잰다. @returns {{severity:'FAIL'|'WARN', message:string}[]}
+ */
+export function c7LineHits(l, isCode) {
+  const out = [];
+  for (const re of SECRET_RES) if (re.test(l)) out.push({ severity: 'FAIL', message: `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…` });
+  if (isCode) return out;
+  for (const re of NONCODE_SECRET_RES) if (re.test(l)) out.push({ severity: 'FAIL', message: `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…` });
+  for (const sev of secretKvHits(l)) {
+    out.push({ severity: sev, message: sev === 'FAIL' ? '하드코딩 시크릿 키=값(소문자·JSON 키 이름, 16자 이상)' : '시크릿 이름에 짧은 리터럴 값(8~15자) — 실값이면 운영 주입으로 옮기고, 예시면 자리표시(<…>·__SET_ME__)로' });
+  }
+  return out;
+}
 // 배포 실값 파일 이름(MED-1): deploy/ 아래 *.env(server.env·caddy.env 등)는 서버에만 — 작업 트리에 있으면(추적 여부 무관) FAIL.
 //   *.env.example 은 예시(값 0 은 deploy-config.test.mjs). 저장소 어디서든 git 이 추적하는 *.env 도 FAIL(checkTrackedEnv).
 const DEPLOY_REAL_ENV_RE = /^deploy\/(?:.*\/)?[^/]+\.env$/;
@@ -634,6 +710,8 @@ export function scanSources(root, ctx, notes) {
   walk(join(root, '.github'), extra);
   // 배포 구성(deploy/ — compose·Caddyfile·*.sh): 시크릿 패턴(C7)만 해당. 예시(*.example)는 아래에서 건너뛴다(값 0 은 deploy-config.test.mjs).
   walk(join(root, 'deploy'), extra);
+  // docs/ 전체(운영 문서·기획·디자인 — QA152 INFO-3 ①): 시크릿 패턴(C7)만. 예시 값은 자리표시(<…>·__SET_ME__·${…})로 쓴다.
+  walk(join(root, 'docs'), extra);
   for (const p of ['client/package.json', 'server/package.json', 'client/index.html', 'client/vite.config.ts']) {
     const abs = join(root, ...p.split('/'));
     if (existsSync(abs)) extra.push(abs);
@@ -654,10 +732,11 @@ export function scanSources(root, ctx, notes) {
     }
     count++;
     // C7-SECRET — 원문 줄(주석 속 키도 유출)
+    const isCode = CODE_EXT.has(ext);
     lines(text).forEach((l, i) => {
-      for (const re of SECRET_RES) if (re.test(l)) add('C7-SECRET', 'FAIL', rel, i + 1, `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…`);
-      if (!CODE_EXT.has(ext)) for (const re of NONCODE_SECRET_RES) if (re.test(l)) add('C7-SECRET', 'FAIL', rel, i + 1, `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…`);
+      for (const h of c7LineHits(l, isCode)) add('C7-SECRET', h.severity, rel, i + 1, h.message);
     });
+    if (rel.startsWith('docs/')) continue; // docs 는 C7 만(코드·시드·패키지 규칙 대상 아님)
     if (['package.json', 'client/package.json', 'server/package.json'].includes(rel)) {
       scanPackage(rel, text, ctx);
     }

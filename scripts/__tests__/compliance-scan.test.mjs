@@ -1397,6 +1397,160 @@ test('C7-SECRET 150 LOW-2: 루트 *.sh·.github 전체 스캔, _KEY 이름·URL 
   }
 });
 
+// ── C7 시크릿 — QA152 INFO-3(①docs ②소문자·JSON 키 ③짧은 값 WARN ④_KEY_B64 ⑤URL 대문자 스킴·$) ──
+const c7Of = (res, f, sev) => res.json.findings.some((x) => x.rule === 'C7-SECRET' && x.file === f && x.severity === sev);
+
+test('C7-SECRET QA152 INFO-3: docs 스캔·소문자/JSON 키·_KEY_B64·URL 대문자 스킴/비밀번호 속 $ → FAIL', async () => {
+  const cases = [
+    // ① docs/ — 줄 시작 env·md 인라인·JSON
+    ['docs/ops/x.md', j('JWT_ACCESS', '_SECRET=', HEX64, '\n')],
+    ['docs/ops/x.md', j('설정: `secret', '_token=', HEX64, '` 을 넣는다\n')],
+    ['docs/design/x.json', j('{\n  "api', '_key": "', HEX64, '"\n}\n')],
+    // ② 소문자·camel·JSON 키(코드 아닌 파일)
+    ['.github/scripts/x.sh', j('secret', '_token=', HEX64, '\n')],
+    ['deploy/compose.yaml', j('    environment:\n      access', 'Token: ', HEX64, '\n')],
+    ['deploy/x.json', j('{"client', '_secret":"', HEX64, '"}\n')],
+    //   코드 파일의 JSON 키 형태 "api_key": "…"(기존 api 키 규칙이 닫는 따옴표를 허용)
+    ['scripts/tool.mjs', j('const c = { "api', '_key": "', HEX64, '" };\n')],
+    // ④ _KEY 뒤 인코딩 접미사(이름에 SECRET·TOKEN·SIGNING_KEY 같은 낱말이 없어 ②가 잡지 않는 이름으로)
+    ['docker-entrypoint.sh', j('export WEBHOOK', '_KEY_B64=', HEX64, '\n')],
+    ['.github/x.yml', j('        env:\n          DEPLOY', '_KEY_HEX: ', HEX64, '\n')],
+    // ⑤ URL 자격 증명 — 대문자 스킴·비밀번호 중간의 $
+    ['deploy/deploy.sh', j('URL=', HTTPS.toUpperCase(), 'kenny:', 'Zx9TokenValueQ', '@git.example.org/r.git\n')],
+    ['deploy/compose.yaml', j('      - DATABASE_URL=postgres://ws:', 'Pa$$w0rd', '$99@db:5432/ws\n')],
+  ];
+  for (const [f, text] of cases) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.ok(c7Of(res, f, 'FAIL'), `${f}: ${JSON.stringify(text)} → ${JSON.stringify(res.json.findings.filter((x) => x.rule === 'C7-SECRET'))}`);
+  }
+});
+
+test('C7-SECRET QA152 INFO-3: 시크릿 이름의 8~15자 리터럴(글자+숫자) → WARN 만(FAIL 아님)', async () => {
+  const cases = [
+    ['deploy/deploy.sh', j('secret', '_token=', 'Ab3dEf9h12', '\n')],
+    ['docs/ops/x.md', j('`API', '_TOKEN=', 'Zx9Q2w8E', '`\n')],
+    ['.github/x.yml', j('          pass', 'word: ', 'hunter2hunter2', '\n')],
+  ];
+  for (const [f, text] of cases) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    assert.ok(c7Of(res, f, 'WARN'), `${f}: ${JSON.stringify(text)}`);
+    assert.equal(c7Count(res), 0, `${f}: ${JSON.stringify(res.json.findings.filter((x) => x.rule === 'C7-SECRET'))}`);
+  }
+});
+
+test('C7-SECRET QA152 INFO-3: 오탐 없음 — docs 자리표시·예시 값·변수·_KEY_PATH·tokens 낱말·산문·글자만 값·코드 파일', async () => {
+  const clean = [
+    ['docs/ops/x.md', j('JWT_ACCESS', '_SECRET=<openssl rand -hex 32>\n')],
+    ['docs/ops/x.md', j('`-e WS_BASIC', "_HASH='<아무 bcrypt>'` · `RESEND_API", '_KEY=__SET_ME__` · `secret', '_token=${SECRET_TOKEN}`\n')],
+    ['docs/ops/x.md', j('api', '_key: your-api-key-here-123\n"token": "', 'x'.repeat(24), '"\npass', 'word: ***\n')],
+    ['docs/ops/x.md', j('token=example-token-1234567890\nclient', '_secret: dummy-secret-0123456789\nsigning', '_key: <서명 키 base64>\n')],
+    ['docs/ops/x.md', j('- 토큰: 운영자가 주입한다(커밋 금지). secret', '_token 은 15분 단일 사용.\n')],
+    ['docs/design/tokens.json', j('{\n  "tokens": [ "abc123def456ghi789jkl" ],\n  "tokenCount": "abc123def456ghi789"\n}\n')],
+    ['.github/x.yml', j('          pass', 'word: ${{ secrets.DEPLOY_PASS', 'WORD }}\n          secret', '_token: $SECRET_TOKEN_FROM_ENV_1\n')],
+    ['deploy/deploy.sh', j('SSH', '_KEY_PATH=/home/deploy/.ssh/id_ed25519\nCACHE', '_KEY_PREFIX=ws-cache-v1-abcdefgh\nSSH', '_KEY_FILE=/run/secrets/deploy_key_2\n')],
+    ['deploy/deploy.sh', j('secret', '_token=short\npass', 'word=abcdefghijklmnopqrst\n')],
+    ['deploy/deploy.sh', j('U=', HTTPS.toUpperCase(), '<user>:<token>@host/x\nDB=postgres://ws:${DB_PASS}@db/ws\nD2=postgres://ws:$DB_PASS@db/ws\n')],
+    // 코드 파일: 소문자 키=값 규칙은 코드 아닌 파일만(테스트 픽스처의 token: '…' 오탐 방지 — 코드 문자열은 기존 규칙 몫).
+    ['server/src/k.ts', j("const accessToken = 'abc123def456ghi789jkl';\nconst o = { pass", "word: 'abc123def456ghi789' };\n")],
+  ];
+  for (const [f, text] of clean) {
+    const res = scan(await makeRoot({ source: (s) => { s[f] = text; } }));
+    const c7 = res.json.findings.filter((x) => x.rule === 'C7-SECRET');
+    assert.equal(c7.length, 0, `${f}: ${JSON.stringify(text)} → ${JSON.stringify(c7)}`);
+  }
+});
+
+// ── C7 시크릿 — QA198(LOW-2 이름 뒷부분·값 형태 오탐, LOW-1 키·설정 확장자, INFO-1 긴 줄 시간, INFO-2 docs 코드 파일) ──
+const c7All = (res, f) => res.json.findings.filter((x) => x.rule === 'C7-SECRET' && (!f || x.file === f));
+
+test('C7-SECRET QA198 LOW-2: 주소·경로·식별자 이름(_url·_endpoint·_file·_path·_id·_name·_hash)·경로/URL 값 → FAIL·WARN 0', async () => {
+  const fp = [
+    j('token', '_url=', HTTPS, 'nid.naver.com/oauth2.0/token'),
+    j('token', '_endpoint: ', HTTPS, 'oauth2.googleapis.com/token'),
+    j('pass', 'word_file: /run/secrets/db_password_v2'),
+    j('secret', '_path: /run/secrets/deploy_key_2'),
+    j('signing', '_key_id: kid-2026-10-01-a'),
+    j('secret', '_name: ws-jwt-access-2026'),
+    j('token', '_hash: 3f2a9c1b7e8d4a6f'),
+    // 이름은 그대로 시크릿 낱말이어도 값이 경로·자격 증명 없는 URL 이면 제외
+    j('client', '_secret=./run/secrets/naver_client_2'),
+    j('api', '_token: ', HTTPS, 'api.example.org/v2/token'),
+  ].join('\n');
+  const root = await makeRoot({ source: (s) => { s['docs/ops/oauth.md'] = `${fp}\n`; s['deploy/oauth.yml'] = `${fp}\n`; } });
+  const res = scan(root);
+  assert.deepEqual(c7All(res), [], JSON.stringify(c7All(res)));
+  expectClean(res);
+});
+
+test('C7-SECRET QA198 LOW-2: 제외 뒤에도 잡힘 — URL 질의 속 access_token·_url 이름의 userinfo 토큰·/ 로 시작하는 base64·기존 양성', async () => {
+  const B64 = j('/Ab3dEf9h12Kx7Yz', '34QwErTy+9', 'Lm0Np=');
+  const cases = [
+    j('token', '_url=', HTTPS, 'login.corp-internal.org/cb?access', '_token=', HEX64),
+    j('token', '_url=', HTTPS, 'Ab3dEf9h12Kx7Yz34QwErTy', '@git.corp-internal.org/r.git'),
+    j('secret', '_token=', B64),
+    // + 와 = 가 없어 경로 글자만인 base64 — 무작위 마디(대·소문자·숫자 16자 이상)라 경로로 보지 않는다
+    j('secret', '_token=/Ab3dEf9h12Kx7Yz', '34QwErTyLm0Np9Qr'),
+    j('secret', '_token=', HEX64),
+    j('id', '_token: eyJ0eXAi0iJKV1Qi', '1234567890ab'),
+  ];
+  const src = {};
+  cases.forEach((c, i) => { src[`docs/ops/p${i}.md`] = `${c}\n`; });
+  const res = scan(await makeRoot({ source: (s) => Object.assign(s, src) }));
+  for (const [i, c] of cases.entries()) assert.ok(c7Of(res, `docs/ops/p${i}.md`, 'FAIL'), `${c} → ${JSON.stringify(c7All(res, `docs/ops/p${i}.md`))}`);
+});
+
+const KEY_CONFIG_FILES = ['docs/k.pem', 'deploy/x.key', 'deploy/site.crt', 'deploy/app.toml', 'app.ini', 'deploy/app.conf', 'deploy/app.cfg', 'deploy/my.cnf', 'deploy/app.properties', 'docs/a.tf', 'deploy/prod.tfvars'];
+
+test('C7-SECRET QA198 LOW-1: 키·설정 확장자(.pem .key .crt .toml .ini .conf .cfg .cnf .properties .tf .tfvars) — 개인 키 헤더·secret_token= → FAIL', async () => {
+  const keyRoot = await makeRoot({ source: (s) => { for (const f of KEY_CONFIG_FILES) s[f] = j('-----BEGIN OPENSSH PRI', 'VATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n'); } });
+  const kv = j('secret', '_token = abc123def456ghi789jk\n');
+  const kvRoot = await makeRoot({ source: (s) => { for (const f of KEY_CONFIG_FILES) s[f] = kv; } });
+  for (const root of [keyRoot, kvRoot]) {
+    const res = scan(root);
+    for (const f of KEY_CONFIG_FILES) assert.ok(c7Of(res, f, 'FAIL'), `${f}: ${JSON.stringify(c7All(res, f))}`);
+  }
+});
+
+test('C7-SECRET QA198 LOW-1: 키·설정 확장자는 C7 만 — 외부 URL·평범한 설정은 FAIL·WARN 0(migration_lock.toml 형태 포함)', async () => {
+  const text = j('# x\nprovider = "sqlite"\nendpoint = "', HTTPS, 'cdn.example.org/a.js"\n[server]\nport = 8080\n');
+  const res = scan(await makeRoot({ source: (s) => { for (const f of [...KEY_CONFIG_FILES, 'server/prisma/migrations/migration_lock.toml', 'scripts/x.toml']) s[f] = text; } }));
+  expectClean(res);
+  assert.deepEqual(res.json.findings.filter((x) => x.severity !== 'INFO'), [], JSON.stringify(res.json.findings));
+});
+
+test('C7-SECRET QA198 INFO-1: 긴 한 줄(이름 글자 140KB 런) — 줄마다 1초 안, 줄 끝 시크릿은 계속 잡힘', async () => {
+  const { c7LineHits } = await import('../lib/rules-source.mjs');
+  const runs = [
+    'secret_'.repeat(20000),
+    'x-token'.repeat(20000),
+    'TOKEN_'.repeat(20000),
+    j('EN', 'V ', 'TOKEN_'.repeat(20000)),
+    'JWT_'.repeat(30000),
+    'api_'.repeat(30000),
+  ];
+  for (const r of runs) {
+    for (const isCode of [false, true]) {
+      const t = process.hrtime.bigint();
+      c7LineHits(r, isCode);
+      const ms = Number(process.hrtime.bigint() - t) / 1e6;
+      assert.ok(ms < 1000, `${r.slice(0, 14)}… isCode=${isCode}: ${ms.toFixed(0)}ms`);
+    }
+  }
+  // 줄 길이로 건너뛰지 않는다 — 긴 한 줄 JSON 끝의 시크릿도 FAIL.
+  const longJson = j('{"pad":"', 'a '.repeat(70000), '","client', '_secret":"', HEX64, '"}');
+  assert.ok(c7LineHits(longJson, false).some((h) => h.severity === 'FAIL'));
+});
+
+test('C7 QA198 INFO-2: docs/ 아래 코드 파일(.ts·.mjs)은 C7 만 — 코드 규칙(C1 외부 fetch·수집 라이브러리)을 타지 않는다', async () => {
+  const code = j("import x from 'pupp", "eteer';\nawait ", FETCH, "('", HTTPS, "cdn.example.org/a.json');\n");
+  const res = scan(await makeRoot({ source: (s) => { s['docs/snippets/x.ts'] = code; s['docs/snippets/y.mjs'] = code; } }));
+  expectClean(res);
+  assert.deepEqual(res.json.findings.filter((x) => (x.file ?? '').startsWith('docs/')), []);
+  // 같은 내용이 코드 디렉터리에 있으면 잡힌다(픽스처가 실제로 코드 규칙에 걸리는 내용임을 고정).
+  const ctl = scan(await makeRoot({ source: (s) => { s['scripts/snip.mjs'] = code; } }));
+  expectFail(ctl, 'C1-FETCH');
+});
+
 // ── C8 산출물 안전 ──────────────────────────────────────────
 test('C8-OUT-SAFE: 외부 script src', async () => {
   const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</body>', j('<script src="', HTTPS, 'cdn.x/y.js"></script></body>')); } }));
