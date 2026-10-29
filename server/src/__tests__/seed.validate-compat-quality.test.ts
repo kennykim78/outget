@@ -92,6 +92,24 @@ describe('R07c — 리터럴 경계·축소 모드 오탐 방지(QA194 LOW-1·2)
   });
 });
 
+describe('R07c — 상수식 경계·혼합 모서리 오탐 방지(Codex 200 결함 4)', () => {
+  it.each([
+    'b.floorWcm > 100 / 3 && b.floorWcm < 100 / 2', // 재현 A: 상수끼리의 산술 결과 사이(33.3~50)
+    'b.floorWcm == 25 && b.floorDcm == 75 && b.heightCm == 25', // 재현 B: 숫자 키 3개의 리터럴 조합
+    'b.floorWcm > 100 / 3 && b.floorWcm < 34', // 좁은 구간(33.3~34): 리터럴 ±1 은 밖, 인접 리터럴 중간값만 안 — 중간값 표본 고정
+  ])('%s → R07c 없음', (expr) => {
+    const r = issues(withExpr(expr));
+    expect(r.errors).toEqual([]);
+    expect(r.r07c).toEqual([]);
+  });
+
+  it('경고 문구는 절대 단정이 아니라 표본 한정', () => {
+    const r = issues(withExpr('b.heightCm == b.heightCm'));
+    expect(r.r07cMsgs[0]).toContain('표본 값에서 결과 변화가 없음');
+    expect(r.r07cMsgs[0]).toContain('무관할 수 있음');
+  });
+});
+
 describe('R07d — `||` 만', () => {
   it('삼항 안 중첩 || → R07d 1건', () => {
     const r = issues(withExpr("a.diameterCm >= 30 ? (b.heightCm >= 50 || b.floorType == 'SOLID') : true"));

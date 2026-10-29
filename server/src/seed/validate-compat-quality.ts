@@ -1,6 +1,6 @@
 // 호환 규칙 품질 경고(작업 192 — QA184 LOW-1 · 보안189 INFO-2). 게이트가 아니라 시드 작성 단계의 정리 신호(WARN).
 //   R07c 보유품 의존성 탐침: 식이 보유품 쪽 키를 참조하는데, 보유품 값을 specSchema 범위 표본으로 바꿔 평가해도 결과가 한 번도
-//        바뀌지 않으면 WARN(결과가 보유품 값과 무관 — 엔진 보유품 근거 단계를 통과해 근거가 약한 OK 가 될 수 있다).
+//        바뀌지 않으면 WARN(표본 값에서 결과 변화가 없음, 보유품 값과 무관할 수 있음 — 엔진 보유품 근거 단계를 통과해 근거가 약한 OK 가 될 수 있다).
 //   R07d `||` 사용: 평가기가 엄격 3값이라 `true || b.x` 같은 식은 보유품을 쓰지 않아도 근거 있음으로 셀 수 있다 → WARN.
 //   판정·평가는 engine/ 만 쓴다(parseExpr·evalExpr·sanitizeSpecValues·minSpecBaseline·resolveRequirement, 불변식 6). 엔진 판정은 바꾸지 않는다.
 import {
@@ -95,12 +95,58 @@ function numLiterals(n: ExprNode, out: number[] = []): number[] {
   return out;
 }
 
+const ARITH = new Set(['+', '-', '*', '/']);
+
+/** 상수끼리의 산술 결과(자식이 모두 숫자 리터럴인 이항 산술 노드). 계산은 엔진 evalExpr 로 한다(평가기 복제 금지). */
+function constArith(n: ExprNode, out: number[] = []): number[] {
+  switch (n.t) {
+    case 'bin': {
+      if (ARITH.has(n.op) && n.l.t === 'num' && n.r.t === 'num') {
+        const v = evalExpr(n, { a: {}, b: {} });
+        if (typeof v === 'number' && Number.isFinite(v)) out.push(v);
+      }
+      constArith(n.l, out);
+      constArith(n.r, out);
+      break;
+    }
+    case 'neg':
+    case 'not':
+      constArith(n.arg, out);
+      break;
+    case 'in':
+      constArith(n.l, out);
+      constArith(n.list, out);
+      break;
+    case 'list':
+      n.items.forEach((x) => constArith(x, out));
+      break;
+    case 'cond':
+      constArith(n.test, out);
+      constArith(n.then, out);
+      constArith(n.else, out);
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
+/** 식의 리터럴 값: 숫자 리터럴 + 상수끼리의 산술 결과. */
+function literalValues(n: ExprNode): number[] {
+  return [...new Set([...numLiterals(n), ...constArith(n)])];
+}
+
 /** 필드 하나의 표본값: 숫자 = 최소·1/4·중간·3/4·최대 + 식 리터럴과 ±1(범위 안만), enum = 모든 선택지, boolean = 둘 다. */
 function fieldSamples(f: SpecField, lits: number[] = []): SpecValue[] {
   if (f.type === 'number') {
     const { min, max } = f;
     const vals = [min, min + (max - min) / 4, (min + max) / 2, min + ((max - min) * 3) / 4, max];
     for (const l of lits) for (const d of [-1, 0, 1]) if (l + d >= min && l + d <= max) vals.push(l + d);
+    const sorted = [...new Set(lits)].sort((x, y) => x - y); // 인접 리터럴 값 사이 중간값(범위 안만)
+    for (let k = 0; k + 1 < sorted.length; k++) {
+      const m = (sorted[k] + sorted[k + 1]) / 2;
+      if (m >= min && m <= max) vals.push(m);
+    }
     return [...new Set(vals)].sort((x, y) => x - y);
   }
   if (f.type === 'enum') return [...f.options];
@@ -127,7 +173,18 @@ function combos(fields: SpecField[], lits: number[] = []): Record<string, SpecVa
     Object.fromEntries(sets.map((s) => [s.key, s.vals[0]])),
     Object.fromEntries(sets.map((s) => [s.key, s.vals[s.vals.length - 1]])),
   ];
-  return bases.flatMap((base) => sets.flatMap(({ key, vals }) => vals.map((v) => ({ ...base, [key]: v }))));
+  const out = bases.flatMap((base) => sets.flatMap(({ key, vals }) => vals.map((v) => ({ ...base, [key]: v }))));
+  // 혼합 모서리: 키별로 식 리터럴 값 하나씩 고른 조합(상한 MAX_COMBOS)
+  const litSets = fields.map((f) => {
+    if (f.type !== 'number') return { key: f.key, vals: [midValue(f)] };
+    const inRange = [...new Set(lits)].filter((l) => l >= f.min && l <= f.max).sort((x, y) => x - y);
+    return { key: f.key, vals: inRange.length > 0 ? inRange : [midValue(f)] };
+  });
+  let mixed: Record<string, SpecValue>[] = [{}];
+  for (const { key, vals } of litSets) {
+    mixed = mixed.flatMap((o) => vals.map((v) => ({ ...o, [key]: v }))).slice(0, MAX_COMBOS);
+  }
+  return [...out, ...mixed];
 }
 
 const fieldsOf = (schema: SpecSchema, keys: string[]): SpecField[] =>
@@ -181,7 +238,7 @@ export function checkCompatOwnedProbe(ctx: Ctx, raw: RawSeed): void {
         return;
       }
       const refs = exprRefs(node);
-      const lits = numLiterals(node);
+      const lits = literalValues(node);
       for (const ownedSide of ['b', 'a'] as const) {
         const inputSide = ownedSide === 'a' ? 'b' : 'a';
         const ownedFields = fieldsOf(schemas[ownedSide], refs[ownedSide]);
@@ -206,7 +263,7 @@ export function checkCompatOwnedProbe(ctx: Ctx, raw: RawSeed): void {
             'compatibilityRules',
             rule.id,
             `rules[${i}].expr`,
-            `결과가 보유품 값과 무관 — 보유품 ${ownedSide}(${String(rule[ownedSide])}) 의 ${ownedFields.map((f) => f.key).join('·')} 를 범위 안에서 바꿔도 결과가 같다(근거 없는 OK 가 될 수 있음)`,
+            `표본 값에서 결과 변화가 없음(보유품 값과 무관할 수 있음) — 보유품 ${ownedSide}(${String(rule[ownedSide])}) 의 ${ownedFields.map((f) => f.key).join('·')} 를 범위 안 표본으로 바꿔도 결과가 같다(근거 없는 OK 가 될 수 있음)`,
           );
         }
       }
