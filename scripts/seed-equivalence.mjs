@@ -12,10 +12,16 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
 // 사실 필드(PRD 부록 B 기준) — 단일 출처 server/src/seed/fact-fields.json(서명 매니페스트 factHash 와 공유, 보안 79 H-1).
-//   이 목록의 키만 비교한다. 목록에 없는 키(id·slug·keyword·orderHint·optionLabels·category·specSchema·
+//   이 목록의 키만 비교한다. 목록에 없는 키(id·slug·keyword·orderHint·optionLabels·category·
 //   reviewStatus/reviewerType/verifiedBy/verifiedAt/reviewBasis/source 등)는 무시.
+//   specSchema 는 따로 비교한다(QA170 LOW-3 — 필드 key·type·options·min/max·ruleScoped 가 규칙 판정을 바꾼다).
+//   FACT_FIELDS 에 넣지 않는 이유: 그 목록은 서명 factHash 와 공유되어 넣으면 기존 서명 해시가 바뀐다.
+//   표시 키(optionLabels — SIGNATURE_STRIP_KEYS)는 canonicalJson 이 제거하고 키 순서는 무시.
 //   범위(scope) careProfileId(s)·taxonId(s) 포함 — 적용 대상이 바뀌면 사실 의미가 바뀐다(M456 지적: cr-tubes-cage careProfileId).
-import { FACT_FIELDS, SIGNATURE_FILE } from './lib/review-signature.mjs';
+import { FACT_FIELDS, SIGNATURE_FILE, canonicalJson } from './lib/review-signature.mjs';
+
+/** FACT_FIELDS 밖에서 추가로 비교하는 구조 필드(정규 JSON 비교). */
+export const SCHEMA_FIELDS = Object.freeze(['specSchema']);
 
 export { FACT_FIELDS };
 
@@ -63,6 +69,10 @@ export function compareDirs(seedDir, draftDir) {
       for (const k of new Set([...Object.keys(fa), ...Object.keys(fb)])) {
         if (!isDeepStrictEqual(fa[k], fb[k])) problems.push(`${file}#${r.id}.${k}: 정본과 사본이 다름`);
       }
+      for (const k of SCHEMA_FIELDS) {
+        if (!(k in r) && !(k in d)) continue;
+        if (!(k in r) || !(k in d) || canonicalJson(r[k]) !== canonicalJson(d[k])) problems.push(`${file}#${r.id}.${k}: 정본과 사본이 다름`);
+      }
     }
     const aIds = new Set(a.map((r) => r.id));
     for (const r of b) if (!aIds.has(r.id)) problems.push(`${file}#${r.id}: 정본에 없는 행`);
@@ -79,5 +89,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     for (const p of problems) console.error(`FAIL ${p}`);
     process.exit(1);
   }
-  console.log(`seed-equivalence: OK (${topLevelJson(args.seed).length} files, 사실 필드 ${FACT_FIELDS.length}종 동등)`);
+  console.log(`seed-equivalence: OK (${topLevelJson(args.seed).length} files, 사실 필드 ${FACT_FIELDS.length}종 + ${SCHEMA_FIELDS.join('·')} 동등)`);
 }

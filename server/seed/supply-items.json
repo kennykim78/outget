@@ -440,6 +440,13 @@
           }
         },
         {
+          "key": "coversThisAnimal",
+          "label": "포장 대상에 이 동물 표기",
+          "type": "boolean",
+          "optional": true,
+          "ruleScoped": true
+        },
+        {
           "key": "baseType",
           "label": "주원료",
           "type": "enum",

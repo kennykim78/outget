@@ -323,7 +323,7 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
   // 114 FE-gp-schema(기니피그 S5, 계획 107): L5 폼 필드 목록·'· 선택' 표시가 프리렌더 = 하이드레이션 후(visibleSpecFields·isFieldOptionalForDisplay 공용).
   //   React 는 숫자 칸을 먼저 묶어 그리므로(SpecForm) 순서가 아닌 키 집합 + 키별 '선택' 표시로 비교한다.
   //   ruleScoped 6개(floorType·dustFree·forSpecies·baseType·vitaminC·entrances)는 골든·드워프 규칙이 참조하지 않아 양쪽 모두 미노출.
-  const RULE_SCOPED_NEW = ['floorType', 'dustFree', 'forSpecies', 'baseType', 'vitaminC', 'entrances'];
+  const RULE_SCOPED_NEW = ['floorType', 'dustFree', 'forSpecies', 'baseType', 'vitaminC', 'entrances', 'coversThisAnimal'];
   type FieldMark = [key: string, optional: boolean];
   const sortMarks = (m: FieldMark[]): FieldMark[] => [...m].sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0));
   function staticL5(): FieldMark[] {

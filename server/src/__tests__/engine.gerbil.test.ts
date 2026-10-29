@@ -167,8 +167,12 @@ describe('S6 food — 최소 저빌용·겸용(MULTI), 권장 저빌용·조단�
     expect(at('food', ok)).toEqual([true, 'OK']);
     expect(at('food', { ...ok, proteinPct: 20 })).toEqual([true, 'OK']);
   });
-  it('MULTI(겸용) → 최소 충족 · 권장 미달(BELOW_RECOMMENDED)', () => {
+  it('MULTI(겸용) 단독 → 포장 대상 표기 확인 전 CHECK · 미충족(154 B안, fail-closed)', () => {
     const r = checkAnimalMinSpec(cat, G, 'food', { ...ok, forSpecies: 'MULTI' });
+    expect([r.meets, r.verdict]).toEqual([false, 'CHECK']);
+  });
+  it('MULTI(겸용) + 포장 대상에 저빌 표기(coversThisAnimal=true) → 최소 충족 · 권장 미달(BELOW_RECOMMENDED)', () => {
+    const r = checkAnimalMinSpec(cat, G, 'food', { ...ok, forSpecies: 'MULTI', coversThisAnimal: true });
     expect([r.meets, r.verdict]).toEqual([true, 'BELOW_RECOMMENDED']);
   });
   it('HAMSTER·GUINEA_PIG·RABBIT → BELOW_MIN', () => {

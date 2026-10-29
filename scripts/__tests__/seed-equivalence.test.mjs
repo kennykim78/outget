@@ -78,3 +78,31 @@ test('서명 매니페스트 review-signatures.json: 정본·사본 통째로 �
     assert.equal(run(f).status, 1);
   } finally { rmSync(f.dir, { recursive: true, force: true }); }
 });
+
+test('specSchema(QA170 LOW-3): 필드 1개 삭제·한쪽만 있음이면 1, optionLabels·키 순서만 다르면 0', () => {
+  const schema = { fields: [
+    { key: 'form', label: '형태', type: 'enum', options: ['MIX', 'PELLET'], optionLabels: { MIX: '곡물 혼합', PELLET: '펠릿' } },
+    { key: 'coversThisAnimal', label: '포장 대상에 이 동물 표기', type: 'boolean', optional: true, ruleScoped: true },
+  ] };
+  const item = (s) => ({ id: 'food', name: '사료', ...(s === undefined ? {} : { specSchema: s }) });
+  const f = fixture([row()], [row()]);
+  const put = (seedS, draftS) => {
+    writeFileSync(join(f.seed, 'supply-items.json'), JSON.stringify([item(seedS)]));
+    writeFileSync(join(f.draft, 'supply-items.json'), JSON.stringify([item(draftS)]));
+  };
+  try {
+    put(schema, structuredClone(schema));
+    assert.equal(run(f).status, 0);
+    const relabeled = structuredClone(schema);
+    relabeled.fields[0].optionLabels.MIX = '다른 라벨';
+    relabeled.fields[1] = { ruleScoped: true, optional: true, type: 'boolean', label: '포장 대상에 이 동물 표기', key: 'coversThisAnimal' };
+    put(schema, relabeled);
+    assert.equal(run(f).status, 0);
+    put(schema, { fields: schema.fields.slice(0, 1) });
+    const r = run(f);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /supply-items\.json#food\.specSchema: 정본과 사본이 다름/);
+    put(schema, undefined);
+    assert.equal(run(f).status, 1);
+  } finally { rmSync(f.dir, { recursive: true, force: true }); }
+});

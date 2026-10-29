@@ -101,4 +101,14 @@ describe('저빌 강제 ACTIVE 미리보기(메모리) — 크기·D1·Taxon 비
   it("L5 사료 판정 페이지에 '저빌용' 선택지 라벨이 실린다(forSpecies 필드 표시)", () => {
     expect(pageAt(b, '/gerbil/check/food').html).toContain('저빌용');
   });
+
+  it("L5 저빌 사료에 '포장 대상에 이 동물 표기' 라벨과 forSpecies=MULTI 조건 행이 실리고, 골든 사료 L5 엔 없다", () => {
+    const html = pageAt(b, '/gerbil/check/food').html;
+    expect(html).toContain('포장 대상에 이 동물 표기');
+    expect(html).toContain('여러 동물용이면 포장 대상에 저빌이 적혀 있어야 해요');
+    // 골든 사료 L5 는 이 빌드(실시드 골든 DRAFT)에 없으므로, 저빌 밖 어떤 L5 에도 라벨이 없음을 단언(골든 사료 L5 가 생기면 그대로 잡힌다).
+    for (const p of b.pages) {
+      if (p.route.typeId !== G) expect([p.route.path, p.html.includes('포장 대상에 이 동물 표기')]).toEqual([p.route.path, false]);
+    }
+  });
 });

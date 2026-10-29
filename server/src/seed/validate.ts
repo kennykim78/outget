@@ -3,7 +3,7 @@
 import { Collector, type Issue, type RawSeed } from './common.js';
 import { buildCtx, type ValidateOptions } from './context.js';
 import { lintRecord } from './lint.js';
-import { checkExposure, checkExprs, checkOptionLabels, checkRuleScoped, meetsMinSpecFn, type ExposureSummary } from './validate-engine.js';
+import { checkExposure, checkExprs, checkOptionLabels, checkRuleScoped, meetsMinSpecFn, specRefersFn, type ExposureSummary } from './validate-engine.js';
 import { checkPublishGates } from './validate-gates.js';
 import { checkPeople } from './validate-people.js';
 import { checkProducts } from './validate-products.js';
@@ -37,7 +37,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   checkSlugs(ctx);
   // P01 재계산은 구조·참조 오류가 없을 때만 엔진에 맡긴다(깨진 입력으로 엔진을 돌리지 않는다).
   const structurallySound = !out.issues.some((i) => i.severity === 'ERROR');
-  checkProducts(ctx, structurallySound ? meetsMinSpecFn(raw) : null);
+  checkProducts(ctx, structurallySound ? meetsMinSpecFn(raw) : null, structurallySound ? specRefersFn(raw) : null);
   checkPeople(ctx);
   for (const key of SEED_KEYS) {
     for (const { rec, id } of ctx.rows[key]) lintRecord(key, id, rec, out);

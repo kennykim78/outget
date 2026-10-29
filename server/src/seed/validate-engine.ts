@@ -14,11 +14,12 @@ import {
   optionLabel,
   parseExpr,
   referencedSpecKeys,
+  resolveRequirement,
   type SpecValues,
 } from '../engine/index.js';
 import { asRec, asSeedBundle, isNonEmptyStr, type RawSeed } from './common.js';
 import type { Ctx } from './context.js';
-import type { MeetsMinSpecFn } from './validate-products.js';
+import type { MeetsMinSpecFn, SpecRefersFn } from './validate-products.js';
 
 export interface ExposureSummary {
   types: number;
@@ -67,6 +68,31 @@ export function meetsMinSpecFn(raw: RawSeed): MeetsMinSpecFn {
   const cat = createCatalog(asSeedBundle(raw));
   return (careProfileId, supplyItemId, specValues) =>
     checkProfileMinSpec(cat, careProfileId, supplyItemId, specValues as SpecValues).meets;
+}
+
+/**
+ * P06 참조 판정기(154 B안 · 173 확장) — 프로필 careProfileId 의 (supplyItemId) 규칙이 필드 key 를 규칙 key 또는
+ *   when key 로 참조하는지, minSpec·recommendedSpec 따로. 참조 집합 = 합집합(보수):
+ *     ① 프로필 기본 요구사항(override 없음 — P01 재계산 checkProfileMinSpec 과 같은 단위)
+ *     ② 그 프로필을 쓰는 모든 AnimalType(상태 무관)의 resolveRequirement 결과(careOverrides 반영 — 노출 판정 단위)
+ *   최종값은 engine.resolveRequirement 한 곳(불변식 6), key 수집은 engine.referencedSpecKeys(L5 표시와 같은 헬퍼).
+ */
+export function specRefersFn(raw: RawSeed): SpecRefersFn {
+  const cat = createCatalog(asSeedBundle(raw));
+  return (careProfileId, supplyItemId, key) => {
+    const base = cat.requirementsByProfile.get(careProfileId)?.get(supplyItemId);
+    const min = [base?.minSpec];
+    const rec = [base?.recommendedSpec];
+    for (const at of cat.animalTypes.values()) {
+      if (at.careProfileId !== careProfileId) continue;
+      const r = resolveRequirement(cat, at.id, supplyItemId);
+      if (r) {
+        min.push(r.minSpec);
+        rec.push(r.recommendedSpec);
+      }
+    }
+    return { minSpec: referencedSpecKeys(...min).has(key), recommendedSpec: referencedSpecKeys(...rec).has(key) };
+  };
 }
 
 /**

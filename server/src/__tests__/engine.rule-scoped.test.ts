@@ -129,12 +129,13 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
     });
   }
 
-  it('스키마 자체엔 ruleScoped 7필드가 있다(S8 playpen.floorType +1)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
+  it('스키마 자체엔 ruleScoped 8필드가 있다(S8 playpen.floorType +1, 154 food.coversThisAnimal +1)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
     const scoped = realSeed().supplyItems.flatMap((i) => i.specSchema.fields.filter((f) => f.ruleScoped === true).map((f) => [`${i.id}.${f.key}`, hasCompleteOptionLabels(f), f.optional === true]));
     expect(scoped).toEqual([
       ['cage.floorType', true, true],
       ['bedding.dustFree', true, true],
       ['food.forSpecies', true, true],
+      ['food.coversThisAnimal', true, true],
       ['food.baseType', true, true],
       ['food.vitaminC', true, true],
       ['hideout.entrances', true, true],
@@ -246,8 +247,8 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     expect(res.errors).toEqual([]);
     expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType']);
   });
-  it('기니피그·저빌 요구사항을 빼면 7필드 전부 WARN(S9 가 6필드 경고를 해소한 출처)', () => {
-    expect(scopedWarns(withoutGp())).toHaveLength(7);
+  it('기니피그·저빌 요구사항을 빼면 8필드 전부 WARN(S9 가 6필드 경고를 해소한 출처, 154 food.coversThisAnimal +1)', () => {
+    expect(scopedWarns(withoutGp())).toHaveLength(8);
   });
 
   it('요구사항 행의 when key 가 참조하면 그 필드 경고 해소', () => {
@@ -255,7 +256,7 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     const req = find(raw.supplyRequirements, 'req-syrian-cage') as { recommendedSpec: RuleSet };
     req.recommendedSpec = { rules: [...req.recommendedSpec.rules, { key: 'heightCm', op: 'gte', value: 30, reason: '픽스처', when: [{ key: 'floorType', op: 'eq', value: 'MESH' }] }] };
     expect(scopedWarns(raw)).not.toContain('cage.specSchema.floorType');
-    expect(scopedWarns(raw)).toHaveLength(6); // playpen.floorType 은 별도 SupplyItem 이라 남는다
+    expect(scopedWarns(raw)).toHaveLength(7); // playpen.floorType 은 별도 SupplyItem 이라 남는다(154 food.coversThisAnimal 포함)
   });
 
   it('AnimalType.careOverrides 의 규칙만 참조해도 해소(해석 후 규칙 기준)', () => {
