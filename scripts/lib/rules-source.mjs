@@ -2,7 +2,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, extname, join } from 'node:path';
-import { CODE_EXT, TEXT_EXT, isDir, lexJs, relPosix, stripBom, stripSlashComments, walk } from './files.mjs';
+import { CODE_EXT, TEXT_EXT, isDir, lexJs, lineIndex, relPosix, stripBom, stripSlashComments, walk } from './files.mjs';
 import { PRODUCT_IMAGE_ASSET_RE, REVIEWER_IMAGE_RE } from './asset-patterns.mjs';
 import { lintText } from './normalize.mjs';
 import { tags } from './html.mjs';
@@ -186,28 +186,41 @@ const NONCODE_SECRET_RES = [
 //   줄 시작이 아니어도(md 인라인 `KEY=값`·JSON 객체 안) 본다. 이름은 낱말 경계(구분자 _ . - 또는 camel 앞부분)로 낱말을 품어야 한다(tokens·passwordless·tokenCount 제외).
 //   값은 글자와 숫자를 둘 다 품은 리터럴만(산문 오탐 방지 — 무작위 키·토큰·비밀번호는 거의 숫자를 품는다), 자리표시(PLACEHOLDER_VALUE_RE)는 제외.
 //   길이 16자 이상 → FAIL, 8~15자 → WARN(짧은 실값과 짧은 예시를 형태로 가를 수 없다 — 사람이 본다). 8자 미만은 보지 않는다.
-const ci = (w) => [w, w[0].toUpperCase() + w.slice(1), w.toUpperCase()];
-const SECRET_WORD = ['secret', 'token', 'password', 'passwd', 'apikey', 'credential', 'credentials']
-  .flatMap(ci)
-  .concat(['api_key', 'api-key', 'apiKey', 'ApiKey', 'API_KEY', 'API-KEY', 'private_key', 'privateKey', 'PRIVATE_KEY', 'signing_key', 'signingKey', 'SIGNING_KEY', 'encryption_key', 'encryptionKey', 'ENCRYPTION_KEY'])
+//   201(Codex 200 요청 3): 낱말은 대소문자 무관(aPi_KeY·ToKeN) — 낱말 철자 자체는 예전 목록 그대로(privatekey 는 되고 private-key 는 안 되는 것도 같다).
+const anyCase = (w) => w.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const SECRET_WORD = ['secret', 'token', 'password', 'passwd', 'apikey', 'credential', 'credentials', 'api_key', 'api-key', 'private_key', 'privatekey', 'signing_key', 'signingkey', 'encryption_key', 'encryptionkey']
   .sort((a, b) => b.length - a.length)
+  .map(anyCase)
   .join('|');
 //   (구분자로 끝나는 앞부분 | camel 앞부분) 낱말 (구분자로 시작하는 뒷부분) — 이름 전체가 이름 글자로 둘러싸이지 않아야 한다.
 //   camel 뒷부분(tokenCount·passwordMinLength)은 설정·통계 이름이 많아 보지 않는다.
 //   QA198 INFO-1: 앞부분·뒷부분은 64자까지 — 무제한이면 'secret_'×20000 같은 긴 한 줄에서 앞부분×뒷부분 되짚기가 줄 길이의 제곱(140KB 에 수 초)이 된다.
 //   상한이 있으면 시작 위치마다 되짚기가 64² 이하이고, 시작 위치(이름 글자가 앞에 없는 곳)마다 런 길이로 묶여 줄 길이에 비례한다.
 //   줄 길이 상한으로 건너뛰지 않는 이유: 한 줄 JSON·압축 설정 속 시크릿을 놓치게 된다. 대신 130자 넘는 이름은 보지 않는다(실제 이름은 짧다).
-const SECRET_NAME_ANY = String.raw`(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9_.-]{0,64}[_.-]|[A-Za-z0-9]{0,64}[a-z0-9](?=[A-Z]))?(?:${SECRET_WORD})(?:[_.-][A-Za-z0-9_.-]{0,64})?(?![A-Za-z0-9_.-])`;
-const SECRET_KV_RE = new RegExp(String.raw`["']?(${SECRET_NAME_ANY})["']?\s*[:=]\s*["'\`]?(?![$<{%])([^\s'"\`<>{}()\[\]#,;|]+)`, 'g');
+const SECRET_NAME_CORE = String.raw`(?:[A-Za-z0-9_.-]{0,64}[_.-]|[A-Za-z0-9]{0,64}[a-z0-9](?=[A-Z]))?(?:${SECRET_WORD})(?:[_.-][A-Za-z0-9_.-]{0,64})?`;
+const SECRET_NAME_ANY = String.raw`(?<![A-Za-z0-9_.-])${SECRET_NAME_CORE}(?![A-Za-z0-9_.-])`;
+// 값 글자(이 글자들에서 값이 끝난다). 값 첫 글자가 $·<·{·% 면 변수·자리라 보지 않는다.
+const KV_VALUE_STOP = String.raw`\s'"\`<>{}()\[\]#,;|`;
+// 이름 + 구분자까지만 매치하고 값 시작에서 멈춘다(값은 아래 kvRun 이 한 번만 훑는다 — 201 MED-3).
+const SECRET_KV_NAME_RE = new RegExp(String.raw`["']?(${SECRET_NAME_ANY})["']?\s*[:=]\s*["'\`]?(?![$<{%])(?=[^${KV_VALUE_STOP}])`, 'g');
+const KV_VALUE_END_RE = new RegExp(`[${KV_VALUE_STOP}]`, 'g');
+// 대조용 원형(값을 통째로 캡처) — secretKvHitsSimple 만 쓴다.
+const SECRET_KV_RE = new RegExp(String.raw`["']?(${SECRET_NAME_ANY})["']?\s*[:=]\s*["'\`]?(?![$<{%])([^${KV_VALUE_STOP}]+)`, 'g');
 // QA198 LOW-2 — 이름 뒷부분이 주소·경로·식별자·메타데이터를 뜻하면 값은 시크릿이 아니다(token_url·password_file·secret_path·signing_key_id·secret_name·token_hash).
 //   SECRET_RES·NONCODE 의 KEY_SUFFIX 가 _KEY_PATH·_KEY_FILE·_KEY_ID·_KEY_PREFIX 를 뺀 것과 같은 원칙. 이름 끝(구분자 뒤)만 본다(id_token·secret_id_token 은 그대로 본다).
-const NON_SECRET_NAME_TAIL_RE = /[_.-](?:url|uri|endpoint|path|file|dir|id|name|type|ttl|hash|length|len|count|header|prefix)$/i;
-// 값이 경로(/·./·../·~/ 로 시작, 경로 글자만)면 제외 — 단, 16자 이상이고 대문자·소문자·숫자를 모두 품은 마디가 있으면 무작위 값(base64 는 / 로 시작할 수 있다)으로 보고 제외하지 않는다.
+//   201(Codex 200 MED-1): 비밀값의 성질·정책을 적는 설정 이름 끝 — JWT 클레임 대응(audience·aud·issuer·iss·scope·algorithm·alg), 해시·정책 매개변수
+//   (rounds·cost·policy·min·max), 수명(expiry·expires·lifetime). 값이 식별자(withsmall-api-v1)·알고리즘 이름(pbkdf2-hmac-sha256)·숫자·기간이다.
+//   넣지 않은 것: _key·_value·_data·_b64(값 자체를 담는 이름), _version·_format(근거 사례 없음 — 좁게).
+//   201(Codex 200 요청 3): 이름 끝 제외는 값이 무작위형(16자 이상이고 대·소문자·숫자를 다 가진 마디)이면 적용하지 않는다(token_id=<무작위>).
+const NON_SECRET_NAME_TAIL_RE = /[_.-](?:url|uri|endpoint|path|file|dir|id|name|type|ttl|hash|length|len|count|header|prefix|audience|aud|issuer|iss|scope|scopes|algorithm|alg|rounds|cost|policy|min|max|expiry|expires|lifetime)$/i;
+// 값이 경로(/·./·../·~/ 로 시작, 경로 글자만)면 제외 — 단, 무작위 마디가 있으면(base64 는 / 로 시작할 수 있다) 제외하지 않는다.
 const PATH_VALUE_RE = /^(?:\/|\.{1,2}\/|~\/)[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]*)*$/;
+// 무작위 마디: / 로 나눈 마디 하나가 16자 이상이고 대문자·소문자·숫자를 모두 품는다.
 const RANDOM_SEG_RE = /^(?=[^/]*[a-z])(?=[^/]*[A-Z])(?=[^/]*\d)[^/]{16,}$/;
-const isPathValue = (v) => PATH_VALUE_RE.test(v) && !v.split('/').some((seg) => RANDOM_SEG_RE.test(seg));
+const hasRandomSeg = (v) => v.split('/').some((seg) => RANDOM_SEG_RE.test(seg));
+const isPathValue = (v) => PATH_VALUE_RE.test(v) && !hasRandomSeg(v);
 // 값이 자격 증명 없는 URL(scheme://host… 의 권한 부분에 @ 가 없음)이면 제외. 사용자 이름만 있는 https://TOKEN@host 도 토큰일 수 있어 @ 가 있으면 제외하지 않는다.
-//   URL 질의 속 ?access_token=… 은 값 시작부터 다시 찾아 따로 본다(아래 lastIndex).
+//   URL 질의 속 ?access_token=… 은 값 안을 이어서 찾아 따로 본다.
 const URL_AUTHORITY_RE = /^[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/([^/?#]*)/;
 const isPlainUrlValue = (v) => {
   const m = URL_AUTHORITY_RE.exec(v);
@@ -219,23 +232,127 @@ const hasUrlUserinfo = (v) => URL_AUTHORITY_RE.exec(v)?.[1].includes('@') === tr
 //   __SET_ME__ · <토큰> · *** · xxxx · ... · … · changeme · your-token-here · example/sample/dummy/fake/placeholder/redacted 를 품은 값.
 const PLACEHOLDER_VALUE_RE = /^(?:_{2}[A-Za-z0-9_]+_{2}|[*xX#.…_-]{3,}|.*(?:change[_-]?me|replace[_-]?me|set[_-]?me|your[_-]|example|sample|dummy|fake|placeholder|redacted).*)$/i;
 const looksSecret = (v) => /[A-Za-z]/.test(v) && /[0-9]/.test(v) && !PLACEHOLDER_VALUE_RE.test(v);
-/** 코드 아닌 파일 한 줄의 소문자·JSON 키 시크릿 후보 → [{ severity, value }] */
-function secretKvHits(line) {
+/** 이름=값 의 값이 제외(주소·경로·식별자·메타데이터)인가 — 단순형(값 하나를 직접 훑는다). JSON 쌍 검사·대조용. */
+function kvExcluded(name, v) {
+  return (NON_SECRET_NAME_TAIL_RE.test(name) && !hasUrlUserinfo(v) && !hasRandomSeg(v)) || isPathValue(v) || isPlainUrlValue(v);
+}
+const kvSeverity = (v) => (v.length >= 8 && looksSecret(v) ? (v.length >= 16 ? 'FAIL' : 'WARN') : null);
+/**
+ * 대조용 원형(201 이전 구조 + 201 규칙): 값을 통째로 캡처하고, 제외하면 값 시작으로 되돌아가 값 안을 다시 찾는다.
+ * 긴 제외 값이 겹치면 줄 길이의 제곱 — 운영 경로에서 쓰지 않는다(secretKvHits 와 결과가 같은지 테스트가 대조한다).
+ */
+export function secretKvHitsSimple(line) {
   const out = [];
   SECRET_KV_RE.lastIndex = 0;
   let m;
   while ((m = SECRET_KV_RE.exec(line)) !== null) {
-    const name = m[1];
     const v = m[2];
-    if ((NON_SECRET_NAME_TAIL_RE.test(name) && !hasUrlUserinfo(v)) || isPathValue(v) || isPlainUrlValue(v)) {
-      // 제외한 값 안에 다른 이름=값(URL 질의의 access_token=…)이 있을 수 있다 — 값 시작부터 다시 찾는다(이름이 앞에 있어 항상 앞으로 나아간다).
+    if (kvExcluded(m[1], v)) {
       SECRET_KV_RE.lastIndex = m.index + m[0].length - v.length;
       continue;
     }
-    if (v.length >= 8 && looksSecret(v)) out.push(v.length >= 16 ? 'FAIL' : 'WARN');
+    const sev = kvSeverity(v);
+    if (sev) out.push(sev);
   }
   return out;
 }
+const SCHEME_AT_RE = /[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\//y;
+const isPathCode = (c) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 46 || c === 95 || c === 47 || c === 45; // 0-9 A-Z a-z . _ / -
+/**
+ * 값 런 하나(시작 s0 ~ 첫 값 끝 글자) — 오른쪽에서 한 번 훑어 접미부마다의 사실을 표로 만든다.
+ * 같은 런 안의 이름=값 후보(제외된 URL 의 질의 속 access_token=…)는 모두 같은 런 끝을 공유하고 값이 런의 접미부라, 후보마다 O(1) 로 판정한다.
+ *   pathOk[k]  : 접미부 [k,n) 가 모두 경로 글자
+ *   rand[k]    : 접미부를 / 로 나눈 마디 중 무작위형이 있음(첫 마디는 k 에서 잘린 것)
+ *   authStop[k]: k 이후 첫 / ? # 위치(없으면 n) · nextAt[k]: k 이후 첫 @ 위치(없으면 n)
+ */
+function kvRun(line, s0) {
+  KV_VALUE_END_RE.lastIndex = s0;
+  const stop = KV_VALUE_END_RE.exec(line);
+  const end = stop ? stop.index : line.length;
+  const n = end - s0;
+  const pathOk = new Uint8Array(n + 1);
+  const rand = new Uint8Array(n + 1);
+  const authStop = new Int32Array(n + 1);
+  const nextAt = new Int32Array(n + 1);
+  pathOk[n] = 1;
+  authStop[n] = n;
+  nextAt[n] = n;
+  let lo = 0;
+  let up = 0;
+  let dg = 0;
+  let len = 0;
+  let rest = 0;
+  for (let k = n - 1; k >= 0; k--) {
+    const c = line.charCodeAt(s0 + k);
+    pathOk[k] = pathOk[k + 1] && isPathCode(c) ? 1 : 0;
+    authStop[k] = c === 47 || c === 63 || c === 35 ? k : authStop[k + 1];
+    nextAt[k] = c === 64 ? k : nextAt[k + 1];
+    if (c === 47) {
+      rest = rand[k + 1];
+      lo = up = dg = len = 0;
+      rand[k] = rest;
+    } else {
+      len++;
+      if (c >= 97 && c <= 122) lo = 1;
+      else if (c >= 65 && c <= 90) up = 1;
+      else if (c >= 48 && c <= 57) dg = 1;
+      rand[k] = len >= 16 && lo && up && dg ? 1 : rest;
+    }
+  }
+  return { start: s0, end, n, pathOk, rand, authStop, nextAt };
+}
+/** kvExcluded 와 같은 판정을 런 표로(후보마다 O(1) — 스킴 32자 확인만). */
+function kvRunExcluded(line, run, s, name) {
+  const k = s - run.start;
+  const { n, pathOk, rand, authStop, nextAt } = run;
+  // URL(scheme://권한) — 스킴 글자·: · / 는 값 글자라 매치는 런 안에서 끝난다.
+  SCHEME_AT_RE.lastIndex = s;
+  const sch = SCHEME_AT_RE.exec(line);
+  let url = false;
+  let userinfo = false;
+  if (sch) {
+    const a = k + sch[0].length;
+    url = true;
+    userinfo = nextAt[a] < authStop[a];
+  }
+  if (url && !userinfo) return true; // isPlainUrlValue
+  if (NON_SECRET_NAME_TAIL_RE.test(name) && !userinfo && !rand[k]) return true;
+  // isPathValue: 접두 / · ./ · ../ · ~/ 뒤에 / 아닌 경로 글자로 시작하고 끝까지 경로 글자, 무작위 마디 없음.
+  const c0 = line.charCodeAt(s);
+  const c1 = k + 1 < n ? line.charCodeAt(s + 1) : -1;
+  const c2 = k + 2 < n ? line.charCodeAt(s + 2) : -1;
+  let p = 0;
+  if (c0 === 47) p = 1;
+  else if (c0 === 126 && c1 === 47) p = 2;
+  else if (c0 === 46 && c1 === 47) p = 2;
+  else if (c0 === 46 && c1 === 46 && c2 === 47) p = 3;
+  if (p > 0 && k + p < n && line.charCodeAt(s + p) !== 47 && pathOk[k + p] && !rand[k]) return true;
+  return false;
+}
+/**
+ * 코드 아닌 파일 한 줄의 소문자·JSON 키 시크릿 후보 → ['FAIL'|'WARN', …]. 한 번의 순회(201 MED-3):
+ *   이름은 정규식이 왼쪽에서 오른쪽으로 한 번 찾고, 값 런은 kvRun 이 한 번 훑는다. 제외한 값 안(URL 질의 속 access_token=…)은
+ *   정규식이 값 시작에서 이어서 찾고(되돌림 없음), 잡힌 값은 런 끝으로 건너뛴다. 결과는 secretKvHitsSimple 과 같다.
+ */
+export function secretKvHits(line) {
+  const out = [];
+  SECRET_KV_NAME_RE.lastIndex = 0;
+  let run = null;
+  let m;
+  while ((m = SECRET_KV_NAME_RE.exec(line)) !== null) {
+    const s = SECRET_KV_NAME_RE.lastIndex;
+    if (run === null || s >= run.end) run = kvRun(line, s);
+    if (kvRunExcluded(line, run, s, m[1])) continue;
+    const sev = kvSeverity(line.slice(s, run.end));
+    if (sev) out.push(sev);
+    SECRET_KV_NAME_RE.lastIndex = run.end;
+  }
+  return out;
+}
+const KV_MESSAGE = {
+  FAIL: '하드코딩 시크릿 키=값(소문자·JSON 키 이름, 16자 이상)',
+  WARN: '시크릿 이름에 짧은 리터럴 값(8~15자) — 실값이면 운영 주입으로 옮기고, 예시면 자리표시(<…>·__SET_ME__)로',
+};
 /**
  * C7 한 줄 판정(원문 줄 — 주석 속 키도 유출). isCode=true 면 코드 파일(SECRET_RES 만), 아니면 NONCODE·소문자 키=값까지.
  * QA198 INFO-1 회귀 테스트가 긴 한 줄 시간을 직접 잰다. @returns {{severity:'FAIL'|'WARN', message:string}[]}
@@ -245,9 +362,56 @@ export function c7LineHits(l, isCode) {
   for (const re of SECRET_RES) if (re.test(l)) out.push({ severity: 'FAIL', message: `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…` });
   if (isCode) return out;
   for (const re of NONCODE_SECRET_RES) if (re.test(l)) out.push({ severity: 'FAIL', message: `하드코딩 시크릿 패턴 ${re.source.slice(0, 24)}…` });
-  for (const sev of secretKvHits(l)) {
-    out.push({ severity: sev, message: sev === 'FAIL' ? '하드코딩 시크릿 키=값(소문자·JSON 키 이름, 16자 이상)' : '시크릿 이름에 짧은 리터럴 값(8~15자) — 실값이면 운영 주입으로 옮기고, 예시면 자리표시(<…>·__SET_ME__)로' });
+  for (const sev of secretKvHits(l)) out.push({ severity: sev, message: KV_MESSAGE[sev] });
+  return out;
+}
+// 201(Codex 200 MED-2) — JSON 은 직렬화 표현(줄바꿈·\u 이스케이프·값 속 \")만 바꿔 원문 줄 검사를 피할 수 있다.
+//   JSON.parse 한 뒤 키·문자열 값을 순회해 같은 규칙으로 다시 본다(원문 줄 검사는 그대로 — 파싱 실패 파일은 원문 줄 검사만).
+//   키 이름: 디코딩한 키의 끝이 시크릿 이름(원문 줄 규칙과 같은 낱말·경계). 배열 원소는 가장 가까운 키 이름을 쓴다.
+//   값: 디코딩한 문자열의 첫 공백 구분 덩어리 전체(원문 줄 규칙과 달리 따옴표·쉼표 등에서 끊지 않는다 — 디코딩 값의 경계는 확정이다).
+//   제외(주소·경로·식별자·자리표시·$<{% 시작)와 등급(16자 FAIL·8~15자 WARN)은 원문 줄 규칙과 같다.
+//   문자열 값은 디코딩한 내용을 줄마다 c7LineHits 로도 본다(값 속 env 줄·개인 키 헤더 등).
+const SECRET_KEY_END_RE = new RegExp(String.raw`(?<![A-Za-z0-9_.-])(${SECRET_NAME_CORE})$`);
+function jsonPairSeverity(name, s) {
+  const v = s.trim().split(/\s+/)[0];
+  if (v === '' || /^[$<{%]/.test(v) || kvExcluded(name, v)) return null;
+  return kvSeverity(v);
+}
+/**
+ * JSON 파일의 디코딩 단계 C7 → { severity, message, line }[] (line 은 키의 원문 줄 — 찾지 못하면 null, 메시지에 키 경로). 파싱 실패면 null.
+ * @param {string} text 파일 원문
+ */
+export function jsonC7Hits(text) {
+  let doc;
+  try {
+    doc = JSON.parse(stripBom(text));
+  } catch {
+    return null;
   }
+  const out = [];
+  const lineOf = lineIndex(text);
+  let cursor = 0;
+  // 키의 원문 위치: 순회 순서(대체로 원문 순서)대로 앞에서부터 찾는다. 이스케이프로 쓴 키는 원문 표기가 달라 찾지 못한다(null).
+  const locate = (key) => {
+    const needle = JSON.stringify(key);
+    let i = text.indexOf(needle, cursor);
+    if (i < 0) i = text.indexOf(needle);
+    if (i < 0) return null;
+    cursor = i + needle.length;
+    return lineOf(i);
+  };
+  const visit = (v, path, name, line) => {
+    if (typeof v === 'string') {
+      const sev = name === null ? null : jsonPairSeverity(name, v);
+      if (sev) out.push({ severity: sev, line, message: `${KV_MESSAGE[sev]} — JSON 키 ${path}(디코딩 값)` });
+      for (const l of v.split(/\r?\n/)) for (const h of c7LineHits(l, false)) out.push({ severity: h.severity, line, message: `${h.message} — JSON 키 ${path}(디코딩 문자열)` });
+    } else if (Array.isArray(v)) {
+      v.forEach((x, i) => visit(x, `${path}[${i}]`, name, line));
+    } else if (v !== null && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) visit(x, path ? `${path}.${k}` : k, SECRET_KEY_END_RE.exec(k)?.[1] ?? null, locate(k));
+    }
+  };
+  visit(doc, '', null, null);
   return out;
 }
 // 배포 실값 파일 이름(MED-1): deploy/ 아래 *.env(server.env·caddy.env 등)는 서버에만 — 작업 트리에 있으면(추적 여부 무관) FAIL.
@@ -733,9 +897,21 @@ export function scanSources(root, ctx, notes) {
     count++;
     // C7-SECRET — 원문 줄(주석 속 키도 유출)
     const isCode = CODE_EXT.has(ext);
+    const c7Max = new Map(); // 줄 → 그 줄에서 낸 가장 높은 등급(2=FAIL·1=WARN) — JSON 디코딩 단계의 중복을 거른다
+    const c7Add = (sev, line, msg) => {
+      add('C7-SECRET', sev, rel, line, msg);
+      if (line !== null) c7Max.set(line, Math.max(c7Max.get(line) ?? 0, sev === 'FAIL' ? 2 : 1));
+    };
     lines(text).forEach((l, i) => {
-      for (const h of c7LineHits(l, isCode)) add('C7-SECRET', h.severity, rel, i + 1, h.message);
+      for (const h of c7LineHits(l, isCode)) c7Add(h.severity, i + 1, h.message);
     });
+    // 201 MED-2: JSON 은 디코딩 단계도 — 같은 줄에서 원문 검사가 같거나 높은 등급을 냈으면 다시 내지 않는다(줄 모름=null 은 항상 낸다).
+    if (ext === '.json') {
+      for (const h of jsonC7Hits(text) ?? []) {
+        if (h.line !== null && (c7Max.get(h.line) ?? 0) >= (h.severity === 'FAIL' ? 2 : 1)) continue;
+        c7Add(h.severity, h.line, h.message);
+      }
+    }
     if (rel.startsWith('docs/')) continue; // docs 는 C7 만(코드·시드·패키지 규칙 대상 아님)
     if (['package.json', 'client/package.json', 'server/package.json'].includes(rel)) {
       scanPackage(rel, text, ctx);

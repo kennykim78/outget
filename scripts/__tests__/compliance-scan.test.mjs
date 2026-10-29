@@ -1551,6 +1551,151 @@ test('C7 QA198 INFO-2: docs/ 아래 코드 파일(.ts·.mjs)은 C7 만 — 코�
   expectFail(ctl, 'C1-FETCH');
 });
 
+// ── C7 시크릿 — 201(Codex 200: MED-1 메타데이터 이름 오탐, 요청3 이름 제외의 값 형태, MED-2 JSON 표현 우회, MED-3 긴 줄 시간, 대소문자 섞인 이름) ──
+const RND = j('Ab3dEf9h12', 'Kx7Yz34QwErTy'); // 합성 무작위형 값(23자, 대·소문자·숫자)
+const kvSev = async (line) => (await import('../lib/rules-source.mjs')).c7LineHits(line, false).map((h) => h.severity);
+
+test('C7-SECRET 201 MED-1: 메타데이터 이름 끝(_audience·_algorithm·_issuer·_scope·_policy·_rounds·_cost·_min·_max·_expiry·_expires·_lifetime·_aud·_alg·_iss) → FAIL·WARN 0', async () => {
+  const fp = [
+    j('token', '_audience="withsmall-api-v1"'),
+    j('password', '_algorithm="pbkdf2-hmac-sha256"'),
+    j('token', '_issuer: ', HTTPS, 'auth.withsmall.kr/v1'),
+    j('token', '_iss: withsmall-auth-2026'),
+    j('token', '_aud: withsmall-api-v1'),
+    j('jwt_secret', '_alg: hmac-sha256-v2026a'),
+    j('token', '_scope: read:catalog-v2'),
+    j('password', '_policy: min12-upper1-digit1'),
+    j('password', '_rounds: 310000-sha256'),
+    j('password', '_cost: bcrypt-cost-12x'),
+    j('password', '_min: length-12-chars'),
+    j('password', '_max: length-128-chars'),
+    j('token', '_expiry: 2026-10-01T00:00:00Z'),
+    j('token', '_expires: 2026-10-01T00:00:00Z'),
+    j('session_token', '_lifetime: 15m-sliding-90d'),
+  ];
+  for (const l of fp) assert.deepEqual(await kvSev(l), [], l);
+  const res = scan(await makeRoot({ source: (s) => { s['docs/ops/meta.md'] = `${fp.join('\n')}\n`; s['deploy/meta.yml'] = `${fp.join('\n')}\n`; } }));
+  assert.deepEqual(c7All(res), [], JSON.stringify(c7All(res)));
+  // 이름 끝 '구분자 뒤'만 — 메타데이터 낱말이 이름 중간이면 그대로 본다.
+  assert.deepEqual(await kvSev(j('token', '_audience_secret=', RND)), ['FAIL']);
+});
+
+test('C7-SECRET 201 요청3: 이름 끝 제외는 값이 무작위형이면 적용하지 않음 — token_id·token_url·token_path·_audience=<무작위> → FAIL, 198 음성 7줄은 계속 0', async () => {
+  for (const name of ['token_id', 'token_url', 'token_path', 'token_name', 'token_hash', 'token_audience', 'password_algorithm', 'secret_header']) {
+    assert.deepEqual(await kvSev(j(name, '=', RND)), ['FAIL'], name);
+  }
+  assert.deepEqual(await kvSev(j('signing', '_key_id: ', RND)), ['FAIL']);
+  const neg = [
+    j('token', '_url=', HTTPS, 'nid.naver.com/oauth2.0/token'),
+    j('token', '_endpoint: ', HTTPS, 'oauth2.googleapis.com/token'),
+    j('pass', 'word_file: /run/secrets/db_password_v2'),
+    j('secret', '_path: /run/secrets/deploy_key_2'),
+    j('signing', '_key_id: kid-2026-10-01-a'),
+    j('secret', '_name: ws-jwt-access-2026'),
+    j('token', '_hash: 3f2a9c1b7e8d4a6f'),
+  ];
+  for (const l of neg) assert.deepEqual(await kvSev(l), [], l);
+});
+
+test('C7-SECRET 201: 대소문자 섞인 이름(aPi_KeY·ToKeN·cLiEnT_SeCrEt) → FAIL, 낱말 경계는 그대로(tokens·passwordless·tokenCount 0)', async () => {
+  for (const name of ['aPi_KeY', 'ToKeN', 'cLiEnT_SeCrEt', 'accessTOKen', 'PassWord']) assert.deepEqual(await kvSev(j(name, '=', RND)), ['FAIL'], name);
+  for (const name of ['ToKeNs', 'passWordless', 'tokenCount', 'mytoken']) assert.deepEqual(await kvSev(j(name, '=', RND)), [], name);
+});
+
+test('C7-SECRET 201 MED-2: 같은 JSON 객체의 직렬화 변형(한 줄·키 뒤 줄바꿈·\\u 이스케이프 키·값 속 \\") → 모두 FAIL', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const name = j('client', '_secret');
+  const QV = j('Ab3dEf9h\\"', '12Kx7Yz34QwErTy'); // 원문 표기(값 속 \")
+  const variants = {
+    compact: j('{"', name, '":"', RND, '"}\n'),
+    multiline: j('{"', name, '":\n"', RND, '"}\n'),
+    escapedKey: j('{"client_\\u0073', 'ecret":"', RND, '"}\n'),
+    escapedQuote: j('{"token":"', QV, '"}\n'),
+    pretty: `${JSON.stringify({ [name]: RND }, null, 2)}\n`,
+    nestedArray: j('{"oauth":{"', name, '":[\n  "', RND, '"\n]}}\n'),
+  };
+  // 픽스처 자체: 앞 세 변형은 JSON.parse 결과가 같은 객체다.
+  for (const k of ['multiline', 'escapedKey', 'pretty']) assert.deepEqual(JSON.parse(variants[k]), JSON.parse(variants.compact), k);
+  for (const [k, text] of Object.entries(variants)) {
+    const hits = jsonC7Hits(text);
+    assert.ok(hits.some((h) => h.severity === 'FAIL'), `${k}: ${JSON.stringify(hits)}`);
+  }
+  const files = Object.fromEntries(Object.keys(variants).map((k) => [`docs/design/${k}.json`, variants[k]]));
+  const res = scan(await makeRoot({ source: (s) => Object.assign(s, files) }));
+  for (const f of Object.keys(files)) assert.ok(c7Of(res, f, 'FAIL'), `${f}: ${JSON.stringify(c7All(res, f))}`);
+  // 한 줄 표기는 원문 줄 검사와 디코딩 검사가 같은 줄 — FAIL 1건만(중복 없음). 이스케이프 키는 원문 줄을 찾지 못해 줄 null + 키 경로.
+  assert.equal(c7All(res, 'docs/design/compact.json').length, 1, JSON.stringify(c7All(res, 'docs/design/compact.json')));
+  const esc = c7All(res, 'docs/design/escapedKey.json');
+  assert.ok(esc.some((x) => x.line === null && x.message.includes(name)), JSON.stringify(esc));
+  assert.ok(c7All(res, 'docs/design/multiline.json').every((x) => x.line === 1), JSON.stringify(c7All(res, 'docs/design/multiline.json')));
+  // 값 속 \" 로 잘려 WARN 이던 것이 FAIL 로 — 같은 줄의 WARN 과 함께 FAIL 이 있다.
+  assert.ok(c7Of(res, 'docs/design/escapedQuote.json', 'FAIL'));
+});
+
+test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대로·integrity 해시·평범한 키, 파싱 실패 파일은 원문 줄 검사만', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const clean = {
+    lockfileVersion: 3,
+    packages: {
+      'node_modules/js-tokens': { version: '4.0.0', resolved: j(HTTPS, 'registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz'), integrity: j('sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN9k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW', '/PKQ==') },
+      'node_modules/@tokenizer/token': { version: '0.3.0' },
+    },
+    oauth: { token_url: j(HTTPS, 'nid.naver.com/oauth2.0/token'), token_audience: 'withsmall-api-v1', secret_path: '/run/secrets/deploy_key_2', client_secret: '<CLIENT_SECRET>', api_key: '${API_KEY}' },
+    color: { token: 'primary', tokens: 'brand-500' },
+  };
+  assert.deepEqual(jsonC7Hits(JSON.stringify(clean, null, 2)), []);
+  assert.equal(jsonC7Hits('{ // 주석\n "a": 1 }'), null);
+  // 파싱 실패(주석) 파일: 한 줄 표기는 원문 검사로 FAIL, 줄바꿈 표기는 보지 못한다(문서화된 한계).
+  const res = scan(await makeRoot({ source: (s) => {
+    s['docs/design/jsonc-a.json'] = j('// c\n{"', 'client_secret":"', RND, '"}\n');
+    s['docs/design/jsonc-b.json'] = j('// c\n{"', 'client_secret":\n"', RND, '"}\n');
+  } }));
+  assert.ok(c7Of(res, 'docs/design/jsonc-a.json', 'FAIL'));
+  assert.deepEqual(c7All(res, 'docs/design/jsonc-b.json'), []);
+});
+
+test('C7-SECRET 201 MED-3: 제외 값이 겹치는 긴 한 줄(83,200자·200,000자) — 200ms 안, 질의 속 access_token 재탐색은 유지', async () => {
+  const { c7LineHits, secretKvHits } = await import('../lib/rules-source.mjs');
+  const unit = j('token', '_url=', HTTPS, 'a.test/?');
+  const inputs = [unit.repeat(3200), unit.repeat(Math.ceil(200000 / unit.length)), j('access', '_token=', HTTPS, 'a.test/').repeat(6000)];
+  assert.equal(inputs[0].length, 83200);
+  for (const line of inputs) {
+    c7LineHits(line, false); // 데우기(JIT) — 측정은 두 번째
+    const t = process.hrtime.bigint();
+    const hits = c7LineHits(line, false);
+    const ms = Number(process.hrtime.bigint() - t) / 1e6;
+    assert.ok(ms < 200, `${line.length}자: ${ms.toFixed(1)}ms`);
+    assert.deepEqual(hits, [], `${line.length}자`);
+  }
+  // 같은 긴 줄 끝의 질의 토큰은 잡는다(되돌림 없이 값 안을 이어서 찾는다).
+  const tail = j(unit.repeat(3200), 'cb?access', '_token=', HEX64);
+  const t = process.hrtime.bigint();
+  assert.deepEqual(secretKvHits(tail), ['FAIL']);
+  assert.ok(Number(process.hrtime.bigint() - t) / 1e6 < 200);
+  assert.deepEqual(secretKvHits(j('token', '_url=', HTTPS, 'h/cb?access', '_token=', HEX64)), ['FAIL']);
+});
+
+test('C7-SECRET 201 MED-3: 한 번 순회(secretKvHits)와 원형(secretKvHitsSimple) 결과가 같다 — 조각 조합 무작위 대조', async () => {
+  const { secretKvHits, secretKvHitsSimple } = await import('../lib/rules-source.mjs');
+  const parts = [
+    j('token', '_url='), j('access', '_token='), j('client', '_secret: '), j('token', '_id='), j('api', '_key="'), j('pass', 'word_file='), 'x', ' ', '/', './', '../', '~/', '?', '&', '#', '@', ':', '"', ',',
+    HTTPS, j('ssh', '://'), 'a.test', RND, HEX64, 'abc123', 'run/secrets', 'Ab3dEf9h', '12Kx7Yz34', 'example', '$X', '{y}', '%z',
+  ];
+  let seed = 201;
+  const rnd = (n) => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 8) % n; }; // 32비트 정수 LCG(배정밀도 넘침 없음)
+  const tally = { FAIL: 0, WARN: 0 };
+  for (let i = 0; i < 4000; i++) {
+    let line = '';
+    const len = 1 + rnd(14);
+    for (let k = 0; k < len; k++) line += parts[rnd(parts.length)];
+    const got = secretKvHits(line);
+    assert.deepEqual(got, secretKvHitsSimple(line), JSON.stringify(line));
+    for (const s of got) tally[s]++;
+  }
+  // 대조가 빈 결과끼리만 비교하지 않음을 고정(생성기 퇴화 방지).
+  assert.ok(tally.FAIL > 100 && tally.WARN > 10, JSON.stringify(tally));
+});
+
 // ── C8 산출물 안전 ──────────────────────────────────────────
 test('C8-OUT-SAFE: 외부 script src', async () => {
   const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</body>', j('<script src="', HTTPS, 'cdn.x/y.js"></script></body>')); } }));
