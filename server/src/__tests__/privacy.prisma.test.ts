@@ -275,16 +275,18 @@ describe('PrismaRetentionStore + runRetention (P5)', () => {
   });
 });
 
+// 153: 이메일은 표준 입력 한 줄(readInput) — 명령줄 인수는 전부 거부(sudo·journald·history 에 남지 않게).
 describe('cli-erase (P7)', () => {
-  it('--email: 건수만 출력 + channel=OPERATOR, 이메일 출력 0, 정규화(대문자·공백)', async () => {
+  it('표준 입력: 건수만 출력 + channel=OPERATOR, 이메일 출력 0, 정규화(대문자·공백)', async () => {
     const prisma = await freshDb();
     const id = await seedUser(prisma, 'a@example.com');
     const out: string[] = [];
     const err: string[] = [];
-    const code = await runEraseCli(['--email', '  A@Example.COM '], {
+    const code = await runEraseCli([], {
       stdout: (l) => out.push(l),
       stderr: (l) => err.push(l),
       now: () => NOW,
+      readInput: async () => '  A@Example.COM \n',
       store: async () => new PrismaErasureStore(prisma),
     });
     expect(code).toBe(0);
@@ -301,8 +303,8 @@ describe('cli-erase (P7)', () => {
     const prisma = await freshDb();
     await seedUser(prisma, 'a@example.com');
     const raw = vi.spyOn(prisma, '$executeRawUnsafe');
-    const io = { stdout: () => {}, stderr: () => {}, now: () => NOW, store: async () => new PrismaErasureStore(prisma) };
-    expect(await runEraseCli(['--email', 'a@example.com'], io)).toBe(0);
+    const io = { stdout: () => {}, stderr: () => {}, now: () => NOW, readInput: async () => 'a@example.com\n', store: async () => new PrismaErasureStore(prisma) };
+    expect(await runEraseCli([], io)).toBe(0);
     expect(raw.mock.calls.map((a) => a[0])).toEqual(['VACUUM']);
     const dbFile = join(open.at(-1)!.dir, 'test.db');
     expect(readFileSync(dbFile).includes(Buffer.from('a@example.com'))).toBe(false);
@@ -311,26 +313,62 @@ describe('cli-erase (P7)', () => {
     await seedUser(prisma, 'b@example.com');
     raw.mockRejectedValueOnce(Object.assign(new Error('disk b@example.com'), { name: 'SqliteError' }));
     const err: string[] = [];
-    const code = await runEraseCli(['--email', 'b@example.com'], { ...io, stderr: (l: string) => err.push(l) });
+    const code = await runEraseCli([], { ...io, readInput: async () => 'b@example.com', stderr: (l: string) => err.push(l) });
     expect(code).toBe(1);
     expect(err.join('\n')).toMatch(/삭제는 완료, VACUUM 실패\(SqliteError\)/);
     expect(err.join('\n')).not.toContain('@');
     expect(await prisma.user.count({ where: { email: 'b@example.com' } })).toBe(0);
     // compact 없는 저장소(인메모리 등)는 그냥 0
     const noCompact = { ...new PrismaErasureStore(prisma), eraseByEmail: async () => ({ ...ZERO }), eraseUser: async () => ({ ...ZERO }) } as never;
-    expect(await runEraseCli(['--email', 'c@example.com'], { ...io, store: async () => noCompact })).toBe(0);
+    expect(await runEraseCli([], { ...io, readInput: async () => 'c@example.com', store: async () => noCompact })).toBe(0);
   });
 
-  it('인자 오류 → 2, 저장소 연결 안 함, 입력값 출력 0', async () => {
-    for (const argv of [[], ['--email'], ['--email', 'not-an-email'], ['--email=a@b.co', '--email=c@d.co'], ['--other']]) {
+  // 159 LOW-3: 예약 도메인(example.org)만. 값의 어느 조각(로컬부·도메인)도 출력에 나오면 안 된다.
+  const LEAK = /leak|example\.org|not-an-email/i;
+
+  it('명령줄 인수는 무엇이든 거부 → 2, 표준 입력 읽지 않음, 저장소 연결 안 함, 값 출력 0', async () => {
+    for (const argv of [['--email', 'leak1@example.org'], ['--email=leak1@example.org'], ['--help'], ['--other']]) {
       const out: string[] = [];
       const err: string[] = [];
       const store = vi.fn();
-      const code = await runEraseCli(argv, { stdout: (l) => out.push(l), stderr: (l) => err.push(l), now: () => NOW, store });
-      expect(code).toBe(2);
+      const readInput = vi.fn(async () => 'leak2@example.org\n');
+      const code = await runEraseCli(argv, { stdout: (l) => out.push(l), stderr: (l) => err.push(l), now: () => NOW, readInput, store });
+      expect(code, argv.join(' ')).toBe(2);
+      expect(readInput).not.toHaveBeenCalled();
       expect(store).not.toHaveBeenCalled();
-      expect(err.join('\n')).not.toMatch(/not-an-email|a@b\.co/);
+      expect(out).toEqual([]);
+      expect(err.join('\n')).not.toMatch(LEAK);
+      expect(err.join('\n')).toContain('usage: privacy:erase (인수 없음 — 이메일은 표준 입력 한 줄)');
     }
+    // --email 류는 '명령줄로 받지 않는다' 안내
+    const err: string[] = [];
+    await runEraseCli(['--email=leak1@example.org'], { stdout: () => {}, stderr: (l) => err.push(l), now: () => NOW, readInput: vi.fn(), store: vi.fn() });
+    expect(err.join('\n')).toMatch(/이메일은 명령줄로 받지 않는다.*표준 입력/);
+  });
+
+  it('입력 오류(빈 입력·공백만·여러 줄·형식·읽기 실패) → 2, 저장소 연결 안 함, 값 출력 0', async () => {
+    for (const input of ['', '   \n\n', 'leak1@example.org\nleak2@example.org\n', 'not-an-email', null]) {
+      const out: string[] = [];
+      const err: string[] = [];
+      const store = vi.fn();
+      const readInput = vi.fn(async () => input);
+      const code = await runEraseCli([], { stdout: (l) => out.push(l), stderr: (l) => err.push(l), now: () => NOW, readInput, store });
+      expect(code, JSON.stringify(input)).toBe(2);
+      expect(readInput).toHaveBeenCalledTimes(1);
+      expect(store).not.toHaveBeenCalled();
+      expect(out).toEqual([]);
+      expect(`${out.join('\n')}\n${err.join('\n')}`).not.toMatch(LEAK);
+    }
+  });
+
+  it('159: 여러 줄(TTY 확인 불일치 포함) → 2, 안내 문구는 "여러 줄이거나 확인 입력이 다르다"', async () => {
+    const err: string[] = [];
+    const store = vi.fn();
+    const code = await runEraseCli([], { stdout: () => {}, stderr: (l) => err.push(l), now: () => NOW, readInput: async () => 'leak1@example.org\nleak2@example.org', store });
+    expect(code).toBe(2);
+    expect(store).not.toHaveBeenCalled();
+    expect(err[0]).toBe('privacy:erase: 한 번에 한 계정 — 입력이 여러 줄이거나 확인 입력이 다르다(값은 출력하지 않음)');
+    expect(err.join('\n')).not.toMatch(LEAK);
   });
 
   it('eraseAccount 로그 줄은 채널만', async () => {

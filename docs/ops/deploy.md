@@ -45,11 +45,16 @@
 1. 처리방침의 연락처로 요청이 오면, 먼저 서비스 내 자기 삭제 방법을 안내한다.
 2. 자기 삭제가 어려운 경우, 요청 메일에 **같은 주소로 회신**해 본인(계정 이메일) 소유를 확인한다.
 3. 확인되면 운영자가 실행한다.
-   - 개발/운영 소스: `npm run privacy:erase -w server -- --email <addr>`
-   - 컨테이너: `node dist/privacy/cli-erase.js --email <addr>`
-   - `--email` 값이 셸 기록(history)에 남으므로 실행 후 해당 기록을 지운다(bash: `history -d <번호>`, 그 외 셸은 해당 셸 방식).
-   - 삭제 후 `VACUUM`은 CLI가 자동 수행한다.
-   - `sudo` 로 실행하면 명령줄(이메일 포함)이 journald(7일)에 남는다. 1년 보관하는 운영자 접속 기록(7절)에는 이메일 형태를 `<email>` 로 가려 넣는다.
+   - 이메일은 명령줄에 쓰지 않고 **표준 입력**으로 넣는다. 인수 없이 실행하면 안내가 뜨고, 그때 이메일을 붙여넣고 Enter, 확인용으로 한 번 더 입력하고 Enter 를 친다. 입력값은 화면(터미널 에코)에만 보이고 프로그램은 되울리지 않는다 — 명령줄로 받지 않으므로 sudo 명령 기록·journald·셸 history 에 들어가지 않는다. 단 sudo 입력 기록(`log_input`)·터미널 세션 녹화(`script`·tlog 등)를 켜지 않은 전제다(켜 두었다면 입력도 거기에 남는다).
+   - 개발/운영 소스: `npm run privacy:erase -w server`
+   - 컨테이너: `sudo -u deploy docker compose -f /opt/withsmall/compose.yaml exec app node dist/privacy/cli-erase.js`
+   - `echo 주소 | …`·`<<<`·파일 리다이렉트처럼 이메일을 명령이나 파일에 적지 않는다(`sudo sh -c` 로 감싸면 명령줄 기록에 남고, 셸 history·파일에도 잔류한다).
+   - `--email` 같은 인수는 거부된다(종료 2). 실수로 쳤다면 그 줄은 journald(7일)에 남고, 1년 보관하는 운영자 접속 기록(7절)에는 이메일 형태가 `<email>` 로 가려진다. 셸 history 에도 남으니 `history -d <번호>` 로 지우고, 개발 소스 경로(`npm run …`)였다면 `~/.npm/_logs/` 의 그 실행 로그도 지운다.
+   - 한 번에 한 계정만 처리한다(여러 줄이거나 두 입력이 다르면 종료 2 — 두 계정을 한 번에 붙여넣어도, 확인 전에 Ctrl-D 로 끝내도 아무것도 지우지 않는다).
+   - 확인 줄을 받은 뒤(첫 줄이 빈 Enter 거나 입력이 너무 길면 그 뒤) 터미널을 잠시 raw 모드로 바꿔 입력을 계속 읽어 버린다. 조용해질 때까지(마지막 입력 뒤 약 0.25초) 공백·Enter 외 글자(Ctrl-C·Ctrl-D 포함)가 들어오면 거부한다. 2초가 지나도 입력이 계속 들어와도 거부한다(둘 다 종료 2, 아무것도 지우지 않음).
+   - 붙여넣은 나머지 중 조용 구간(약 0.25초) 안에 이어 들어온 것과 결과가 출력되기 전에 친 입력은 프로그램이 읽어 버린다(삭제·VACUUM 중 친 Ctrl-C 도 무시하고 끝까지 진행한다). 결과가 나온 뒤 친 입력은 셸로 간다 — 느린 연결로 붙여넣기가 0.25초 넘게 끊겨 들어와 거부 결과 뒤에 도착한 조각도 마찬가지다. 그러니 확인 Enter 뒤 결과가 나올 때까지 아무것도 치지 않는다. 끝나면 터미널 모드는 원래대로 돌아온다.
+   - 위 붙여넣기 동작은 개발 환경의 실제 터미널(pty)에서 확인했고, 컨테이너 경로(`docker compose exec`)에서는 아직 실 서버로 확인하지 않았다. 첫 사용 전에 테스트 계정 없이 확인한다: `a@x` Enter, `a@x` Enter, `b@x`(줄바꿈 없음)를 한 번에 붙여넣기 → 종료 2 확인 → 3초 뒤 Enter → `history | tail -3` 에 `b@x` 가 없어야 한다.
+   - 삭제 후 `VACUUM`은 CLI가 자동 수행한다. 종료 코드: 0 성공, 1 실행 실패, 2 입력 오류.
 4. 출력은 건수만 나온다(이메일·식별자 없음). 건수와 처리일만 내부 기록하고 회신한다.
 
 ## 5. 자동 파기 주기
@@ -121,7 +126,7 @@
 - 호스트 sshd 기록(SSH 시도 IP 포함): Ubuntu 에서는 `ForwardToSyslog=no` 가 withsmall 만이 아니라 **모든** syslog 전달을 끄므로(QA127 INFO-1) `/var/log/auth.log`·`/var/log/syslog` 에는 드롭인 적용 뒤 새 기록이 쌓이지 않고, sshd 기록 전체는 **journald 에 7일**(같은 `MaxRetentionSec`·vacuum) 남는다 — 보기 `journalctl -u ssh --since -1d`(Oracle Linux 는 imjournal 경로라 `/var/log/secure` 에도 남는다).
 - **운영자 접속 기록만 따로 1년**(security 139 MED-3, Kenny 승인 "운영자 기록만 따로 1년 보관" — 안전성 확보조치 기준 제8조 개인정보취급자 접속기록 1년 이상): `bootstrap.sh` 가 `/usr/local/sbin/withsmall-admin-log-export` 를 설치하고 **매시**(`withsmall-admin-log.timer`) + **journal vacuum 직전**(`withsmall-journal-vacuum.service` 의 `ExecStartPre`) 실행한다.
   - 고르는 것: journald 의 `SYSLOG_FACILITY=4`(auth — sshd·logind)·`10`(authpriv — sudo·pam) 줄 중 **운영 계정 이름**(`/etc/withsmall-admin-users` = `deploy` + `--admin-user`, sshd `AllowUsers` 와 같음)이 낱말로 들어간 줄과, `deploy.sh` 단계 줄(태그 `ws-admin-deploy` — `log()` 가 `logger -p authpriv.info` 로 보냄: 시작·이미지 태그·단계·결과·종료 코드). 운영 계정이 아닌 이름으로 두드린 시도는 고르지 않고, **운영 계정 이름을 댄 스캐너 줄도 뺀다**(security 150 MED-A — sshd 의 `[preauth]`·`Failed `·`Invalid user`·`Connection closed by authenticating user`·`Disconnected from authenticating user` 줄, 접속한 곳 IP 가 제3자). 남는 것: `Accepted`(로그인 성공), session opened/closed, sudo, logind, `ws-admin-deploy`. 뺀 줄은 7일 journald 에만.
-  - 저장: `/var/log/withsmall-admin/access.log`(폴더 0700·파일 0600 root). 이메일 형태는 `<email>` 로 가린다 — 공백·`=` 가 아닌 글자 덩어리 안에 `@` 가 있으면 통째로(비 ASCII 로컬 파트·IDN 포함, 150 LOW-1; 4절 삭제 명령 등). 커서 파일(`/var/lib/withsmall-admin/cursor`)로 이어 읽어 중복·누락이 없고, 실패하면 커서를 되돌려 다음 실행이 다시 읽는다. `deploy.sh` 의 docker 출력(`state/deploy.log`)은 지금처럼 두 번만.
+  - 저장: `/var/log/withsmall-admin/access.log`(폴더 0700·파일 0600 root). 이메일 형태는 `<email>` 로 가린다 — 공백·`=` 가 아닌 글자 덩어리 안에 `@` 가 있으면 통째로(비 ASCII 로컬 파트·IDN 포함, 150 LOW-1; 4절 삭제 명령은 표준 입력을 써 명령줄에 이메일이 없다 — 가림은 실수 입력 대비 방어선). 커서 파일(`/var/lib/withsmall-admin/cursor`)로 이어 읽어 중복·누락이 없고, 실패하면 커서를 되돌려 다음 실행이 다시 읽는다. `deploy.sh` 의 docker 출력(`state/deploy.log`)은 지금처럼 두 번만.
   - 보관: `/etc/logrotate.d/withsmall-admin` — **매일 순환, 366개·`maxage 366`, `ifempty`**(빈 날도 순환해 파일 하나 = 하루, `ADMIN_LOG_DAYS=366`) → **1년**(security 150 MED-B — 처리방침 보유 기간 표의 '운영자 접속 기록 1년'과 같은 값, `deploy-config.test.mjs` 패리티). 정기 점검: 월 1회 `sudo tail -n 50 /var/log/withsmall-admin/access.log`(모르는 IP 의 `Accepted`·예정 없는 `sudo` 확인).
   - 바뀌지 않는 것: 웹 접속 기록 0(Caddy·앱), 앱·Caddy 기록(`withsmall-*`)과 그 밖의 호스트 기록은 journald 7일(`SERVER_LOG_RETENTION_DAYS`) 그대로 — 내보내기는 auth·authpriv 만 읽고 `withsmall-*` 태그를 고르지 않는다.
   - 처리방침: 이 기록은 이용자가 아니라 운영자(와 배포 러너)의 서버 접속 기록이라 '웹 접속 기록 남기지 않음'·'서버 오류 기록 7일' 문구와 모순되지 않는다. 처리방침에 반영됨(lane 151): '개인정보 보호 조치' 목록에 운영자 접속 기록 1년 별도 보관 문장, '보유 기간' 표에 '운영자 접속 기록 — 1년' 행(`server/src/prerender/privacy-content.ts`). 보관 일수를 바꾸면 이 행·`ADMIN_LOG_DAYS` 를 함께 바꾸고 공개 후에는 시행 7일 전 고지.
