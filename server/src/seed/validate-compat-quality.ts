@@ -97,11 +97,13 @@ function numLiterals(n: ExprNode, out: number[] = []): number[] {
 
 const ARITH = new Set(['+', '-', '*', '/']);
 
-/** 상수끼리의 산술 결과(자식이 모두 숫자 리터럴인 이항 산술 노드). 계산은 엔진 evalExpr 로 한다(평가기 복제 금지). */
+/** 상수끼리의 산술 결과(키 참조 없는 이항 산술 부분식, 중첩 포함). 계산은 엔진 evalExpr 로 한다(평가기 복제 금지). */
 function constArith(n: ExprNode, out: number[] = []): number[] {
   switch (n.t) {
     case 'bin': {
-      if (ARITH.has(n.op) && n.l.t === 'num' && n.r.t === 'num') {
+      const refs = exprRefs(n);
+      if (ARITH.has(n.op) && refs.a.length === 0 && refs.b.length === 0) {
+        // 키 참조가 없는 상수 부분식(중첩 포함) 전체 접기
         const v = evalExpr(n, { a: {}, b: {} });
         if (typeof v === 'number' && Number.isFinite(v)) out.push(v);
       }
@@ -175,11 +177,16 @@ function combos(fields: SpecField[], lits: number[] = []): Record<string, SpecVa
   ];
   const out = bases.flatMap((base) => sets.flatMap(({ key, vals }) => vals.map((v) => ({ ...base, [key]: v }))));
   // 혼합 모서리: 키별로 식 리터럴 값 하나씩 고른 조합(상한 MAX_COMBOS)
-  const litSets = fields.map((f) => {
-    if (f.type !== 'number') return { key: f.key, vals: [midValue(f)] };
-    const inRange = [...new Set(lits)].filter((l) => l >= f.min && l <= f.max).sort((x, y) => x - y);
-    return { key: f.key, vals: inRange.length > 0 ? inRange : [midValue(f)] };
-  });
+  const litSetsFor = (enumAll: boolean) =>
+    fields.map((f) => {
+      if (f.type === 'enum' && enumAll) return { key: f.key, vals: [...f.options] as SpecValue[] };
+      if (f.type !== 'number') return { key: f.key, vals: [midValue(f)] };
+      const inRange = [...new Set(lits)].filter((l) => l >= f.min && l <= f.max).sort((x, y) => x - y);
+      return { key: f.key, vals: inRange.length > 0 ? inRange : [midValue(f)] };
+    });
+  // enum 은 전 선택지를 표본으로 — 조합 수가 상한을 넘으면 기존(중간값 고정) 방식으로 폴백
+  let litSets = litSetsFor(true);
+  if (litSets.reduce((n, x) => n * x.vals.length, 1) > MAX_COMBOS) litSets = litSetsFor(false);
   let mixed: Record<string, SpecValue>[] = [{}];
   for (const { key, vals } of litSets) {
     mixed = mixed.flatMap((o) => vals.map((v) => ({ ...o, [key]: v }))).slice(0, MAX_COMBOS);
