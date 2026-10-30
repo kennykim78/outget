@@ -384,7 +384,8 @@ const BEARER_RE = /\bbearer\s+([A-Za-z0-9._~+/-]{16,}=*)/gi;
 function bearerHit(l) {
   BEARER_RE.lastIndex = 0;
   let m;
-  while ((m = BEARER_RE.exec(l)) !== null) if (looksSecret(m[1])) return true;
+  // 209(QA207 INFO-2) — 토큰 자리가 경로(`Bearer /api/v1/users/profile`)면 토큰이 아니다.
+  while ((m = BEARER_RE.exec(l)) !== null) if (!isPathValue(m[1]) && looksSecret(m[1])) return true;
   return false;
 }
 const BEARER_MESSAGE = '하드코딩 Bearer 토큰(Authorization 값, 16자 이상)';
@@ -418,7 +419,7 @@ function jsonPairSeverity(name, s) {
 const BUNDLE_WORD_KV = ['secrets', 'credentials', 'creds', 'passwords', 'passwds', 'apikeys', 'api_keys', 'api-keys', 'privatekeys', 'private_keys', 'signingkeys', 'signing_keys'];
 //   tokens 는 낱말이 겹친다(디자인 토큰 docs/design/tokens.json·어휘 토큰 boundedTokens) — 값이 무작위형·긴 hex 일 때만(WARN 없음).
 const BUNDLE_WORD_RANDOM = ['tokens'];
-const bundleRe = (words) => new RegExp(String.raw`^(?:[A-Za-z0-9]{0,64}[_.]|[A-Za-z0-9]{0,63}[a-z0-9](?=[A-Z]))?(?:${words.sort((a, b) => b.length - a.length).map(anyCase).join('|')})$`);
+const bundleRe = (words) => new RegExp(String.raw`^(?:[A-Za-z0-9_.]{0,64}[_.]|[A-Za-z0-9_.]{0,63}[a-z0-9](?=[A-Z]))?(?:${words.sort((a, b) => b.length - a.length).map(anyCase).join('|')})$`);
 const BUNDLE_KV_RE = bundleRe(BUNDLE_WORD_KV);
 const BUNDLE_RANDOM_RE = bundleRe(BUNDLE_WORD_RANDOM);
 /** 키 → 묶음 등급('kv' 이름=값과 같은 판정 | 'random' 무작위형·hex 만 | null). */

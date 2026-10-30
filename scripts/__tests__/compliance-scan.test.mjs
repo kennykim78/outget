@@ -1725,6 +1725,11 @@ test('C7-SECRET 206 INFO-2: 조상 키가 비밀 묶음 이름(credentials·secr
     tokensRandom: j('{"oauthTokens":{"gh":"', RND, '"}}\n'),
     tokensHex: j('{"tokens":{"gh":"', HEXL, '"}}\n'),
     tokenInTokensUnderCreds: j('{"credentials":{"tokens":{"x":"', HEXL, '"}}}\n'),
+    // 209(QA207 LOW-1) — 여러 마디 snake·dot 앞부분
+    snakeMulti: j('{"aws_prod_credentials":{"k":"', RND, '"}}\n'),
+    SNAKE_MULTI: j('{"AWS_PROD_CREDENTIALS":{"k":"', RND, '"}}\n'),
+    dotMulti: j('{"a.b.secrets":{"k":"', RND, '"}}\n'),
+    dotApiKeys: j('{"my_app.api_keys":{"k":"', RND, '"}}\n'),
   };
   for (const [k, t] of Object.entries(cases)) assert.ok(jsonC7Hits(t).some((h) => h.severity === 'FAIL'), `${k}: ${JSON.stringify(jsonC7Hits(t))}`);
   // 묶음 아래 짧은 값은 WARN(이름=값 규칙과 같은 등급), 자식 키가 비밀 이름이면 그 판정 하나만(중복 없음).
@@ -1769,6 +1774,7 @@ test('C7-SECRET 206 INFO-2: Bearer <토큰>(Authorization 값) — 원문 줄(�
   const json = { headers: { Authorization: j(B, RND) } };
   assert.ok(jsonC7Hits(JSON.stringify(json, null, 2)).some((h) => h.severity === 'FAIL'));
   const neg = [j(B, '${accessToken}'), j('`', B, '${t}`'), j(B, '<token>'), j(B, '__SET_ME__'), j('a bear', 'er tokens are issued by the auth server'), j(B, 'your-token-1234567890'), j(B, 'abcdefghijklmnopqrst')];
+  neg.push(j(B, '/api/v1/users/profile'), j('GET ', B, '/api/v1/users/profile2 HTTP/1.1'));
   for (const l of neg) {
     assert.deepEqual(await kvSev(l), [], l);
     assert.deepEqual(c7LineHits(l, true), [], `code: ${l}`);
