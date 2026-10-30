@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { isDir } from './lib/files.mjs';
 import { seoulToday } from './lib/dates.mjs';
 import { ConfigError, loadBannedWords } from './lib/normalize.mjs';
-import { scanSources } from './lib/rules-source.mjs';
+import { redactMessage, scanSources } from './lib/rules-source.mjs';
 import { scanOutputs, scanSeedExposure } from './lib/rules-output.mjs';
 import { computeExposure, dayNumber, readSeed, seedDigest } from './lib/seed-exposure.mjs';
 
@@ -62,7 +62,7 @@ function main() {
     bw = loadBannedWords(join(opts.root, ...BANNED_WORDS_PATH.split('/')));
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e;
-    process.stderr.write(`compliance-scan: CONFIG ERROR — ${e.message}\n`);
+    process.stderr.write(`compliance-scan: CONFIG ERROR — ${redactMessage(e.message)}\n`);
     process.exit(2);
   }
 
@@ -92,6 +92,8 @@ function main() {
   const warn = findings.length - fail;
   const exposed = Object.fromEntries(Object.entries(ex.ids).map(([k, s]) => [k, s.size]));
 
+  // 230(Codex night-qa3 C7-1) 심층 방어: 규칙 메시지는 값 없이 만들지만, 메시지 자체가 C7 규칙에 걸리면 출력 직전에 고정 문구로 가린다(사람용·JSON 공통).
+  for (const f of findings) f.message = redactMessage(f.message);
   if (opts.json) {
     process.stdout.write(`${JSON.stringify({ ok: fail === 0, fail, warn, files, outputs, seedDigest: digest, asOf: opts.now, exposed, notes, findings })}\n`);
   } else {

@@ -245,6 +245,16 @@ const PATH_PREFIX_RE = /^(?:\/|\.{1,2}\/|~\/)/;
 const RANDOM_SEG_RE = /^(?=[^/]*[a-z])(?=[^/]*[A-Z])(?=[^/]*\d)[^/]{16,}$/;
 const hasRandomSeg = (v) => v.split('/').some((seg) => RANDOM_SEG_RE.test(seg));
 const isPathValue = (v) => PATH_VALUE_RE.test(v) && !hasRandomSeg(v) && !isHexValue(v.replace(PATH_PREFIX_RE, ''));
+// 230(Codex night-qa3 C7-4) — 접두 없는 상대 경로(config/secret-v2.txt). 경로 이름 끝(PATH_TAIL_RE: _file·_path·_dir)에서만 쓴다(secretValueExcluded).
+//   형태: 경로 글자 마디 2개 이상(슬래시 포함, 빈 마디·접두 없음) + (마지막 마디에 파일 확장자 또는 마디 3개 이상).
+//   토큰 위장 차단: 무작위 마디(대·소·숫 16자) 없음 + 구분자(/ . _ -)로 나눈 조각 중 12자 이상이면서 글자·숫자를 모두 품은 것 없음(hex·소문자+숫자 토큰 포함).
+const REL_PATH_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9._-]+)+$/;
+const REL_PATH_EXT_RE = /\.[A-Za-z][A-Za-z0-9]{0,7}$/;
+const isRelPathValue = (v) =>
+  REL_PATH_RE.test(v) &&
+  (REL_PATH_EXT_RE.test(v) || v.split('/').length >= 3) &&
+  !hasRandomSeg(v) &&
+  !v.split(/[/._-]/).some((p) => p.length >= 12 && /[A-Za-z]/.test(p) && /\d/.test(p));
 // 값이 자격 증명 없는 URL(scheme://host… 의 권한 부분에 @ 가 없음)이면 제외. 사용자 이름만 있는 https://TOKEN@host 도 토큰일 수 있어 @ 가 있으면 제외하지 않는다.
 //   URL 질의 속 ?access_token=… 은 값 안을 이어서 찾아 따로 본다.
 const URL_AUTHORITY_RE = /^[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/([^/?#]*)/;
@@ -262,10 +272,10 @@ const HEX_NATURAL_TAIL_RE = /[_.-](?:hash|id)$/i;
 const isHexValue = (v) => HEX_VALUE_RE.test(v);
 /** 이름 끝 제외(메타데이터 이름)를 값 형태가 뒤집는가 — 무작위 마디 또는(hex 가 자연스럽지 않은 이름의) 긴 hex. secretValueExcluded 가 쓴다. */
 const tailOverride = (name, rand, hex) => rand || (hex && !HEX_NATURAL_TAIL_RE.test(name));
-/** 값 하나의 형태 사실 — kvRun 표(kvRunExcluded)와 같은 정의. url: scheme:// 로 시작 · userinfo: 권한 부분에 @ · rand: 무작위 마디 · hex: 전체 긴 hex · path: isPathValue. */
+/** 값 하나의 형태 사실 — kvRun 표(kvRunExcluded)와 같은 정의. url: scheme:// 로 시작 · userinfo: 권한 부분에 @ · rand: 무작위 마디 · hex: 전체 긴 hex · path: isPathValue · rel: isRelPathValue(230). */
 function valueFacts(v) {
   const a = URL_AUTHORITY_RE.exec(v);
-  return { url: a !== null, userinfo: a !== null && a[1].includes('@'), rand: hasRandomSeg(v), hex: isHexValue(v), path: isPathValue(v) };
+  return { url: a !== null, userinfo: a !== null && a[1].includes('@'), rand: hasRandomSeg(v), hex: isHexValue(v), path: isPathValue(v), rel: isRelPathValue(v) };
 }
 /**
  * 220 — 이름=값 제외 판정 한 곳(원문 kv·단순형·JSON 디코딩·대문자 env 네 경로 공용).
@@ -280,12 +290,13 @@ function secretValueExcluded(name, f, strict = false, queryKv = () => false) {
   if (strict) {
     if (!NON_SECRET_NAME_TAIL_RE.test(name)) return false;
     const urlOk = f.url && !queryKv();
-    if (PATH_TAIL_RE.test(name)) return f.path;
+    if (PATH_TAIL_RE.test(name)) return f.path || f.rel; // 230 C7-4: 경로 끝은 접두 없는 상대 경로도
     if (URL_TAIL_RE.test(name)) return urlOk;
     return f.path || urlOk;
   }
   if (f.path || f.url) return true;
-  if (PATH_TAIL_RE.test(name) || URL_TAIL_RE.test(name)) return false;
+  if (PATH_TAIL_RE.test(name)) return f.rel; // 230 C7-4: 접두 없는 상대 경로는 경로 끝 이름에서만(일반 비밀 이름 제외는 넓히지 않는다)
+  if (URL_TAIL_RE.test(name)) return false;
   return NON_SECRET_NAME_TAIL_RE.test(name) && !tailOverride(name, false, f.hex);
 }
 /** 이름=값 의 값이 제외(주소·경로·식별자·메타데이터)인가 — 단순형(값 하나를 직접 훑는다). JSON 쌍 검사·대조용. */
@@ -390,7 +401,9 @@ function kvRunExcluded(line, run, s, name) {
   else if (c0 === 46 && c1 === 47) p = 2;
   else if (c0 === 46 && c1 === 46 && c2 === 47) p = 3;
   const path = p > 0 && k + p < n && line.charCodeAt(s + p) !== 47 && pathOk[k + p] === 1 && !rand[k] && !hex[k + p];
-  return secretValueExcluded(name, { url, userinfo, rand: rand[k] === 1, hex: hex[k] === 1, path });
+  // 230 C7-4: 상대 경로는 경로 끝 이름이고 접미부 전체가 경로 글자일 때만 값을 잘라 본다 — 경로 글자 접미부엔 '=' 가 없어 런마다 이런 후보는 하나(선형 유지).
+  const rel = PATH_TAIL_RE.test(name) && pathOk[k] === 1 && isRelPathValue(line.slice(s, run.end));
+  return secretValueExcluded(name, { url, userinfo, rand: rand[k] === 1, hex: hex[k] === 1, path, rel });
 }
 /**
  * 코드 아닌 파일 한 줄의 소문자·JSON 키 시크릿 후보 → ['FAIL'|'WARN', …]. 한 번의 순회(201 MED-3):
@@ -414,14 +427,67 @@ export function secretKvHits(line) {
 }
 // 220(Codex night-qa2 C7-6) — URL 질의·프래그먼트의 퍼센트 인코딩(access%5Ftoken=…, access_token=%51…) 우회.
 //   줄을 공백·따옴표·괄호 등으로 덩어리로 나누고(선형), % 를 품은 덩어리의 첫 ? 또는 # 뒤를 & ? # ; 로 쌍으로 나눈다.
-//   % 를 품은 쌍마다 키·값을 각각 한 번 decodeURIComponent(실패 시 원문) 한 뒤 secretKvHits 로 본다.
+//   % 를 품은 쌍마다 키·값을 각각 디코딩(decodePct — 유효 UTF-8 만, 잘못된 바이트는 U+FFFD, 최대 두 번: 이중 인코딩 %2577) 한 뒤 secretKvHits 로 본다.
 //   원문 쌍이 이미 잡히면(값만 인코딩된 access_token=Qa7b%2B… 등) 다시 내지 않는다(원문 줄 검사가 이미 냈다).
 const QUERY_TOKEN_SPLIT_RE = /[\s'"`<>{}()[\],|]+/;
 const QUERY_PAIR_SPLIT_RE = /[&?#;]/;
-//   디코딩은 ASCII %XX(00~7F)만 한 번 — 예외 없는 선형 치환. decodeURIComponent 는 잘못된 % 마다 예외를 던져 적대 줄('?k%=v%&'×4만)에서
-//   1초 넘게 걸렸다. 비밀 이름은 ASCII 이고 비 ASCII 바이트가 든 값은 무작위 토큰 형태가 아니라, 비 ASCII 시퀀스는 원문 그대로 둬도 판정이 같다.
-const PCT_ASCII_RE = /%([0-7][0-9A-Fa-f])/g;
-const decodeOnce = (s) => (s.includes('%') ? s.replace(PCT_ASCII_RE, (_, h) => String.fromCharCode(parseInt(h, 16))) : s);
+//   디코딩은 한 번 — 예외 없는 선형 치환. decodeURIComponent 는 잘못된 % 마다 예외를 던져 적대 줄('?k%=v%&'×4만)에서
+//   1초 넘게 걸렸다(그래서 쓰지 않는다).
+//   230(Codex night-qa3 C7-2): 비 ASCII 로 시작하는 값(pass%77ord=%ED%95%9CQa7b…)은 남은 %ED… 가 값 첫 글자 % 제외에 걸려 미탐이었다.
+//   → 연속한 %XX 구간을 바이트로 모아 유효한 UTF-8 시퀀스만 글자로 바꾸고, 잘못된 바이트는 U+FFFD 로 둔다(예외 없음·한 번 훑기 — 선형).
+//   원문 %XX 로 남기면 'password=%FFQa7b…' 가 다시 값 첫 글자 % 제외에 걸린다(같은 우회) — 그래서 대체 글자.
+const PCT_RUN_RE = /(?:%[0-9A-Fa-f]{2})+/g;
+const hexVal = (c) => (c <= 57 ? c - 48 : (c | 32) - 87);
+/** %XX 연속 구간 하나 → 글자열. 유효 UTF-8(과잉 표현·서로게이트·U+10FFFF 초과 거부)만 디코딩, 나머지 바이트는 U+FFFD. */
+function decodePctRun(run) {
+  const nb = run.length / 3;
+  const b = new Array(nb);
+  for (let k = 0; k < nb; k++) b[k] = (hexVal(run.charCodeAt(3 * k + 1)) << 4) | hexVal(run.charCodeAt(3 * k + 2));
+  let out = '';
+  let k = 0;
+  while (k < nb) {
+    const c = b[k];
+    let need = 0;
+    let cp = 0;
+    let lo = 0x80;
+    let hi = 0xbf;
+    if (c < 0x80) {
+      out += String.fromCharCode(c);
+      k++;
+      continue;
+    } else if (c >= 0xc2 && c <= 0xdf) {
+      need = 1;
+      cp = c & 0x1f;
+    } else if (c >= 0xe0 && c <= 0xef) {
+      need = 2;
+      cp = c & 0x0f;
+      if (c === 0xe0) lo = 0xa0;
+      else if (c === 0xed) hi = 0x9f;
+    } else if (c >= 0xf0 && c <= 0xf4) {
+      need = 3;
+      cp = c & 0x07;
+      if (c === 0xf0) lo = 0x90;
+      else if (c === 0xf4) hi = 0x8f;
+    }
+    let ok = need > 0; // 범위 밖 바이트(undefined)는 아래에서 거부
+    for (let t = 1; ok && t <= need; t++) {
+      const d = b[k + t];
+      if (d === undefined || d < (t === 1 ? lo : 0x80) || d > (t === 1 ? hi : 0xbf)) ok = false;
+      else cp = (cp << 6) | (d & 0x3f);
+    }
+    if (ok) {
+      out += String.fromCodePoint(cp);
+      k += need + 1;
+    } else {
+      out += '�';
+      k++;
+    }
+  }
+  return out;
+}
+const decodeOnce = (s) => (s.includes('%') ? s.replace(PCT_RUN_RE, decodePctRun) : s);
+// 이중 인코딩(%2577 → %77 → w)까지 — 두 번으로 끝(선형 2회).
+const decodePct = (s) => decodeOnce(decodeOnce(s));
 export function urlQueryKvHits(line) {
   if (!line.includes('%')) return [];
   const out = [];
@@ -432,8 +498,8 @@ export function urlQueryKvHits(line) {
     for (const pair of tok.slice(q + 1).split(QUERY_PAIR_SPLIT_RE)) {
       const eq = pair.indexOf('=');
       if (eq <= 0 || !pair.includes('%')) continue;
-      const k = decodeOnce(pair.slice(0, eq));
-      const v = decodeOnce(pair.slice(eq + 1));
+      const k = decodePct(pair.slice(0, eq));
+      const v = decodePct(pair.slice(eq + 1));
       if (`${k}=${v}` === pair || secretKvHits(pair).length > 0) continue;
       out.push(...secretKvHits(`${k}=${v}`));
     }
@@ -456,9 +522,19 @@ function bearerHit(l) {
   BEARER_RE.lastIndex = 0;
   let m;
   // 209(QA207 INFO-2) — 토큰 자리가 경로(`Bearer /api/v1/users/profile`)면 토큰이 아니다.
-  //   220(C7-5): 마디 하나가 긴 hex·무작위형인 `/…` 는 isPathValue 가 경로로 보지 않는다(Bearer 뒤 `/` + 긴 hex 한 마디 → FAIL).
-  while ((m = BEARER_RE.exec(l)) !== null) if (!isPathValue(m[1]) && looksSecret(m[1])) return true;
+  //   230(Codex night-qa3 C7-3): Authorization/Bearer 문맥은 일반 경로 제외(isPathValue — hex·대소숫 무작위형만 뒤집는다)를 쓰지 않는다.
+  //   `/gh12ij34…`(소문자+숫자) 같은 b64token 이 경로로 빠졌다. → 경로 모양이어도 토큰 형태 마디가 하나라도 있으면 토큰(bearerPathLike).
+  while ((m = BEARER_RE.exec(l)) !== null) if (!bearerPathLike(m[1]) && looksSecret(m[1])) return true;
   return false;
+}
+/**
+ * Bearer 자리 값이 경로인가 — 접두(/ · ./ · ../ · ~/) + 경로 글자 마디들(PATH_VALUE_RE)이고 토큰 형태 마디가 없다.
+ *   토큰 형태 마디: 16자 이상이고 글자·숫자를 모두 품는다(hex·소문자+숫자 포함), 또는 8자 이상이고 대·소문자·숫자를 모두 품는다
+ *   (짧은 마디로 쪼갠 b64 `/Qa7bCd8e/Fg9hJk2m/…` — API 경로 마디는 거의 이 모양이 아니다).
+ */
+const BEARER_TOKEN_SEG_RE = /^(?:(?=[^/]*[A-Za-z])(?=[^/]*\d)[^/]{16,}|(?=[^/]*[a-z])(?=[^/]*[A-Z])(?=[^/]*\d)[^/]{8,})$/;
+function bearerPathLike(v) {
+  return PATH_VALUE_RE.test(v) && !v.split('/').some((seg) => BEARER_TOKEN_SEG_RE.test(seg));
 }
 const BEARER_MESSAGE = '하드코딩 Bearer 토큰(Authorization 값, 16자 이상)';
 export function c7LineHits(l, isCode) {
@@ -597,6 +673,122 @@ function parseJsonEntries(src) {
     }
   }
 }
+// 230(Codex night-qa3 C7-1) — 진단 메시지에 검사 대상 값·줄 내용을 넣지 않는다.
+//   JSON 문법 오류는 JSON.parse 메시지(원문 조각을 품는다 — "Unexpected token 'Q', "{"token":Qa7b…"…") 대신 자체 검사기의 숫자 위치만.
+//   그 밖에 값·이름·식별자를 메시지에 넣는 곳은 safeLabel 을 거친다(비밀 형태면 길이만).
+const JSON_NUM_RE = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null/y;
+const JSON_HEX4_RE = /^[0-9A-Fa-f]{4}$/;
+/** JSON 문법의 첫 오류 오프셋(정상이면 -1). 재귀 없음·한 번 훑기(선형) — 위치 보고 전용(통과 판정은 JSON.parse). */
+export function jsonSyntaxErrorAt(s) {
+  const n = s.length;
+  let i = 0;
+  const st = [];
+  const ws = () => {
+    while (i < n && (s[i] === ' ' || s[i] === '\t' || s[i] === '\n' || s[i] === '\r')) i++;
+  };
+  const str = () => {
+    if (s[i] !== '"') return false;
+    i++;
+    while (i < n) {
+      const c = s.charCodeAt(i);
+      if (c === 34) {
+        i++;
+        return true;
+      }
+      if (c < 32) return false;
+      if (c === 92) {
+        const e = s[i + 1];
+        if (e === 'u') {
+          if (!JSON_HEX4_RE.test(s.slice(i + 2, i + 6))) return false;
+          i += 6;
+        } else if (e !== undefined && '"\\/bfnrt'.includes(e)) i += 2;
+        else return false;
+      } else i++;
+    }
+    return false;
+  };
+  // 객체 키 + ':' 까지. 실패면 false.
+  const key = () => {
+    ws();
+    if (!str()) return false;
+    ws();
+    if (s[i] !== ':') return false;
+    i++;
+    return true;
+  };
+  for (;;) {
+    ws();
+    const c = s[i];
+    if (c === '{' || c === '[') {
+      i++;
+      ws();
+      if (s[i] === (c === '{' ? '}' : ']')) i++;
+      else {
+        st.push(c);
+        if (c === '{' && !key()) return i;
+        continue;
+      }
+    } else if (c === '"') {
+      if (!str()) return i;
+    } else {
+      JSON_NUM_RE.lastIndex = i;
+      const m = JSON_NUM_RE.exec(s);
+      if (m === null) return i;
+      i += m[0].length;
+    }
+    // 값 하나 완성 — 닫거나 다음 원소로.
+    for (;;) {
+      ws();
+      if (st.length === 0) return i < n ? i : -1;
+      const top = st[st.length - 1];
+      if (s[i] === (top === '{' ? '}' : ']')) {
+        st.pop();
+        i++;
+        continue;
+      }
+      if (s[i] !== ',') return i;
+      i++;
+      if (top === '{' && !key()) return i;
+      break;
+    }
+  }
+}
+/** 'JSON 문법 오류 위치' 문구 — 숫자(줄·열)만. */
+function jsonErrorWhere(src) {
+  const at = jsonSyntaxErrorAt(src);
+  if (at < 0) return '위치 미상';
+  const p = Math.min(at, src.length);
+  let line = 1;
+  let ls = 0;
+  for (let k = 0; k < p; k++) {
+    if (src.charCodeAt(k) === 10) {
+      line++;
+      ls = k + 1;
+    }
+  }
+  return `줄 ${line} 열 ${p - ls + 1}`;
+}
+/** 글자열이 비밀 형태인가 — C7 한 줄 규칙에 걸리거나, 구분자로 나눈 조각 하나가 16자 이상이고 글자·숫자를 모두 품는다. */
+function secretShaped(s) {
+  if (c7LineHits(s, false).length > 0) return true;
+  return s.split(/[^A-Za-z0-9+=~]/).some((p) => p.length >= 16 && /[A-Za-z]/.test(p) && /\d/.test(p));
+}
+/**
+ * 진단 메시지에 넣을 값·이름·식별자 — 비밀 형태면 길이만(‹가림 N자›), 120자 넘으면 길이만(‹생략 N자› — 판정 비용·잘린 조각 노출 방지), 아니면 그대로.
+ * @param {unknown} v
+ */
+export function safeLabel(v) {
+  const s = String(v);
+  if (s.length > 120) return `‹생략 ${s.length}자›`;
+  return secretShaped(s) ? `‹가림 ${s.length}자›` : s;
+}
+/**
+ * CLI 출력부 심층 방어(compliance-scan.mjs) — 메시지 자체가 C7 규칙에 걸리면 고정 문구로 바꾼다. 규칙별 메시지는 위 원칙으로 이미 값 없이 만든다.
+ * @param {string} message
+ */
+export function redactMessage(message) {
+  return c7LineHits(String(message), false).length > 0 ? '(진단 메시지에 비밀값 형태가 있어 가림 — 파일·줄을 직접 확인)' : message;
+}
 /**
  * JSON 파일의 디코딩 단계 C7 → { severity, message, line }[] (line 은 키의 원문 줄, 메시지에 키 경로).
  * 220(Codex night-qa2 C7-2): JSON.parse 실패면 JSONC(주석·마지막 쉼표 — tsconfig*.json)로 한 번 더 — 그래도 실패면 null 이 아니라 FAIL(line null).
@@ -610,8 +802,9 @@ export function jsonC7Hits(text) {
     const relaxed = stripJsonc(src);
     try {
       JSON.parse(relaxed);
-    } catch (e) {
-      return [{ severity: 'FAIL', line: null, message: `JSON 디코딩 검사 불가 — 문법 오류(주석·마지막 쉼표를 걷어 내도 파싱 실패: ${String(e?.message ?? e).slice(0, 80)})` }];
+    } catch {
+      // 230(Codex night-qa3 C7-1): JSON.parse 오류 메시지는 원문 조각(검사 대상 값)을 품는다 — 고정 문구 + 숫자 위치만.
+      return [{ severity: 'FAIL', line: null, message: `JSON 디코딩 검사 불가 — 문법 오류(주석·마지막 쉼표를 걷어 내도 파싱 실패, ${jsonErrorWhere(relaxed)})` }];
     }
     src = relaxed;
   }
@@ -642,8 +835,10 @@ export function stripJsonc(src) {
       while (i < n && src[i] !== '\n' && src[i] !== '\r') a[i++] = ' ';
     } else if (c === '/' && src[i + 1] === '*') {
       const e = src.indexOf('*/', i + 2);
-      const end = e < 0 ? n : e + 2;
-      for (; i < end; i++) if (src[i] !== '\n' && src[i] !== '\r') a[i] = ' ';
+      // 230(Codex night-qa3 C7-5): 닫히지 않은 블록 주석은 걷어 내지 않는다(파일 끝까지 지우면 '{"safe":0} /*' 가 정상 JSON 이 된다) —
+      //   원문 그대로 남겨 JSON.parse 가 실패하고 호출부가 문법 오류 FAIL 을 낸다(예외 없음). 이후는 볼 필요가 없다.
+      if (e < 0) break;
+      for (const end = e + 2; i < end; i++) if (src[i] !== '\n' && src[i] !== '\r') a[i] = ' ';
     } else {
       if (c === ',') lastComma = i;
       else if (c === '}' || c === ']') {
@@ -667,8 +862,9 @@ function jsonC7Walk(src, doc) {
       sev = jsonBundleSeverity(bundle, near, v);
       msg = BUNDLE_MESSAGE;
     }
-    if (sev) out.push({ severity: sev, line, message: `${msg[sev]} — JSON 키 ${path}(디코딩 값)` });
-    for (const l of v.split(/\r?\n/)) for (const h of c7LineHits(l, false)) out.push({ severity: h.severity, line, message: `${h.message} — JSON 키 ${path}(디코딩 문자열)` });
+    // 230: 키 경로도 safeLabel(키 자체가 토큰인 맵 {"tokens":{"<토큰>":…}} — 경로가 비밀 형태면 길이만, 위치는 줄 번호로).
+    if (sev) out.push({ severity: sev, line, message: `${msg[sev]} — JSON 키 ${safeLabel(path)}(디코딩 값)` });
+    for (const l of v.split(/\r?\n/)) for (const h of c7LineHits(l, false)) out.push({ severity: h.severity, line, message: `${h.message} — JSON 키 ${safeLabel(path)}(디코딩 문자열)` });
   };
   // 재귀 없는 전위 순회(원문 순서·locate 호출 순서는 재귀 버전과 같다). frame: { items, idx, obj, path, name, line, near, bundle }
   //   near: 가장 가까운 키(원문 그대로) · bundle: 조상 중 가장 강한 묶음 등급('kv' > 'random' > null) — 206.
@@ -719,7 +915,7 @@ function scanCode(rel, text, ctx) {
     const re = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
     let m;
     while ((m = re.exec(l)) !== null) {
-      if (isBannedImport(m[1], rel)) add('C1-LIB', 'FAIL', rel, i + 1, `수집·크롤·스케줄 라이브러리 import: ${m[1]}`);
+      if (isBannedImport(m[1], rel)) add('C1-LIB', 'FAIL', rel, i + 1, `수집·크롤·스케줄 라이브러리 import: ${safeLabel(m[1])}`);
     }
   });
 
@@ -749,10 +945,11 @@ function scanCode(rel, text, ctx) {
     codeL.forEach((l, i) => {
       if (!NET_CALL_RE.test(l)) return;
       const ext = (stringsByLine.get(i + 1) ?? []).flatMap(externalIn);
-      if (ext.length > 0) add('C1-FETCH', 'FAIL', rel, i + 1, `외부 절대 URL 네트워크 호출: ${ext[0]}`);
+      // 230: 사용자 정보(토큰@ — ABS_URL_RE 의 호스트 자리가 @ 를 품을 수 있다)는 지우고 스킴·호스트만.
+      if (ext.length > 0) add('C1-FETCH', 'FAIL', rel, i + 1, `외부 절대 URL 네트워크 호출: ${safeLabel(ext[0].replace(/^([A-Za-z]+:\/\/)[^@]*@/, '$1'))}`);
       for (const [name] of urlConsts) {
         const re = new RegExp(`(?:\\b(?:fetch|axios(?:\\.\\w+)?|got(?:\\.\\w+)?|request|sendBeacon|undici\\.\\w+|https?\\.(?:get|request))|\\bnew\\s+(?:XMLHttpRequest|WebSocket|EventSource)|\\.open)\\s*\\([^)]*\\b${name.replace(/\$/g, '\\$')}\\b`);
-        if (re.test(l)) add('C1-FETCH', 'FAIL', rel, i + 1, `외부 URL 상수 ${name} 로 네트워크 호출`);
+        if (re.test(l)) add('C1-FETCH', 'FAIL', rel, i + 1, `외부 URL 상수 ${safeLabel(name)} 로 네트워크 호출`);
       }
     });
 
@@ -773,7 +970,9 @@ function scanCode(rel, text, ctx) {
 
     // C2-TRADE — 라우트 문자열
     for (const s of strings) {
-      if (s.text.startsWith('/') && TRADE_ROUTE_RE.test(s.text)) add('C2-TRADE', 'FAIL', rel, s.line, `거래·분양 라우트: ${s.text}`);
+      // 230: 문자열 전체(질의 속 토큰 가능) 대신 걸린 라우트 마디만.
+      const tm = s.text.startsWith('/') ? TRADE_ROUTE_RE.exec(s.text) : null;
+      if (tm) add('C2-TRADE', 'FAIL', rel, s.line, `거래·분양 라우트: ${tm[0]}`);
     }
     // C2-TRADE — 식별자
     bareL.forEach((l, i) => {
@@ -784,13 +983,13 @@ function scanCode(rel, text, ctx) {
         const low = tok.toLowerCase();
         const parts = tok.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[\s_$]+/).map((p) => p.toLowerCase());
         if (parts.some((p) => TRADE_PARTS.has(p)) || low.includes('merchantid') || low.includes('paymentkey')) {
-          add('C2-TRADE', 'FAIL', rel, i + 1, `거래·자금 식별자: ${tok}`);
+          add('C2-TRADE', 'FAIL', rel, i + 1, `거래·자금 식별자: ${safeLabel(tok)}`);
         }
       }
       const ko = /(?:\b(?:const|let|var|function|class|type|interface)\s+|\.)([\w$가-힣]*(?:정산|분양|입양신청)[\w$가-힣]*)|([\w$가-힣]*(?:정산|분양|입양신청)[\w$가-힣]*)\s*(?=[=(])/g;
       while ((m = ko.exec(l)) !== null) {
         const tok = m[1] ?? m[2];
-        if (tok && TRADE_KO.test(tok)) add('C2-TRADE', 'FAIL', rel, i + 1, `거래·분양 식별자: ${tok}`);
+        if (tok && TRADE_KO.test(tok)) add('C2-TRADE', 'FAIL', rel, i + 1, `거래·분양 식별자: ${safeLabel(tok)}`);
       }
     });
 
@@ -1036,8 +1235,9 @@ function scanSeedFile(rel, text, ctx) {
   let rows;
   try {
     rows = JSON.parse(stripBom(text));
-  } catch (e) {
-    add('C0-SEED', 'FAIL', rel, null, `시드 JSON 파싱 실패: ${e.message}`);
+  } catch {
+    // 230: JSON.parse 메시지는 원문 조각을 품는다 — 숫자 위치만.
+    add('C0-SEED', 'FAIL', rel, null, `시드 JSON 파싱 실패(${jsonErrorWhere(stripBom(text))})`);
     return;
   }
   if (!Array.isArray(rows)) {
@@ -1045,14 +1245,14 @@ function scanSeedFile(rel, text, ctx) {
     return;
   }
   rows.forEach((row, ri) => {
-    const where = `${file}#${row && typeof row.id === 'string' ? row.id : `[${ri}]`}`;
+    const where = `${file}#${row && typeof row.id === 'string' ? safeLabel(row.id) : `[${ri}]`}`;
     walkJson(row, '', (n) => {
       if (n.kind === 'key') {
-        if (GEO_KEY.test(n.key) && file !== SEED_FILES.vetClinics) add('C5-GEO', 'FAIL', rel, null, `${where} ${n.path}: 좌표 키는 vet-clinics.json 만`);
+        if (GEO_KEY.test(n.key) && file !== SEED_FILES.vetClinics) add('C5-GEO', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 좌표 키는 vet-clinics.json 만`);
         if ((n.key === 'imageAsset' || n.key === 'reviewerImage') && n.value !== null && n.value !== undefined) {
           const re = n.key === 'imageAsset' ? PRODUCT_IMAGE_ASSET_RE : REVIEWER_IMAGE_RE;
           const ok = typeof n.value === 'string' && re.test(n.value);
-          if (!ok) add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${n.path}: /assets/(products|reviewers)/<kebab>.(webp|avif|jpg|jpeg|png) 운영자 자산만 (${String(n.value)})`);
+          if (!ok) add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: /assets/(products|reviewers)/<kebab>.(webp|avif|jpg|jpeg|png) 운영자 자산만 (${safeLabel(n.value)})`);
         }
         return;
       }
@@ -1060,16 +1260,16 @@ function scanSeedFile(rel, text, ctx) {
       // C1-SEEDURL — http(s) 는 source[].url·sourceUrl 만 + photos.licenseUrl(creativecommons.org 증서 허용목록만, S1 M-3)
       const ccLicense = file === SEED_FILES.photos && n.path === 'licenseUrl' && ccLicenseOfUrl(n.value) !== null;
       if (/(?:https?|wss?|ftp):\/\//i.test(n.value) && !/(^|\.)source\[\d+\]\.url$/.test(n.path) && key !== 'sourceUrl' && !ccLicense) {
-        add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${n.path}: 외부 URL 은 source[].url·sourceUrl 에만(사진 licenseUrl 은 CC 증서만)`);
+        add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 외부 URL 은 source[].url·sourceUrl 에만(사진 licenseUrl 은 CC 증서만)`);
       }
       // C4-BANNED — 제외: id/url/sourceUrl/source.title/verifiedBy/slug, photos.query·scene
       if (SEED_TEXT_SKIP.has(key)) return;
       if (/(^|\.)source\[\d+\]\.title$/.test(n.path)) return;
       if (file === SEED_FILES.photos && (key === 'query' || key === 'scene')) return;
       for (const h of lintText(n.value, bw)) {
-        if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, null, `${where} ${n.path}: 금지어 "${h.term}"`);
-        else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, null, `${where} ${n.path}: 공백 제거 후 2자 금지어 "${h.term}"`);
-        else add('C4-STEM', stemFailRow(row) ? 'FAIL' : 'WARN', rel, null, `${where} ${n.path}: 금지어 어간 "${h.term}"`);
+        if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 금지어 "${h.term}"`);
+        else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, null, `${where} ${safeLabel(n.path)}: 공백 제거 후 2자 금지어 "${h.term}"`);
+        else add('C4-STEM', stemFailRow(row) ? 'FAIL' : 'WARN', rel, null, `${where} ${safeLabel(n.path)}: 금지어 어간 "${h.term}"`);
       }
     });
 
@@ -1079,8 +1279,8 @@ function scanSeedFile(rel, text, ctx) {
     //   https + 점 있는 호스트, 출처별 호스트 허용목록·userinfo 거부(M-1), 달력상 downloadedAt, CC BY-SA 원본·카드 슬롯(L8).
     if (file === SEED_FILES.photos && row.status !== 'SLOT') {
       const miss = [];
-      if (!PHOTO_USABLE_STATUSES.has(row.status)) miss.push(`status(${row.status})`);
-      if (!PHOTO_LICENSES.has(row.license)) miss.push(`license(${row.license})`);
+      if (!PHOTO_USABLE_STATUSES.has(row.status)) miss.push(`status(${safeLabel(row.status)})`);
+      if (!PHOTO_LICENSES.has(row.license)) miss.push(`license(${safeLabel(row.license)})`);
       if (typeof row.source !== 'string' || row.source.trim() === '') miss.push('source');
       if (typeof row.sourceUrl !== 'string' || !photoSourceUrlAllowed(row.source, row.sourceUrl)) miss.push('sourceUrl(https·출처별 호스트 허용목록·userinfo 금지)');
       if (dayNumber(row.downloadedAt) === null) miss.push('downloadedAt');
@@ -1091,7 +1291,7 @@ function scanSeedFile(rel, text, ctx) {
       if (miss.length) add('C6-IMG', 'FAIL', rel, null, `${where}: 사용권 기록 누락·위반 ${miss.join(', ')}`);
     }
     if (file === SEED_FILES.curatedProducts && row.imageAsset !== null && row.imageAsset !== undefined && row.imageAsset !== '') {
-      if (!PRODUCT_IMAGE_LICENSES.has(row.imageLicense)) add('C6-IMG', 'FAIL', rel, null, `${where}: imageAsset 있는데 imageLicense=${row.imageLicense}`);
+      if (!PRODUCT_IMAGE_LICENSES.has(row.imageLicense)) add('C6-IMG', 'FAIL', rel, null, `${where}: imageAsset 있는데 imageLicense=${safeLabel(row.imageLicense)}`);
     }
     if (file === SEED_FILES.testimonials && row.reviewerImage !== null && row.reviewerImage !== undefined && row.reviewerImage !== '') {
       if (row.reviewerImageConsent !== true) add('C6-IMG', 'FAIL', rel, null, `${where}: reviewerImage 동의 없음`);

