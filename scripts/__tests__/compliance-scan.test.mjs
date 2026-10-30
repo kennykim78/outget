@@ -1623,10 +1623,11 @@ test('C7-SECRET 201 MED-2: 같은 JSON 객체의 직렬화 변형(한 줄·키 �
   const files = Object.fromEntries(Object.keys(variants).map((k) => [`docs/design/${k}.json`, variants[k]]));
   const res = scan(await makeRoot({ source: (s) => Object.assign(s, files) }));
   for (const f of Object.keys(files)) assert.ok(c7Of(res, f, 'FAIL'), `${f}: ${JSON.stringify(c7All(res, f))}`);
-  // 한 줄 표기는 원문 줄 검사와 디코딩 검사가 같은 줄 — FAIL 1건만(중복 없음). 이스케이프 키는 원문 줄을 찾지 못해 줄 null + 키 경로.
+  // 한 줄 표기는 원문 줄 검사와 디코딩 검사가 같은 줄 — FAIL 1건만(중복 없음).
+  // 220(C7-1): 이스케이프 키도 파서가 남긴 원문 오프셋으로 줄을 안다(예전: 원문 재검색 실패 → 줄 null).
   assert.equal(c7All(res, 'docs/design/compact.json').length, 1, JSON.stringify(c7All(res, 'docs/design/compact.json')));
   const esc = c7All(res, 'docs/design/escapedKey.json');
-  assert.ok(esc.some((x) => x.line === null && x.message.includes(name)), JSON.stringify(esc));
+  assert.ok(esc.some((x) => x.line === 1 && x.message.includes(name)), JSON.stringify(esc));
   assert.ok(c7All(res, 'docs/design/multiline.json').every((x) => x.line === 1), JSON.stringify(c7All(res, 'docs/design/multiline.json')));
   // 값 속 \" 로 잘려 WARN 이던 것이 FAIL 로 — 같은 줄의 WARN 과 함께 FAIL 이 있다.
   assert.ok(c7Of(res, 'docs/design/escapedQuote.json', 'FAIL'));
@@ -1858,7 +1859,7 @@ test('C7-SECRET 212 ReDoS: 대문자 env 규칙 10KB 적대 줄 — 줄마다 20
   }
 });
 
-test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대로·integrity 해시·평범한 키, 파싱 실패 파일은 원문 줄 검사만', async () => {
+test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대로·integrity 해시·평범한 키, JSONC(주석) 파일도 디코딩 검사(220)', async () => {
   const { jsonC7Hits } = await import('../lib/rules-source.mjs');
   const clean = {
     lockfileVersion: 3,
@@ -1870,14 +1871,161 @@ test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대
     color: { token: 'primary', tokens: 'brand-500' },
   };
   assert.deepEqual(jsonC7Hits(JSON.stringify(clean, null, 2)), []);
-  assert.equal(jsonC7Hits('{ // 주석\n "a": 1 }'), null);
-  // 파싱 실패(주석) 파일: 한 줄 표기는 원문 검사로 FAIL, 줄바꿈 표기는 보지 못한다(문서화된 한계).
+  // 220(Codex night-qa2 C7-2): JSONC(주석·마지막 쉼표)는 걷어 내고 디코딩 검사 — 깨끗하면 [](예전: null 로 디코딩 검사 생략).
+  assert.deepEqual(jsonC7Hits('{ // 주석\n "a": 1 }'), []);
+  // JSONC 파일: 한 줄 표기는 원문 검사로, 줄바꿈 표기도 이제 디코딩 검사로 FAIL(키 줄 2).
   const res = scan(await makeRoot({ source: (s) => {
     s['docs/design/jsonc-a.json'] = j('// c\n{"', 'client_secret":"', RND, '"}\n');
     s['docs/design/jsonc-b.json'] = j('// c\n{"', 'client_secret":\n"', RND, '"}\n');
   } }));
   assert.ok(c7Of(res, 'docs/design/jsonc-a.json', 'FAIL'));
-  assert.deepEqual(c7All(res, 'docs/design/jsonc-b.json'), []);
+  const b = c7All(res, 'docs/design/jsonc-b.json');
+  assert.ok(b.some((x) => x.severity === 'FAIL' && x.line === 2), JSON.stringify(b));
+});
+
+// ── C7 시크릿 — 220(Codex night-qa2 C7 MED 1~6) ──────────────────────────────
+const QA2_RND = j('Qa7bCd8eFg9h', 'Jk2mNp4r'); // Codex 재현 입력의 합성 무작위형 값(20자)
+const QA2_HUNTER = j('hunter2', 'hunter2', 'hunter2'); // 합성 실값(21자, 경로·URL 아님)
+
+test('C7-SECRET 220 C7-1: 이스케이프 키 1만6천 개 — 키 원문 재검색 없이 선형(1초 안), 이스케이프 키 줄 번호 정확', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const doc = (n) => `{${Array(n).fill('"\\u0061":0').join(',')}}`;
+  jsonC7Hits(doc(2000)); // 데우기
+  const t = process.hrtime.bigint();
+  assert.deepEqual(jsonC7Hits(doc(16000)), []);
+  const ms = Number(process.hrtime.bigint() - t) / 1e6;
+  assert.ok(ms < 1000, `16000 키: ${ms.toFixed(1)}ms(HEAD e21fa8f 약 1만 ms)`);
+  // 셋째 줄의 이스케이프 키 → 줄 3, 중복 키 앞값도 제 줄.
+  const hits = jsonC7Hits(j('{\n"a":1,\n"\\u0074oken":\n"', RND, '",\n"\\u0074oken":"x"}'));
+  assert.ok(hits.some((h) => h.severity === 'FAIL' && h.line === 3), JSON.stringify(hits));
+  // BOM 이 있어도 줄 번호는 원문 그대로.
+  const bom = jsonC7Hits(j('\uFEFF{\n\n"tok', 'en":"', RND, '"}'));
+  assert.ok(bom.some((h) => h.severity === 'FAIL' && h.line === 3), JSON.stringify(bom));
+});
+
+test('C7-SECRET 220 C7-2: JSON 문법 오류 — JSONC(주석·마지막 쉼표) 재시도 후 검사, 그래도 실패면 FAIL "JSON 디코딩 검사 불가 — 문법 오류"', async () => {
+  const { jsonC7Hits, stripJsonc } = await import('../lib/rules-source.mjs');
+  const fails = (text) => jsonC7Hits(text).filter((h) => h.severity === 'FAIL');
+  // Codex 재현 입력 그대로(마지막 쉼표) → 디코딩 검사가 돈다(문법 오류 FAIL 이 아니라 시크릿 FAIL).
+  const codex = j('{"\\u0074oken":"', QA2_RND, '",}');
+  assert.ok(fails(codex).some((h) => h.message.includes('디코딩 값')), JSON.stringify(jsonC7Hits(codex)));
+  // 변형: 블록 주석 + 배열 마지막 쉼표 + 문자열 속 // 와 /* 는 보존.
+  const jsonc = j('{\n  /* 설정 */ "u": "http://h.test//a/*b*/",\n  "list": [1, 2,],\n  "nested": { "pass', 'word": "', QA2_RND, '", } // 끝\n}\n');
+  const hits = fails(jsonc);
+  assert.ok(hits.some((h) => h.line === 4 && h.message.includes('디코딩 값')), JSON.stringify(hits));
+  assert.equal(stripJsonc(jsonc).length, jsonc.length);
+  assert.equal(JSON.parse(stripJsonc(jsonc)).u, 'http://h.test//a/*b*/');
+  // 깨끗한 tsconfig 형태 JSONC → [].
+  assert.deepEqual(jsonC7Hits('{\n  // c\n  "compilerOptions": { "strict": true, /* x */ "paths": { "@/*": ["src/*"], }, },\n}\n'), []);
+  // 고칠 수 없는 문법 오류 → FAIL(줄 null), 메시지 고정 머리.
+  for (const bad of ['{"a":', j('{"tok', 'en":"', QA2_RND, '" "b":1}'), '{"a":1} x', '{"a": /* 닫히지 않은 주석 1}']) {
+    const h = jsonC7Hits(bad);
+    assert.equal(h.length, 1, bad);
+    assert.equal(h[0].severity, 'FAIL');
+    assert.equal(h[0].line, null);
+    assert.ok(h[0].message.startsWith('JSON 디코딩 검사 불가 — 문법 오류'), h[0].message);
+  }
+  // 스캔: 문법 오류 .json → C7 FAIL, JSONC 깨끗한 파일 → 0.
+  const res = scan(await makeRoot({ source: (s) => {
+    s['docs/design/broken.json'] = '{"a": 1,, }\n';
+    s['docs/design/tsconfig.like.json'] = '{\n  // c\n  "compilerOptions": { "strict": true, },\n}\n';
+  } }));
+  assert.ok(c7All(res, 'docs/design/broken.json').some((x) => x.severity === 'FAIL' && x.message.startsWith('JSON 디코딩 검사 불가 — 문법 오류')));
+  assert.deepEqual(c7All(res, 'docs/design/tsconfig.like.json'), []);
+});
+
+test('C7-SECRET 220 C7-3: 경로·주소 이름 끝(_FILE·_PATH·_DIR·_URL·_URI·_ENDPOINT·_HOST)은 값 형태가 맞을 때만 제외 — 네 경로 공통', async () => {
+  const { c7LineHits, jsonC7Hits, secretKvHits, secretKvHitsSimple } = await import('../lib/rules-source.mjs');
+  const jsonFail = (t) => jsonC7Hits(t).some((h) => h.severity === 'FAIL');
+  // Codex 재현 입력 그대로 — 원문·디코딩 모두 FAIL.
+  const codex = j('{"client_secret', '_FILE":"', QA2_HUNTER, '"}');
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  assert.ok(jsonFail(codex));
+  // 변형: 소문자 kv · JSON 다른 끝 · 대문자 env(코드 파일 경로) · NONCODE YAML.
+  for (const name of ['client_secret_path', 'token_dir', 'client_secret_url', 'token_endpoint', 'secret_uri', 'token_host']) {
+    assert.deepEqual(await kvSev(j(name, '=', QA2_HUNTER)), ['FAIL'], name);
+    assert.ok(jsonFail(j('{"', name, '":"', QA2_HUNTER, '"}')), name);
+    assert.deepEqual(secretKvHits(j(name, '=', QA2_HUNTER)), secretKvHitsSimple(j(name, '=', QA2_HUNTER)), name);
+  }
+  assert.ok(c7LineHits(j('CLIENT_SECRET', '_DIR=', QA2_HUNTER), true).length > 0);
+  assert.ok(c7LineHits(j('  CLIENT_SECRET', '_FILE: ', QA2_HUNTER), false).length > 0);
+  // 대문자 env(엄격): 경로 끝은 경로 값만 — URL 값이면 제외 안 함 / 주소 끝은 URL 값만 — 경로 값이면 제외 안 함.
+  assert.ok(c7LineHits(j('SECRET', '_FILE=', HTTPS, 'h.test/run/secrets/a'), true).length > 0);
+  assert.ok(c7LineHits(j('TOKEN', '_URL=/run/secrets/token_url_v2'), true).length > 0);
+  // 음성: 값 형태가 맞으면 계속 제외.
+  const neg = [
+    j('client_secret', '_FILE=/run/secrets/client_secret'),
+    j('POSTGRES_PASS', 'WORD_FILE=/run/secrets/postgres_password'),
+    j('TOKEN', '_HOST=', HTTPS, 'auth.withsmall.kr'),
+    j('token', '_dir: ./var/lib/withsmall/tokens'),
+    j('{"secret', '_path":"/run/secrets/deploy_key_2","token_uri":"', HTTPS, 'oauth2.googleapis.com/token"}'),
+  ];
+  for (const l of neg) {
+    assert.deepEqual(c7LineHits(l, false), [], l);
+    assert.deepEqual(c7LineHits(l, true), [], l);
+  }
+  assert.deepEqual(jsonC7Hits(neg[4]), []);
+  // 메타데이터 끝은 현재 동작 유지(값 형태 무관 제외 — 남은 사각지대), 긴 hex·무작위형 예외는 그대로.
+  assert.deepEqual(await kvSev(j('client_secret', '_min=', QA2_HUNTER)), []);
+  assert.deepEqual(await kvSev(j('client_secret', '_min=', QA2_RND)), ['FAIL']);
+  assert.deepEqual(await kvSev(j('client_secret', '_min=', HEX64)), ['FAIL']);
+});
+
+test('C7-SECRET 220 C7-4: URL 값의 무작위 마디 — URL 이라는 이유만으로 제외하지 않음(kv·JSON·이름 무관)', async () => {
+  const { jsonC7Hits, secretKvHits, secretKvHitsSimple } = await import('../lib/rules-source.mjs');
+  const jsonFail = (t) => jsonC7Hits(t).some((h) => h.severity === 'FAIL');
+  const codex = j('{"TOKEN', '_URL":"', HTTPS, 'h.test/', QA2_RND, '"}');
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  assert.ok(jsonFail(codex));
+  const pos = [j('token', '_url: ', HTTPS, 'h.test/', RND, '/cb'), j('tok', 'en=', HTTPS, 'h.test/v1/', QA2_RND)];
+  for (const l of pos) {
+    assert.deepEqual(await kvSev(l), ['FAIL'], l);
+    assert.deepEqual(secretKvHits(l), secretKvHitsSimple(l), l);
+  }
+  assert.ok(jsonFail(j('{"tok', 'en":"', HTTPS, 'h.test/', QA2_RND, '"}')));
+  assert.ok(jsonFail(j('{"credentials":{"github":"', HTTPS, 'h.test/', QA2_RND, '"}}')));
+  // 음성: 평문 URL(무작위 마디 없음)은 계속 제외.
+  for (const l of [j('token', '_url=', HTTPS, 'nid.naver.com/oauth2.0/token'), j('tok', 'en_uri: ', HTTPS, 'oauth2.googleapis.com/token')]) assert.deepEqual(await kvSev(l), [], l);
+  assert.deepEqual(jsonC7Hits(j('{"token', '_url":"', HTTPS, 'nid.naver.com/oauth2.0/token"}')), []);
+});
+
+test('C7-SECRET 220 C7-5: Bearer /<긴 hex·무작위형 한 마디> → FAIL, 여러 마디 경로는 계속 제외', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const codex = j('{"Authorization":"Bea', 'rer /ab12cd34ef56ab78cd90ef12"}');
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  assert.ok(jsonC7Hits(codex).some((h) => h.severity === 'FAIL'), JSON.stringify(jsonC7Hits(codex)));
+  for (const l of [j('Authorization: Bea', 'rer /AB12CD34EF56AB78CD90'), j('auth: bea', 'rer ./0123456789abcdef0'), j('Authorization: Bea', 'rer /', QA2_RND)]) {
+    assert.ok((await kvSev(l)).includes('FAIL'), l);
+  }
+  for (const l of [j('Authorization: Bea', 'rer /api/v1/users/profile'), j('Authorization: Bea', 'rer /static/0123456789abcdef01/app.js'), j('Bea', 'rer /healthcheck-ready')]) {
+    assert.deepEqual(await kvSev(l), [], l);
+  }
+});
+
+test('C7-SECRET 220 C7-6: URL 질의 퍼센트 인코딩 키·값 → 한 번 디코딩 후 검사(중복 없음)', async () => {
+  const { c7LineHits, jsonC7Hits, urlQueryKvHits } = await import('../lib/rules-source.mjs');
+  const codex = j('url=', HTTPS, 'h.test/?access%5F', 'token=', QA2_RND);
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  const pos = [
+    j('cb: ', HTTPS, 'h.test/cb?x=1&ACCESS%5f', 'TOKEN=', QA2_RND),
+    j('see ', HTTPS, 'h.test/cb#access_', 'token=%51', 'a7bCd8eFg9hJk2mNp4r&x=1'),
+    j('"', HTTPS, 'h.test/?client%5Fsecret=', QA2_RND, '"'),
+  ];
+  for (const l of pos) assert.deepEqual(await kvSev(l), ['FAIL'], l);
+  assert.ok(jsonC7Hits(j('{"cb":"', HTTPS, 'h.test/?access%5f', 'token=', QA2_RND, '"}')).some((h) => h.severity === 'FAIL'));
+  // 대문자 env 의 URL 이름 끝 제외도 디코딩한 질의 kv 를 본다.
+  assert.ok(c7LineHits(j('TOKEN', '_URL=', HTTPS, 'h.test/cb?access%5F', 'token=', HEX64), true).length > 0);
+  // 음성·중복: 값만 인코딩된 원문 쌍은 원문 검사 1건만 · 한글·리다이렉트 URL·자리표시·깨진 인코딩은 0.
+  assert.deepEqual(await kvSev(j('u=', HTTPS, 'h.test/?access_', 'token=Qa7b%2B', 'Cd8eFg9hJk2mNp4r')), ['FAIL']);
+  for (const l of [
+    j('u=', HTTPS, 'h.test/?q=%ED%95%9C%EA%B8%80'),
+    j('u=', HTTPS, 'h.test/?redirect_uri=', 'https%3A%2F%2Fh.test%2Fcb'),
+    j('u=', HTTPS, 'h.test/?access%5F', 'token=%3Ctoken%3E'),
+    j('u=', HTTPS, 'h.test/?access%5', 'token=', QA2_RND),
+  ]) {
+    assert.deepEqual(await kvSev(l), [], l);
+    assert.deepEqual(urlQueryKvHits(l), [], l);
+  }
 });
 
 test('C7-SECRET 201 MED-3: 제외 값이 겹치는 긴 한 줄(83,200자·200,000자) — 200ms 안, 질의 속 access_token 재탐색은 유지', async () => {
