@@ -141,6 +141,19 @@ const COOKIE_SECURE_COND_RE = /\?\s*['"`];\s*Secure['"`]\s*:\s*['"`]{2}/;
 const SPA_FILE = 'server/src/middleware/spa.ts';
 const CSP_EXT_HOST_RE = /naver|pstatic/i;
 
+// 212 — 대문자 env KEY=값 규칙(SECRET_RES). 이름(1)·값(2)을 잡아 envUpperExcluded 로 이름 끝 제외를 건다. 수량자 상한(64) 유지.
+const ENV_UPPER_RE = /^\s*(?:-\s+)?(?:export\s+)?((?=[A-Z])[A-Z0-9_]{0,64}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]{0,64})\s*=\s*['"]?(?![$<{])([^\s'"<>{}()]{16,})/;
+//   213 F1: URL 질의·프래그먼트 속 비밀 이름 kv(?access_token=…)는 secretKvHits 로 다시 보고 있으면 제외하지 않는다.
+//   213 F4: 사용자 정보(@) URL 은 isPlainUrlValue 가, hex 값은 경로·URL 형태 조건이 이미 걸러 별도 조건 없음 — 무작위 마디만 URL 값에 대해 따로 본다.
+function envUpperExcluded(name, v) {
+  if (!NON_SECRET_NAME_TAIL_RE.test(name) || hasRandomSeg(v)) return false;
+  if (isPathValue(v)) return true;
+  return isPlainUrlValue(v) && secretKvHits(v).length === 0;
+}
+function envUpperHit(l) {
+  const m = ENV_UPPER_RE.exec(l);
+  return m !== null && !envUpperExcluded(m[1], m[2]);
+}
 const SECRET_RES = [
   /X-Naver-Client-(Id|Secret)\s*['"]?\s*[:=]\s*['"][^'"]+['"]/i,
   // QA152 INFO-3 ②: JSON·따옴표 키("api_key": "…")도 — 키를 닫는 따옴표 허용.
@@ -153,7 +166,9 @@ const SECRET_RES = [
   //   값은 변수·치환 $·자리 <>·{} 로 시작하지 않아야 하고, 중간의 $ 는 값의 일부로 본다(무작위 비밀번호). __SET_ME__ 는 10자라 걸리지 않는다.
   //   YAML 맵(KEY: 값)·Dockerfile ENV/ARG 형태는 아래 NONCODE_SECRET_RES(코드 파일의 객체 리터럴 KEY: process.env.X 오탐 방지).
   //   QA198 INFO-1: 이름 앞뒤 글자 수는 64자까지(긴 한 줄 '_TOKEN'×N 에서 되짚기가 줄 길이의 제곱으로 느는 것을 막는다 — 줄 길이에 비례).
-  /^\s*(?:-\s+)?(?:export\s+)?(?=[A-Z])[A-Z0-9_]{0,64}(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]{0,64}\s*=\s*['"]?(?![$<{])[^\s'"<>{}()]{16,}/,
+  //   212: 이름 끝이 주소·경로·식별자 류(NON_SECRET_NAME_TAIL_RE: _FILE·_PATH·_URL…)이고 값이 경로·자격 증명 없는 URL 이면 제외(POSTGRES_PASSWORD_FILE=/run/secrets/…,
+  //   TOKEN_URL=https://…). 무작위 마디가 있거나 user:pass@ URL·질의 속 비밀 kv 면 제외하지 않는다(경로·URL 이 아닌 값은 애초에 제외 대상 아님). 판정은 envUpperHit.
+  { source: ENV_UPPER_RE.source, test: envUpperHit },
   // GitHub 토큰(classic ghp_ · OAuth gho_ · 사용자-서버 ghu_ · 서버-서버 ghs_ · 갱신 ghr_ · fine-grained github_pat_).
   /\bgh[pousr]_[A-Za-z0-9]{36,}\b/,
   /\bgithub_pat_[A-Za-z0-9]{22,}_[A-Za-z0-9]{40,}\b/,
@@ -169,18 +184,24 @@ const KEY_SUFFIX = String.raw`_KEY\d*(?:_(?:B64|BASE64|B64URL|BASE64URL|HEX|PEM|
 //   QA198 INFO-1: 이름 앞뒤 글자 수 상한 64(위 SECRET_RES 와 같은 이유).
 const SECRET_NAME = String.raw`(?=[A-Z])[A-Z0-9_]{0,64}(?:(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY|_HASH)[A-Z0-9_]{0,64}|${KEY_SUFFIX})`;
 const SECRET_VALUE = String.raw`['"]?(?![$<{])[^\s'"<>{}()#]{16,}`;
+// 212 — 이름(1)·값(2)을 잡는 변형: 이름 끝 제외(envUpperExcluded)를 NONCODE 의 KEY=값·YAML·Dockerfile 형태에도 같은 원칙으로 건다.
+const SECRET_NAME_CAP = String.raw`(${SECRET_NAME})`;
+const SECRET_VALUE_CAP = String.raw`['"]?(?![$<{])([^\s'"<>{}()#]{16,})`;
+function nameValueRule(re) {
+  return { source: re.source, test: (l) => { const m = re.exec(l); return m !== null && !envUpperExcluded(m[1], m[2]); } };
+}
 const NONCODE_SECRET_RES = [
   /\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/,
   // env·셸 KEY=값 의 _KEY 변형(SECRET_RES 의 = 형태는 _KEY 끝 이름을 보지 않는다 — 코드의 상수 오탐 방지) — 150 LOW-2.
-  new RegExp(String.raw`^\s*(?:-\s+)?(?:export\s+)?${SECRET_NAME}\s*=\s*${SECRET_VALUE}`),
+  nameValueRule(new RegExp(String.raw`^\s*(?:-\s+)?(?:export\s+)?${SECRET_NAME_CAP}\s*=\s*${SECRET_VALUE_CAP}`)),
   // URL 안 자격 증명(scheme://사용자:비밀@호스트) — 150 LOW-2. 자리(<>)·변수($·{})는 제외.
   //   QA152 INFO-3 ⑤: 스킴 대소문자 무관(HTTPS://), 비밀번호 중간의 $ 는 값의 일부(첫 글자 $·{·< 는 변수·자리라 제외).
   //   QA198 INFO-1: 스킴은 32자까지(긴 'x-token'×N 한 줄에서 낱말 경계마다 줄 끝까지 스킴을 찾는 제곱 시간 방지 — 실제 스킴은 짧다).
   /\b[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/[^\s/:@'"<>{}$]+:(?![$<{])[^\s/@'"<>{}]{3,}@[A-Za-z0-9.-]+/,
   // YAML 맵(compose environment: 아래 KEY: 값, 따옴표 있든 없든) — QA148 LOW-1.
-  new RegExp(String.raw`^\s*(?:-\s+)?${SECRET_NAME}\s*:\s+${SECRET_VALUE}`),
+  nameValueRule(new RegExp(String.raw`^\s*(?:-\s+)?${SECRET_NAME_CAP}\s*:\s+${SECRET_VALUE_CAP}`)),
   // Dockerfile ENV KEY=값 · ENV KEY 값 · ARG KEY=값 — QA148 LOW-1.
-  new RegExp(String.raw`^\s*(?:ENV|ARG)\s+${SECRET_NAME}(?:\s*=\s*|\s+)${SECRET_VALUE}`),
+  nameValueRule(new RegExp(String.raw`^\s*(?:ENV|ARG)\s+${SECRET_NAME_CAP}(?:\s*=\s*|\s+)${SECRET_VALUE_CAP}`)),
 ];
 // QA152 INFO-3 ②③ — 코드 아닌 파일(docs·JSON·YAML·셸·md 등)의 소문자·camel·JSON 키 이름(`"api_key": "…"`·`secret_token=`·`accessToken:`).
 //   줄 시작이 아니어도(md 인라인 `KEY=값`·JSON 객체 안) 본다. 이름은 낱말 경계(구분자 _ . - 또는 camel 앞부분)로 낱말을 품어야 한다(tokens·passwordless·tokenCount 제외).

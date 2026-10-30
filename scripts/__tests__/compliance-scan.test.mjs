@@ -1785,6 +1785,79 @@ test('C7-SECRET 206 INFO-2: Bearer <토큰>(Authorization 값) — 원문 줄(�
   assert.ok(c7Of(res, 'docs/ops/hdr.md', 'FAIL'));
 });
 
+// ── C7-SECRET 212 — 대문자 env 규칙에도 이름 끝(_FILE·_PATH·_URL…) + 경로·URL 값 제외 ──
+test('C7-SECRET 212: 대문자 env KEY=값 — 이름 끝 _FILE·_URL·_PATH + 경로·자격 증명 없는 URL 값은 제외, 무작위 실값·user:pass@·hex 는 FAIL(코드·비코드)', async () => {
+  const { c7LineHits } = await import('../lib/rules-source.mjs');
+  const neg = [
+    j('POSTGRES_PASSWORD', '_FILE=/run/secrets/db_password'),
+    j('TOKEN', '_URL=', HTTPS, 'nid.naver.com/oauth2.0/token'),
+    j('JWT_SECRET', '_PATH=./secrets/jwt.pem'),
+    j('export DB_PASSWORD', '_FILE="/run/secrets/db_password"'),
+    j('- API_TOKEN', '_URL=', HTTPS, 'openapi.example.org/v1/token'),
+  ];
+  for (const l of neg) {
+    assert.deepEqual(c7LineHits(l, true), [], `code: ${l}`);
+    assert.deepEqual(c7LineHits(l, false), [], `noncode: ${l}`);
+  }
+  const pos = [
+    j('DB_PASSWORD', '=', RND),
+    j('X_TOKEN', '_URL=', HTTPS, 'u:p@host.example.org/x'),
+    j('X_TOKEN', '_URL=', HTTPS, RND, '@host.example.org/x'),
+    j('SECRET', '_FILE=', RND),
+    j('API_SECRET', '_FILE="', RND, '"'),
+    j('JWT_SECRET', '_PATH=', HEXL),
+    j('SECRET', '_FILE=/run/', RND),
+    j('SECRET', '_FILE=', HEXU, 'EF'),
+    j('X_TOKEN', '_URL=', HTTPS, 'h.example.org/cb?access', '_token=', HEXL), // 213 F1: URL 질의 속 비밀 kv
+    j('X_TOKEN', '_URL=', HTTPS, 'h.example.org/cb#secret', '=', HEXL),
+    j('X_SECRET', '_FILE=hunter2hunter2hunter2x'), // 213 F3(a): 이름 끝 + 경로·URL·무작위·hex 아닌 일반 실값
+    j('X_TOKEN', '_URL=', HTTPS, 'h.example.org/', RND), // 213 F3(b): 평문 URL + 무작위 마디
+    j('DB_PASSWORD', '=/run/secrets/db_password'), // 213 F3(c): 이름 끝 없음 + 경로 값
+  ];
+  for (const l of pos) {
+    assert.ok(c7LineHits(l, true).some((h) => h.severity === 'FAIL'), `code: ${l}`);
+    assert.ok(c7LineHits(l, false).some((h) => h.severity === 'FAIL'), `noncode: ${l}`);
+  }
+});
+
+test('C7-SECRET 213 F3: 대문자 이름 YAML 맵·Dockerfile ENV/ARG 형태도 같은 제외 — 경로·평문 URL 0, user:pw@·무작위 값 FAIL(비코드)', async () => {
+  const { c7LineHits } = await import('../lib/rules-source.mjs');
+  const neg = [
+    j('  POSTGRES_PASSWORD', '_FILE: /run/secrets/db_password'),
+    j('ENV X_SECRET', '_FILE /run/secrets/x_password'),
+    j('ARG X_SECRET', '_FILE=/run/secrets/x_password'),
+    j('  X_TOKEN', '_URL: "', HTTPS, 'nid.naver.com/oauth2.0/token"'),
+  ];
+  for (const l of neg) assert.deepEqual(c7LineHits(l, false), [], l);
+  const pos = [
+    j('  X_TOKEN', '_URL: "', HTTPS, 'u:pw1@h/x"'),
+    j('ENV X_SECRET', '_FILE ', RND),
+    j('  X_SECRET', '_FILE: ', RND),
+    j('  X_TOKEN', '_URL: ', HTTPS, 'h.example.org/cb?access', '_token=', HEXL),
+  ];
+  for (const l of pos) assert.ok(c7LineHits(l, false).some((h) => h.severity === 'FAIL'), l);
+});
+
+test('C7-SECRET 212 ReDoS: 대문자 env 규칙 10KB 적대 줄 — 줄마다 200ms 안', async () => {
+  const { c7LineHits } = await import('../lib/rules-source.mjs');
+  const lines = [
+    'TOKEN_'.repeat(1700),
+    j('TOKEN', '_FILE='.repeat(1700)),
+    j('SECRET_FILE=', '/a'.repeat(5000)),
+    j('SECRET_URL=', HTTPS, 'a/'.repeat(5000)),
+    j('A_PASSWORD_PATH=./', 'x'.repeat(10000)),
+    j('A_TOKEN_FILE=/', `${RND}/`.repeat(500)),
+  ];
+  for (const l of lines) {
+    c7LineHits(l, true);
+    const t = process.hrtime.bigint();
+    c7LineHits(l, true);
+    c7LineHits(l, false);
+    const ms = Number(process.hrtime.bigint() - t) / 1e6;
+    assert.ok(ms < 200, `${l.slice(0, 16)}… ${l.length}자: ${ms.toFixed(1)}ms`);
+  }
+});
+
 test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대로·integrity 해시·평범한 키, 파싱 실패 파일은 원문 줄 검사만', async () => {
   const { jsonC7Hits } = await import('../lib/rules-source.mjs');
   const clean = {
