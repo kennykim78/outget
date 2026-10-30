@@ -1,4 +1,4 @@
-// 작업 192 — 호환 규칙 품질 경고 R07c(보유품 의존성 탐침)·R07d(`||` 사용). 게이트 아님(WARN).
+// 작업 192·219 — 호환 규칙 품질 경고 R07c(보유품 의존성 탐침)·R07d(`||` 사용)·R07e(최소·권장 키 혼합). 게이트 아님(WARN).
 //   실제 server/seed 를 깊은 복사해 메모리에서만 expr 을 바꾼다(시드 사실 불변). 주입 식은 검증용 자리표시이며 사실값이 아니다.
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
 import { validateSeed } from '../seed/validate.js';
 import { combos, literalValues } from '../seed/validate-compat-quality.js';
-import { parseExpr, type SpecField } from '../engine/index.js';
-import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
+import { createCatalog, parseExpr, requirementCompat, type SpecField } from '../engine/index.js';
+import { asSeedBundle, type RawSeed, type Rec, type SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
@@ -164,5 +164,103 @@ describe('R07c 표본 — 접기 경계·폴백 경계(QA210 권장, 작업 215)
     const r = issues(withExpr('b.heightCm == 70 / 0'));
     expect(r.errors).toEqual([]);
     expect(r.r07c).toEqual([AT]);
+  });
+});
+
+// 작업 219 — R07e 최소 규격 키·권장 전용 키 혼합 `&&`·`||`(218 계획서 선택지 D). 엔진 판정 불변, 경고만.
+//   골든 wheel 요구사항: 최소 diameterCm·surface, 권장 diameterCm(최소와 겹침) → 실시드에는 권장 전용 키가 없다.
+//   §1.1 재현을 위해 메모리 사본에만 권장 `silent eq true` 를 더한다(자리표시, 사실값 아님).
+describe('R07e — 최소·권장 키 혼합 && / ||', () => {
+  const BANNED = ['괜찮다', '안전하다', '최저가', '판매순', '베스트', '정확도', '회원가입', '구매'];
+  const r07e = (s: RawSeed) => {
+    const res = validateSeed(s, { now: NOW });
+    const w = res.warnings.filter((i) => i.rule === 'R07e');
+    return { errors: res.errors.map((i) => i.rule), at: w.map((i) => `${i.id}|${i.path}`), msgs: w.map((i) => i.message) };
+  };
+  const withSilentRec = (expr: string, onFail?: string): Required<RawSeed> => {
+    const s = withExpr(expr);
+    ((row(s, 'supplyRequirements', 'req-syrian-wheel').recommendedSpec as Rec).rules as Rec[]).push({
+      key: 'silent',
+      op: 'eq',
+      value: true,
+      reason: '검증용 자리표시',
+    });
+    if (onFail) (row(s, 'compatibilityRules', RULE).rules as Rec[])[0].onFail = onFail;
+    return s;
+  };
+  const compatOf = (s: RawSeed, cageHeightCm: number) =>
+    requirementCompat(createCatalog(asSeedBundle(s)), 'hamster-golden', 'wheel', { ownedItems: { cage: { heightCm: cageHeightCm } } });
+
+  it('실시드 → R07e 0(정본 CR 4개에 && · || 없음)', () => {
+    const r = r07e(fresh());
+    expect(r.errors).toEqual([]);
+    expect(r.at).toEqual([]);
+  });
+
+  it('§1.1 재현(최소 false && 권장, onFail BELOW_MIN) → WARN 1건 · 엔진은 실제로 CHECK + usedRecommended(경고가 가리키는 한계)', () => {
+    const s = withSilentRec('a.diameterCm + 20 <= b.heightCm && a.silent == true', 'BELOW_MIN');
+    const r = r07e(s);
+    expect(r.errors).toEqual([]);
+    expect(r.at).toEqual([AT]);
+    expect(r.msgs[0]).toContain('최소 diameterCm / 권장 silent');
+    expect(r.msgs[0]).toContain('엔진 한계');
+    expect(r.msgs[0]).toContain('BELOW_MIN 이 CHECK 로 낮아지고');
+    const c = compatOf(s, 40); // 27 + 20 <= 40 → false(최소만으로 확정 가능한 실패)
+    expect(c.verdict).toBe('CHECK');
+    expect(c.usedRecommended).toBe(true);
+  });
+
+  it('§1.2 짝(최소 true || 권장) → WARN 1건 · 엔진은 OK + usedRecommended', () => {
+    const s = withSilentRec('a.diameterCm + 20 <= b.heightCm || a.silent == true');
+    const r = r07e(s);
+    expect(r.errors).toEqual([]);
+    expect(r.at).toEqual([AT]);
+    expect(r.msgs[0]).toContain('`||` a(wheel)');
+    expect(r.msgs[0]).toContain('권장 채움 표식(usedRecommended)이 붙을 수 있음');
+    expect(r.msgs[0]).not.toContain('BELOW_MIN 이 CHECK 로');
+    const c = compatOf(s, 60);
+    expect(c.verdict).toBe('OK');
+    expect(c.usedRecommended).toBe(true);
+  });
+
+  it('피연산자 순서 반대(권장 && 최소)·중첩(최소 && (권장 || 보유품)) → WARN', () => {
+    expect(r07e(withSilentRec('a.silent == true && a.diameterCm + 20 <= b.heightCm', 'BELOW_MIN')).at).toEqual([AT]);
+    expect(r07e(withSilentRec("a.surface == 'SOLID' && (a.silent == true || b.heightCm >= 80)")).at).toEqual([AT]);
+  });
+
+  it('실시드 저빌 wheel(최소 surface · 권장 전용 diameterCm) — 시드 사실 그대로 혼합식만 주입 → WARN', () => {
+    const s = fresh();
+    (row(s, 'compatibilityRules', 'cr-gerbil-wheel-cage-bedding').rules as Rec[])[0].expr = "a.surface == 'SOLID' && a.diameterCm + 20 <= b.heightCm";
+    const r = r07e(s);
+    expect(r.errors).toEqual([]);
+    expect(r.at).toEqual(['cr-gerbil-wheel-cage-bedding|rules[0].expr']);
+    expect(r.msgs[0]).toContain('최소 surface / 권장 diameterCm');
+  });
+
+  it.each([
+    ["최소만: a.diameterCm + 20 <= b.heightCm && a.surface == 'SOLID'", "a.diameterCm + 20 <= b.heightCm && a.surface == 'SOLID'"],
+    ['권장만(용품 쪽): a.silent == true && b.heightCm >= 40', 'a.silent == true && b.heightCm >= 40'],
+    ['논리 연산 없이 섞음: a.diameterCm + 20 <= b.heightCm', 'a.diameterCm + 20 <= b.heightCm'],
+    ['보유품만 섞음: a.diameterCm + 20 <= b.heightCm && b.floorWcm >= 100', 'a.diameterCm + 20 <= b.heightCm && b.floorWcm >= 100'],
+  ])('%s → R07e 0', (_label, expr) => {
+    const r = r07e(withSilentRec(expr, 'BELOW_MIN'));
+    expect(r.errors).toEqual([]);
+    expect(r.at).toEqual([]);
+  });
+
+  it('권장 전용 키가 없는 요구사항(실시드 골든 wheel)에서는 같은 && 식도 0', () => {
+    expect(r07e(withExpr('a.diameterCm + 20 <= b.heightCm && a.silent == true')).at).toEqual([]);
+  });
+
+  it('문구에 콘텐츠 린트 금지어 없음', () => {
+    const msgs = [
+      ...r07e(withSilentRec('a.diameterCm + 20 <= b.heightCm && a.silent == true', 'BELOW_MIN')).msgs,
+      ...r07e(withSilentRec('a.diameterCm + 20 <= b.heightCm || a.silent == true')).msgs,
+    ];
+    expect(msgs.length).toBe(2);
+    for (const m of msgs) {
+      for (const w of BANNED) expect(m).not.toContain(w);
+      expect(m).not.toMatch(/전문가\s*\d+\s*명/);
+    }
   });
 });

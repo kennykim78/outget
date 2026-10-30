@@ -2,6 +2,7 @@
 //   R07c 보유품 의존성 탐침: 식이 보유품 쪽 키를 참조하는데, 보유품 값을 specSchema 범위 표본으로 바꿔 평가해도 결과가 한 번도
 //        바뀌지 않으면 WARN(표본 값에서 결과 변화가 없음, 보유품 값과 무관할 수 있음 — 엔진 보유품 근거 단계를 통과해 근거가 약한 OK 가 될 수 있다).
 //   R07d `||` 사용: 평가기가 엄격 3값이라 `true || b.x` 같은 식은 보유품을 쓰지 않아도 근거 있음으로 셀 수 있다 → WARN.
+//   R07e 최소 규격 키·권장 전용 키 혼합 `&&`·`||`(작업 219): requirementCompat 이 CHECK 상한·권장 표식 오류를 낼 수 있다 → WARN.
 //   판정·평가는 engine/ 만 쓴다(parseExpr·evalExpr·sanitizeSpecValues·minSpecBaseline·resolveRequirement, 불변식 6). 엔진 판정은 바꾸지 않는다.
 import {
   createCatalog,
@@ -9,6 +10,7 @@ import {
   exprRefs,
   minSpecBaseline,
   parseExpr,
+  requirementBaseline,
   resolveRequirement,
   sanitizeSpecValues,
   type EngineCatalog,
@@ -277,6 +279,98 @@ export function checkCompatOwnedProbe(ctx: Ctx, raw: RawSeed): void {
           );
         }
       }
+    });
+  }
+}
+
+/** 식 안의 모든 `&&`·`||` 노드(삼항·부정·in 안 포함). */
+function logicNodes(n: ExprNode, out: Extract<ExprNode, { t: 'bin' }>[] = []): Extract<ExprNode, { t: 'bin' }>[] {
+  switch (n.t) {
+    case 'bin':
+      if (n.op === '&&' || n.op === '||') out.push(n);
+      logicNodes(n.l, out);
+      logicNodes(n.r, out);
+      break;
+    case 'neg':
+    case 'not':
+      logicNodes(n.arg, out);
+      break;
+    case 'in':
+      logicNodes(n.l, out);
+      logicNodes(n.list, out);
+      break;
+    case 'list':
+      n.items.forEach((x) => logicNodes(x, out));
+      break;
+    case 'cond':
+      logicNodes(n.test, out);
+      logicNodes(n.then, out);
+      logicNodes(n.else, out);
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
+/**
+ * R07e — 최소 규격 키·권장 전용 키 혼합 `&&`·`||`(작업 219, 218 계획서 선택지 D). 게이트 아님(WARN), 엔진 판정 불변.
+ *   requirementCompat(SKIP 모드)은 ① 최소 기준값(minSpecBaseline)만으로 평가하고 UNKNOWN 일 때만 ② 권장 채움 입력
+ *   (requirementBaseline)으로 다시 평가한다. 평가기가 엄격 3값이라 `최소키 비교 && 권장키 비교` 는 최소 쪽이 false 여도 ①에서
+ *   UNKNOWN → ②에서 확정 → 실패는 CHECK 상한 + usedRecommended(218 §1.1), `최소키 비교 || 권장키 비교` 는 최소 쪽이 true 여도
+ *   OK + usedRecommended(218 §1.2). 대상: 용품 쪽에서 본 `&&`·`||` 의 한 피연산자는 최소 기준 키만, 다른 피연산자는 권장 전용 키
+ *   (requirementBaseline.recommendedKeys)를 참조. 키 판별은 엔진 resolveRequirement·minSpecBaseline·requirementBaseline·exprRefs 만
+ *   쓴다(평가기 복제 없음, 불변식 6). 방향(A-10)·동물(careOverrides 반영)마다 보고 규칙 항목당 1건으로 합친다.
+ *   한계: 용품 쪽 키를 전혀 참조하지 않는 피연산자(보유품 키만)와 권장 키의 혼합은 대상이 아니다(계획서 정의 그대로).
+ */
+export function checkCompatMinRecMix(ctx: Ctx, raw: RawSeed): void {
+  const cat = createCatalog(asSeedBundle(raw));
+  for (const rule of cat.compatibilityRules) {
+    (Array.isArray(rule.rules) ? rule.rules : []).forEach((entry, i) => {
+      let node: ExprNode;
+      try {
+        node = parseExpr(entry.expr);
+      } catch {
+        return;
+      }
+      const logic = logicNodes(node);
+      if (logic.length === 0) return;
+      const hits = new Set<string>();
+      for (const inputSide of ['a', 'b'] as const) {
+        const inputItem = rule[inputSide];
+        for (const at of cat.animalTypes.values()) {
+          if (rule.careProfileId && at.careProfileId !== rule.careProfileId) continue;
+          const r = resolveRequirement(cat, at.id, inputItem);
+          if (!r) continue;
+          const minKeys = new Set(Object.keys(minSpecBaseline(r)));
+          const recKeys = new Set(requirementBaseline(r).recommendedKeys);
+          if (minKeys.size === 0 || recKeys.size === 0) continue;
+          for (const op of logic) {
+            const lk = exprRefs(op.l)[inputSide];
+            const rk = exprRefs(op.r)[inputSide];
+            const minOnly = (ks: string[]) => ks.length > 0 && ks.every((k) => minKeys.has(k));
+            const recIn = (ks: string[]) => ks.filter((k) => recKeys.has(k));
+            const pairs: [string[], string[]][] = [];
+            if (minOnly(lk) && recIn(rk).length > 0) pairs.push([lk, recIn(rk)]);
+            if (minOnly(rk) && recIn(lk).length > 0) pairs.push([rk, recIn(lk)]);
+            for (const [mk, rk2] of pairs) {
+              hits.add(`\`${op.op}\` ${inputSide}(${String(inputItem)}) 최소 ${mk.join('·')} / 권장 ${rk2.join('·')}`);
+            }
+          }
+        }
+      }
+      if (hits.size === 0) return;
+      const effect =
+        entry.onFail === 'BELOW_MIN'
+          ? '최소 기준값만으로 확정되는 BELOW_MIN 이 CHECK 로 낮아지고 권장 채움 표식(usedRecommended)이 붙을 수 있음'
+          : '최소 기준값만으로 확정되는 결과에도 권장 채움 표식(usedRecommended)이 붙을 수 있음';
+      ctx.out.warn(
+        'R07e',
+        'compatibilityRules',
+        rule.id,
+        `rules[${i}].expr`,
+        `최소 규격 키와 권장 전용 키를 \`&&\`·\`||\` 로 섞음(${[...hits].sort().join('; ')}) — 엔진 한계(엄격 3값 평가)로 ${effect}(규칙을 나눠 쓰기 권장)`,
+      );
     });
   }
 }

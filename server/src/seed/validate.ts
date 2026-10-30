@@ -2,7 +2,7 @@
 //   규칙 표: _workspace/04_architect_r2_plan.md §F. 출력 형식은 cli-validate.ts.
 import { Collector, type Issue, type RawSeed } from './common.js';
 import { buildCtx, type ValidateOptions } from './context.js';
-import { checkCompatOr, checkCompatOwnedProbe } from './validate-compat-quality.js';
+import { checkCompatMinRecMix, checkCompatOr, checkCompatOwnedProbe } from './validate-compat-quality.js';
 import { lintRecord } from './lint.js';
 import { checkExposure, checkExprs, checkOptionLabels, checkRuleScoped, meetsMinSpecFn, specRefersFn, type ExposureSummary } from './validate-engine.js';
 import { checkPublishGates } from './validate-gates.js';
@@ -49,6 +49,8 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   if (!out.issues.some((i) => i.severity === 'ERROR')) checkRuleScoped(ctx, raw);
   // R07c(작업 192) — 보유품 의존성 탐침. 엔진 평가기로만, 구조·참조가 온전할 때만.
   if (!out.issues.some((i) => i.severity === 'ERROR')) checkCompatOwnedProbe(ctx, raw);
+  // R07e(작업 219) — 최소·권장 키 혼합 `&&`·`||`. 엔진 키 판별로만, 구조·참조가 온전할 때만.
+  if (!out.issues.some((i) => i.severity === 'ERROR')) checkCompatMinRecMix(ctx, raw);
   // X01·X02(공개 게이트) — 구조·참조가 온전할 때만 엔진 노출 판정으로.
   if (structurallySound) checkPublishGates(ctx, raw);
 
