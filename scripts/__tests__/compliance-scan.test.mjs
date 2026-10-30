@@ -2769,6 +2769,15 @@ for (const [name, url] of [
     assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && /https:\/\/ 아님/.test(f.message)), JSON.stringify(res.json.findings));
   });
 }
+for (const key of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+  test(`C3-OUT-ID 235: ws-data data.${key} 프로토타입 이름 키 → 크래시 없이 알 수 없는 컬렉션 FAIL`, async () => {
+    const res = scan(await makeRoot({ output: (o) => {
+      o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('"requirements":', () => `"${key}":[{"id":"x"}],"requirements":`);
+    } }));
+    assert.ok(res.json, `비정상 종료: ${res.stderr ?? ''}`);
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && f.message.includes('알 수 없는 컬렉션')), JSON.stringify(res.json.findings));
+  });
+}
 for (const key of ['__proto__', 'constructor', 'prototype']) {
   test(`C3-OUT-SRC L-3: ws-data 에 자체 키 ${key} → FAIL(v1·v2)`, async () => {
     const inject = (o) => {

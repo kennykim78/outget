@@ -166,7 +166,7 @@ function checkWsData(d, rel, line, ex, add) {
       }
       continue;
     }
-    const key = WS_DATA_KEYS[k];
+    const key = Object.hasOwn(WS_DATA_KEYS, k) ? WS_DATA_KEYS[k] : undefined; // 프로토타입 이름(constructor 등) 키는 알 수 없는 컬렉션
     if (!key) {
       bad(`알 수 없는 컬렉션 data.${L(k)}`);
       continue;
