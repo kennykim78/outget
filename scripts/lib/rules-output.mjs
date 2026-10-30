@@ -13,6 +13,7 @@ import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
+import { jsonErrorWhere, safeLabel } from './rules-source.mjs';
 import { SEED_KEYS } from './seed-exposure.mjs';
 
 const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
@@ -22,6 +23,14 @@ const JSON_TEXT_SKIP = /^(id|slug|href|url|sourceUrl|path|catalogUrl|imageAsset|
 const TEXT_ATTRS = ['title', 'alt', 'aria-label', 'aria-description', 'placeholder'];
 const isExternal = (u) => /^[a-z][a-z0-9+.-]*:/i.test(u) || u.startsWith('//') || u.startsWith('\\');
 const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+// 233(QA231): 진단 메시지에 넣는 산출물·manifest 값은 모두 safeLabel(비밀 형태면 ‹가림 N자›, 120자 초과면 ‹생략 N자›) — 파일·줄·규칙 id 는 그대로.
+const L = safeLabel;
+/** 잘라 보여 주는 값 — 판정은 자르기 전 전체 값으로(잘린 조각이 판정을 비켜 가지 않게), 통과한 값만 n 자로 자른다. */
+function clip(v, n) {
+  const s = String(v);
+  const lab = safeLabel(s);
+  return lab === s && s.length > n ? `${s.slice(0, n)}…` : lab;
+}
 
 function decodePath(p) {
   let s = String(p);
@@ -88,24 +97,24 @@ function forbiddenKeyIn(root) {
 function checkWsWire(d, rel, line, add) {
   const bad = (what) => add('C3-OUT-SRC', 'FAIL', rel, line, `ws-data ${what}`);
   const fk = forbiddenKeyIn(d);
-  if (fk !== null) bad(`금지 키 ${fk}(프로토타입 오염 경로, L-3)`);
+  if (fk !== null) bad(`금지 키 ${L(fk)}(프로토타입 오염 경로, L-3)`);
   const reqs = isObj(d.data) && Array.isArray(d.data.requirements) ? d.data.requirements.filter(isObj) : [];
   if (d.v === 1) {
     if (d.sources !== undefined) bad('v1 인데 최상위 sources 있음(형식 혼합)');
-    for (const q of reqs) if (q.sourceRefs !== undefined) bad(`v1 인데 requirement ${q.animalTypeId}|${q.supplyItemId} 에 sourceRefs`);
+    for (const q of reqs) if (q.sourceRefs !== undefined) bad(`v1 인데 requirement ${L(`${q.animalTypeId}|${q.supplyItemId}`)} 에 sourceRefs`);
     return;
   }
-  if (d.v !== 2) return bad(`알 수 없는 v=${JSON.stringify(d.v)}`);
+  if (d.v !== 2) return bad(`알 수 없는 v=${L(JSON.stringify(d.v))}`);
   const own = Object.keys(d);
-  if (own.length !== WS_V2_KEYS.length || !WS_V2_KEYS.every((k) => Object.hasOwn(d, k))) bad(`v2 최상위 키 집합 불일치(${own.join(',')})`);
+  if (own.length !== WS_V2_KEYS.length || !WS_V2_KEYS.every((k) => Object.hasOwn(d, k))) bad(`v2 최상위 키 집합 불일치(${L(own.join(','))})`);
   if (!Array.isArray(d.sources)) return bad('v2 sources 형식(최상위 sources 없음 또는 배열 아님)');
   const table = d.sources;
   const seen = new Set();
   table.forEach((e, i) => {
     if (!isObj(e)) return bad(`v2 sources[${i}] 형식`);
-    for (const k of Object.keys(e)) if (!WS_SOURCE_KEYS.has(k)) bad(`v2 sources[${i}] 허용 밖 키 ${k}`);
+    for (const k of Object.keys(e)) if (!WS_SOURCE_KEYS.has(k)) bad(`v2 sources[${i}] 허용 밖 키 ${L(k)}`);
     if (typeof e.url !== 'string' || typeof e.title !== 'string') return bad(`v2 sources[${i}] url·title 문자열 아님`);
-    if (!WS_SOURCE_URL_RE.test(e.url)) bad(`v2 sources[${i}] url 이 https:// 아님(L-2): ${e.url.slice(0, 40)}`);
+    if (!WS_SOURCE_URL_RE.test(e.url)) bad(`v2 sources[${i}] url 이 https:// 아님(L-2): ${clip(e.url, 40)}`);
     const key = JSON.stringify([e.url, e.title]);
     if (seen.has(key)) bad(`v2 sources[${i}] 중복 표 항목`);
     seen.add(key);
@@ -114,7 +123,7 @@ function checkWsWire(d, rel, line, add) {
   else if (d.data.requirements.some((q) => !isObj(q))) bad('v2 requirement 형식(객체 아님)');
   const used = new Set();
   for (const q of reqs) {
-    const at = `requirement ${q.animalTypeId}|${q.supplyItemId}`;
+    const at = `requirement ${L(`${q.animalTypeId}|${q.supplyItemId}`)}`;
     if (q.source !== undefined) bad(`v2 ${at} 에 source 잔존`);
     if (q.searchLinks !== undefined) bad(`v2 ${at} 에 searchLinks 잔존`);
     if (typeof q.searchKeyword !== 'string') bad(`v2 ${at} searchKeyword 문자열 아님·누락`);
@@ -123,7 +132,7 @@ function checkWsWire(d, rel, line, add) {
       continue;
     }
     for (const r of q.sourceRefs) {
-      if (typeof r !== 'number' || !Number.isInteger(r) || r < 0 || r >= table.length) bad(`v2 ${at} sourceRefs 범위 밖 인덱스 ${JSON.stringify(r)} (표 ${table.length}개)`);
+      if (typeof r !== 'number' || !Number.isInteger(r) || r < 0 || r >= table.length) bad(`v2 ${at} sourceRefs 범위 밖 인덱스 ${L(JSON.stringify(r))} (표 ${table.length}개)`);
       else used.add(r);
     }
   }
@@ -136,60 +145,60 @@ function checkWsData(d, rel, line, ex, add) {
   if (!isObj(d)) return;
   checkWsWire(d, rel, line, add);
   const r = d.route;
-  if (isObj(r) && r.typeId !== undefined && !ex.ids.animalTypes.has(r.typeId)) bad(`route.typeId ${r.typeId}`);
+  if (isObj(r) && r.typeId !== undefined && !ex.ids.animalTypes.has(r.typeId)) bad(`route.typeId ${L(r.typeId)}`);
   checkLayer(d.layer, ex, (w) => bad(`layer ${w}`));
   const data = d.data;
   if (data === undefined) return;
   if (!isObj(data)) return bad('data 형식');
   for (const [k, arr] of Object.entries(data)) {
     if (!Array.isArray(arr)) {
-      bad(`data.${k} 형식`);
+      bad(`data.${L(k)} 형식`);
       continue;
     }
     if (k === 'requirements') {
       for (const q of arr) {
-        if (!isObj(q) || !ex.pairs.has(`${q.animalTypeId}|${q.supplyItemId}`)) bad(`requirement ${q?.animalTypeId}|${q?.supplyItemId}`);
+        if (!isObj(q) || !ex.pairs.has(`${q.animalTypeId}|${q.supplyItemId}`)) bad(`requirement ${L(`${q?.animalTypeId}|${q?.supplyItemId}`)}`);
         const item = isObj(q) ? q.item : undefined;
         if (item !== undefined) {
-          if (!isObj(item) || !ex.ids.supplyItems.has(item.id)) bad(`requirement.item ${item?.id}`);
-          for (const a of Array.isArray(item?.alternativeIds) ? item.alternativeIds : []) if (!ex.ids.supplyItems.has(a)) bad(`alternativeId ${a}`);
+          if (!isObj(item) || !ex.ids.supplyItems.has(item.id)) bad(`requirement.item ${L(item?.id)}`);
+          for (const a of Array.isArray(item?.alternativeIds) ? item.alternativeIds : []) if (!ex.ids.supplyItems.has(a)) bad(`alternativeId ${L(a)}`);
         }
       }
       continue;
     }
     const key = WS_DATA_KEYS[k];
     if (!key) {
-      bad(`알 수 없는 컬렉션 data.${k}`);
+      bad(`알 수 없는 컬렉션 data.${L(k)}`);
       continue;
     }
-    for (const x of arr) if (!isObj(x) || !ex.ids[key].has(x.id)) bad(`${k} ${x?.id}`);
+    for (const x of arr) if (!isObj(x) || !ex.ids[key].has(x.id)) bad(`${k} ${L(x?.id)}`);
   }
 }
 
 function checkLayer(layer, ex, bad) {
   if (layer === null || layer === undefined) return;
   if (!isObj(layer)) return bad('형식');
-  if (!ex.ids.animalTypes.has(layer.typeId)) bad(`typeId ${layer.typeId}`);
-  if (layer.itemId !== undefined && !ex.pairs.has(`${layer.typeId}|${layer.itemId}`)) bad(`itemId ${layer.itemId}`);
-  if (layer.productId !== undefined && !ex.productTypes.has(`${layer.typeId}|${layer.productId}`)) bad(`productId ${layer.productId}`);
+  if (!ex.ids.animalTypes.has(layer.typeId)) bad(`typeId ${L(layer.typeId)}`);
+  if (layer.itemId !== undefined && !ex.pairs.has(`${layer.typeId}|${layer.itemId}`)) bad(`itemId ${L(layer.itemId)}`);
+  if (layer.productId !== undefined && !ex.productTypes.has(`${layer.typeId}|${layer.productId}`)) bad(`productId ${L(layer.productId)}`);
 }
 
 /** 공개 카탈로그(dist/data/*.json) id 검사. */
 function checkCatalog(c, rel, ex, digest, add) {
   if (!isObj(c)) return add('C3-OUT-ID', 'FAIL', rel, null, '카탈로그 형식');
-  if (c.seedDigest !== undefined && c.seedDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', rel, null, `카탈로그 seedDigest 불일치 (${c.seedDigest})`);
+  if (c.seedDigest !== undefined && c.seedDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', rel, null, `카탈로그 seedDigest 불일치 (${L(c.seedDigest)})`);
   for (const [k, arr] of Object.entries(c)) {
     if (!Array.isArray(arr)) continue;
     if (!SEED_KEYS.includes(k)) {
-      if (arr.some((x) => isObj(x) && 'id' in x)) add('C3-OUT-ID', 'FAIL', rel, null, `알 수 없는 컬렉션 ${k}`);
+      if (arr.some((x) => isObj(x) && 'id' in x)) add('C3-OUT-ID', 'FAIL', rel, null, `알 수 없는 컬렉션 ${L(k)}`);
       continue;
     }
-    for (const x of arr) if (!isObj(x) || !ex.ids[k].has(x.id)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 ${k}#${x?.id}`);
+    for (const x of arr) if (!isObj(x) || !ex.ids[k].has(x.id)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 ${k}#${L(x?.id)}`);
     // Taxon 참조는 검수 완료 Taxon 만(불변식 7) — 타입은 Taxon 미검수여도 노출(Kenny 2026-10-24 K-4 되돌림).
     const taxonRefs = (x) => (k === 'animalTypes' ? [x.taxonId] : k === 'careProfiles' && Array.isArray(x.taxonIds) ? x.taxonIds : []);
     for (const x of arr) {
       if (!isObj(x)) continue;
-      for (const t of taxonRefs(x)) if (t !== null && t !== undefined && !ex.ids.taxa.has(t)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 Taxon 참조 ${k}#${x.id} → ${t}`);
+      for (const t of taxonRefs(x)) if (t !== null && t !== undefined && !ex.ids.taxa.has(t)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 Taxon 참조 ${k}#${L(x.id)} → ${L(t)}`);
     }
   }
 }
@@ -202,39 +211,39 @@ function checkRoutes(m, dist, ex, add) {
   }
   for (const r of m.routes) {
     if (!isObj(r) || typeof r.path !== 'string' || typeof r.file !== 'string') {
-      add('C3-OUT-ROUTE', 'FAIL', R, null, `route 형식 오류: ${JSON.stringify(r)}`);
+      add('C3-OUT-ROUTE', 'FAIL', R, null, `route 형식 오류: ${L(JSON.stringify(r))}`);
       continue;
     }
-    const at = `route ${r.path}`;
-    if (!ROUTE_KINDS.has(r.kind)) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 알 수 없는 kind ${r.kind}`);
+    const at = `route ${L(r.path)}`;
+    if (!ROUTE_KINDS.has(r.kind)) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 알 수 없는 kind ${L(r.kind)}`);
     if (r.file.split(/[\\/]/).includes('..') || /^([a-z]:|\/)/i.test(r.file) || !existsSync(join(dist, r.file))) {
-      add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 파일 없음·경로 이탈 ${r.file}`);
+      add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 파일 없음·경로 이탈 ${L(r.file)}`);
     }
     if (TYPE_KINDS.has(r.kind) && r.typeId === undefined) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: ${r.kind} 에 typeId 없음`);
     if (r.typeId !== undefined) {
       const t = ex.types.get(r.typeId);
-      if (!t) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 비노출 타입 ${r.typeId}`);
+      if (!t) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 비노출 타입 ${L(r.typeId)}`);
       else if (TYPE_KINDS.has(r.kind) || r.kind === 'SUPPLY_ITEM') {
         const p = decodePath(r.path);
         const base = `/${t.slug}`;
-        if (typeof t.slug !== 'string' || (p !== base && !p.startsWith(`${base}/`))) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 타입 slug(${t.slug}) 불일치`);
+        if (typeof t.slug !== 'string' || (p !== base && !p.startsWith(`${base}/`))) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 타입 slug(${L(t.slug)}) 불일치`);
       }
     }
     if (r.kind === 'FAMILY') {
       const fam = r.family;
       if (typeof fam !== 'string' || ![...ex.types.values()].some((t) => typeof t.slug === 'string' && t.slug.startsWith(`${fam}/`))) {
-        add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 노출 타입 없는 family ${fam}`);
+        add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 노출 타입 없는 family ${L(fam)}`);
       }
     }
     if (r.itemId !== undefined) {
       const ok = r.typeId !== undefined ? ex.pairs.has(`${r.typeId}|${r.itemId}`) : ex.ids.supplyItems.has(r.itemId);
-      if (!ok) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 비노출 item ${r.itemId}`);
+      if (!ok) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 비노출 item ${L(r.itemId)}`);
     }
     if (r.productId !== undefined) {
       const ok = r.typeId !== undefined ? ex.productTypes.has(`${r.typeId}|${r.productId}`) : ex.ids.curatedProducts.has(r.productId);
-      if (!ok) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 비노출 product ${r.productId}`);
+      if (!ok) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 비노출 product ${L(r.productId)}`);
     }
-    if (r.region !== undefined && !ex.vetRegions.has(r.region)) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 노출 병원 없는 지역 ${r.region}`);
+    if (r.region !== undefined && !ex.vetRegions.has(r.region)) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: 노출 병원 없는 지역 ${L(r.region)}`);
     if (r.kind === 'VET_REGION' && r.region === undefined) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: VET_REGION 에 region 없음`);
     // R4 D6: /credits 는 항상 생성(사진 0이면 빈 상태) — 존재 자체는 위반이 아니다. 내용은 아래 C6 가 본다.
     if (r.kind === 'CREDITS' && r.indexable === true) add('C3-OUT-ROUTE', 'FAIL', R, null, `${at}: /credits 는 noindex 여야 한다`);
@@ -326,7 +335,7 @@ function hiddenSourceNeedles(seed, ex) {
  */
 export function scanSeedExposure({ ex, add }) {
   for (const [id, t] of ex.types) {
-    if (typeof t.taxonId !== 'string' || t.taxonId.trim() === '') add('C3-TAXON', 'FAIL', 'server/seed/animal-types.json', null, `노출 타입 ${id} 의 taxonId 가 비어 있다(법 사슬 AnimalType→Taxon 필수)`);
+    if (typeof t.taxonId !== 'string' || t.taxonId.trim() === '') add('C3-TAXON', 'FAIL', 'server/seed/animal-types.json', null, `노출 타입 ${L(id)} 의 taxonId 가 비어 있다(법 사슬 AnimalType→Taxon 필수)`);
   }
 }
 
@@ -379,7 +388,7 @@ function checkPrivacy({ root, dist, m, routes, routeFiles, all, add }) {
     const at = text.indexOf(KENNY_NEEDLE);
     if (at < 0) continue;
     const keys = [...new Set([...text.matchAll(/\{\{KENNY:([A-Za-z0-9]*)\}\}/g)].map((x) => x[1]))].join(', ');
-    add('C9-PRIVACY', 'WARN', relPosix(root, f), lineIndex(text)(at), `Kenny 미정 자리표시 ${KENNY_NEEDLE}…}}(${keys || '?'}) — ${dev ? '개발 빌드' : `운영 빌드(manifest.mode=${JSON.stringify(isObj(m) ? m.mode : undefined)}): 운영 기동 차단됨(WS_ALLOW_PRIVACY_PLACEHOLDER=1 일 때만 기동)`}`);
+    add('C9-PRIVACY', 'WARN', relPosix(root, f), lineIndex(text)(at), `Kenny 미정 자리표시 ${KENNY_NEEDLE}…}}(${keys ? L(keys) : '?'}) — ${dev ? '개발 빌드' : `운영 빌드(manifest.mode=${L(JSON.stringify(isObj(m) ? m.mode : undefined))}): 운영 기동 차단됨(WS_ALLOW_PRIVACY_PLACEHOLDER=1 일 때만 기동)`}`);
   }
 
   // ④ 기간 숫자 = policy.ts
@@ -400,14 +409,14 @@ function checkPrivacy({ root, dist, m, routes, routeFiles, all, add }) {
     n++;
     const [, name, value] = mm;
     seen.add(name);
-    if (!consts.has(name)) add('C9-PRIVACY', 'FAIL', rel, lineOf(mm.index), `기간 ${name} 이 policy.ts 에 없음`);
-    else if (value.trim() !== String(consts.get(name))) add('C9-PRIVACY', 'FAIL', rel, lineOf(mm.index), `기간 ${name}: 페이지 ${JSON.stringify(value)} ≠ policy.ts ${consts.get(name)}`);
+    if (!consts.has(name)) add('C9-PRIVACY', 'FAIL', rel, lineOf(mm.index), `기간 ${L(name)} 이 policy.ts 에 없음`);
+    else if (value.trim() !== String(consts.get(name))) add('C9-PRIVACY', 'FAIL', rel, lineOf(mm.index), `기간 ${L(name)}: 페이지 ${JSON.stringify(L(value))} ≠ policy.ts ${consts.get(name)}`);
   }
   const attrCount = (html.match(/\bdata-ws-policy=/g) ?? []).length;
   if (attrCount !== n) add('C9-PRIVACY', 'FAIL', rel, null, `data-ws-policy 표기 ${attrCount}개 중 ${attrCount - n}개가 span 숫자 형식이 아님`);
   if (n === 0) add('C9-PRIVACY', 'FAIL', rel, null, '보존 기간 표기(span[data-ws-policy]) 0개');
   for (const name of consts.keys()) {
-    if (name.endsWith('_RETENTION_DAYS') && !seen.has(name)) add('C9-PRIVACY', 'FAIL', rel, null, `policy.ts ${name} 기간이 처리방침에 없음`);
+    if (name.endsWith('_RETENTION_DAYS') && !seen.has(name)) add('C9-PRIVACY', 'FAIL', rel, null, `policy.ts ${L(name)} 기간이 처리방침에 없음`);
   }
 }
 
@@ -421,14 +430,16 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     return 'NOT RUN';
   }
   let m;
+  const manText = stripBom(readFileSync(manPath, 'utf8'));
   try {
-    m = JSON.parse(stripBom(readFileSync(manPath, 'utf8')));
-  } catch (e) {
-    add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, `manifest 파싱 실패: ${e.message}`);
+    m = JSON.parse(manText);
+  } catch {
+    // 233: JSON.parse 메시지는 원문 조각을 품는다 — 위치 숫자만.
+    add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, `manifest 파싱 실패(JSON 문법 오류 ${jsonErrorWhere(manText)})`);
     return 'RUN';
   }
   if (!isObj(m) || m.v !== 1) add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, 'manifest v≠1');
-  if (m.seedDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, `seedDigest 불일치: manifest ${m.seedDigest} ≠ server/seed ${digest}`);
+  if (m.seedDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, `seedDigest 불일치: manifest ${L(m.seedDigest)} ≠ server/seed ${digest}`);
   const routes = checkRoutes(isObj(m) ? m : {}, dist, ex, add);
   const indexablePaths = new Set(routes.filter((r) => r.indexable === true && typeof r.path === 'string').map((r) => decodePath(r.path)));
 
@@ -445,7 +456,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       } catch {
         p = mm[1];
       }
-      if (!indexablePaths.has(decodePath(p))) add('C3-OUT-ROUTE', 'FAIL', 'sitemap.xml', null, `manifest indexable 밖 URL: ${mm[1]}`);
+      if (!indexablePaths.has(decodePath(p))) add('C3-OUT-ROUTE', 'FAIL', 'sitemap.xml', null, `manifest indexable 밖 URL: ${L(mm[1])}`);
     }
   }
 
@@ -459,7 +470,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   // credits(C6 산출물)
   const needCredits = ex.ccByPhotos.length > 0;
   if (needCredits && !routes.some((r) => decodePath(r.path) === '/credits' && existsSync(join(dist, r.file)))) {
-    add('C6-IMG', 'FAIL', 'prerender-manifest.json', null, `CC BY 계열 사진(${ex.ccByPhotos.join(', ')})이 있는데 /credits 페이지 없음`);
+    add('C6-IMG', 'FAIL', 'prerender-manifest.json', null, `CC BY 계열 사진(${ex.ccByPhotos.map(L).join(', ')})이 있는데 /credits 페이지 없음`);
   }
 
   // C6(S1 M-3): /credits 에 CC BY 사진마다 항목 + 같은 종류의 creativecommons.org 증서 링크.
@@ -471,13 +482,13 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     for (const id of ex.ccByPhotos) {
       const at = html.indexOf(`data-ws-id="photos#${id}"`);
       if (at < 0) {
-        add('C6-IMG', 'FAIL', rel, null, `CC BY 사진 ${id} 의 저작자 표시 항목 없음`);
+        add('C6-IMG', 'FAIL', rel, null, `CC BY 사진 ${L(id)} 의 저작자 표시 항목 없음`);
         continue;
       }
       const end = html.indexOf('</li>', at);
       const item = html.slice(at, end < 0 ? undefined : end);
       const url = ex.licenseUrls?.get(id);
-      if (typeof url !== 'string' || !item.includes(`href="${url}"`)) add('C6-IMG', 'FAIL', rel, null, `CC BY 사진 ${id} 에 라이선스 증서 링크 없음`);
+      if (typeof url !== 'string' || !item.includes(`href="${url}"`)) add('C6-IMG', 'FAIL', rel, null, `CC BY 사진 ${L(id)} 에 라이선스 증서 링크 없음`);
     }
   }
 
@@ -499,12 +510,12 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       const type = (s.attrs.type ?? '').trim().toLowerCase();
       if (s.attrs.src !== undefined) {
         const src = s.attrs.src.trim();
-        if (!src.startsWith('/') || src.startsWith('//') || src.includes('\\')) add('C8-OUT-SAFE', 'FAIL', rel, line, `외부·비정상 script src: ${src}`);
+        if (!src.startsWith('/') || src.startsWith('//') || src.includes('\\')) add('C8-OUT-SAFE', 'FAIL', rel, line, `외부·비정상 script src: ${L(src)}`);
         if (s.body.trim() !== '') add('C8-OUT-SAFE', 'FAIL', rel, line, 'src 와 인라인 본문 동시');
         continue;
       }
       if (type !== 'application/json' && type !== 'application/ld+json') {
-        add('C8-OUT-SAFE', 'FAIL', rel, line, `인라인 스크립트 금지(type=${type || '없음'})`);
+        add('C8-OUT-SAFE', 'FAIL', rel, line, `인라인 스크립트 금지(type=${type ? L(type) : '없음'})`);
         continue;
       }
       if (s.body.includes('</')) add('C8-OUT-SAFE', 'FAIL', rel, line, 'JSON 블록 원문에 "</"');
@@ -515,7 +526,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
         add('C8-OUT-SAFE', 'FAIL', rel, line, 'JSON 블록 파싱 실패');
         continue;
       }
-      jsonStrings(data, '', (t, k) => bannedIn(t, rel, line, `JSON ${k}`, add, bw));
+      jsonStrings(data, '', (t, k) => bannedIn(t, rel, line, `JSON ${L(k)}`, add, bw));
       if (s.attrs.id === 'ws-data') checkWsData(data, rel, line, ex, add);
     }
 
@@ -524,37 +535,37 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     for (const t of tags(html)) {
       const line = lineOf(t.index);
       const a = t.attrs;
-      if (['iframe', 'frame', 'frameset', 'object', 'embed'].includes(t.name)) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${t.name}> 금지`);
+      if (['iframe', 'frame', 'frameset', 'object', 'embed'].includes(t.name)) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${L(t.name)}> 금지`);
       // B3-4(SEC L4): 인라인 이벤트 핸들러 속성(on*=)·모든 속성의 javascript:/vbscript: 값 0 — CSP 'unsafe-inline' 없이 동작해야 한다.
       for (const [k, v] of Object.entries(a)) {
-        if (/^on/i.test(k)) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${t.name} ${k}=> 인라인 핸들러`);
-        else if (typeof v === 'string' && /^(?:javascript|vbscript):/i.test(v.replace(/[\u0000-\u0020]/g, ''))) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${t.name} ${k}> 위험 URL: ${v.slice(0, 40)}`);
+        if (/^on/i.test(k)) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${L(t.name)} ${L(k)}=> 인라인 핸들러`);
+        else if (typeof v === 'string' && /^(?:javascript|vbscript):/i.test(v.replace(/[\u0000-\u0020]/g, ''))) add('C8-OUT-SAFE', 'FAIL', rel, line, `<${L(t.name)} ${L(k)}> 위험 URL: ${clip(v, 40)}`);
       }
       if (t.name === 'link' && a.href !== undefined && isExternal(a.href.trim()) && (a.rel ?? '').toLowerCase().trim() !== 'canonical') {
-        add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 <link href>: ${a.href}`);
+        add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 <link href>: ${L(a.href)}`);
       }
       if (t.name === 'a' && a.href !== undefined) {
         const href = a.href.trim();
-        if (/^\s*(javascript|data|vbscript):/i.test(href)) add('C8-OUT-SAFE', 'FAIL', rel, line, `위험 href: ${href.slice(0, 40)}`);
+        if (/^\s*(javascript|data|vbscript):/i.test(href)) add('C8-OUT-SAFE', 'FAIL', rel, line, `위험 href: ${clip(href, 40)}`);
         else if (isExternal(href) && !/^(mailto|tel):/i.test(href)) {
           const rels = (a.rel ?? '').toLowerCase().split(/\s+/);
-          if (!rels.includes('noopener')) add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 <a> rel noopener 없음: ${href}`);
+          if (!rels.includes('noopener')) add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 <a> rel noopener 없음: ${L(href)}`);
         }
         if (href === '/credits') hasCreditsLink = true;
       }
       if (t.name !== 'script' && t.name !== 'a' && t.name !== 'link') {
         for (const k of ['src', 'srcset', 'poster', 'data']) {
           if (a[k] !== undefined && a[k].split(',').some((u) => isExternal(u.trim().split(/\s+/)[0] ?? ''))) {
-            add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 리소스 ${t.name}[${k}]: ${a[k]}`);
+            add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 리소스 ${L(t.name)}[${k}]: ${L(a[k])}`);
           }
         }
       }
-      if (t.name === 'form' && a.action !== undefined && isExternal(a.action.trim())) add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 form action: ${a.action}`);
+      if (t.name === 'form' && a.action !== undefined && isExternal(a.action.trim())) add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 form action: ${L(a.action)}`);
       if (a['data-ws-id'] !== undefined) {
         const [key, id, extra] = a['data-ws-id'].split('#');
-        if (extra !== undefined || !SEED_KEYS.includes(key) || !ex.ids[key].has(id)) add('C3-OUT-ID', 'FAIL', rel, line, `비노출 data-ws-id: ${a['data-ws-id']}`);
+        if (extra !== undefined || !SEED_KEYS.includes(key) || !ex.ids[key].has(id)) add('C3-OUT-ID', 'FAIL', rel, line, `비노출 data-ws-id: ${L(a['data-ws-id'])}`);
       }
-      if (a['data-ws-type'] !== undefined && !ex.ids.animalTypes.has(a['data-ws-type'])) add('C3-OUT-ROUTE', 'FAIL', rel, line, `비노출 타입 페이지: ${a['data-ws-type']}`);
+      if (a['data-ws-type'] !== undefined && !ex.ids.animalTypes.has(a['data-ws-type'])) add('C3-OUT-ROUTE', 'FAIL', rel, line, `비노출 타입 페이지: ${L(a['data-ws-type'])}`);
       for (const k of TEXT_ATTRS) if (a[k] !== undefined) bannedIn(a[k], rel, line, `@${k}`, add, bw);
       if (t.name === 'meta' && a.content !== undefined) bannedIn(a.content, rel, line, '@meta content', add, bw);
     }
@@ -583,7 +594,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       continue;
     }
     checkCatalog(c, rel, ex, digest, add);
-    jsonStrings(c, '', (t, k) => bannedIn(t, rel, null, `JSON ${k}`, add, bw));
+    jsonStrings(c, '', (t, k) => bannedIn(t, rel, null, `JSON ${L(k)}`, add, bw));
   }
 
   // C3-OUT-TAXON(L-2) — 비노출 Taxon id·legal.note 텍스트 0.
@@ -596,7 +607,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
         const key = `${n.taxonId}|${n.what}`;
         if (seen.has(key) || !text.includes(n.v)) continue;
         seen.add(key);
-        add('C3-OUT-TAXON', 'FAIL', relPosix(root, abs), lineIndex(text)(text.indexOf(n.v)), `비노출 Taxon ${n.taxonId} 의 ${n.what} 문자열이 산출물에`);
+        add('C3-OUT-TAXON', 'FAIL', relPosix(root, abs), lineIndex(text)(text.indexOf(n.v)), `비노출 Taxon ${L(n.taxonId)} 의 ${n.what} 문자열이 산출물에`);
       }
     }
   }
@@ -610,7 +621,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       for (const n of srcNeedles) {
         if (seen.has(n.raw) || !text.includes(n.v)) continue;
         seen.add(n.raw);
-        add('C3-OUT-DRAFTSRC', 'FAIL', relPosix(root, abs), lineIndex(text)(text.indexOf(n.v)), `비노출 행 전용 출처 ${n.what}(${n.key}#${n.id}) 가 산출물에: ${n.raw.slice(0, 60)}`);
+        add('C3-OUT-DRAFTSRC', 'FAIL', relPosix(root, abs), lineIndex(text)(text.indexOf(n.v)), `비노출 행 전용 출처 ${n.what}(${n.key}#${L(n.id)}) 가 산출물에: ${clip(n.raw, 60)}`);
       }
     }
   }

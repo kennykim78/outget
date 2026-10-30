@@ -5,8 +5,18 @@
 //   판정: spaced 매칭 → L01 / spaced 아님·stripped 매칭 → term(공백·N 제외) 길이 ≥3 이면 L01, 아니면 L06
 //         어간(stems)은 정확 금지어 부분을 지운 나머지(spaced)에서 → L02
 import { readFileSync } from 'node:fs';
+// 233: 설정 오류 메시지에 파일 내용(정규식 원문·JSON 조각)을 넣지 않는다 — 위치 숫자·고정 사유만. 순환 import(rules-source → normalize)는
+//   함수 선언만 호출 시점에 쓰므로 평가 순서와 무관하다(최상위에서 서로의 값을 쓰지 않음).
+import { jsonErrorWhere } from './rules-source.mjs';
 
 export class ConfigError extends Error {}
+
+/** RegExp 생성 오류 → V8 고정 사유('Unterminated group' 등)만. 메시지 앞부분 '/<패턴>/u' 는 버린다. 사유가 고정 어휘 모양이 아니면 '사유 미상'. */
+function regexErrorReason(e) {
+  const m = /: ([^:]*)$/.exec(String(e?.message ?? ''));
+  const r = m ? m[1].trim() : '';
+  return /^[A-Za-z][A-Za-z ,'()-]{0,79}$/.test(r) ? r : '사유 미상';
+}
 
 const INVISIBLE = /[­​-‏⁠﻿]/g;
 
@@ -25,7 +35,7 @@ function compileList(list, name) {
     try {
       return { term: w.term, re: new RegExp(w.pattern, 'u') };
     } catch (e) {
-      throw new ConfigError(`banned-words.json: ${name}[${i}] 정규식 오류: ${e.message}`);
+      throw new ConfigError(`banned-words.json: ${name}[${i}] 정규식 오류(${regexErrorReason(e)})`);
     }
   });
 }
@@ -49,8 +59,8 @@ export function loadBannedWords(path) {
   let data;
   try {
     data = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
-  } catch (e) {
-    throw new ConfigError(`banned-words.json 파싱 실패: ${e.message}`);
+  } catch {
+    throw new ConfigError(`banned-words.json 파싱 실패(JSON 문법 오류 ${jsonErrorWhere(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)})`);
   }
   return compileBannedWords(data);
 }

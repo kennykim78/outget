@@ -754,7 +754,7 @@ export function jsonSyntaxErrorAt(s) {
   }
 }
 /** 'JSON 문법 오류 위치' 문구 — 숫자(줄·열)만. */
-function jsonErrorWhere(src) {
+export function jsonErrorWhere(src) {
   const at = jsonSyntaxErrorAt(src);
   if (at < 0) return '위치 미상';
   const p = Math.min(at, src.length);
@@ -972,7 +972,7 @@ function scanCode(rel, text, ctx) {
     for (const s of strings) {
       // 230: 문자열 전체(질의 속 토큰 가능) 대신 걸린 라우트 마디만.
       const tm = s.text.startsWith('/') ? TRADE_ROUTE_RE.exec(s.text) : null;
-      if (tm) add('C2-TRADE', 'FAIL', rel, s.line, `거래·분양 라우트: ${tm[0]}`);
+      if (tm) add('C2-TRADE', 'FAIL', rel, s.line, `거래·분양 라우트: ${safeLabel(tm[0])}`);
     }
     // C2-TRADE — 식별자
     bareL.forEach((l, i) => {
@@ -1146,8 +1146,8 @@ function checkSpaCsp(rel, codeL, add) {
 function scanSourceHtml(rel, text, add) {
   for (const t of tags(text)) {
     for (const [k, v] of Object.entries(t.attrs)) {
-      if (/^on/i.test(k)) add('C8-SRC-SAFE', 'FAIL', rel, null, `<${t.name} ${k}=> 인라인 핸들러`);
-      if (typeof v === 'string' && /(?:javascript|vbscript):/i.test(v.replace(/[\u0000-\u0020]/g, ''))) add('C8-SRC-SAFE', 'FAIL', rel, null, `<${t.name} ${k}> javascript: 값`);
+      if (/^on/i.test(k)) add('C8-SRC-SAFE', 'FAIL', rel, null, `<${safeLabel(t.name)} ${safeLabel(k)}=> 인라인 핸들러`);
+      if (typeof v === 'string' && /(?:javascript|vbscript):/i.test(v.replace(/[\u0000-\u0020]/g, ''))) add('C8-SRC-SAFE', 'FAIL', rel, null, `<${safeLabel(t.name)} ${safeLabel(k)}> javascript: 값`);
     }
   }
 }
@@ -1161,7 +1161,7 @@ function scanPrisma(rel, text, ctx) {
     const m = /^\s*model\s+(\w+)\s*\{/.exec(l);
     if (m) {
       model = m[1];
-      if (TRADE_MODELS.test(model)) add('C2-TRADE', 'FAIL', rel, i + 1, `거래·분양·결제 모델: ${model}`);
+      if (TRADE_MODELS.test(model)) add('C2-TRADE', 'FAIL', rel, i + 1, `거래·분양·결제 모델: ${safeLabel(model)}`);
       return;
     }
     if (/^\s*(enum|type|view)\s+\w+\s*\{/.test(l)) {
@@ -1175,8 +1175,8 @@ function scanPrisma(rel, text, ctx) {
     if (!model) return;
     const f = /^\s*([A-Za-z_]\w*)\s+\S/.exec(l);
     if (!f) return;
-    if (PRICE_FIELD.test(f[1])) add('C2-PRICE', 'FAIL', rel, i + 1, `가격·가맹 컬럼: ${model}.${f[1]}`);
-    if (GEO_FIELD.test(f[1]) && model !== 'VetClinic') add('C5-GEO', 'FAIL', rel, i + 1, `좌표 컬럼은 VetClinic 만: ${model}.${f[1]}`);
+    if (PRICE_FIELD.test(f[1])) add('C2-PRICE', 'FAIL', rel, i + 1, `가격·가맹 컬럼: ${safeLabel(`${model}.${f[1]}`)}`);
+    if (GEO_FIELD.test(f[1]) && model !== 'VetClinic') add('C5-GEO', 'FAIL', rel, i + 1, `좌표 컬럼은 VetClinic 만: ${safeLabel(`${model}.${f[1]}`)}`);
   });
 }
 
@@ -1193,7 +1193,7 @@ function scanPackage(rel, text, ctx) {
     const deps = pkg?.[sec];
     if (!deps || typeof deps !== 'object') continue;
     for (const name of Array.isArray(deps) ? deps : Object.keys(deps)) {
-      if (isBannedDep(name, sec, rel)) ctx.add('C1-LIB', 'FAIL', rel, null, `${sec} 에 금지 라이브러리: ${name}`);
+      if (isBannedDep(name, sec, rel)) ctx.add('C1-LIB', 'FAIL', rel, null, `${sec} 에 금지 라이브러리: ${safeLabel(name)}`);
       if (name === 'jsdom' && sec !== 'devDependencies') ctx.add('C1-LIB', 'FAIL', rel, null, `jsdom 은 devDependencies 만(현재 ${sec})`);
     }
   }

@@ -2106,6 +2106,142 @@ test('C7-SECRET 230 C7-1: 스캐너 전체 — 합성 실값이 어떤 FAIL/WARN
   assert.deepEqual(leaks(human.stdout + human.stderr), [], human.stdout);
 });
 
+// ── 233 — QA231 §3: 산출물 규칙(rules-output)·설정 오류(normalize)·prisma/package/소스 HTML 식별자 메시지 ─────
+//   합성 실값 5종(대소문자 20~22자 3종·소문자+숫자 24자·ghp_ 접두형)의 앞뒤 6자 조각이 --json·사람용 stdout·stderr 어디에도 없어야 한다.
+//   속성·태그 이름은 파서가 소문자로 바꾸므로 소문자 값(QA3_D)으로 넣는다.
+const QA3_G = j('gh', 'p_', 'Ab3dEf5hIj7lMn9pQr1tUv3xYz5bCd7fGh9j');
+const leaks233 = (text) => leaks(text, [QA3_A, QA3_B, QA3_C, QA3_D, QA3_G]);
+function cliBoth(root) {
+  const res = scan(root);
+  const human = spawnSync(process.execPath, [SCANNER, '--root', root, '--now', FIXED_NOW], { encoding: 'utf8' });
+  return { res, human, all: `${res.stdout}\n${res.stderr}\n${human.stdout}\n${human.stderr}` };
+}
+
+test('C7-SECRET 233: 산출물 규칙 메시지(route·sitemap·script src·javascript:/data: href·noopener·link·img·form·data-ws-*·ws-data·카탈로그·C9·DRAFTSRC·TAXON) — 합성 실값 조각 0, 위치·규칙 id 유지', async () => {
+  const longJs = j('javascript', ':', FETCH, "('/x?k=", QA3_A, "')"); // 40자 넘김 — 자르기 전에 판정해야 한다
+  const draftUrl = j(HTTPS, 'example.org/guide/', QA3_B, '/care-sheet-long-path-over-sixty-characters');
+  const ws = {
+    v: 2,
+    route: { kind: 'TYPE', path: '/x', typeId: QA3_A },
+    layer: { kind: 'ITEM', typeId: QA3_B, itemId: QA3_C, productId: QA3_D },
+    catalogUrl: '/data/catalog.v1.abcd1234.json',
+    data: { requirements: [{ animalTypeId: QA3_A, supplyItemId: QA3_D, searchKeyword: 'k', sourceRefs: [QA3_C], item: { id: QA3_B, alternativeIds: [QA3_G] } }], [QA3_B]: [] },
+    sources: [{ url: j('http://h.test/', QA3_C), title: 't', [QA3_D]: 1 }],
+    [QA3_A]: { [QA3_C]: KO.best },
+  };
+  const root = await makeRoot({
+    seed: (d) => {
+      d['supply-items.json'][1].source = [{ url: draftUrl, title: 'draft guide', accessedAt: '2026-09-30' }];
+      d['taxa.json'].push({ ...d['taxa.json'][0], id: QA3_C, ...meta({ contentKind: 'LEGAL', reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null }) });
+    },
+    output: (o) => {
+      o['index.html'] = page([
+        '<main class="ws-page" data-ws-route="HOME">',
+        `<script src="${HTTPS}cdn.test/x.js?access_token=${QA3_A}"></script>`,
+        `<script src="${HTTPS}cdn.test/${QA3_D}/x.js"></script>`,
+        `<a href="${longJs}">x</a>`,
+        `<a href="data:text/html,${QA3_B}">x</a>`,
+        `<a href="${HTTPS}ext.test/?tok${'en'}=${QA3_A}">x</a>`,
+        `<a href="${HTTPS}ext.test/p/${QA3_D}">y</a>`,
+        `<img src="${HTTPS}ext.test/${QA3_G}/a.png">`,
+        `<form action="${HTTPS}ext.test/?k=${QA3_A}"></form>`,
+        `<div data-ws-id="curatedProducts#${QA3_A}"></div>`,
+        `<div data-ws-type="${QA3_B}"></div>`,
+        `<link rel="stylesheet" href="${HTTPS}ext.test/${QA3_G}.css">`,
+        `<link rel="stylesheet" href="${HTTPS}cdn.example/style.css">`,
+        `<x${QA3_D} on${QA3_D}="x" data-z="${longJs}"></x${QA3_D}>`,
+        `<script type="text/${QA3_D}">1</script>`,
+        `<p>${draftUrl} ${QA3_C}</p>`,
+        '</main>',
+      ].join(''), ws);
+      o['privacy/index.html'] = page([
+        privacyMain({ user: QA3_A }).replace('</main>', ''),
+        `<p>${policySpan(QA3_B, 7)} {{KEN${'NY'}:${QA3_C}}}</p></main>`,
+      ].join(''));
+      o['sitemap.xml'] = `<?xml version="1.0"?><urlset><url><loc>http://localhost:3001/${QA3_A}</loc></url></urlset>`;
+      o['data/catalog.v1.abcd1234.json'] = JSON.stringify({
+        v: 1, seedDigest: QA3_G, [QA3_A]: [{ id: 1 }], animalTypes: [{ id: QA3_B, taxonId: QA3_C }], supplyItems: [{ id: 'cage', name: KO.best, [QA3_D]: KO.best }],
+      });
+    },
+    manifest: (dg) => {
+      const m = manifestFor(dg, { mode: QA3_A, seedDigest: QA3_B });
+      m.routes.push(
+        { path: `/${QA3_D}`, file: `${QA3_A}.html`, kind: QA3_C, typeId: QA3_D, itemId: QA3_B, productId: QA3_C, region: QA3_A, indexable: true },
+        { path: `/hamster/golden/${QA3_G}`, file: 'index.html', kind: 'TYPE', typeId: 'hamster-golden', layer: { typeId: QA3_A }, indexable: true },
+        `route-${QA3_G}`,
+      );
+      return m;
+    },
+  });
+  const { res, human, all } = cliBoth(root);
+  assert.equal(res.code, 1);
+  assert.equal(human.status, 1);
+  const rules = new Set(res.json.findings.map((f) => f.rule));
+  for (const r of ['C3-OUT-ROUTE', 'C8-OUT-SAFE', 'C3-OUT-ID', 'C3-OUT-SRC', 'C9-PRIVACY', 'C3-OUT-DRAFTSRC', 'C3-OUT-TAXON', 'C4-BANNED']) assert.ok(rules.has(r), `${r} 없음: ${JSON.stringify([...rules])}`);
+  assert.deepEqual(leaks233(all), [], JSON.stringify(res.json.findings, null, 1));
+  // 위치(파일·줄)·규칙 id 는 그대로, 가린 값은 길이만.
+  const of = (rule, re) => res.json.findings.filter((f) => f.rule === rule && re.test(f.message));
+  assert.ok(of('C8-OUT-SAFE', /^외부·비정상 script src: ‹가림 \d+자›$/).every((f) => f.file === 'client/dist/index.html' && Number.isInteger(f.line)));
+  assert.equal(of('C8-OUT-SAFE', /^외부·비정상 script src: ‹가림/).length, 2);
+  assert.ok(of('C8-OUT-SAFE', /^위험 href: ‹가림 \d+자›$/).length >= 1, JSON.stringify(res.json.findings));
+  assert.ok(of('C3-OUT-ROUTE', /^manifest indexable 밖 URL: ‹가림/).some((f) => f.file === 'sitemap.xml'));
+  assert.ok(of('C3-OUT-ROUTE', /^seedDigest 불일치: manifest ‹가림 \d+자› ≠ server\/seed [0-9a-f]{64}$/).length === 1, JSON.stringify(res.json.findings));
+  assert.ok(of('C9-PRIVACY', /페이지 "‹가림 \d+자›" ≠ policy\.ts 365/).length === 1, JSON.stringify(res.json.findings));
+  // 비밀 형태가 아닌 일반 URL 은 그대로 보인다(safeLabel 이 가른다).
+  assert.ok(of('C8-OUT-SAFE', /^외부 <link href>: https:\/\/cdn\.example\/style\.css$/).length === 1, JSON.stringify(res.json.findings));
+});
+
+test('C7-SECRET 233: manifest 파싱 실패 — JSON.parse 메시지 대신 줄·열 숫자만', async () => {
+  for (const [body, where] of [
+    [j('{"v":1,"tok', 'en":', QA3_A, '}'), '줄 1 열 16'],
+    [j('{"v":1,"routes":[', QA3_B, ']}'), '줄 1 열 18'],
+    [j('{"v":1,\n"x":', QA3_D, '}'), '줄 2 열 5'],
+    [j('{"v":1,"x":"', QA3_G, '" "y":1}'), '줄 1 열 '],
+  ]) {
+    const root = await makeRoot({ output: noop, manifest: () => null });
+    writeTree(root, { 'client/dist/prerender-manifest.json': body });
+    const { res, all } = cliBoth(root);
+    expectFail(res, 'C3-OUT-ROUTE');
+    const f = res.json.findings.filter((x) => x.rule === 'C3-OUT-ROUTE' && x.file === 'prerender-manifest.json');
+    assert.ok(f.some((x) => x.message.startsWith('manifest 파싱 실패(JSON 문법 오류 ') && x.message.includes(where)), JSON.stringify(f));
+    assert.deepEqual(leaks233(all), [], all);
+  }
+});
+
+test('C7-SECRET 233: banned-words CONFIG ERROR(normalize) — JSON 문법 오류는 줄·열, 정규식 오류는 V8 고정 사유만(패턴 원문 0)', async () => {
+  const cases = [
+    [j('{"v":1,"banned":[', QA3_A, ']}'), /파싱 실패\(JSON 문법 오류 줄 1 열 18\)/],
+    [j('{"v":1,"tok', 'en":', QA3_B, '}'), /파싱 실패\(JSON 문법 오류 줄 1 열 16\)/],
+    [j('{"v":1,"banned":["', QA3_C, '" "x"]}'), /파싱 실패\(JSON 문법 오류 줄 1 열 /],
+    [JSON.stringify({ v: 1, banned: [{ term: 'x', pattern: j('(', QA3_A) }] }), /banned\[0\] 정규식 오류\(Unterminated group\)/],
+    [JSON.stringify({ v: 1, banned: [{ term: 'x', pattern: 'a' }], stems: [{ term: 'y', pattern: j('[z-a', QA3_G, ']') }] }), /stems\[0\] 정규식 오류\(Range out of order in character class\)/],
+    [JSON.stringify({ v: 1, banned: [{ term: 'x', pattern: j(QA3_D, ': ', QA3_B, '[') }] }), /banned\[0\] 정규식 오류\(Unterminated character class\)/],
+  ];
+  for (const [body, re] of cases) {
+    const root = await makeRoot({ source: (s) => { s['server/src/seed/banned-words.json'] = body; } });
+    const { res, human, all } = cliBoth(root);
+    assert.equal(res.code, 2, res.stderr);
+    assert.equal(human.status, 2);
+    assert.match(res.stderr, re);
+    assert.deepEqual(leaks233(all), [], all);
+  }
+});
+
+test('C7-SECRET 233: prisma 모델·컬럼, package.json 의존성, 소스 HTML 태그·속성 이름 — 식별자도 safeLabel', async () => {
+  const root = await makeRoot({
+    source: (s) => {
+      s['server/prisma/schema.prisma'] = `${s['server/prisma/schema.prisma']}\nmodel Payment${QA3_A} {\n  id String @id\n  price${QA3_B} Int\n  x${QA3_C}Lat Float\n}\n`;
+      s['client/package.json'] = JSON.stringify({ name: 'c', dependencies: { react: '^18', [`@playwright/${QA3_D}`]: '1' }, devDependencies: { jsdom: '^29' } });
+      s['client/index.html'] = `<!doctype html><html><body><x${QA3_D} on${QA3_D}="x" data-${QA3_D}="javascript:void(0)"></x${QA3_D}></body></html>\n`;
+    },
+  });
+  const { res, all } = cliBoth(root);
+  for (const r of ['C2-TRADE', 'C2-PRICE', 'C5-GEO', 'C1-LIB', 'C8-SRC-SAFE']) expectFail(res, r);
+  const pr = res.json.findings.filter((f) => f.file === 'server/prisma/schema.prisma');
+  assert.ok(pr.some((f) => f.rule === 'C2-TRADE' && /^거래·분양·결제 모델: ‹가림 \d+자›$/.test(f.message) && Number.isInteger(f.line)), JSON.stringify(pr));
+  assert.deepEqual(leaks233(all), [], all);
+});
+
 test('C7-SECRET 230: safeLabel·redactMessage — 비밀 형태 값은 길이만, 일반 식별자는 그대로', async () => {
   const { safeLabel, redactMessage } = await import('../lib/rules-source.mjs');
   assert.equal(safeLabel(QA3_A), `‹가림 ${QA3_A.length}자›`);
