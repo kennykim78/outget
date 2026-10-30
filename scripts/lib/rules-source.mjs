@@ -371,23 +371,123 @@ export function c7LineHits(l, isCode) {
 //   값: 디코딩한 문자열의 첫 공백 구분 덩어리 전체(원문 줄 규칙과 달리 따옴표·쉼표 등에서 끊지 않는다 — 디코딩 값의 경계는 확정이다).
 //   제외(주소·경로·식별자·자리표시·$<{% 시작)와 등급(16자 FAIL·8~15자 WARN)은 원문 줄 규칙과 같다.
 //   문자열 값은 디코딩한 내용을 줄마다 c7LineHits 로도 본다(값 속 env 줄·개인 키 헤더 등).
+//   204(QA203 LOW-1) — JSON.parse 는 같은 객체 안 중복 키의 마지막 값만 남기므로, 순회 트리는 중복 키를 보존하는 자체 파서(parseJsonEntries)로 만든다(앞 값이 실값인 우회 차단).
+//   204 재시도(QA205 MED-1) — 파서·순회는 재귀 없는 명시적 스택(깊이 10만도 처리). JSON.parse 통과 후 이 단계에서 난 예외는 null 이 아니라 FAIL 로 드러낸다(fail-closed).
 const SECRET_KEY_END_RE = new RegExp(String.raw`(?<![A-Za-z0-9_.-])(${SECRET_NAME_CORE})$`);
 function jsonPairSeverity(name, s) {
   const v = s.trim().split(/\s+/)[0];
   if (v === '' || /^[$<{%]/.test(v) || kvExcluded(name, v)) return null;
   return kvSeverity(v);
 }
+// 중복 키를 보존하는 객체 표현(원문 순서의 [key, value] 쌍). 입력은 JSON.parse 로 이미 검증된 텍스트.
+class JsonEntries {
+  constructor(entries) {
+    this.entries = entries;
+  }
+}
+const JSON_ESC = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+function parseJsonEntries(src) {
+  let i = 0;
+  const ws = () => {
+    while (i < src.length && (src[i] === ' ' || src[i] === '\t' || src[i] === '\n' || src[i] === '\r')) i++;
+  };
+  const str = () => {
+    i++; // 여는 따옴표
+    let out = '';
+    let from = i;
+    for (;;) {
+      const c = src[i];
+      if (c === '"') {
+        out += src.slice(from, i++);
+        return out;
+      }
+      if (c === '\\') {
+        out += src.slice(from, i);
+        const e = src[i + 1];
+        if (e === 'u') {
+          out += String.fromCharCode(parseInt(src.slice(i + 2, i + 6), 16));
+          i += 6;
+        } else {
+          out += JSON_ESC[e];
+          i += 2;
+        }
+        from = i;
+      } else i++;
+    }
+  };
+  // 명시적 스택(재귀 없음 — 깊이 10만 중첩도 처리). frame: { o: JsonEntries|null, a: 배열|null, key }
+  const stack = [];
+  const num = /-?\d[\d.eE+-]*|true|false|null/y;
+  for (;;) {
+    ws();
+    const c = src[i];
+    let v;
+    let open = false;
+    if (c === '{' || c === '[') {
+      i++;
+      ws();
+      const isObj = c === '{';
+      v = isObj ? new JsonEntries([]) : [];
+      if (src[i] === (isObj ? '}' : ']')) i++;
+      else {
+        const f = { o: isObj ? v : null, a: isObj ? null : v, key: null };
+        if (isObj) {
+          f.key = str();
+          ws();
+          i++; // ':'
+        }
+        stack.push(f);
+        open = true;
+      }
+    } else if (c === '"') v = str();
+    else {
+      num.lastIndex = i;
+      const t = num.exec(src)[0];
+      i += t.length;
+      v = t === 'true' ? true : t === 'false' ? false : t === 'null' ? null : Number(t);
+    }
+    if (open) continue;
+    // 완성된 값 v 를 부모에 붙이고, 다음 값을 읽을 수 있을 때까지 닫는다.
+    for (;;) {
+      if (stack.length === 0) return v;
+      const f = stack[stack.length - 1];
+      if (f.o) f.o.entries.push([f.key, v]);
+      else f.a.push(v);
+      ws();
+      if (src[i++] === (f.o ? '}' : ']')) {
+        v = f.o ?? f.a;
+        stack.pop();
+        continue;
+      }
+      if (f.o) {
+        ws();
+        f.key = str();
+        ws();
+        i++; // ':'
+      }
+      break;
+    }
+  }
+}
 /**
  * JSON 파일의 디코딩 단계 C7 → { severity, message, line }[] (line 은 키의 원문 줄 — 찾지 못하면 null, 메시지에 키 경로). 파싱 실패면 null.
  * @param {string} text 파일 원문
  */
 export function jsonC7Hits(text) {
-  let doc;
+  const src = stripBom(text);
   try {
-    doc = JSON.parse(stripBom(text));
+    JSON.parse(src);
   } catch {
     return null;
   }
+  try {
+    return jsonC7Walk(text, parseJsonEntries(src));
+  } catch (e) {
+    // fail-closed: 디코딩 단계를 못 돌렸다고 조용히 통과시키지 않는다.
+    return [{ severity: 'FAIL', line: null, message: `JSON 디코딩 검사 불가 — C7 디코딩 단계 미수행(${e?.name ?? 'Error'})` }];
+  }
+}
+function jsonC7Walk(text, doc) {
   const out = [];
   const lineOf = lineIndex(text);
   let cursor = 0;
@@ -400,18 +500,31 @@ export function jsonC7Hits(text) {
     cursor = i + needle.length;
     return lineOf(i);
   };
-  const visit = (v, path, name, line) => {
-    if (typeof v === 'string') {
-      const sev = name === null ? null : jsonPairSeverity(name, v);
-      if (sev) out.push({ severity: sev, line, message: `${KV_MESSAGE[sev]} — JSON 키 ${path}(디코딩 값)` });
-      for (const l of v.split(/\r?\n/)) for (const h of c7LineHits(l, false)) out.push({ severity: h.severity, line, message: `${h.message} — JSON 키 ${path}(디코딩 문자열)` });
-    } else if (Array.isArray(v)) {
-      v.forEach((x, i) => visit(x, `${path}[${i}]`, name, line));
-    } else if (v !== null && typeof v === 'object') {
-      for (const [k, x] of Object.entries(v)) visit(x, path ? `${path}.${k}` : k, SECRET_KEY_END_RE.exec(k)?.[1] ?? null, locate(k));
-    }
+  const leaf = (v, path, name, line) => {
+    const sev = name === null ? null : jsonPairSeverity(name, v);
+    if (sev) out.push({ severity: sev, line, message: `${KV_MESSAGE[sev]} — JSON 키 ${path}(디코딩 값)` });
+    for (const l of v.split(/\r?\n/)) for (const h of c7LineHits(l, false)) out.push({ severity: h.severity, line, message: `${h.message} — JSON 키 ${path}(디코딩 문자열)` });
   };
-  visit(doc, '', null, null);
+  // 재귀 없는 전위 순회(원문 순서·locate 호출 순서는 재귀 버전과 같다). frame: { items, idx, obj, path, name, line }
+  const stack = [];
+  const enter = (v, path, name, line) => {
+    if (typeof v === 'string') leaf(v, path, name, line);
+    else if (Array.isArray(v)) stack.push({ items: v, idx: 0, obj: false, path, name, line });
+    else if (v instanceof JsonEntries) stack.push({ items: v.entries, idx: 0, obj: true, path, name, line });
+  };
+  enter(doc, '', null, null);
+  while (stack.length > 0) {
+    const f = stack[stack.length - 1];
+    if (f.idx >= f.items.length) {
+      stack.pop();
+      continue;
+    }
+    const it = f.items[f.idx++];
+    if (f.obj) {
+      const [k, x] = it;
+      enter(x, f.path ? `${f.path}.${k}` : k, SECRET_KEY_END_RE.exec(k)?.[1] ?? null, locate(k));
+    } else enter(it, `${f.path}[${f.idx - 1}]`, f.name, f.line);
+  }
   return out;
 }
 // 배포 실값 파일 이름(MED-1): deploy/ 아래 *.env(server.env·caddy.env 등)는 서버에만 — 작업 트리에 있으면(추적 여부 무관) FAIL.

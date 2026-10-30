@@ -1632,6 +1632,31 @@ test('C7-SECRET 201 MED-2: 같은 JSON 객체의 직렬화 변형(한 줄·키 �
   assert.ok(c7Of(res, 'docs/design/escapedQuote.json', 'FAIL'));
 });
 
+test('C7-SECRET 204 (QA203 LOW-1): JSON 중복 키 — 앞값·뒤값·중첩·이스케이프 키 중복 모두 FAIL', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const cases = {
+    first: j('{"token":\n"', RND, '",\n"token":"x"}'),
+    last: j('{"token":"x",\n"token":\n"', RND, '"}'),
+    nested: j('{"a":{"secret":"', RND, '","secret":""}}'),
+    escaped: j('{"\\u0074oken":\n"', RND, '",\n"token":"x"}'),
+  };
+  // 픽스처 자체: JSON.parse 로는 실값이 사라진다(first·nested·escaped).
+  for (const k of ['first', 'nested', 'escaped']) assert.ok(!JSON.stringify(JSON.parse(cases[k])).includes(RND), k);
+  for (const [k, text] of Object.entries(cases)) {
+    const hits = jsonC7Hits(text);
+    assert.ok(hits.some((h) => h.severity === 'FAIL'), `${k}: ${JSON.stringify(hits)}`);
+  }
+  assert.equal(jsonC7Hits(cases.first).find((h) => h.severity === 'FAIL').line, 1);
+  // 디코딩/이스케이프 파서 일치: 일반 문서는 JSON.parse 와 같은 문자열을 본다.
+  // 204 재시도(QA205 MED-1): 깊은 패딩 배열 뒤에서도 디코딩 검사가 사라지지 않는다(null·크래시 아님, 이스케이프 키 실값 → FAIL).
+  for (const d of [10000, 100000]) {
+    const deep = j('{"\\u0074oken":"', RND, '","pad":', '['.repeat(d), ']'.repeat(d), '}');
+    const hits = jsonC7Hits(deep);
+    assert.ok(hits !== null && hits.some((h) => h.severity === 'FAIL'), `depth ${d}: ${JSON.stringify(hits)}`);
+  }
+  assert.deepEqual(jsonC7Hits(j('{"a":"x\\u0041\\/\\"\\\\y","n":[1,-2.5e3,true,false,null,{}],"e":[]}')), []);
+});
+
 test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대로·integrity 해시·평범한 키, 파싱 실패 파일은 원문 줄 검사만', async () => {
   const { jsonC7Hits } = await import('../lib/rules-source.mjs');
   const clean = {
