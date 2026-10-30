@@ -1657,6 +1657,128 @@ test('C7-SECRET 204 (QA203 LOW-1): JSON 중복 키 — 앞값·뒤값·중첩·�
   assert.deepEqual(jsonC7Hits(j('{"a":"x\\u0041\\/\\"\\\\y","n":[1,-2.5e3,true,false,null,{}],"e":[]}')), []);
 });
 
+// ── C7 시크릿 — 206(QA203 INFO-3 이름 끝 제외 + hex 실값, INFO-2 묶음 이름 부모·Bearer) ──
+const HEXL = j('abcdef0123', '456789abcdef'); // 합성 소문자 hex(22자)
+const HEXU = j('ABCDEF0123', '456789ABCD'); // 합성 대문자 hex(20자)
+
+test('C7-SECRET 206 INFO-3: 메타데이터 이름 끝(_min·_max·_cost·_policy…)이어도 값이 긴 hex 면 FAIL — 원문 줄·JSON 디코딩·스캐너', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const pos = [
+    j('client_secret', '_min=', HEXL),
+    j('client_secret', '_max=', HEXU),
+    j('password', '_cost: ', HEXL),
+    j('token', '_policy: ', HEXU),
+    j('token', '_audience=', HEXL),
+  ];
+  for (const l of pos) assert.deepEqual(await kvSev(l), ['FAIL'], l);
+  const jsonPos = {
+    compact: j('{"client_secret', '_min":"', HEXL, '"}\n'),
+    multiline: j('{"client_secret', '_max":\n"', HEXU, '"}\n'),
+    nested: j('{"auth":{"token', '_policy":["', HEXL, '"]}}\n'),
+  };
+  for (const [k, t] of Object.entries(jsonPos)) assert.ok(jsonC7Hits(t).some((h) => h.severity === 'FAIL'), `${k}: ${JSON.stringify(jsonC7Hits(t))}`);
+  const res = scan(await makeRoot({ source: (s) => {
+    s['docs/ops/hex.md'] = `${pos.join('\n')}\n`;
+    s['docs/design/hex-multi.json'] = jsonPos.multiline;
+  } }));
+  assert.equal(c7All(res, 'docs/ops/hex.md').filter((x) => x.severity === 'FAIL').length, pos.length, JSON.stringify(c7All(res, 'docs/ops/hex.md')));
+  assert.ok(c7Of(res, 'docs/design/hex-multi.json', 'FAIL'));
+});
+
+test('C7-SECRET 206 INFO-3 음성: hex 가 자연스러운 이름 끝(_hash·_id)·uuid·색 코드·짧은 hex·sha512 integrity·커밋 해시 문구 → 0', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const neg = [
+    j('token', '_hash: 3f2a9c1b7e8d4a6f'), // 201 음성 그대로
+    j('token', '_hash=', HEXL),
+    j('signing_key', '_id: ', HEXU),
+    j('secret', '_id=', HEXL),
+    j('secret', '_min: 550e8400-e29b-41d4-a716-446655440000'), // uuid(하이픈)
+    j('token', '_max=#ff00aa'), // 색 코드
+    j('token', '_color_max: ff00aa77'),
+    j('password', '_min: abcdef0123'), // 10자 hex — 무작위형 아님·16자 미만
+    j('password', '_max: 0123456789012345678'), // 숫자만
+    j('token', '_policy: deadbeefcafe-v2'), // hex 아닌 글자(-·v)
+    j('token', '_policy 커밋 3f2a9c1b7e8d4a6f0011aa (fix)'), // 이름=값 아님
+  ];
+  for (const l of neg) assert.deepEqual(await kvSev(l), [], l);
+  const lock = {
+    lockfileVersion: 3,
+    packages: {
+      'node_modules/js-tokens': { version: '4.0.0', resolved: j(HTTPS, 'registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz'), integrity: j('sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN9k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW', '/PKQ==') },
+      'node_modules/design-tokens': { version: '1.0.0', integrity: j('sha1-', HEXL, '0011aabb') },
+    },
+    dependencies: { 'js-tokens': { version: '4.0.0', integrity: j('sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN9k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW', '/PKQ==') } },
+    meta: { token_hash: HEXL, signing_key_id: HEXU, secret_min: '550e8400-e29b-41d4-a716-446655440000', commit: j('3f2a9c1b7e8d', '4a6f0011aabbccddeeff00112233') },
+  };
+  assert.deepEqual(jsonC7Hits(JSON.stringify(lock, null, 2)), []);
+});
+
+test('C7-SECRET 206 INFO-2: 조상 키가 비밀 묶음 이름(credentials·secrets·apiKeys·api_keys·oauthTokens…)이면 자식 값도 FAIL — 깊이 무관', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const cases = {
+    credentials: j('{"credentials":{"github":"', RND, '"}}\n'),
+    secrets: j('{"secrets":{\n"deploy":\n"', RND, '"}}\n'),
+    apiKeys: j('{"svc":{"apiKeys":[{"naver":"', RND, '"}]}}\n'),
+    API_KEYS: j('{"API_KEYS":{"a":"', RND, '"}}\n'),
+    passwords: j('{"db_passwords":{"main":"', RND, '"}}\n'),
+    deep: j('{"credentials":{"a":{"b":[[{"c":{"d":"', RND, '"}}]]}}}\n'),
+    tokensRandom: j('{"oauthTokens":{"gh":"', RND, '"}}\n'),
+    tokensHex: j('{"tokens":{"gh":"', HEXL, '"}}\n'),
+    tokenInTokensUnderCreds: j('{"credentials":{"tokens":{"x":"', HEXL, '"}}}\n'),
+  };
+  for (const [k, t] of Object.entries(cases)) assert.ok(jsonC7Hits(t).some((h) => h.severity === 'FAIL'), `${k}: ${JSON.stringify(jsonC7Hits(t))}`);
+  // 묶음 아래 짧은 값은 WARN(이름=값 규칙과 같은 등급), 자식 키가 비밀 이름이면 그 판정 하나만(중복 없음).
+  assert.deepEqual(jsonC7Hits(j('{"credentials":{"user":"admin', '1234"}}')).map((h) => h.severity), ['WARN']);
+  assert.equal(jsonC7Hits(j('{"credentials":{"client', '_secret":"', RND, '"}}')).length, 1);
+  // 깊은 중첩(비재귀 순회) 뒤에서도 상속이 유지된다.
+  const d = 50000;
+  const deep = j('{"credentials":', '['.repeat(d), '"', RND, '"', ']'.repeat(d), '}');
+  assert.ok(jsonC7Hits(deep).some((h) => h.severity === 'FAIL'));
+  const res = scan(await makeRoot({ source: (s) => { s['docs/design/creds.json'] = cases.secrets; } }));
+  assert.ok(c7Of(res, 'docs/design/creds.json', 'FAIL'), JSON.stringify(c7All(res, 'docs/design/creds.json')));
+});
+
+test('C7-SECRET 206 INFO-2 음성: 디자인 토큰(tokens 부모)·실트리 docs/design/tokens.json·package-lock 키(js-tokens)·제외 자식 키 → 0', async () => {
+  const { jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const design = {
+    color: { tokens: [{ name: 'bg-000', value: '#ffffff', usage: 'Page ground. 13.6:1 on white.' }, { name: 'shadow-2', value: 'rgba(0,0,0,0.12)', usage: '0 1px 2px' }] },
+    type: { tokens: [{ name: 'font-body', value: 'Pretendard Variable', size: '15px/1.6' }, { name: 'motion-200ms', value: 'cubic-bezier(0.2,0,0,1)' }] },
+    boundedTokens: ['ai', 'gpt4o-mini-2024'],
+  };
+  assert.deepEqual(jsonC7Hits(JSON.stringify(design, null, 2)), []);
+  const real = readFileSync(resolve(HERE, '..', '..', 'docs', 'design', 'tokens.json'), 'utf8');
+  assert.match(real, /"tokens"\s*:/); // 실트리 파일이 실제로 tokens 부모를 가진다(음성 대상 고정)
+  assert.deepEqual(jsonC7Hits(real), []);
+  // 서비스 계정형 묶음: 경로·URL·_id 이름 끝 자식은 제외(가장 가까운 키로 판정).
+  const sa = { credentials: { client_id: HEXL, token_uri: j(HTTPS, 'oauth2.googleapis.com/token'), key_path: '/run/secrets/sa_key_2', api: '${API_KEY}', note: '<CLIENT_SECRET>' } };
+  assert.deepEqual(jsonC7Hits(JSON.stringify(sa, null, 2)), []);
+  // 묶음 이름 경계: 앞부분 '-'(npm 이름)·뒤 글자 붙음·'/' 키는 묶음 아님.
+  for (const k of ['js-tokens', 'node_modules/js-tokens', 'secretsManager', 'credentialsFile2', 'tokensCount']) {
+    assert.deepEqual(jsonC7Hits(JSON.stringify({ [k]: { integrity: j('sha512-', RND) } })), [], k);
+  }
+});
+
+test('C7-SECRET 206 INFO-2: Bearer <토큰>(Authorization 값) — 원문 줄(코드·비코드)·JSON 디코딩 FAIL, 템플릿·자리·산문 0', async () => {
+  const { c7LineHits, jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const B = j('Bear', 'er ');
+  const pos = [j('Authorization: ', B, RND), j('curl -H "Authorization: bear', 'er ', HEXL, '"'), j("headers: { Authorization: '", B, RND, "' }")];
+  for (const l of pos) {
+    assert.deepEqual(await kvSev(l), ['FAIL'], l);
+    assert.ok(c7LineHits(l, true).some((h) => h.severity === 'FAIL'), `code: ${l}`);
+  }
+  const json = { headers: { Authorization: j(B, RND) } };
+  assert.ok(jsonC7Hits(JSON.stringify(json, null, 2)).some((h) => h.severity === 'FAIL'));
+  const neg = [j(B, '${accessToken}'), j('`', B, '${t}`'), j(B, '<token>'), j(B, '__SET_ME__'), j('a bear', 'er tokens are issued by the auth server'), j(B, 'your-token-1234567890'), j(B, 'abcdefghijklmnopqrst')];
+  for (const l of neg) {
+    assert.deepEqual(await kvSev(l), [], l);
+    assert.deepEqual(c7LineHits(l, true), [], `code: ${l}`);
+  }
+  // 한 줄 Bearer 는 원문 줄·디코딩 줄이 같아 스캐너 FAIL 1건(중복 없음).
+  const res = scan(await makeRoot({ source: (s) => { s['docs/design/hdr.json'] = `${JSON.stringify(json)}\n`; s['docs/ops/hdr.md'] = `${pos[0]}\n`; } }));
+  assert.equal(c7All(res, 'docs/design/hdr.json').length, 1, JSON.stringify(c7All(res, 'docs/design/hdr.json')));
+  assert.ok(c7Of(res, 'docs/ops/hdr.md', 'FAIL'));
+});
+
 test('C7-SECRET 201 MED-2: JSON 디코딩 단계 음성 — 제외 규칙 그대로·integrity 해시·평범한 키, 파싱 실패 파일은 원문 줄 검사만', async () => {
   const { jsonC7Hits } = await import('../lib/rules-source.mjs');
   const clean = {
@@ -1705,6 +1827,8 @@ test('C7-SECRET 201 MED-3: 한 번 순회(secretKvHits)와 원형(secretKvHitsSi
   const parts = [
     j('token', '_url='), j('access', '_token='), j('client', '_secret: '), j('token', '_id='), j('api', '_key="'), j('pass', 'word_file='), 'x', ' ', '/', './', '../', '~/', '?', '&', '#', '@', ':', '"', ',',
     HTTPS, j('ssh', '://'), 'a.test', RND, HEX64, 'abc123', 'run/secrets', 'Ab3dEf9h', '12Kx7Yz34', 'example', '$X', '{y}', '%z',
+    // 206: 긴 hex 이름 끝 제외 뒤집기(_min·_max)와 hex 가 자연스러운 이름 끝(_hash·_id) 유지도 같은 결과인지 대조.
+    j('secret', '_min='), j('token', '_max: '), j('token', '_hash='), HEXL, HEXL.toUpperCase(), 'abcdef0123',
   ];
   let seed = 201;
   const rnd = (n) => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 8) % n; }; // 32비트 정수 LCG(배정밀도 넘침 없음)
