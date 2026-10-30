@@ -54,7 +54,7 @@ export function loadBannedWords(path) {
   try {
     text = readFileSync(path, 'utf8');
   } catch {
-    throw new ConfigError(`금지어 단일 소스 없음: ${path}`);
+    throw new ConfigError('금지어 단일 소스 없음(server/src/seed/banned-words.json — 경로 생략)'); // 239(Codex night-qa4 #1): --root 경로 값 생략
   }
   let data;
   try {

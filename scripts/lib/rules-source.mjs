@@ -248,13 +248,51 @@ const isPathValue = (v) => PATH_VALUE_RE.test(v) && !hasRandomSeg(v) && !isHexVa
 // 230(Codex night-qa3 C7-4) — 접두 없는 상대 경로(config/secret-v2.txt). 경로 이름 끝(PATH_TAIL_RE: _file·_path·_dir)에서만 쓴다(secretValueExcluded).
 //   형태: 경로 글자 마디 2개 이상(슬래시 포함, 빈 마디·접두 없음) + (마지막 마디에 파일 확장자 또는 마디 3개 이상).
 //   토큰 위장 차단: 무작위 마디(대·소·숫 16자) 없음 + 구분자(/ . _ -)로 나눈 조각 중 12자 이상이면서 글자·숫자를 모두 품은 것 없음(hex·소문자+숫자 토큰 포함).
+// 239(Codex night-qa4 #3·4·5) — 다마디 토큰: 구분자(- . / _)로 이은 영숫자(+=~ 포함) 덩어리. 구분자를 뺀 글자 합 16자 이상 + 글자·숫자를 모두 품고,
+//   (마디 안 글자↔숫자 전환 4회 이상 또는 글자 8개 이상·숫자 8개 이상)이면 토큰 형태다.
+//   잡는 것: 짧은 마디로 쪼갠 비밀(gh12ij34-kl56mn78-op90qr12 · /gh12ij34/kl56mn78/op90qr12 — 전환 9회), 글자 마디+숫자 마디(abcdefgh-ijklmnop-12345678).
+//   보지 않는 것: 사전 단어 경로·식별자(/api/v1/users/profile2 · /oauth2/v2/token/refresh · golden-hamster-wheel-30cm · config/secret-v2.txt ·
+//   catalog.v1.abcd1234.json — 전환 2회 이하·숫자 8개 미만). 마디 글자([A-Za-z0-9+=~])와 구분자가 서로소라 정규식은 선형이다.
+//   표시용(safeLabel·redactMessage)·판정용(Bearer·상대 경로) 공용 한 정의 — 판정용만 정규 uuid(8-4-4-4-12 hex)를 낱말로 본다(uuid 파일 이름 예외 유지).
+const TOKEN_RUN_RE = /[A-Za-z0-9+=~]+(?:[-./_][A-Za-z0-9+=~]+)*/g;
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+/**
+ * 글자열 안에 다마디 토큰 형태 덩어리가 있는가(위 정의).
+ * @param {string} s
+ * @param {boolean} [uuidOk] true 면 정규 uuid 를 낱말로 바꿔 본다(판정용)
+ */
+export function hasTokenRun(s, uuidOk = false) {
+  const t = uuidOk ? s.replace(UUID_RE, 'uuid') : s;
+  TOKEN_RUN_RE.lastIndex = 0;
+  let m;
+  while ((m = TOKEN_RUN_RE.exec(t)) !== null) {
+    const run = m[0];
+    let len = 0;
+    let digits = 0;
+    let letters = 0;
+    let turns = 0;
+    let prev = 0; // 0 그 밖(구분자·+=~) · 1 글자 · 2 숫자
+    for (let i = 0; i < run.length; i++) {
+      const c = run.charCodeAt(i);
+      const kind = c >= 48 && c <= 57 ? 2 : (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ? 1 : 0;
+      if (c !== 45 && c !== 46 && c !== 47 && c !== 95) len++;
+      if (kind === 2) digits++;
+      else if (kind === 1) letters++;
+      if (kind !== 0 && prev !== 0 && kind !== prev) turns++;
+      prev = kind;
+    }
+    if (len >= 16 && letters > 0 && digits > 0 && (turns >= 4 || (digits >= 8 && letters >= 8))) return true;
+  }
+  return false;
+}
 const REL_PATH_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9._-]+)+$/;
 const REL_PATH_EXT_RE = /\.[A-Za-z][A-Za-z0-9]{0,7}$/;
 const isRelPathValue = (v) =>
   REL_PATH_RE.test(v) &&
   (REL_PATH_EXT_RE.test(v) || v.split('/').length >= 3) &&
   !hasRandomSeg(v) &&
-  !v.split(/[/._-]/).some((p) => p.length >= 12 && /[A-Za-z]/.test(p) && /\d/.test(p));
+  !v.split(/[/._-]/).some((p) => p.length >= 12 && /[A-Za-z]/.test(p) && /\d/.test(p)) &&
+  !hasTokenRun(v, true); // 239(Codex night-qa4 #5): 짧은 마디 조합(gh12ij34/kl56mn78/op90qr12)도 토큰 — 상대 경로 예외 없음
 // 값이 자격 증명 없는 URL(scheme://host… 의 권한 부분에 @ 가 없음)이면 제외. 사용자 이름만 있는 https://TOKEN@host 도 토큰일 수 있어 @ 가 있으면 제외하지 않는다.
 //   URL 질의 속 ?access_token=… 은 값 안을 이어서 찾아 따로 본다.
 const URL_AUTHORITY_RE = /^[A-Za-z][A-Za-z0-9+.-]{0,31}:\/\/([^/?#]*)/;
@@ -534,7 +572,8 @@ function bearerHit(l) {
  */
 const BEARER_TOKEN_SEG_RE = /^(?:(?=[^/]*[A-Za-z])(?=[^/]*\d)[^/]{16,}|(?=[^/]*[a-z])(?=[^/]*[A-Z])(?=[^/]*\d)[^/]{8,})$/;
 function bearerPathLike(v) {
-  return PATH_VALUE_RE.test(v) && !v.split('/').some((seg) => BEARER_TOKEN_SEG_RE.test(seg));
+  // 239(Codex night-qa4 #4): 마디를 합쳐 토큰 형태(hasTokenRun — /gh12ij34/kl56mn78/op90qr12)면 경로 아님. /api/v1/users/profile 은 경로(음성 유지).
+  return PATH_VALUE_RE.test(v) && !v.split('/').some((seg) => BEARER_TOKEN_SEG_RE.test(seg)) && !hasTokenRun(v, true);
 }
 const BEARER_MESSAGE = '하드코딩 Bearer 토큰(Authorization 값, 16자 이상)';
 export function c7LineHits(l, isCode) {
@@ -768,17 +807,27 @@ export function jsonErrorWhere(src) {
   }
   return `줄 ${line} 열 ${p - ls + 1}`;
 }
-/** 글자열이 비밀 형태인가 — C7 한 줄 규칙에 걸리거나, 구분자로 나눈 조각 하나가 16자 이상이고 글자·숫자를 모두 품는다. */
+/**
+ * 글자열이 비밀 형태인가 — C7 한 줄 규칙에 걸리거나, 구분자로 나눈 조각 하나가 16자 이상이고 글자·숫자를 모두 품거나,
+ * 239(Codex night-qa4 #1·3): 구분자(- . / _)로 이은 다마디 토큰 형태(hasTokenRun)가 있다. 표시 문구만 바꾸는 판정(FAIL/WARN 건수 불변).
+ */
 function secretShaped(s) {
   if (c7LineHits(s, false).length > 0) return true;
-  return s.split(/[^A-Za-z0-9+=~]/).some((p) => p.length >= 16 && /[A-Za-z]/.test(p) && /\d/.test(p));
+  if (s.split(/[^A-Za-z0-9+=~]/).some((p) => p.length >= 16 && /[A-Za-z]/.test(p) && /\d/.test(p))) return true;
+  return hasTokenRun(s);
+}
+/** 239(Codex night-qa4 #7): 표시용 문자열 — 원시값만 String(), 객체·배열·심벌·함수는 타입 이름만(toString 이 함수가 아닌 객체의 변환 예외 방지). */
+function labelString(v) {
+  if (typeof v === 'string') return v;
+  if (v === null || v === undefined || typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v);
+  return `‹${Array.isArray(v) ? 'array' : typeof v}›`;
 }
 /**
  * 진단 메시지에 넣을 값·이름·식별자 — 비밀 형태면 길이만(‹가림 N자›), 120자 넘으면 길이만(‹생략 N자› — 판정 비용·잘린 조각 노출 방지), 아니면 그대로.
  * @param {unknown} v
  */
 export function safeLabel(v) {
-  const s = String(v);
+  const s = labelString(v);
   if (s.length > 120) return `‹생략 ${s.length}자›`;
   return secretShaped(s) ? `‹가림 ${s.length}자›` : s;
 }
@@ -787,7 +836,17 @@ export function safeLabel(v) {
  * @param {string} message
  */
 export function redactMessage(message) {
-  return c7LineHits(String(message), false).length > 0 ? '(진단 메시지에 비밀값 형태가 있어 가림 — 파일·줄을 직접 확인)' : message;
+  // 239(Codex night-qa4 #1): C7 규칙에 더해 이름·문맥 없는 독립 토큰(16자+ 영숫자 혼합 덩어리·다마디 토큰)도 가린다(secretShaped).
+  const s = labelString(message);
+  return secretShaped(s) ? '(진단 메시지에 비밀값 형태가 있어 가림 — 파일·줄을 직접 확인)' : s;
+}
+/**
+ * 239(Codex night-qa4 #2) — 출력용 파일 경로: 마디(/)별 safeLabel. 내부 검사·중복 제거·정렬은 원래 경로를 쓴다(출력 직전에만 바꾼다).
+ * @param {unknown} file
+ */
+export function safePath(file) {
+  if (typeof file !== 'string') return file === null || file === undefined ? file : safeLabel(file);
+  return file.split('/').map((seg) => safeLabel(seg)).join('/');
 }
 /**
  * JSON 파일의 디코딩 단계 C7 → { severity, message, line }[] (line 은 키의 원문 줄, 메시지에 키 경로).
@@ -1022,7 +1081,7 @@ function scanCode(rel, text, ctx) {
     const report = (txt, line) => {
       for (const h of lintText(txt, bw)) {
         if (h.rule === 'L02') continue;
-        add('C4-CODE', 'FAIL', rel, line, `코드 리터럴 금지어 "${h.term}"${h.rule === 'L06' ? '(공백 제거 후)' : ''}`);
+        add('C4-CODE', 'FAIL', rel, line, `코드 리터럴 금지어 "${safeLabel(h.term)}"${h.rule === 'L06' ? '(공백 제거 후)' : ''}`);
       }
     };
     for (const s of strings) report(s.text, s.line);
@@ -1267,9 +1326,9 @@ function scanSeedFile(rel, text, ctx) {
       if (/(^|\.)source\[\d+\]\.title$/.test(n.path)) return;
       if (file === SEED_FILES.photos && (key === 'query' || key === 'scene')) return;
       for (const h of lintText(n.value, bw)) {
-        if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 금지어 "${h.term}"`);
-        else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, null, `${where} ${safeLabel(n.path)}: 공백 제거 후 2자 금지어 "${h.term}"`);
-        else add('C4-STEM', stemFailRow(row) ? 'FAIL' : 'WARN', rel, null, `${where} ${safeLabel(n.path)}: 금지어 어간 "${h.term}"`);
+        if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 금지어 "${safeLabel(h.term)}"`);
+        else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, null, `${where} ${safeLabel(n.path)}: 공백 제거 후 2자 금지어 "${safeLabel(h.term)}"`);
+        else add('C4-STEM', stemFailRow(row) ? 'FAIL' : 'WARN', rel, null, `${where} ${safeLabel(n.path)}: 금지어 어간 "${safeLabel(h.term)}"`);
       }
     });
 

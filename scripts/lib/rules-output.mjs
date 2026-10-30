@@ -45,21 +45,31 @@ function decodePath(p) {
 
 function bannedIn(text, rel, line, where, add, bw) {
   for (const h of lintText(text, bw)) {
-    if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, line, `${where}: 금지어 "${h.term}"`);
-    else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, line, `${where}: 공백 제거 후 2자 금지어 "${h.term}"`);
+    if (h.rule === 'L01') add('C4-BANNED', 'FAIL', rel, line, `${where}: 금지어 "${L(h.term)}"`);
+    else if (h.rule === 'L06') add('C4-BANNED', 'WARN', rel, line, `${where}: 공백 제거 후 2자 금지어 "${L(h.term)}"`);
     // R6 B1(SEC-4 L-4): 산출물은 사용자에게 보이는 결과물 — 어간도 FAIL.
-    else add('C4-STEM', 'FAIL', rel, line, `${where}: 금지어 어간 "${h.term}"`);
+    else add('C4-STEM', 'FAIL', rel, line, `${where}: 금지어 어간 "${L(h.term)}"`);
   }
 }
 
-function jsonStrings(v, key, visit) {
-  if (Array.isArray(v)) v.forEach((x) => jsonStrings(x, key, visit));
-  else if (isObj(v)) for (const [k, x] of Object.entries(v)) jsonStrings(x, k, visit);
-  else if (typeof v === 'string') {
-    if (JSON_TEXT_SKIP.test(key) || /^(https?:\/\/|\/)/i.test(v)) return;
-    visit(v, key);
+/** JSON 값 트리의 문자열(가장 가까운 키와 함께) — 239(Codex night-qa4 #7): 재귀 없는 명시적 스택(깊은 중첩에서 스택 넘침 없음), 방문 순서는 재귀판과 같다. */
+function jsonStrings(root, key0, visit) {
+  const stack = [[root, key0]];
+  while (stack.length > 0) {
+    const [v, key] = stack.pop();
+    if (Array.isArray(v)) {
+      for (let i = v.length - 1; i >= 0; i--) stack.push([v[i], key]);
+    } else if (isObj(v)) {
+      const es = Object.entries(v);
+      for (let i = es.length - 1; i >= 0; i--) stack.push([es[i][1], es[i][0]]);
+    } else if (typeof v === 'string') {
+      if (JSON_TEXT_SKIP.test(key) || /^(https?:\/\/|\/)/i.test(v)) continue;
+      visit(v, key);
+    }
   }
 }
+/** requirement 쌍 표시 — 각 값을 safeLabel(객체 값도 예외 없이 타입 이름). */
+const pairLabel = (a, b) => `${L(a)}|${L(b)}`;
 
 /** ws-data v2(계획 73 S4) 출처 표 항목에 허용되는 키. */
 const WS_SOURCE_KEYS = new Set(['url', 'title']);
@@ -101,7 +111,7 @@ function checkWsWire(d, rel, line, add) {
   const reqs = isObj(d.data) && Array.isArray(d.data.requirements) ? d.data.requirements.filter(isObj) : [];
   if (d.v === 1) {
     if (d.sources !== undefined) bad('v1 인데 최상위 sources 있음(형식 혼합)');
-    for (const q of reqs) if (q.sourceRefs !== undefined) bad(`v1 인데 requirement ${L(`${q.animalTypeId}|${q.supplyItemId}`)} 에 sourceRefs`);
+    for (const q of reqs) if (q.sourceRefs !== undefined) bad(`v1 인데 requirement ${pairLabel(q.animalTypeId, q.supplyItemId)} 에 sourceRefs`);
     return;
   }
   if (d.v !== 2) return bad(`알 수 없는 v=${L(JSON.stringify(d.v))}`);
@@ -123,7 +133,7 @@ function checkWsWire(d, rel, line, add) {
   else if (d.data.requirements.some((q) => !isObj(q))) bad('v2 requirement 형식(객체 아님)');
   const used = new Set();
   for (const q of reqs) {
-    const at = `requirement ${L(`${q.animalTypeId}|${q.supplyItemId}`)}`;
+    const at = `requirement ${pairLabel(q.animalTypeId, q.supplyItemId)}`;
     if (q.source !== undefined) bad(`v2 ${at} 에 source 잔존`);
     if (q.searchLinks !== undefined) bad(`v2 ${at} 에 searchLinks 잔존`);
     if (typeof q.searchKeyword !== 'string') bad(`v2 ${at} searchKeyword 문자열 아님·누락`);
@@ -142,7 +152,13 @@ function checkWsWire(d, rel, line, add) {
 /** ws-data (§6-3 WsPageData) id 검사. */
 function checkWsData(d, rel, line, ex, add) {
   const bad = (what) => add('C3-OUT-ID', 'FAIL', rel, line, `ws-data 비노출 ${what}`);
-  if (!isObj(d)) return;
+  // 239(Codex night-qa4 #6): 최상위가 객체가 아니면(배열·null·원시값) 디코더(ws-wire decodeWsPage)처럼 거부 — 형식 FAIL(+ 금지 키도 본다).
+  if (!isObj(d)) {
+    add('C3-OUT-SRC', 'FAIL', rel, line, `ws-data 최상위 형식(객체 아님: ${Array.isArray(d) ? 'array' : d === null ? 'null' : typeof d})`);
+    const fk = forbiddenKeyIn(d);
+    if (fk !== null) add('C3-OUT-SRC', 'FAIL', rel, line, `ws-data 금지 키 ${L(fk)}(프로토타입 오염 경로, L-3)`);
+    return;
+  }
   checkWsWire(d, rel, line, add);
   const r = d.route;
   if (isObj(r) && r.typeId !== undefined && !ex.ids.animalTypes.has(r.typeId)) bad(`route.typeId ${L(r.typeId)}`);
@@ -157,7 +173,7 @@ function checkWsData(d, rel, line, ex, add) {
     }
     if (k === 'requirements') {
       for (const q of arr) {
-        if (!isObj(q) || !ex.pairs.has(`${q.animalTypeId}|${q.supplyItemId}`)) bad(`requirement ${L(`${q?.animalTypeId}|${q?.supplyItemId}`)}`);
+        if (!isObj(q) || !ex.pairs.has(`${q.animalTypeId}|${q.supplyItemId}`)) bad(`requirement ${pairLabel(q?.animalTypeId, q?.supplyItemId)}`);
         const item = isObj(q) ? q.item : undefined;
         if (item !== undefined) {
           if (!isObj(item) || !ex.ids.supplyItems.has(item.id)) bad(`requirement.item ${L(item?.id)}`);
@@ -439,7 +455,9 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     return 'RUN';
   }
   if (!isObj(m) || m.v !== 1) add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, 'manifest v≠1');
-  if (m.seedDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, `seedDigest 불일치: manifest ${L(m.seedDigest)} ≠ server/seed ${digest}`);
+  // 239: 서버 digest 는 앞 12자만(64자 hex 는 출력부 독립 토큰 가림에 걸린다 — 진단 문구 전체가 가려지지 않게). manifest 가 객체가 아니어도 예외 없이.
+  const mDigest = isObj(m) ? m.seedDigest : undefined;
+  if (mDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', 'prerender-manifest.json', null, `seedDigest 불일치: manifest ${L(mDigest)} ≠ server/seed ${typeof digest === 'string' ? `${digest.slice(0, 12)}…` : '없음'}`);
   const routes = checkRoutes(isObj(m) ? m : {}, dist, ex, add);
   const indexablePaths = new Set(routes.filter((r) => r.indexable === true && typeof r.path === 'string').map((r) => decodePath(r.path)));
 
@@ -526,8 +544,13 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
         add('C8-OUT-SAFE', 'FAIL', rel, line, 'JSON 블록 파싱 실패');
         continue;
       }
-      jsonStrings(data, '', (t, k) => bannedIn(t, rel, line, `JSON ${L(k)}`, add, bw));
-      if (s.attrs.id === 'ws-data') checkWsData(data, rel, line, ex, add);
+      // 239(Codex night-qa4 #7): 블록별 검사 중 예외(비정상 구조 등)는 스캐너를 죽이지 않고 고정 문구 FAIL 로 모은다(예외 메시지·값은 넣지 않는다).
+      try {
+        jsonStrings(data, '', (t, k) => bannedIn(t, rel, line, `JSON ${L(k)}`, add, bw));
+        if (s.attrs.id === 'ws-data') checkWsData(data, rel, line, ex, add);
+      } catch {
+        add('C8-OUT-SAFE', 'FAIL', rel, line, 'JSON 블록 검사 중 예외(비정상 구조 — 원문 확인)');
+      }
     }
 
     // C8 — 태그, C3 — data-ws-*, C4 — 속성 텍스트
@@ -579,7 +602,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       for (const h of lintText(n.text, bw)) nodeTerms.add(h.term);
     }
     for (const h of lintText(nodes.map((n) => n.text).join(''), bw)) {
-      if (h.rule === 'L01' && !nodeTerms.has(h.term)) add('C4-BANNED', 'FAIL', rel, null, `태그 경계에 걸친 금지어 "${h.term}"`);
+      if (h.rule === 'L01' && !nodeTerms.has(h.term)) add('C4-BANNED', 'FAIL', rel, null, `태그 경계에 걸친 금지어 "${L(h.term)}"`);
     }
   }
 
@@ -593,8 +616,12 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       add('C3-OUT-ID', 'FAIL', rel, null, 'JSON 파싱 실패');
       continue;
     }
-    checkCatalog(c, rel, ex, digest, add);
-    jsonStrings(c, '', (t, k) => bannedIn(t, rel, null, `JSON ${L(k)}`, add, bw));
+    try {
+      checkCatalog(c, rel, ex, digest, add);
+      jsonStrings(c, '', (t, k) => bannedIn(t, rel, null, `JSON ${L(k)}`, add, bw));
+    } catch {
+      add('C3-OUT-ID', 'FAIL', rel, null, 'JSON 검사 중 예외(비정상 구조 — 원문 확인)'); // 239 #7: 블록 예외 고정 FAIL
+    }
   }
 
   // C3-OUT-TAXON(L-2) — 비노출 Taxon id·legal.note 텍스트 0.

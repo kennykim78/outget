@@ -2185,7 +2185,7 @@ test('C7-SECRET 233: 산출물 규칙 메시지(route·sitemap·script src·java
   assert.equal(of('C8-OUT-SAFE', /^외부·비정상 script src: ‹가림/).length, 2);
   assert.ok(of('C8-OUT-SAFE', /^위험 href: ‹가림 \d+자›$/).length >= 1, JSON.stringify(res.json.findings));
   assert.ok(of('C3-OUT-ROUTE', /^manifest indexable 밖 URL: ‹가림/).some((f) => f.file === 'sitemap.xml'));
-  assert.ok(of('C3-OUT-ROUTE', /^seedDigest 불일치: manifest ‹가림 \d+자› ≠ server\/seed [0-9a-f]{64}$/).length === 1, JSON.stringify(res.json.findings));
+  assert.ok(of('C3-OUT-ROUTE', /^seedDigest 불일치: manifest ‹가림 \d+자› ≠ server\/seed [0-9a-f]{12}…$/).length === 1, JSON.stringify(res.json.findings));
   assert.ok(of('C9-PRIVACY', /페이지 "‹가림 \d+자›" ≠ policy\.ts 365/).length === 1, JSON.stringify(res.json.findings));
   // 비밀 형태가 아닌 일반 URL 은 그대로 보인다(safeLabel 이 가른다).
   assert.ok(of('C8-OUT-SAFE', /^외부 <link href>: https:\/\/cdn\.example\/style\.css$/).length === 1, JSON.stringify(res.json.findings));
@@ -2919,4 +2919,204 @@ test('C9-PRIVACY: parsePolicyConstants — 정수·곱·_ 구분만, 문자열·
   assert.equal(m.has('B'), false);
   assert.equal(m.has('C'), false);
   assert.equal(m.has('BACKUP_DIR_ENV'), false);
+});
+
+// ── 239 — Codex night-qa4 7건: 출력 경계(인수·금지어 term·독립 토큰·file 경로)·다마디 토큰(secretShaped·Bearer·_file 상대 경로)·ws-data 최상위·블록 예외 ─────
+//   재현 값은 Codex 보고서 그대로(합성): M = 대·소·숫 20자, S = 소문자+숫자 8자 마디 3개를 - 로 이은 값.
+const QA4_M = j('Qz8aBc7dEf', '6gHj5kMn4p');
+const QA4_S = j('gh12ij34-kl56', 'mn78-op90qr12');
+const QA4_SP = QA4_S.replaceAll('-', '/'); // 같은 마디를 / 로
+const leaks239 = (text) => leaks(text, [QA4_M, QA4_S, QA4_SP]);
+const wsBody = (o, body) => {
+  o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace(WS_RE, () => `<script id="ws-data" type="application/json">${body}</script>`);
+};
+
+test('C7-SECRET 239 #1: CLI 인수 오류는 인수 종류만 — --now·--root·알 수 없는 인수 값이 stderr 에 0', async () => {
+  const root = await makeRoot();
+  for (const args of [['--root', root, '--now', QA4_M], ['--root', join(root, QA4_M)], ['--root', root, `--${QA4_M}`], ['--root', root, QA4_S], ['--root', root, '--now', QA4_S]]) {
+    const r = spawnSync(process.execPath, [SCANNER, ...args], { encoding: 'utf8' });
+    assert.equal(r.status, 2, args.join(' '));
+    assert.match(r.stderr, /CONFIG ERROR/);
+    assert.deepEqual(leaks239(r.stdout + r.stderr), [], r.stderr);
+  }
+  // 금지어 단일 소스 없음 — --root 경로 값 생략.
+  const gone = await makeRoot();
+  const dirM = join(gone, QA4_M);
+  mkdirSync(dirM);
+  const r = spawnSync(process.execPath, [SCANNER, '--root', dirM], { encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.deepEqual(leaks239(r.stderr), [], r.stderr);
+});
+
+test('C7-SECRET 239 #1: 금지어 term 이 비밀 형태면 C4 진단(코드·산출물, 사람용·JSON)에 길이만', async () => {
+  const bw = { ...BANNED_WORDS, banned: [...BANNED_WORDS.banned, { term: QA4_M, pattern: 'needle' }, { term: QA4_S, pattern: 'haystack' }] };
+  const root = await makeRoot({
+    source: (s) => {
+      s['server/src/seed/banned-words.json'] = JSON.stringify(bw, null, 2);
+      s['client/src/needle.ts'] = "export const a = 'needle haystack';\n";
+    },
+    output: (o) => { o['index.html'] = o['index.html'].replace('</main>', '<p>needle haystack</p></main>'); },
+  });
+  const { res, human, all } = cliBoth(root);
+  assert.equal(res.code, 1);
+  assert.equal(human.status, 1);
+  const c4 = res.json.findings.filter((f) => f.rule === 'C4-CODE' || f.rule === 'C4-BANNED');
+  assert.ok(c4.some((f) => f.rule === 'C4-CODE' && f.message.includes('‹가림 20자›')), JSON.stringify(c4));
+  assert.ok(c4.some((f) => f.rule === 'C4-BANNED' && f.message.includes('‹가림 26자›')), JSON.stringify(c4));
+  assert.deepEqual(leaks239(all), [], all);
+});
+
+test('C7-SECRET 239 #1: redactMessage 최종 방어 — 이름·문맥 없는 독립 토큰(한 덩어리·다마디)도 가림, 일반 진단 문구는 그대로', async () => {
+  const { redactMessage } = await import('../lib/rules-source.mjs');
+  const R = '(진단 메시지에 비밀값 형태가 있어 가림 — 파일·줄을 직접 확인)';
+  for (const m of [`알 수 없는 인수: --${QA4_M}`, `x ${QA4_S} y`, `경로 /tmp/${QA4_SP}`, j('a ', 'abcdefgh-ijklmnop-', '12345678'), j('v ', 'Qa7bCd8e.Fg9hJk2m')]) assert.equal(redactMessage(m), R, m);
+  for (const m of [
+    '하드코딩 시크릿 키=값(소문자·JSON 키 이름, 16자 이상)',
+    'ws-data 비노출 requirement hamster-golden|golden-hamster-wheel-30cm',
+    'seedDigest 불일치: manifest ‹가림 64자› ≠ server/seed 0123456789ab…',
+    '외부 <link href>: https://cdn.example/style.css',
+    'catalogUrl /data/catalog.v1.abcd1234.json',
+    '기간 UNUSED_USER_RETENTION_DAYS: 페이지 "180" ≠ policy.ts 365',
+  ]) assert.equal(redactMessage(m), m, m);
+  assert.equal(redactMessage({ toString: QA4_M }), '‹object›'); // 객체도 예외 없이 타입 이름
+});
+
+test('C7-SECRET 239 #2: finding 의 file 경로도 마디별 가림(사람용·JSON) — 원래 경로로 판정', async () => {
+  const root = await makeRoot({ source: (s) => {
+    s[`docs/${QA4_M}.txt`] = j('tok', 'en=', QA4_M, '\n');
+    s[`docs/${QA4_S}/x.md`] = j('tok', 'en=', QA4_M, '\n');
+  } });
+  const { res, human, all } = cliBoth(root);
+  assert.equal(res.code, 1);
+  assert.equal(human.status, 1);
+  const c7 = res.json.findings.filter((f) => f.rule === 'C7-SECRET');
+  assert.ok(c7.some((f) => f.file === 'docs/‹가림 24자›' && f.line === 1), JSON.stringify(c7));
+  assert.ok(c7.some((f) => f.file === 'docs/‹가림 26자›/x.md' && f.line === 1), JSON.stringify(c7));
+  assert.ok(human.stdout.includes('docs/‹가림 24자›:1'), human.stdout);
+  assert.deepEqual(leaks239(all), [], all);
+  const { safePath } = await import('../lib/rules-source.mjs');
+  for (const p of ['client/dist/privacy/index.html', 'server/src/seed/banned-words.json', 'client/dist/assets/index-abc.js', 'prerender-manifest.json']) assert.equal(safePath(p), p);
+  assert.equal(safePath(null), null);
+});
+
+test('C7-SECRET 239 #3: 구분자로 나눈 비밀값 — safeLabel 이 다마디 토큰을 가린다(C6 시드·C8 data: href, 잘린 조각 0)', async () => {
+  const { safeLabel } = await import('../lib/rules-source.mjs');
+  for (const v of [QA4_S, QA4_SP, j('data:text/plain,', QA4_S), j('abcdefgh-ijklmnop-', '12345678'), j('Qa7bCd8e.Fg9h', 'Jk2m')]) assert.match(safeLabel(v), /^‹가림 \d+자›$/, v);
+  for (const v of ['golden-hamster-wheel-30cm', 'cp-001', 'C3-OUT-SRC', '/api/v1/users/profile', 'catalog.v1.abcd1234.json', 'config/secret-v2.txt', 'v1.2.3-beta.4', '2026-10-31', 'index-abc.js']) assert.equal(safeLabel(v), v);
+  const root = await makeRoot({
+    seed: (d) => { d['curated-products.json'][0].imageLicense = QA4_S; },
+    output: (o) => { o['index.html'] = o['index.html'].replace('</main>', () => j('<a href="data:text/plain,', QA4_S, '">x</a></main>')); },
+  });
+  const { res, human, all } = cliBoth(root);
+  assert.equal(res.code, 1);
+  assert.equal(human.status, 1);
+  const rules = new Set(res.json.findings.map((f) => f.rule));
+  for (const r of ['C6-IMG', 'C8-OUT-SAFE']) assert.ok(rules.has(r), JSON.stringify([...rules]));
+  assert.deepEqual(leaks239(all), [], all);
+  assert.ok(!all.includes('gh12ij34'), all);
+});
+
+test('C7-SECRET 239 #4: Authorization/Bearer 의 `/` 시작 값도 마디를 합쳐 토큰 형태면 FAIL(원문·JSON·코드) — 사전 단어 API 경로는 음성', async () => {
+  const { c7LineHits, jsonC7Hits } = await import('../lib/rules-source.mjs');
+  const codex = j('{"Authorization":"Bea', 'rer /', QA4_SP, '"}');
+  assert.deepEqual(await kvSev(codex), ['FAIL']);
+  assert.ok(jsonC7Hits(codex).some((h) => h.severity === 'FAIL'));
+  const pos = [
+    j("const h = 'Bea", 'rer /', QA4_SP, "';"), // 코드 문자열
+    j('Authorization: Bea', 'rer /', QA4_S), // - 구분
+    j('Authorization: Bea', 'rer ./', QA4_SP),
+    j('Authorization: Bea', 'rer ~/', QA4_SP),
+    j('Authorization: Bea', 'rer /abcdefgh/ijklmnop/', '12345678'), // 글자 마디 + 숫자 마디
+    j('Authorization: Bea', 'rer /a1b2/c3d4/e5f6/g7h8'), // 4자 마디 4개
+  ];
+  for (const l of pos) {
+    assert.ok(c7LineHits(l, true).some((h) => h.severity === 'FAIL'), l);
+    assert.ok(c7LineHits(l, false).some((h) => h.severity === 'FAIL'), l);
+  }
+  const neg = ['/api/v1/users/profile', '/api/v1/users/profile2', '/oauth2/v2/token/refresh', '/static/v1.2.3/app-bundle.js', '/healthcheck-ready'];
+  for (const p of neg) {
+    const l = j('Authorization: Bea', 'rer ', p);
+    assert.deepEqual(c7LineHits(l, true), [], l);
+    assert.deepEqual(c7LineHits(l, false), [], l);
+  }
+});
+
+test('C7-SECRET 239 #5: _file 상대 경로 예외 — 짧은 마디 토큰 조합이면 예외 없음(FAIL, JSON·kv·env·YAML·Dockerfile), uuid·사전 단어 경로는 제외 유지', async () => {
+  const { c7LineHits, jsonC7Hits, secretKvHits, secretKvHitsSimple } = await import('../lib/rules-source.mjs');
+  const codex = j('{"client_secret', '_file":"', QA4_SP, '"}');
+  assert.ok(jsonC7Hits(codex).some((h) => h.severity === 'FAIL'), JSON.stringify(jsonC7Hits(codex)));
+  const pos = [
+    codex,
+    j('client_secret', '_file=', QA4_SP),
+    j('client_secret', '_file: ', QA4_SP),
+    j('CLIENT_SECRET', '_FILE=', QA4_SP),
+    j('  CLIENT_SECRET', '_FILE: ', QA4_SP),
+    j('ENV CLIENT_SECRET', '_FILE=', QA4_SP),
+    j('token', '_path=', QA4_SP, '/x.json'),
+    j('secret', '_dir=abcdefgh/ijklmnop/', '12345678'),
+  ];
+  for (const l of pos) {
+    assert.ok(c7LineHits(l, false).some((h) => h.severity === 'FAIL'), l);
+    assert.deepEqual(secretKvHits(l), secretKvHitsSimple(l), l);
+  }
+  const neg = [
+    j('client_secret', '_file=config/secret-v2.txt'),
+    j('token', '_path: keys/550e8400-e29b-41d4-a716-446655440000.json'),
+    j('secret', '_dir=var/lib/withsmall2'),
+    j('CLIENT_SECRET', '_FILE=deploy/v1/keys/app.pem'),
+  ];
+  for (const l of neg) {
+    assert.deepEqual(c7LineHits(l, false), [], l);
+    assert.deepEqual(secretKvHits(l), secretKvHitsSimple(l), l);
+  }
+});
+
+for (const [label, body] of [
+  ['배열(금지 키 포함)', '[{"v":1,"data":{"__proto__":{"x":1}}}]'],
+  ['null', 'null'],
+  ['숫자', '1'],
+  ['문자열', '"x"'],
+  ['빈 배열', '[]'],
+]) {
+  test(`C3-OUT-SRC 239 #6: ws-data 최상위 ${label} → 형식 FAIL`, async () => {
+    const res = scan(await makeRoot({ output: (o) => wsBody(o, body) }));
+    expectFail(res, 'C3-OUT-SRC');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && f.message.startsWith('ws-data 최상위 형식(객체 아님')), JSON.stringify(res.json.findings));
+    if (body.includes('__proto__')) assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && f.message.includes('금지 키 __proto__')), JSON.stringify(res.json.findings));
+  });
+}
+
+test('C3-OUT-SRC 239 #7: ws-data 깊은 중첩(2천·2만) — 스택 넘침 없이 금지 키 FAIL', async () => {
+  for (const depth of [2000, 20000]) {
+    const deep = `${'['.repeat(depth)}{"__proto__":{}}${']'.repeat(depth)}`;
+    const res = scan(await makeRoot({ output: (o) => {
+      const d = JSON.parse(WS_RE.exec(o['hamster/golden/index.html'])[1]);
+      wsBody(o, JSON.stringify(d).replace(/}$/, () => `,"extra":${deep}}`));
+    } }));
+    assert.ok(res.json, `비정상 종료(${depth}): ${(res.stderr ?? '').slice(0, 200)}`);
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && f.message.includes('금지 키 __proto__')), JSON.stringify(res.json.findings));
+    assert.ok(!/Maximum call stack/.test(res.stderr));
+  }
+});
+
+test('C3-OUT-ID 239 #7: ws-data 식별자 자리에 객체(toString 이 문자열) — 변환 예외 없이 FAIL, 값 0', async () => {
+  const codex = j('{"v":1,"route":{"typeId":{"toString":"', QA4_M, '"}},"data":{"constructor":[]}}');
+  const res = scan(await makeRoot({ output: (o) => wsBody(o, codex) }));
+  assert.ok(res.json, `비정상 종료: ${(res.stderr ?? '').slice(0, 200)}`);
+  assert.equal(res.code, 1);
+  assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-ID' && f.message === 'ws-data 비노출 route.typeId ‹object›'), JSON.stringify(res.json.findings));
+  assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-SRC' && f.message.includes('금지 키 constructor')), JSON.stringify(res.json.findings));
+  assert.deepEqual(leaks239(res.stdout + res.stderr), []);
+  // 쌍 조회(템플릿 변환) 자리의 객체 — 조회 예외는 블록 고정 FAIL 로 모은다(스캐너는 끝까지 간다).
+  const pair = j('{"v":1,"data":{"requirements":[{"animalTypeId":{"toString":"', QA4_M, '"},"supplyItemId":"y"}]}}');
+  const r2 = scan(await makeRoot({ output: (o) => wsBody(o, pair) }));
+  assert.ok(r2.json, `비정상 종료: ${(r2.stderr ?? '').slice(0, 200)}`);
+  assert.ok(r2.json.findings.some((f) => f.rule === 'C8-OUT-SAFE' && f.message === 'JSON 블록 검사 중 예외(비정상 구조 — 원문 확인)'), JSON.stringify(r2.json.findings));
+  assert.deepEqual(leaks239(r2.stdout + r2.stderr), []);
+  const { safeLabel } = await import('../lib/rules-source.mjs');
+  assert.equal(safeLabel({ toString: QA4_M }), '‹object›');
+  assert.equal(safeLabel([QA4_M]), '‹array›');
+  assert.equal(safeLabel(Symbol(QA4_M)), '‹symbol›');
+  assert.equal(safeLabel(12), '12');
+  assert.equal(safeLabel(null), 'null');
 });

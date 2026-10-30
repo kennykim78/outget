@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { isDir } from './lib/files.mjs';
 import { seoulToday } from './lib/dates.mjs';
 import { ConfigError, loadBannedWords } from './lib/normalize.mjs';
-import { redactMessage, scanSources } from './lib/rules-source.mjs';
+import { redactMessage, safePath, scanSources } from './lib/rules-source.mjs';
 import { scanOutputs, scanSeedExposure } from './lib/rules-output.mjs';
 import { computeExposure, dayNumber, readSeed, seedDigest } from './lib/seed-exposure.mjs';
 
@@ -44,9 +44,9 @@ function parseArgs(argv) {
     else if (a === '--prerender') o.prerender = val();
     else if (a === '--now') {
       o.now = val();
-      if (dayNumber(o.now) === null) throw new ConfigError(`--now 는 YYYY-MM-DD: ${o.now}`);
+      if (dayNumber(o.now) === null) throw new ConfigError('--now 는 YYYY-MM-DD 형식이어야 한다(입력값 생략)');
     }
-    else throw new ConfigError(`알 수 없는 인수: ${a}`);
+    else throw new ConfigError(`알 수 없는 인수(${i + 1}번째, 입력값 생략)`); // 239(Codex night-qa4 #1): 인수 오류는 종류·위치만
   }
   if (o.now === null) o.now = seoulToday(); // L-A: 오늘(Asia/Seoul) — CI·프리렌더와 같은 기준
   o.prerender = o.prerender === null ? join(o.root, 'client', 'dist') : isAbsolute(o.prerender) ? o.prerender : resolve(o.prerender);
@@ -58,7 +58,7 @@ function main() {
   let bw;
   try {
     opts = parseArgs(process.argv.slice(2));
-    if (!isDir(opts.root)) throw new ConfigError(`--root 디렉터리 없음: ${opts.root}`);
+    if (!isDir(opts.root)) throw new ConfigError('--root 디렉터리 없음(경로 생략)');
     bw = loadBannedWords(join(opts.root, ...BANNED_WORDS_PATH.split('/')));
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e;
@@ -93,13 +93,14 @@ function main() {
   const exposed = Object.fromEntries(Object.entries(ex.ids).map(([k, s]) => [k, s.size]));
 
   // 230(Codex night-qa3 C7-1) 심층 방어: 규칙 메시지는 값 없이 만들지만, 메시지 자체가 C7 규칙에 걸리면 출력 직전에 고정 문구로 가린다(사람용·JSON 공통).
-  for (const f of findings) f.message = redactMessage(f.message);
+  // 239(Codex night-qa4 #2): file 도 경로 마디별 safeLabel — 출력용 사본만(위 정렬·중복 제거는 원래 경로).
+  const shown = findings.map((f) => ({ ...f, file: safePath(f.file), message: redactMessage(f.message) }));
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify({ ok: fail === 0, fail, warn, files, outputs, seedDigest: digest, asOf: opts.now, exposed, notes, findings })}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: fail === 0, fail, warn, files, outputs, seedDigest: digest, asOf: opts.now, exposed, notes, findings: shown })}\n`);
   } else {
     const head = fail === 0 ? 'OK' : 'FAIL';
     process.stdout.write(`compliance-scan: ${head} — ${fail} FAIL, ${warn} WARN (files ${files}, outputs ${outputs}, asOf ${opts.now})\n`);
-    for (const f of findings) process.stdout.write(`  ${f.severity} ${f.rule} ${f.file}${f.line ? `:${f.line}` : ''} ${f.message}\n`);
+    for (const f of shown) process.stdout.write(`  ${f.severity} ${f.rule} ${f.file}${f.line ? `:${f.line}` : ''} ${f.message}\n`);
     for (const n of notes) process.stdout.write(`  note: ${n}\n`);
   }
   process.exit(fail === 0 ? 0 : 1);
