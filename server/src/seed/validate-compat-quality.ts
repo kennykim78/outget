@@ -103,9 +103,10 @@ function constArith(n: ExprNode, out: number[] = []): number[] {
     case 'bin': {
       const refs = exprRefs(n);
       if (ARITH.has(n.op) && refs.a.length === 0 && refs.b.length === 0) {
-        // 키 참조가 없는 상수 부분식(중첩 포함) 전체 접기
+        // 키 참조가 없는 상수 부분식(중첩 포함) 전체 접기 — 접은 노드는 자식으로 내려가지 않는다(중간 결과가 표본에 섞이지 않게)
         const v = evalExpr(n, { a: {}, b: {} });
         if (typeof v === 'number' && Number.isFinite(v)) out.push(v);
+        break;
       }
       constArith(n.l, out);
       constArith(n.r, out);
@@ -134,7 +135,8 @@ function constArith(n: ExprNode, out: number[] = []): number[] {
 }
 
 /** 식의 리터럴 값: 숫자 리터럴 + 상수끼리의 산술 결과. */
-function literalValues(n: ExprNode): number[] {
+/** (테스트용 export) */
+export function literalValues(n: ExprNode): number[] {
   return [...new Set([...numLiterals(n), ...constArith(n)])];
 }
 
@@ -161,7 +163,8 @@ function midValue(f: SpecField): SpecValue {
 }
 
 /** 키별 표본의 조합. 상한을 넘으면 기준점(전부 중간·전부 최소·전부 최대) 각각에 한 키씩 표본 전부. */
-function combos(fields: SpecField[], lits: number[] = []): Record<string, SpecValue>[] {
+/** (테스트용 export) */
+export function combos(fields: SpecField[], lits: number[] = []): Record<string, SpecValue>[] {
   if (fields.length === 0) return [{}];
   const sets = fields.map((f) => ({ key: f.key, vals: fieldSamples(f, lits) }));
   const total = sets.reduce((n, s) => n * s.vals.length, 1);

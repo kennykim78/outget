@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
 import { validateSeed } from '../seed/validate.js';
+import { combos, literalValues } from '../seed/validate-compat-quality.js';
+import { parseExpr, type SpecField } from '../engine/index.js';
 import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -128,5 +130,39 @@ describe('R07d — `||` 만', () => {
     expect(r.errors).toEqual([]);
     expect(r.r07c).toEqual([]);
     expect(r.r07d).toEqual([AT]);
+  });
+});
+
+describe('R07c 표본 — 접기 경계·폴백 경계(QA210 권장, 작업 215)', () => {
+  const lits = (expr: string) => literalValues(parseExpr(expr)).sort((x, y) => x - y);
+  const num = (key: string, min: number, max: number): SpecField => ({ key, label: key, type: 'number', min, max });
+  const en = (n: number): SpecField => ({ key: 'e', label: 'e', type: 'enum', options: Array.from({ length: n }, (_, i) => `O${i}`) });
+  // 기준점(전부 중간·최소·최대)에 안 걸리는 "끝에서 두 번째" 선택지가 모든 리터럴과 짝지어졌는가 = 전수(혼합 모서리) 여부
+  const coversAllPairs = (enumN: number, litN: number) => {
+    const ls = Array.from({ length: litN }, (_, i) => i + 1);
+    const out = combos([en(enumN), num('n', 0, 100)], ls);
+    const opt = `O${enumN - 2}`;
+    return ls.every((l) => out.some((o) => o.e === opt && o.n === l));
+  };
+
+  it('INFO-3 회귀: ((1+2)*3) 은 최종값 9 만 리터럴(중간값 3 은 숫자 리터럴 3 과 별개로 섞이지 않음)', () => {
+    expect(lits('b.heightCm == (1 + 2) * 3')).toEqual([1, 2, 3, 9]); // 3 은 원래 숫자 리터럴
+    expect(lits('b.heightCm == ((1 + 2) * 4) * 5')).toEqual([1, 2, 4, 5, 60]); // 중간값 3·12 없음
+  });
+
+  it('64/65 폴백 경계: 곱 64 는 enum 전수, 65 는 중간값 폴백(전수 아님)', () => {
+    expect(coversAllPairs(4, 16)).toBe(true);
+    expect(coversAllPairs(5, 13)).toBe(false);
+  });
+
+  it('키 혼합 부분식은 접지 않음: a.diameterCm + 10 + 5 → 리터럴 [10, 5]', () => {
+    expect(lits('b.heightCm == a.diameterCm + 10 + 5')).toEqual([5, 10]);
+  });
+
+  it('0 나누기 상수식 → 예외 없음, 리터럴 미추가, R07c 는 유지', () => {
+    expect(lits('b.heightCm == 70 / 0')).toEqual([0, 70]);
+    const r = issues(withExpr('b.heightCm == 70 / 0'));
+    expect(r.errors).toEqual([]);
+    expect(r.r07c).toEqual([AT]);
   });
 });
