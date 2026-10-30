@@ -97,6 +97,84 @@ function numLiterals(n: ExprNode, out: number[] = []): number[] {
   return out;
 }
 
+/** 식 안의 문자열 리터럴(enum 선택지와 직접 비교되는 값 후보). */
+export function strLiterals(n: ExprNode, out: string[] = []): string[] {
+  switch (n.t) {
+    case 'str':
+      out.push(n.v);
+      break;
+    case 'bin':
+      strLiterals(n.l, out);
+      strLiterals(n.r, out);
+      break;
+    case 'neg':
+    case 'not':
+      strLiterals(n.arg, out);
+      break;
+    case 'in':
+      strLiterals(n.l, out);
+      strLiterals(n.list, out);
+      break;
+    case 'list':
+      n.items.forEach((x) => strLiterals(x, out));
+      break;
+    case 'cond':
+      strLiterals(n.test, out);
+      strLiterals(n.then, out);
+      strLiterals(n.else, out);
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
+const CMP = new Set(['==', '!=', '<', '>', '<=', '>=']);
+
+/** 키별로 식에서 직접 비교된 숫자 값(상수 접기 포함, 엔진 evalExpr). 축소 폴백에서 이 값을 우선 보존한다. */
+export function directLiterals(n: ExprNode, out: Record<string, number[]> = {}): Record<string, number[]> {
+  const constNum = (x: ExprNode): number | undefined => {
+    const r = exprRefs(x);
+    if (r.a.length > 0 || r.b.length > 0) return undefined;
+    const v = evalExpr(x, { a: {}, b: {} });
+    return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  };
+  const add = (keyed: ExprNode, vals: (number | undefined)[]) => {
+    const r = exprRefs(keyed);
+    for (const k of [...r.a, ...r.b]) for (const v of vals) if (v !== undefined) (out[k] ??= []).push(v);
+  };
+  switch (n.t) {
+    case 'bin':
+      if (CMP.has(n.op)) {
+        add(n.l, [constNum(n.r)]);
+        add(n.r, [constNum(n.l)]);
+      }
+      directLiterals(n.l, out);
+      directLiterals(n.r, out);
+      break;
+    case 'neg':
+    case 'not':
+      directLiterals(n.arg, out);
+      break;
+    case 'in':
+      if (n.list.t === 'list') add(n.l, n.list.items.map(constNum));
+      directLiterals(n.l, out);
+      directLiterals(n.list, out);
+      break;
+    case 'list':
+      n.items.forEach((x) => directLiterals(x, out));
+      break;
+    case 'cond':
+      directLiterals(n.test, out);
+      directLiterals(n.then, out);
+      directLiterals(n.else, out);
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
 const ARITH = new Set(['+', '-', '*', '/']);
 
 /** 상수끼리의 산술 결과(키 참조 없는 이항 산술 부분식, 중첩 포함). 계산은 엔진 evalExpr 로 한다(평가기 복제 금지). */
@@ -114,7 +192,19 @@ function constArith(n: ExprNode, out: number[] = []): number[] {
       constArith(n.r, out);
       break;
     }
-    case 'neg':
+    case 'neg': {
+      const refs = exprRefs(n);
+      if (refs.a.length === 0 && refs.b.length === 0) {
+        // 키 참조 없는 단항 음수(`-(10 - 45)` 등)도 엔진 evalExpr 로 접어 최종값만 표본에(접기 성공 시 재귀 중단)
+        const v = evalExpr(n, { a: {}, b: {} });
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          out.push(v);
+          break;
+        }
+      }
+      constArith(n.arg, out);
+      break;
+    }
     case 'not':
       constArith(n.arg, out);
       break;
@@ -166,7 +256,7 @@ function midValue(f: SpecField): SpecValue {
 
 /** 키별 표본의 조합. 상한을 넘으면 기준점(전부 중간·전부 최소·전부 최대) 각각에 한 키씩 표본 전부. */
 /** (테스트용 export) */
-export function combos(fields: SpecField[], lits: number[] = []): Record<string, SpecValue>[] {
+export function combos(fields: SpecField[], lits: number[] = [], strLits: string[] = [], direct: Record<string, number[]> = {}): Record<string, SpecValue>[] {
   if (fields.length === 0) return [{}];
   const sets = fields.map((f) => ({ key: f.key, vals: fieldSamples(f, lits) }));
   const total = sets.reduce((n, s) => n * s.vals.length, 1);
@@ -182,16 +272,45 @@ export function combos(fields: SpecField[], lits: number[] = []): Record<string,
   ];
   const out = bases.flatMap((base) => sets.flatMap(({ key, vals }) => vals.map((v) => ({ ...base, [key]: v }))));
   // 혼합 모서리: 키별로 식 리터럴 값 하나씩 고른 조합(상한 MAX_COMBOS)
-  const litSetsFor = (enumAll: boolean) =>
+  const litSetsFor = (enumMode: 'all' | 'lits' | 'mid') =>
     fields.map((f) => {
-      if (f.type === 'enum' && enumAll) return { key: f.key, vals: [...f.options] as SpecValue[] };
+      if (f.type === 'enum') {
+        if (enumMode === 'all') return { key: f.key, vals: [...f.options] as SpecValue[] };
+        const hit = enumMode === 'lits' ? f.options.filter((o) => strLits.includes(o)) : [];
+        if (hit.length === 0) return { key: f.key, vals: [midValue(f)] };
+        // 비교된 선택지 + 비교되지 않은 선택지 하나(`!=`·`not in`·`||` 에서 비교된 값이 식을 고정시키지 않게)
+        const rest = f.options.filter((o) => !strLits.includes(o));
+        const other = rest.length > 0 ? [rest[Math.floor((rest.length - 1) / 2)]] : [];
+        return { key: f.key, vals: [...hit, ...other] as SpecValue[] };
+      }
       if (f.type !== 'number') return { key: f.key, vals: [midValue(f)] };
       const inRange = [...new Set(lits)].filter((l) => l >= f.min && l <= f.max).sort((x, y) => x - y);
       return { key: f.key, vals: inRange.length > 0 ? inRange : [midValue(f)] };
     });
-  // enum 은 전 선택지를 표본으로 — 조합 수가 상한을 넘으면 기존(중간값 고정) 방식으로 폴백
-  let litSets = litSetsFor(true);
-  if (litSets.reduce((n, x) => n * x.vals.length, 1) > MAX_COMBOS) litSets = litSetsFor(false);
+  const prod = (xs: { vals: SpecValue[] }[]) => xs.reduce((n, x) => n * x.vals.length, 1);
+  // enum 은 전 선택지 → 넘으면 식에서 직접 비교된 선택지만 보존 → 그래도 넘으면 숫자 키 표본을 줄임(가장 긴 목록의 가운데부터 제거) → 최후 중간값 고정
+  let litSets = litSetsFor('all');
+  if (prod(litSets) > MAX_COMBOS) {
+    litSets = litSetsFor('lits');
+    const numeric = new Set(fields.filter((f) => f.type === 'number').map((f) => f.key));
+    // 직접 비교된 리터럴은 마지막까지 보존 — 먼저 파생 표본(그 키와 직접 비교되지 않은 값)을 가운데부터 버린다
+    const isDirect = (key: string, v: SpecValue) => typeof v === 'number' && (direct[key] ?? []).includes(v);
+    const dropMiddle = (xs: SpecValue[]) => xs.filter((_, idx) => idx !== Math.floor(xs.length / 2));
+    while (prod(litSets) > MAX_COMBOS) {
+      const bigs = litSets.filter((x) => numeric.has(x.key) && x.vals.length > 1).sort((x, y) => y.vals.length - x.vals.length);
+      const withDerived = bigs.find((x) => x.vals.some((v) => !isDirect(x.key, v)));
+      if (withDerived) {
+        const idxs = withDerived.vals.map((v, i) => (isDirect(withDerived.key, v) ? -1 : i)).filter((i) => i >= 0);
+        const drop = idxs[Math.floor(idxs.length / 2)];
+        withDerived.vals = withDerived.vals.filter((_, i) => i !== drop);
+        continue;
+      }
+      const big = bigs.find((x) => x.vals.length > 2);
+      if (!big) break;
+      big.vals = dropMiddle(big.vals);
+    }
+    if (prod(litSets) > MAX_COMBOS) litSets = litSetsFor('mid');
+  }
   let mixed: Record<string, SpecValue>[] = [{}];
   for (const { key, vals } of litSets) {
     mixed = mixed.flatMap((o) => vals.map((v) => ({ ...o, [key]: v }))).slice(0, MAX_COMBOS);
@@ -209,6 +328,8 @@ function inputVariants(
   itemId: string,
   fields: SpecField[],
   lits: number[] = [],
+  strLits: string[] = [],
+  direct: Record<string, number[]> = {},
 ): SpecValues[] {
   const minSpecs: RuleSet[] = [];
   const profiles = isNonEmptyStr(careProfileId)
@@ -225,7 +346,7 @@ function inputVariants(
   }
   const mid = Object.fromEntries(fields.map((f) => [f.key, midValue(f)]));
   const baselines = minSpecs.map((m) => ({ ...mid, ...(minSpecBaseline({ minSpec: m }) as Record<string, SpecValue>) }));
-  return [...(baselines.length > 0 ? baselines : [mid]), ...combos(fields, lits)];
+  return [...(baselines.length > 0 ? baselines : [mid]), ...combos(fields, lits, strLits, direct)];
 }
 
 const resultKey = (v: ReturnType<typeof evalExpr>): string => JSON.stringify(v);
@@ -251,13 +372,15 @@ export function checkCompatOwnedProbe(ctx: Ctx, raw: RawSeed): void {
       }
       const refs = exprRefs(node);
       const lits = literalValues(node);
+      const strs = strLiterals(node);
+      const direct = directLiterals(node);
       for (const ownedSide of ['b', 'a'] as const) {
         const inputSide = ownedSide === 'a' ? 'b' : 'a';
         const ownedFields = fieldsOf(schemas[ownedSide], refs[ownedSide]);
         if (ownedFields.length === 0) continue;
         const inputItem = rule[inputSide];
-        const inputs = inputVariants(cat, rule.careProfileId, inputItem, fieldsOf(schemas[inputSide], refs[inputSide]), lits);
-        const owneds = combos(ownedFields, lits);
+        const inputs = inputVariants(cat, rule.careProfileId, inputItem, fieldsOf(schemas[inputSide], refs[inputSide]), lits, strs, direct);
+        const owneds = combos(ownedFields, lits, strs, direct);
         const dependsOnOwned = inputs.some((inRaw) => {
           const inSan = sanitizeSpecValues(schemas[inputSide], inRaw);
           const seen = new Set<string>();
@@ -360,10 +483,19 @@ export function checkCompatMinRecMix(ctx: Ctx, raw: RawSeed): void {
         }
       }
       if (hits.size === 0) return;
-      const effect =
-        entry.onFail === 'BELOW_MIN'
-          ? '최소 기준값만으로 확정되는 BELOW_MIN 이 CHECK 로 낮아지고 권장 채움 표식(usedRecommended)이 붙을 수 있음'
-          : '최소 기준값만으로 확정되는 결과에도 권장 채움 표식(usedRecommended)이 붙을 수 있음';
+      const hitList = [...hits];
+      const hasAnd = hitList.some((h) => h.startsWith('`&&`'));
+      const hasOr2 = hitList.some((h) => h.startsWith('`||`'));
+      const effects: string[] = [];
+      if (hasAnd) {
+        effects.push(
+          entry.onFail === 'BELOW_MIN'
+            ? '최소 기준값만으로 확정되는 BELOW_MIN 이 CHECK 로 낮아지고 권장 채움 표식(usedRecommended)이 붙을 수 있음'
+            : '최소 기준값만으로 확정되는 결과에도 권장 채움 표식(usedRecommended)이 붙을 수 있음',
+        );
+      }
+      if (hasOr2) effects.push('최소 쪽이 참일 때도 권장 채움 표식(usedRecommended)이 붙을 수 있음');
+      const effect = hasAnd && hasOr2 ? `\`&&\`: ${effects[0]} / \`||\`: ${effects[1]}` : effects.join('');
       ctx.out.warn(
         'R07e',
         'compatibilityRules',

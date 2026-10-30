@@ -133,6 +133,32 @@ describe('R07d — `||` 만', () => {
   });
 });
 
+describe('R07c — Codex night-qa2 #7·#8 오탐 방지(작업 222)', () => {
+  it.each([
+    'b.heightCm == -(10 - 45)', // #7: 단항 음수 접기(35)
+    "b.type == 'GRID_PANEL' && b.floorWcm == 25 && b.floorDcm == 75 && b.heightCm == 35", // #8: 조합 64 초과, enum 직접 비교 선택지 보존
+    'b.heightCm == 35', // 동치식 대조
+    "b.type != 'GRID_PANEL' && b.floorWcm == 25 && b.floorDcm == 75 && b.heightCm == 35", // QA223 MED-1: != 는 비교된 값이 식을 고정
+    "b.type == 'LIVING_BOX' || b.floorWcm == 25 && b.floorDcm == 75 && b.heightCm == 35", // QA223 MED-1: || 형
+    "((b.floorDcm <= 70 && b.floorWcm == 162) || b.heightCm != 46 && b.barGapMm < 16 && b.floorWcm >= 192) && a.diameterCm + 23 <= b.heightCm", // QA223 LOW-2: 숫자 축소는 직접 비교 리터럴 우선
+  ])('%s → R07c 없음', (expr) => {
+    const r = issues(withExpr(expr));
+    expect(r.errors).toEqual([]);
+    expect(r.r07c).toEqual([]);
+  });
+
+  it('단항 음수 접기: 최종값 35 가 리터럴에 들어가고 중간값 -35 는 없음', () => {
+    const v = literalValues(parseExpr('b.heightCm == -(10 - 45)'));
+    expect(v).toContain(35);
+    expect(v).not.toContain(-35);
+  });
+
+  it('진짜 무관한 식은 여전히 경고(단항 음수·enum 혼합 포함)', () => {
+    expect(issues(withExpr('b.heightCm == b.heightCm || -(1 - 2) == 1')).r07c.length).toBeGreaterThan(0);
+    expect(issues(withExpr("b.type == 'GRID_PANEL' && b.floorWcm >= 0 || true")).r07c.length).toBeGreaterThan(0);
+  });
+});
+
 describe('R07c 표본 — 접기 경계·폴백 경계(QA210 권장, 작업 215)', () => {
   const lits = (expr: string) => literalValues(parseExpr(expr)).sort((x, y) => x - y);
   const num = (key: string, min: number, max: number): SpecField => ({ key, label: key, type: 'number', min, max });
@@ -208,6 +234,20 @@ describe('R07e — 최소·권장 키 혼합 && / ||', () => {
     const c = compatOf(s, 40); // 27 + 20 <= 40 → false(최소만으로 확정 가능한 실패)
     expect(c.verdict).toBe('CHECK');
     expect(c.usedRecommended).toBe(true);
+  });
+
+  it('`&&`·`||` 동시 + BELOW_MIN, `||` 단독, `&&` + 비BELOW_MIN — 문구 분기(1건 합침)', () => {
+    const both = r07e(withSilentRec('(a.diameterCm + 20 <= b.heightCm && a.silent == true) && (a.surface == "SOLID" || a.silent == true)', 'BELOW_MIN'));
+    expect(both.at).toEqual([AT]);
+    expect(both.msgs[0]).toContain('BELOW_MIN 이 CHECK 로 낮아지고');
+    expect(both.msgs[0]).toContain('최소 쪽이 참일 때도 권장 채움 표식');
+    const orOnly = r07e(withSilentRec('a.diameterCm + 20 <= b.heightCm || a.silent == true', 'BELOW_MIN'));
+    expect(orOnly.msgs[0]).not.toContain('BELOW_MIN');
+    const andNon = r07e(withSilentRec('a.diameterCm + 20 <= b.heightCm && a.silent == true', 'CHECK'));
+    expect(andNon.at).toEqual([AT]);
+    expect(andNon.msgs[0]).not.toContain('BELOW_MIN');
+    expect(andNon.msgs[0]).toContain('최소 기준값만으로 확정되는 결과에도 권장 채움 표식');
+    for (const m of [...both.msgs, ...orOnly.msgs, ...andNon.msgs]) for (const w of BANNED) expect(m).not.toContain(w);
   });
 
   it('§1.2 짝(최소 true || 권장) → WARN 1건 · 엔진은 OK + usedRecommended', () => {
