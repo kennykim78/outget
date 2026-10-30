@@ -24,6 +24,10 @@
 - 파일명 직접 참조(실행 직전 확인): 01_architect_plan(withsmall-build SKILL), 05·09·10·12·12b·23·34(decisions), 26_design_r4_review(app.css), 63_fe_fallback_font(fonts-fallback.css)
 - 153 이후 보고서 전부, `docs/legacy/outget/`, `harness-config/`, `.claude/skills/knockedu-build`(별칭)
 
+### decisions.md 분할 (2026-10-30 10:2x 실행, ORDERS 재개 절 — 되돌릴 수 있는 문서 작업)
+- `_workspace/decisions.md` 5~207줄(10-01~10-12, 203행) → `_workspace/_archive/202610/decisions-1001-1012.md`(무시, 73,685B). 남은 쪽 10-13~ 321행(168,191B), 머리에 분할 안내 한 줄.
+- 검증: 보관본 행 + 남은 행 = 분할 전 524행 diff 0. 분할 전 원본(241,540B): `_workspace/_archive/202610/decisions-before-split-20261030.md`(백업 zip 이후 수정분 포함).
+- 되돌리기: 보관본 5행 이후를 남은 파일 표 머리 바로 아래에 붙이고 안내 줄 삭제(또는 위 원본 복사).
+
 ### 보류 (Kenny 확인 — [KENNY-아침])
-- `_workspace/decisions.md` 분할 초안: 10-01~10-12 = 5~207줄(203줄) → `_workspace/_archive/202610/decisions-1001-1012.md`, 10-13~ 남김. (2026-10-30 기준 512줄 이후 추가분은 남는 쪽)
 - 루트 `README.md`·`docs/README.md` 교체(Outget → WithSmall) + `docs/Outget-개요.md`·`docs/MVP_모델.md` → `_archive/202610/` git mv. 새 README 초안은 `_workspace/scratch/` 에.
