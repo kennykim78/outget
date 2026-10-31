@@ -12,6 +12,7 @@
 | `.claude/workflows/knockedu-review.js`, `knockedu-feature-audit.js` | `_archive/202610/claude-workflows/` | git mv | Outget 시절 워크플로, 참조 0 |
 | `_workspace_prev/` (14파일, 103,644B) | `_workspace/_archive/202610/workspace_prev/` | 무시 | 6/9 Outget 산출물, 참조 0 |
 | `_workspace/` 보고서 92개 (686,441B) | `_workspace/_archive/202610/reports/` (원본) + 합본 3개 | 무시 | 001~152 중 현재 참조 없는 것 |
+| `docs/Outget-개요.md`, `docs/MVP_모델.md` | `_archive/202610/` | git mv | Outget 시절 문서. 참조: `docs/legacy/outget/` 3파일 링크는 새 위치로 수정, `CLAUDE-outget.md`·보관 문서 내부 상대 링크는 원래 깨진 채 보존(legacy 불변) |
 
 ### 합본 (번호 → 합본 매핑)
 - `_workspace/_archive/202610/reports-A-00_032-R0-R4.md` — 25파일, 원본 합 229,217B: 00_r0_gate.md, 02_backend_r1.md, 02_frontend_r1.md, 03_qa_r1.md, 03_security_r1.md, 06_curator_r2-1.md, 07_backend_r2_laneA.md, 08_backend_r2_laneB.md, 11_qa_r2.md, 13_curator_r3_copy.md, 14_security_r3.md, 15_qa_r3.md, 15b_qa_r3_retry.md, 16_backend_r3_laneA.md, 17_backend_r3_laneC.md, 18_backend_r3_laneE.md, 20_backend_r3_laneG1.md, 21_backend_r3_laneF2.md, 22_design_r4_spec.md, 23b_impact_r4.md, 24_qa_r4_gate.md, 27_be1_r4.md, 28_be2_r4.md, 30_fe2_r4.md, 32_curator_r4_copy.md
@@ -29,5 +30,5 @@
 - 검증: 보관본 행 + 남은 행 = 분할 전 524행 diff 0. 분할 전 원본(241,540B): `_workspace/_archive/202610/decisions-before-split-20261030.md`(백업 zip 이후 수정분 포함).
 - 되돌리기: 보관본 5행 이후를 남은 파일 표 머리 바로 아래에 붙이고 안내 줄 삭제(또는 위 원본 복사).
 
-### 보류 (Kenny 확인 — [KENNY-아침])
-- 루트 `README.md`·`docs/README.md` 교체(Outget → WithSmall) + `docs/Outget-개요.md`·`docs/MVP_모델.md` → `_archive/202610/` git mv. 새 README 초안은 `_workspace/scratch/` 에.
+### 실행 완료 (2026-10-31, 작업 244, Kenny 승인 ORDERS §22-5)
+- 루트 `README.md`·`docs/README.md` 를 WithSmall 판으로 교체(초안 `_workspace/scratch/195_README.*.draft.md`) + `docs/Outget-개요.md`·`docs/MVP_모델.md` → `_archive/202610/` git mv.

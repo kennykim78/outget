@@ -1,41 +1,50 @@
-# Outget (아웃겟) — 문서 색인
+# WithSmall (위드스몰) — 문서 색인
 
-지도 기반 아울렛 구매대행 **매칭 보드**(당근형 양면). 모든 기획 문서는 이 `docs/` 한 곳에 모여 있다.
-*(프로젝트 하네스 지침은 루트 [../CLAUDE.md](../CLAUDE.md) — Claude Code가 루트에서 로드하므로 여기 두지 않음.)*
+작은 반려동물(골든햄스터부터) 사육 준비·관리 오케스트레이션. 프로젝트 지침과 불변식 요약은 루트 [../CLAUDE.md](../CLAUDE.md), 시작 방법은 [../README.md](../README.md).
 
-## 현행 문서 (권위순)
+## 권위 문서 (우선순위 순)
 
-| 문서 | 성격 | 비고 |
-|---|---|---|
-| [Outget-개요.md](Outget-개요.md) | 제품 개요 | 한눈에 보는 정체성·불변식·플로우·범위·리스크 |
-| [planning-artifacts/PRD.md](planning-artifacts/PRD.md) | **제품 요구사항 정의서 v0.2** | 권위 문서. EPIC·FR/NFR·성공지표·마일스톤 |
-| [planning-artifacts/UX-기획.md](planning-artifacts/UX-기획.md) | **UX 기획 v0.2** | 화면·플로우·컴포넌트·카피 |
-| [planning-artifacts/architecture.md](planning-artifacts/architecture.md) | **아키텍처 v0.1** | 스택·불변식 제약·데이터모델·M1 게이트 |
-| [planning-artifacts/epics.md](planning-artifacts/epics.md) | **에픽·스토리 v0.1** | 10 에픽·24 스토리(AC에 5대 불변식) |
-| [planning-artifacts/M1-게이트.md](planning-artifacts/M1-게이트.md) | **M1 게이트** | 안전결제 문의 메일·법률 질의서·DB/호스팅/앵커 권고 |
-| [MVP_모델.md](MVP_모델.md) | 사업모델 캐논 | 5턴 수렴 의사결정 이력(일부는 PRD가 갱신) |
+| # | 문서 | 버전 | 성격 |
+|---|---|---|---|
+| 1 | [WithSmall-제품기획-v0.2.md](WithSmall-제품기획-v0.2.md) | v0.2.4 (동결) | 정의, 불변식, 데이터 모델, 아키텍처, 복구 순서, 백로그 |
+| 2 | [planning-artifacts/PRD.md](planning-artifacts/PRD.md) | v1.3.1 | US-001~026 수용 기준, 부록 A(specSchema/minSpec/CompatibilityRule), 부록 B(시드 공통 필드) |
+| 3 | [planning-artifacts/UX-기획.md](planning-artifacts/UX-기획.md) | v2.3.1 | 내비, 흐름, 레이어(L1~L8), 반응형, 홈 2종 |
+| 4 | [planning-artifacts/디자인-브리프.md](planning-artifacts/디자인-브리프.md) | v2.3.1 | 시각 규칙 원본 (토큰·마스코트·캔버스는 `design/`) |
+| 5 | [planning-artifacts/골든햄스터-콘텐츠-시드-v1.0.md](planning-artifacts/골든햄스터-콘텐츠-시드-v1.0.md) | v1.0 | 첫 동물 콘텐츠 시드 (DRAFT) |
+| 6 | [planning-artifacts/이미지-소싱.md](planning-artifacts/이미지-소싱.md), [planning-artifacts/베타-후기-수집.md](planning-artifacts/베타-후기-수집.md) | — | 운영 절차 |
 
-## 폴더 구조
+## 보조 기획 문서 (docs/)
 
-```
-docs/
-  README.md                  ← 이 색인
-  Outget-개요.md              ← 제품 개요
-  MVP_모델.md                 ← 사업모델 캐논(이력)
-  planning-artifacts/         ← BMAD 산출물(output_folder=docs)
-    PRD.md · UX-기획.md        ← + 향후 architecture·epics·stories
-  implementation-artifacts/   ← BMAD 구현 산출물(향후)
-  legacy/                     ← 피벗 전 자료(참고용)
-    교육포털-타당성-기획서.md
-    학원데이터랩-MASTER-PRD.md
-```
+- [WithSmall-서비스기획서.md](WithSmall-서비스기획서.md)
+- [WithSmall-피벗-타당성-기획-v0.1.md](WithSmall-피벗-타당성-기획-v0.1.md)
+
+## design/ — 디자인 시스템
+
+- [design/README.md](design/README.md): 디자인 시스템 안내
+- [design/CANVAS.md](design/CANVAS.md): 캔버스 보드 설명
+- [design/tokens.json](design/tokens.json): 디자인 토큰
+- `design/canvas/`, `design/components/`, `design/mascots/`: 캔버스 보드, 컴포넌트, 마스코트 자산
+
+## ops/ — 운영
+
+- [ops/deploy.md](ops/deploy.md): 배포·운영 절차 (환경 변수 표의 원본은 루트 `.env.example`)
+
+## planning-artifacts/ — 기획 산출물
+
+- 핵심 문서: [PRD.md](planning-artifacts/PRD.md), [UX-기획.md](planning-artifacts/UX-기획.md), [디자인-브리프.md](planning-artifacts/디자인-브리프.md), [클로드코드-킥오프.md](planning-artifacts/클로드코드-킥오프.md)
+- 시드: [골든햄스터-콘텐츠-시드-v1.0.md](planning-artifacts/골든햄스터-콘텐츠-시드-v1.0.md), [드워프햄스터-콘텐츠-시드-v0.1.md](planning-artifacts/드워프햄스터-콘텐츠-시드-v0.1.md), 시드 JSON 초안 폴더 [seed-draft/](planning-artifacts/seed-draft)
+- 검수 자료: [골든햄스터-핵심행-확인표.md](planning-artifacts/골든햄스터-핵심행-확인표.md), [드워프햄스터-핵심행-확인표.md](planning-artifacts/드워프햄스터-핵심행-확인표.md), [드워프햄스터-검수-패킷-v0.3.md](planning-artifacts/드워프햄스터-검수-패킷-v0.3.md) (v0.2도 같은 폴더), [저빌-핵심행-확인표.md](planning-artifacts/저빌-핵심행-확인표.md), [기니피그-핵심행-확인표.md](planning-artifacts/기니피그-핵심행-확인표.md)
+- 이미지: [이미지-소싱.md](planning-artifacts/이미지-소싱.md), [이미지-대장.md](planning-artifacts/이미지-대장.md)
+- 후기: [베타-후기-수집.md](planning-artifacts/베타-후기-수집.md)
+
+## legacy/ — 피벗 전 자료 (수정하지 않음)
+
+- [legacy/outget/](legacy/outget): Outget 문서 (CLAUDE-outget.md, PRD.md, UX-기획.md, architecture.md, epics.md, M1-게이트.md)
+- [legacy/교육포털-타당성-기획서.md](legacy/교육포털-타당성-기획서.md), [legacy/학원데이터랩-MASTER-PRD.md](legacy/학원데이터랩-MASTER-PRD.md)
+- 피벗 이전 문서(보관): [Outget-개요.md](../_archive/202610/Outget-개요.md), [MVP_모델.md](../_archive/202610/MVP_모델.md)
+- 보관 색인: [../_archive/INDEX.md](../_archive/INDEX.md)
 
 ## 작성 규칙
-- 새 기획 산출물(아키텍처·에픽·스토리)은 `bmad-*` 스킬이 **`docs/planning-artifacts/`** 에 생성(BMAD `output_folder=docs`로 고정 — [../\_bmad/custom/config.toml](../_bmad/custom/config.toml)).
-- legacy 폴더는 **수정하지 않음**(피벗 전 기록 보존용).
-- 권위는 PRD/UX v0.2 → MVP_모델.md(이력) 순.
 
-## 변경 이력
-| 날짜 | 변경 |
-|---|---|
-| 2026-06-08 | 문서 통합 — `doc/`·루트 `KNOCKEDU.md`·`docs/bmad/`에 흩어진 문서를 `docs/` 한 곳으로 모으고 명칭 정리(KNOCKEDU.md→Outget-개요.md, 참조.md→legacy/학원데이터랩-MASTER-PRD.md). BMAD output_folder `docs/bmad`→`docs`. |
+- legacy 폴더는 수정하지 않는다 (피벗 전 기록 보존).
+- 충돌 시 위 권위 문서 순서(1에서 6)를 따른다.

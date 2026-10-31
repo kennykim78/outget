@@ -13,7 +13,7 @@ date: '2026-06-08'
 
 # Outget (아웃겟) — 솔루션 아키텍처
 
-지도 기반 아울렛 구매대행 **당근형 양면 매칭 보드**. 입력: [PRD.md](PRD.md) v0.2 · [UX-기획.md](UX-기획.md) v0.2 · [MVP_모델.md](../MVP_모델.md) · 불변식 [CLAUDE.md](../../CLAUDE.md). 산출물 위치: `docs/planning-artifacts/`.
+지도 기반 아울렛 구매대행 **당근형 양면 매칭 보드**. 입력: [PRD.md](PRD.md) v0.2 · [UX-기획.md](UX-기획.md) v0.2 · [MVP_모델.md](../../../_archive/202610/MVP_모델.md) · 불변식 [CLAUDE.md](../../CLAUDE.md). 산출물 위치: `docs/planning-artifacts/`.
 
 > ⚠️ 스택 미확정(greenfield). 아래 **권장 기본**은 제안이며, **M1 게이트** 항목(§9)은 미결정으로 명시. 법적 서술은 리스크 분석이며 법률 자문 아님.
 
