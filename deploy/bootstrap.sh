@@ -226,8 +226,17 @@ if [ "$rc" -gt 1 ]; then rm -f "$S/export.grep"; restore; exit 1; fi
 rc=0
 grep -v -E " sshd(-session)?(\[[0-9]+\])?: .*(\[preauth\]|Failed |Invalid user|Connection closed by authenticating user|Disconnected from authenticating user)" "$S/export.grep" > "$S/export.op" || rc=$?
 if [ "$rc" -gt 1 ]; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
-# 이메일 가림(security 150 LOW-1): 공백·= 가 아닌 글자 덩어리 안의 @ 는 통째로 <email> — 비 ASCII 로컬 파트·IDN 도.
-if ! sed -E 's/[^[:space:]=]+@[^[:space:]]+/<email>/g' "$S/export.op" > "$S/export.sel"; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
+# 이메일 가림(security 150 LOW-1, QA152 LOW-2): 과잉 가림 허용 — 기록의 쓸모(Accepted·sudo 명령 이름·단계 줄)는 남는다.
+#   1) 따옴표 안 로컬 파트("Kim Lee"@x)는 공백 없는 표지(Q)로 줄인다. 여는 따옴표(앞이 줄 처음·공백·=)만 시작으로 삼아, 닫히지 않았으면 @ 까지 열린 구간을 통째로 가린다.
+#   2) @·%40(URL 인코딩)·＠(전각)·(at)·[at](대소문자)를 품은 공백 아닌 덩어리 전체 → <email>(= 포함 로컬 파트도). 앞의 --옵션= 이름만 남긴다.
+#   3) 낱말 at 도메인꼴('bob at x.com' — 뒤 토큰에 . 과 글자)만 가린다. 'at now'·'today at 09:00' 은 남긴다. 이식성: POSIX ERE 만(GNU sed·busybox·dash).
+if ! sed -E \
+  -e 's/"[^"]*"(@|%40|＠)/Q\1/g' \
+  -e "s/'[^']*'(@|%40|＠)/Q\\1/g" \
+  -e 's/(^|[^[:alnum:]_.])["'"'"'][^"'"'"']*(@|%40|＠)[^[:space:]]*/\1<email>/g' \
+  -e 's/(^|[[:space:]])(--?[[:alnum:]_-]+=)?[^[:space:]]*(@|%40|＠|\([aA][tT]\)|\[[aA][tT]\])[^[:space:]]*/\1\2<email>/g' \
+  -e 's/[^[:space:]]+[[:space:]]+[aA][tT][[:space:]]+[^[:space:]]*\.[^[:space:][:digit:][:punct:]][^[:space:]]*/<email>/g' \
+  "$S/export.op" > "$S/export.sel"; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
 if ! cat "$S/export.sel" >> "$OUT"; then rm -f "$S/export.grep" "$S/export.op"; restore; exit 1; fi
 chmod 0600 "$OUT"
 rm -f "$S/export.tmp" "$S/export.grep" "$S/export.op" "$S/export.sel" "$S/cursor.prev"

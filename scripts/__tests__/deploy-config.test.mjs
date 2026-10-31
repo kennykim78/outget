@@ -665,6 +665,106 @@ echo "$total" > "$cf"
   }
 });
 
+test('QA152 LOW-2: 이메일 가림 확대 — 인코딩·변형 형태, 기존 17형태, 쓸모 있는 줄 보존, 변이 판별', { skip: !SH_BIN }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ws-adminmask-'));
+  try {
+    for (const d of ['bin', 'out', 'state']) mkdirSync(join(dir, d));
+    const P = (x) => fwdp(join(dir, x));
+    writeFileSync(join(dir, 'users'), 'deploy\nubuntu\n');
+    const exOrig = heredoc('/usr/local/sbin/withsmall-admin-log-export');
+    assert.match(exOrig, /sed -E \\\n/, '가림 sed 가 내보내기 스크립트 안에 있다');
+    writeFileSync(join(dir, 'bin', 'journalctl'), `#!/bin/sh
+cf=""
+for a in "$@"; do case "$a" in --cursor-file=*) cf="\${a#--cursor-file=}" ;; esac; done
+cat '${P('journal')}'
+echo 1 > "$cf"
+`, { mode: 0o755 });
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const H = '2026-10-28T01:00:00.000000+00:00 ws-host';
+    // 내보내기가 고르도록 전부 ws-admin-deploy 태그 줄. payload → 기록에 남은 payload.
+    const mask = (script, payloads) => {
+      for (const d of ['out', 'state']) { rmSync(join(dir, d), { recursive: true, force: true }); mkdirSync(join(dir, d)); }
+      const ex = script.replaceAll('/var/log/withsmall-admin', P('out')).replaceAll('/var/lib/withsmall-admin', P('state')).replaceAll('/etc/withsmall-admin-users', P('users'));
+      writeFileSync(join(dir, 'export.sh'), `${ex}\n`);
+      writeFileSync(join(dir, 'journal'), `${payloads.map((p) => `${H} ws-admin-deploy[1]: ${p}`).join('\n')}\n`);
+      const r = spawnSync(SH_BIN, [P('export.sh')], { encoding: 'utf8', env: { ...process.env, PATH: `${join(dir, 'bin')}${sep}${process.env.PATH}` } });
+      assert.equal(r.status, 0, r.stderr);
+      return readFileSync(join(dir, 'out', 'access.log'), 'utf8').trim().split('\n').map((l) => l.slice(`${H} ws-admin-deploy[1]: `.length));
+    };
+    // LOW-2 생존 형태(원문 조각 → 기록에 있으면 안 되는 문자열).
+    const survivors = [
+      ['u user%40gmail.com v', ['gmail', '%40']],
+      ['u user%40GMAIL.COM v', ['GMAIL', '%40']],
+      ['u 홍＠예시.한국 v', ['홍', '＠', '예시']],
+      ['u bob(at)example.com v', ['bob', 'example']],
+      ['u BOB[AT]example.com v', ['BOB', 'example']],
+      ['u bob[at]example.com v', ['bob', 'example']],
+      ['u bob At example.com v', ['bob', 'example']],
+      ['--email "Kim Lee"@x.com --n 1', ['Kim', 'Lee', 'x.com']],
+      ["--email 'Kim Lee'@x.com --n 1", ['Kim', 'Lee', 'x.com']],
+      ['--email "Kim Lee@x.com --n 1', ['Kim', 'Lee', 'x.com']],
+      ['--email "Kim Lee"%40x.com --n 1', ['Kim', 'Lee', 'x.com']],
+      ['--email "Kim Lee"＠x.com --n 1', ['Kim', 'Lee', 'x.com']],
+      // QA248-r1/r2: 닫히지 않은 따옴표 앞이 공백·= 이 아닌 구두점이어도 열린 구간 전체를 가린다(규칙 3 시작 조건).
+      ['u ("Kim Lee@x.com) v', ['Kim', 'Lee', 'x.com']],
+      ['u a,"a b@c.com v', ['"a ', 'c.com']],
+      ['u :"a b@c.com v', ['"a ', 'c.com']],
+      ['u EMAIL:"Kim Lee@x.com v', ['Kim', 'Lee', 'x.com']],
+      ['u a=b@c.com v', ['a=b', 'c.com']],
+      ['--email=a=b@c.com v', ['a=b', 'c.com']],
+    ];
+    const got = mask(exOrig, survivors.map((s) => s[0]));
+    survivors.forEach(([src, bad], i) => {
+      assert.ok(got[i].includes('<email>'), `${src} → ${got[i]}`);
+      for (const b of bad) assert.ok(!got[i].includes(b), `${src} → ${got[i]} (${b} 남음)`);
+    });
+    // 기존 17형태(152 §3) — 계속 가려진다.
+    const old = [
+      '--email=홍길동@예시.한국', '<a@b.co>', 'mailto:kim@x.com', 'p@[192.0.2.1]', 'x@xn--bcher-kva.example', 'Jörg.Ü@bücher.de', 'a@b',
+      '"quoted.local"@x.com', "'single'@x.com", 'EMAIL:kim@x.com,', '(lee@x.com)', 'some.one+x@mail.example.com', 'a@b@c', '--to=jörg@bücher.example', 'u@x.com;', '--email some.one@x.com', '홍길동@예시.한국',
+    ];
+    const gotOld = mask(exOrig, old.map((s) => `k ${s} v`));
+    old.forEach((src, i) => {
+      assert.ok(gotOld[i].includes('<email>') && !/@|x\.com|bücher|예시|jörg|kim|lee/i.test(gotOld[i]), `${src} → ${gotOld[i]}`);
+    });
+    // 쓸모 있는 부분은 남는다(과잉 가림이어도 이 조각은 그대로).
+    const keep = [
+      'Accepted publickey for ubuntu from 203.0.113.6 port 1 ssh2: ED25519 SHA256:abc',
+      '  ubuntu : TTY=pts/0 ; PWD=/home/ubuntu ; USER=deploy ; COMMAND=/usr/bin/docker exec x node dist/privacy/cli-erase.js --email some.one+x@mail.example.com',
+      '  ubuntu : TTY=pts/0 ; PWD=/home/ubuntu ; USER=deploy ; COMMAND=/usr/bin/docker compose up -d',
+      'pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by ubuntu(uid=0)',
+      '시작: deploy sha-aaaaaaaaaaaa (pid 9, 기록 state/deploy.log)',
+      '종료 코드 0',
+    ];
+    // QA248: 닫는 따옴표에서 시작하지 않고(뒤 명령 보존), at 규칙은 도메인꼴만.
+    keep.push(
+      'COMMAND=/bin/sh -c echo "hi"; /usr/bin/docker exec x y --email a@b.com',
+      'COMMAND=/bin/sh -c at now -f /tmp/job',
+      'COMMAND=/usr/bin/journalctl --since today at 09:00',
+    );
+    const gotKeep = mask(exOrig, keep);
+    assert.equal(gotKeep[6], 'COMMAND=/bin/sh -c echo "hi"; /usr/bin/docker exec x y --email <email>');
+    assert.equal(gotKeep[7], keep[7]);
+    assert.equal(gotKeep[8], keep[8]);
+    assert.equal(mask(exOrig, ['--email=a@b.com'])[0], '--email=<email>', '옵션 이름 보존');
+    assert.equal(mask(exOrig, ['u kim at example.com v'])[0], 'u <email> v');
+    assert.equal(gotKeep[0], keep[0]);
+    assert.equal(gotKeep[1], keep[1].replace('some.one+x@mail.example.com', '<email>'));
+    assert.match(gotKeep[1], /TTY=pts\/0 ; PWD=\/home\/ubuntu ; USER=deploy ; COMMAND=\/usr\/bin\/docker exec x node dist\/privacy\/cli-erase\.js --email <email>$/);
+    assert.deepEqual(gotKeep.slice(2, 6), keep.slice(2, 6));
+    // 변이: 새 대안 하나를 빼면 해당 형태가 살아남아 위 단언이 깨진다 = 시험이 그 대안을 지킨다.
+    const cut = (from, to) => { assert.ok(exOrig.includes(from), `변이 대상 없음: ${from}`); return exOrig.replaceAll(from, to); };
+    const surv = (script, src) => mask(script, [src])[0];
+    assert.ok(surv(cut('%40', 'ZZZ'), 'u user%40gmail.com v').includes('gmail'), '%40 대안 제거 → 생존');
+    assert.ok(surv(cut('＠', '＃'), 'u 홍＠예시.한국 v').includes('예시'), '＠ 대안 제거 → 생존');
+    assert.ok(surv(cut('\\([aA][tT]\\)|', ''), 'u bob(at)example.com v').includes('example'), '(at) 대안 제거 → 생존');
+    assert.ok(surv(cut("  -e 's/\"[^\"]*\"(@|%40|＠)/Q\\1/g' \\\n", ''), '--email "Kim Lee"@x.com --n 1').includes('Kim'), '따옴표 로컬 파트 규칙 제거 → 앞부분 생존');
+    assert.ok(surv(cut('(--?[[:alnum:]_-]+=)?[^[:space:]]*', '()[^[:space:]=]*'), 'u a=b@c.com v').includes('a='), '= 포함 로컬 파트 규칙 되돌리면 → 앞부분 생존');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('139 LOW-7: deploy.sh 고아 짝 파일 정리 일수 = prune-backups.sh POLICY_MAX_AGE = policy.ts BACKUP_RETENTION_DAYS', () => {
   const policy = Number(/export const BACKUP_RETENTION_DAYS = (\d+);/.exec(read('server', 'src', 'privacy', 'policy.ts'))[1]);
   const prune = Number(/^POLICY_MAX_AGE=(\d+)$/m.exec(read('scripts', 'prune-backups.sh'))[1]);
