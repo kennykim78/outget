@@ -10,7 +10,8 @@ import { collectEnvProblems } from '../config/env.js';
 import { resolveSaveConfig } from '../save/config.js';
 import { maskEmail, RESEND_ENDPOINT, ResendMailTransport, type FetchLike } from '../save/mail.js';
 
-const KEY = 're_test_SECRET_abcdef0123456789';
+// 247: 엔트로피 낮은 합성값(gitleaks resend-api-key 형태 아님) — 실제 키 형식 검증은 없다(공백·빈 값만 거부).
+const KEY = 're_' + 'test'.repeat(7);
 const FROM = 'WithSmall <noreply@withsmall.test>';
 const ORIGIN = 'https://withsmall.test';
 const EMAIL = 'kenny.kim@example.com';

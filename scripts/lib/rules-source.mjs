@@ -74,10 +74,14 @@ const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/i;
 //   2026-10-27(Kenny: 검색 키워드 실효성 검증 = 네이버 검색 API + 쿠팡 파트너스 API): 개발 전용 도구 한 파일만(CI·빌드·서버 비포함).
 //   결과는 _workspace 에 상품명·카테고리만(가격·판매처·이미지·링크 저장 0) — 상품 수집이 아니라 공식 API 로 검색어 품질만 본다.
 export const DEV_SEARCH_CHECK_FILE = 'scripts/dev/check-search-keywords.mjs';
+//   2026-10-31(작업 247, 계획 243 K-1 — Kenny 승인 ORDERS §22-3): gitleaks 고정 버전 바이너리 설치 도구 한 파일만(개발 전용,
+//   CI·빌드·서버 비포함). 받는 것은 GitHub Releases 의 공식 아카이브 1개, 저장소 핀 sha256 검증 후에만 디스크에 쓴다.
+export const GITLEAKS_INSTALL_FILE = 'scripts/dev/install-gitleaks.mjs';
 const FETCH_HOST_ALLOW = Object.freeze({
   'api.resend.com': Object.freeze(['server/src/save/mail.ts']),
   'openapi.naver.com': Object.freeze([DEV_SEARCH_CHECK_FILE]),
   'api-gateway.coupang.com': Object.freeze([DEV_SEARCH_CHECK_FILE]),
+  'github.com': Object.freeze([GITLEAKS_INSTALL_FILE]),
 });
 /** ABS_URL_RE 매치 m(문자열 txt 안)이 허용목록 호출인가. */
 function fetchHostAllowed(rel, txt, m) {

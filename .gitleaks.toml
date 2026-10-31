@@ -1,0 +1,37 @@
+# WithSmall gitleaks 설정(작업 247 / 계획 243 C1). 핀 버전: scripts/gitleaks-pin.json.
+# 기본 규칙 전부 유지(끄는 규칙 0) + 프로젝트 특화 규칙 3개. 허용은 파일 단위 최소 — 늘릴 때는 사유 주석 필수(docs/ops/secret-scan.md).
+title = "WithSmall gitleaks"
+
+[extend]
+useDefault = true
+
+# 서버 시크릿 env 이름에 실값(16자 이상, hex·base64·base64url 문자만 — 빈 값·자리표시·${...}·<...>·경로 문장 제외).
+# 이력까지 덮기 위해 gitleaks 쪽에 둔다. 구분자 앞뒤는 공백·탭만 — 줄을 넘어 다음 줄을 값으로 잡지 않는다(.env.example 빈 값).
+[[rules]]
+id = "withsmall-env-secret"
+description = "WithSmall server secret env name with a literal value"
+regex = '''(?:JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|REACTION_KEY_SECRET|RESEND_API_KEY|NAVER_SEARCH_CLIENT_SECRET|WS_BASIC_HASH)[ \t]*[:=][ \t]*['"]?([A-Za-z0-9+/=_-]{16,})(?:['"\s,;]|$)'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["jwt_access_secret", "jwt_refresh_secret", "reaction_key_secret", "resend_api_key", "naver_search_client_secret", "ws_basic_hash"]
+
+[[rules]]
+id = "withsmall-naver-client-secret-header"
+description = "Naver search client secret in a request header literal"
+regex = '''X-Naver-Client-Secret['"]?[ \t]*[:,][ \t]*['"]([A-Za-z0-9_-]{8,})['"]'''
+secretGroup = 1
+keywords = ["x-naver-client-secret"]
+
+# 핀 버전(8.30.1) 기본 규칙에 Resend 키 규칙이 없어 추가. 형태: re_<영숫자 6+>_<영숫자 16+>
+# — 밑줄로 이어진 식별자(re_validate_input_…)는 마디가 짧아 제외된다.
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''\bre_[A-Za-z0-9]{6,}_[A-Za-z0-9]{16,}\b'''
+entropy = 3.5
+keywords = ["re_"]
+
+# 허용 목록 — 파일 단위만(폴더 와일드카드 금지), 최대 3개. 항목을 늘릴 때는 줄마다 사유를 단다.
+[[allowlists]]
+description = "C7 compliance-scan self-test: synthetic secret shapes assembled for detector tests (not values)"
+paths = ['''^scripts/__tests__/compliance-scan\.test\.mjs$''']

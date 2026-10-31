@@ -1,0 +1,6 @@
+# gitleaks 이력 오탐 지문(commit:file:rule:line)만. 항목마다 위에 "# 사유 · 판정일 · 판정자".
+# 작업 트리의 오탐은 여기에 넣지 않는다 — 값 쪽을 고친다(docs/ops/secret-scan.md).
+
+# 합성 테스트 값(re_test_ 접두 + 가짜 표식 + 연속 숫자 — Resend 어댑터의 "로그·예외에 키 0" 단언용). 작업 트리에서는 247 이 저엔트로피 값으로 교체, 이력의 옛 값만 남음.
+# 2026-11-01 · 오케스트레이터 판정(QA251 이 값 형태로 합성 확인, 지문 없으면 이력 스캔 1건 — PM 재현)
+b69ed286137142acf0a19940f3e9e38e24db8d69:server/src/__tests__/save.mail.test.ts:generic-api-key:13

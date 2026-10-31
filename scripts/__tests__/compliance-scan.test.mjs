@@ -608,6 +608,38 @@ test('허용 파일이라도 http·하위/위장 도메인·포트·userinfo·�
   }
 });
 
+// 247(계획 243 K-1, Kenny 승인 ORDERS §22-3): github.com 은 gitleaks 설치 도구 한 파일에서만(핀 sha256 검증 내려받기).
+const GL_INSTALL_FILE = 'scripts/dev/install-gitleaks.mjs';
+const GH_HOST = j('git', 'hub.com');
+const glSrc = (url) => j('const res = await ', FETCH, '(`', url, '/v${pin.version}/${asset}`);\n');
+const glOk = () => glSrc(j(HTTPS, GH_HOST, '/gitleaks/gitleaks/releases/download'));
+
+test('C1-FETCH 허용: scripts/dev/install-gitleaks.mjs 의 https://github.com 릴리스 내려받기 → 통과', async () => {
+  const res = scan(await makeRoot({ source: (s) => { s[GL_INSTALL_FILE] = glOk(); } }));
+  expectClean(res);
+  assert.ok(!rulesOf(res).includes('C1-FETCH'), JSON.stringify(res.json?.findings));
+});
+
+test('C1-FETCH 허용 밖: github.com 호출이 다른 파일(형제·scripts·server·client·테스트)에 있으면 FAIL', async () => {
+  for (const rel of ['scripts/dev/other.mjs', 'scripts/install-gitleaks.mjs', 'scripts/__tests__/install-gitleaks.mjs', 'server/src/x.ts', 'client/src/x.ts', 'e2e/x.ts']) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[rel] = glOk(); } })), 'C1-FETCH');
+  }
+});
+
+test('C1-FETCH 허용 파일이라도 http·하위/위장 도메인·포트·userinfo·다른 외부 호스트 → FAIL', async () => {
+  for (const url of [
+    j('htt', 'p://', GH_HOST, '/gitleaks'),
+    j(HTTPS, 'api.', GH_HOST, '/repos'),
+    j(HTTPS, 'objects.', GH_HOST.replace('.com', 'usercontent.com'), '/x'),
+    j(HTTPS, GH_HOST, '.evil.example/x'),
+    j(HTTPS, GH_HOST, ':8443/x'),
+    j(HTTPS, 'u@', GH_HOST, '/x'),
+    j(HTTPS, 'shop.example/p'),
+  ]) {
+    expectFail(scan(await makeRoot({ source: (s) => { s[GL_INSTALL_FILE] = glSrc(url); } })), 'C1-FETCH');
+  }
+});
+
 test('C1-SEEDURL: imageAsset 외부 URL', async () => {
   const res = scan(await makeRoot({ seed: (d) => { d['curated-products.json'][0].imageAsset = j(HTTPS, 'cdn.x/a.jpg'); } }));
   expectFail(res, 'C1-SEEDURL');

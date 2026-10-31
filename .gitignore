@@ -49,3 +49,6 @@ map-auth-ok.png
 # --- 배포 실값(서버에만 존재 — 저장소에는 *.example 만) ---
 deploy/*.env
 deploy/deploy.conf
+
+# --- 로컬 개발 도구 바이너리(gitleaks — npm run gitleaks:install, 핀 scripts/gitleaks-pin.json) ---
+.tools/
