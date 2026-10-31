@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   ci:
-    name: compliance -> seed guard -> seed validate -> lint -> typecheck -> build -> compliance(out) -> test
+    name: secret scan(history) -> compliance -> seed guard -> seed validate -> lint -> typecheck -> build -> secret scan(dist) -> compliance(out) -> test
     runs-on: ubuntu-latest
 
     steps:
@@ -19,6 +19,30 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+
+      # 비밀값 스캔(gitleaks — 작업 247, 계획 243 C3). 서드파티 액션·토큰·새 권한·secrets 0.
+      #   고정 버전 공식 릴리스 아카이브를 받아 저장소 핀(scripts/gitleaks-pin.json)의 sha256 과 대조한 뒤에만 푼다.
+      #   같은 릴리스의 checksums.txt 는 쓰지 않는다(같은 출처 — 핀이 기준). 핀 갱신 절차: docs/ops/secret-scan.md.
+      - name: Install gitleaks (pinned version, sha256 verified)
+        run: |
+          set -eu
+          pin=scripts/gitleaks-pin.json
+          ver="$(jq -er .version "$pin")"
+          sum="$(jq -er .sha256.linux_x64 "$pin")"
+          printf '%s\n' "$ver" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'
+          printf '%s\n' "$sum" | grep -Eqx '[0-9a-f]{64}'
+          dir="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dir"
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz"
+          curl -fsSL --retry 3 --max-time 120 -o "$dir/gitleaks.tar.gz" "$url"
+          printf '%s  %s\n' "$sum" "$dir/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
+          test "$("$dir/gitleaks" version)" = "$ver"
+          echo "$dir" >> "$GITHUB_PATH"
+
+      # 전체 이력(모든 ref — fetch-depth 0). 이력 오탐은 .gitleaksignore 지문으로만. 값은 --redact 로 가린다.
+      - name: Secret scan (gitleaks, full history)
+        run: gitleaks git --config .gitleaks.toml --redact --no-banner --exit-code 1 --log-opts="--all" .
 
       - name: Setup Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -61,6 +85,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # 빌드 산출물에 구워진 비밀값(VITE_* 빌드 인자 등) — 이력 스캔이 못 보는 영역(작업 247, 계획 243 C3).
+      - name: Secret scan (gitleaks, build output)
+        run: |
+          set -eu
+          gitleaks dir --config .gitleaks.toml --redact --no-banner --exit-code 1 client/dist
+          gitleaks dir --config .gitleaks.toml --redact --no-banner --exit-code 1 server/dist
 
       - name: Perf build shape (after-paint loader · font split)
         run: node scripts/check-perf-shape.mjs

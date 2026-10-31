@@ -21,3 +21,9 @@
 /Dockerfile @kennykim78
 /docker-entrypoint.sh @kennykim78
 /.dockerignore @kennykim78
+# 비밀값 스캔(gitleaks — 작업 247, 계획 243): 설정·허용·이력 지문·핀·훅·설치 도구. 같은 PR 에서 스캔을 약화하지 못하게.
+/.gitleaks.toml @kennykim78
+/.gitleaksignore @kennykim78
+/.githooks/ @kennykim78
+/scripts/gitleaks-pin.json @kennykim78
+/scripts/dev/install-gitleaks.mjs @kennykim78
