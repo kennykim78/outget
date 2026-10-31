@@ -1,0 +1,46 @@
+#!/bin/sh
+# WithSmall pre-commit — gitleaks 로 staged 변경만 비밀값 검사(작업 247 / 계획 243 C2).
+#   등록: npm run hooks:install (= git config core.hooksPath .githooks) · 해제: git config --unset core.hooksPath
+#   바이너리 탐색 순서: $GITLEAKS_BIN → .tools/gitleaks/gitleaks(.exe) → PATH. 없으면 커밋을 막는다(K-2, fail-closed).
+#   출력은 규칙 id·파일·줄만(값은 --redact + 필드 화이트리스트로 0). 오탐 처리: docs/ops/secret-scan.md.
+set -u
+
+root=$(git rev-parse --show-toplevel) || exit 1
+pin="$root/scripts/gitleaks-pin.json"
+pin_ver=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9.]*\)".*/\1/p' "$pin" 2>/dev/null | head -n 1)
+
+bin=""
+if [ -n "${GITLEAKS_BIN:-}" ]; then
+  bin=$GITLEAKS_BIN
+elif [ -f "$root/.tools/gitleaks/gitleaks.exe" ]; then
+  bin="$root/.tools/gitleaks/gitleaks.exe"
+elif [ -f "$root/.tools/gitleaks/gitleaks" ]; then
+  bin="$root/.tools/gitleaks/gitleaks"
+elif command -v gitleaks >/dev/null 2>&1; then
+  bin=gitleaks
+fi
+
+if [ -z "$bin" ] || ! ver=$("$bin" version 2>/dev/null); then
+  echo "[pre-commit] gitleaks 를 찾지 못해 커밋을 막았다." >&2
+  echo "  설치: npm run gitleaks:install   (핀 ${pin_ver:-?} · sha256 검증 · 저장소 .tools/gitleaks/ 에 설치)" >&2
+  echo "  또는 핀과 같은 버전을 PATH 에 두거나 GITLEAKS_BIN 으로 경로를 지정한다. 안내: docs/ops/secret-scan.md" >&2
+  exit 1
+fi
+
+if [ -n "$pin_ver" ] && [ "$ver" != "$pin_ver" ]; then
+  echo "[pre-commit] 경고: gitleaks $ver ≠ 핀 $pin_ver — npm run gitleaks:install 로 맞춘다(CI 는 핀 버전)." >&2
+fi
+
+cd "$root" || exit 1
+report=$("$bin" git --pre-commit --staged --config "$root/.gitleaks.toml" --redact --no-banner --log-level warn \
+  --exit-code 1 --report-format json --report-path - "$root")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "[pre-commit] gitleaks 가 staged 변경에서 비밀값 의심을 찾아 커밋을 막았다(값은 출력하지 않음):" >&2
+  if command -v node >/dev/null 2>&1; then
+    printf '%s' "$report" | node -e 'let s="";process.stdin.on("data",(d)=>{s+=d;}).on("end",()=>{let r=[];try{r=JSON.parse(s);}catch{}for(const x of Array.isArray(r)?r:[])console.error("  "+x.RuleID+"  "+x.File+":"+x.StartLine);});'
+  fi
+  echo "  값을 지우고 다시 커밋한다. 오탐이면 docs/ops/secret-scan.md 의 오탐 처리 절차(--no-verify 로 우회하지 않는다)." >&2
+  exit 1
+fi
+exit 0
