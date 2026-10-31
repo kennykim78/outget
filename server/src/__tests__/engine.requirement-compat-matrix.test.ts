@@ -19,7 +19,16 @@ import { realSeed } from './fixtures/prerender-seed.js';
  */
 const GERBIL_WHEEL_CHECK = [20, 30, 40, 41, 42, 44, 45, 49];
 const GERBIL_WHEEL_OK = [50, 51, 52, 54, 55, 60, 80];
-const EXPECTED_DIFF: string[] = [...GERBIL_WHEEL_CHECK, ...GERBIL_WHEEL_OK].map((h) => `gerbil-mongolian|wheel|h${h}`);
+/**
+ * 작업 245(Kenny ORDERS §22-6): 드워프 tubes 안지름 5cm 를 권장 → 최소 규격으로 옮김. 현재 엔진 값은 그대로(NONE — 기준값 5 는
+ *   전후 같고, cr-dwarf-tubes-cage 는 케이지를 참조하지 않아 보유품 근거 단계가 비움). 레거시 오라클만 바뀐다: 최소 규격에서
+ *   기준값 5 를 얻어 규칙이 true → 케이지 보유 셀(empty·h*) OK. 즉 아래 셀은 "현재 NONE ≠ 레거시 OK"로 다르다.
+ */
+const DWARF_TUBES_CTX = ['empty', ...[20, 30, 40, 41, 42, 44, 45, 49, 50, 51, 52, 54, 55, 60, 80, 200].map((h) => `h${h}`)];
+const EXPECTED_DIFF: string[] = [
+  ...[...GERBIL_WHEEL_CHECK, ...GERBIL_WHEEL_OK].map((h) => `gerbil-mongolian|wheel|h${h}`),
+  ...DWARF_TUBES_CTX.map((t) => `hamster-dwarf|tubes|${t}`),
+];
 
 type Compat = SpecCheckResult['compat'];
 
@@ -149,6 +158,15 @@ describe('requirementCompat 격자 — 현재 엔진 vs 레거시 오라클', ()
       expect([h, legacyRequirementCompat(cat, 'gerbil-mongolian', 'wheel', ctxH(h)).verdict]).toEqual([h, 'NONE']);
       const now = requirementCompat(cat, 'gerbil-mongolian', 'wheel', ctxH(h));
       expect([h, now.verdict, now.usedRecommended]).toEqual([h, h < 50 ? 'CHECK' : 'OK', true]);
+    }
+  });
+
+  it('245 드워프 tubes 셀: 현재 엔진 NONE 유지(판정 변화 0), 레거시만 OK — 케이지 미보유(none)는 둘 다 NONE', () => {
+    for (const c of contexts) {
+      const now = requirementCompat(cat, 'hamster-dwarf', 'tubes', c.ctx);
+      const legacy = legacyRequirementCompat(cat, 'hamster-dwarf', 'tubes', c.ctx);
+      expect([c.tag, now.verdict, now.reasons]).toEqual([c.tag, 'NONE', []]);
+      expect([c.tag, legacy.verdict]).toEqual([c.tag, c.tag === 'none' ? 'NONE' : 'OK']);
     }
   });
 

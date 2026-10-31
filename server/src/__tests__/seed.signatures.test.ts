@@ -288,7 +288,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     temps.push(resDir);
     const all = writeJson(resDir, 'all.json', dwarfAllCheckedResult(NOW));
     const a = applyCli([...packetArgs, '--result', all, '--seed', seed, '--draft', draft, ...NOW_ARGS]);
-    expect(a.out.join('\n')).toContain('ROW_CHECKED 21 · AI_RESEARCH_BULK 31');
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 22 · AI_RESEARCH_BULK 30'); // 245: req-dwarf-tubes 일괄 → A11
     expect(a.code).toBe(0);
     const m = JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')) as SignatureEntry[];
     expect(m).toHaveLength(52);
@@ -326,9 +326,10 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(run(rawOf(seed), manifest).errors).toEqual([]);
   });
 
-  it('C 만 서명 → 31행 AI_RESEARCH_BULK(BE92: 용품 사료 포함), 상품·최소 규격 행은 DRAFT', () => {
+  it('C 만 서명 → 30행 AI_RESEARCH_BULK(BE92: 용품 사료 포함, 245: 터널은 최소 규격 행이라 빠짐), 상품·최소 규격 행은 DRAFT', () => {
     const { seed, manifest } = dwarfSignedWith({ ...dwarfAllCheckedResult(NOW), checked: [], checkedAt: null });
-    expect(manifest).toHaveLength(31);
+    expect(manifest).toHaveLength(30);
+    expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-tubes').reviewStatus).toBe('DRAFT');
     expect(manifest.every((e) => e.basis === 'AI_RESEARCH_BULK')).toBe(true);
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-bedding').reviewStatus).toBe('DRAFT');
     expect(run(rawOf(seed), manifest).errors).toEqual([]);
@@ -465,13 +466,17 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(bytes(seed)).toEqual(before);
   });
 
-  it('패킷 = 2026-10-24 착지 VERIFIED 50행 + 사료 D1(ROW_CHECKED 대상 21 = 최소 규격 3 + 사료 1 + 상품 17, 일괄 31 = 30 + 용품 사료(90 Q1)), 최소 규격 행 대응 A 항목', () => {
+  it('패킷 = 2026-10-24 착지 VERIFIED 50행 + 사료 D1(ROW_CHECKED 대상 22 = 최소 규격 4(245: 터널 A11) + 사료 1 + 상품 17, 일괄 30 = 29 + 용품 사료(90 Q1)), 최소 규격 행 대응 A 항목', () => {
     const p = dwarfPacket();
-    expect(p.rowChecked).toHaveLength(21);
-    expect(p.bulk.rows).toHaveLength(31);
+    expect(p.rowChecked).toHaveLength(22);
+    expect(p.bulk.rows).toHaveLength(30);
     expect(p.bulk.rows.some((r) => r.file === 'supply-items.json' && r.id === 'food')).toBe(true);
     const items = Object.fromEntries(p.rowChecked.filter((r) => r.file === 'supply-requirements.json').map((r) => [r.id, r.items]));
-    expect(items).toEqual({ 'req-dwarf-cage': ['A1', 'A2', 'A3', 'A4', 'A10'], 'req-dwarf-wheel': ['A5', 'A6', 'A9'], 'req-dwarf-bedding': ['A7', 'A8'], 'req-dwarf-food': ['D1'] });
+    expect(items).toEqual({ 'req-dwarf-cage': ['A1', 'A2', 'A3', 'A4', 'A10'], 'req-dwarf-wheel': ['A5', 'A6', 'A9'], 'req-dwarf-bedding': ['A7', 'A8'], 'req-dwarf-food': ['D1'], 'req-dwarf-tubes': ['A11'] });
+    // 245(V10 과 같은 규칙): 최소 규격이 있는 드워프 요구사항은 전부 ROW_CHECKED 대상(일괄 승인 불가).
+    const withMin = realSeed().supplyRequirements.filter((r) => r.careProfileId === 'cp-hamster-dwarf' && (r.minSpec?.rules?.length ?? 0) > 0).map((r) => r.id);
+    expect(withMin.filter((id) => !(id in items))).toEqual([]);
+    expect(withMin).toContain('req-dwarf-tubes');
     // 행 reviewerType 은 사료(FOOD, 확인표 D)만 VET_PUBLISHED_SOURCE — 나머지는 패킷 기본. 저울(req-dwarf-scale)은 패킷 밖.
     const withType = (p.rowChecked as Array<{ id: string; reviewerType?: string }>).filter((r) => r.reviewerType !== undefined);
     expect(withType.map((r) => [r.id, r.reviewerType])).toEqual([['req-dwarf-food', 'VET_PUBLISHED_SOURCE']]);

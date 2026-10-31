@@ -1519,9 +1519,6 @@
     "caution": "통로 안쪽 폭이 5cm 이상인지 확인해요.",
     "avoid": "투명 플라스틱 튜브로만 이어진 케이지 구조 · 경사가 가파른 튜브",
     "minSpec": {
-      "rules": []
-    },
-    "recommendedSpec": {
       "rules": [
         {
           "key": "innerDiameterCm",
@@ -1530,6 +1527,9 @@
           "reason": "볼주머니가 가득 찬 상태로도 다치지 않고 지날 수 있는 폭이에요"
         }
       ]
+    },
+    "recommendedSpec": {
+      "rules": []
     },
     "notNowReason": null,
     "searchKeyword": "{animal} 코르크 터널",

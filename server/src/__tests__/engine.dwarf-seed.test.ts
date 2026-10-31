@@ -69,6 +69,13 @@ describe('B4 드워프 호환 규칙(cr-dwarf-*, CHECK)', () => {
     expect(ruleIds(specCheck(cat, D, 'tubes', { innerDiameterCm: 4.9 }, cage(50)).compat.reasons)).toContain('cr-dwarf-tubes-cage#0');
     expect(specCheck(cat, D, 'tubes', { innerDiameterCm: 5 }, cage(50)).compat.verdict).toBe('OK');
   });
+  it('245(Kenny ORDERS §22-6): tubes 안지름 5cm 는 최소 규격 — 4.9 → BELOW_MIN(추천 영역 제외), 5 → OK, 미입력 → CHECK', () => {
+    const req = seed.supplyRequirements.find((r) => r.id === 'req-dwarf-tubes')!;
+    expect([req.minSpec.rules.map((x) => [x.key, x.op, x.value]), req.recommendedSpec.rules]).toEqual([[['innerDiameterCm', 'gte', 5]], []]);
+    expect(checkAnimalMinSpec(cat, D, 'tubes', { innerDiameterCm: 4.9 })).toMatchObject({ meets: false, verdict: 'BELOW_MIN' });
+    expect(checkAnimalMinSpec(cat, D, 'tubes', { innerDiameterCm: 5 })).toMatchObject({ meets: true, verdict: 'OK' });
+    expect(checkAnimalMinSpec(cat, D, 'tubes', {})).toMatchObject({ meets: false, verdict: 'CHECK' });
+  });
   it('골든 프로필에는 드워프 범위 규칙이 걸리지 않는다', () => {
     const r = specCheck(cat, 'hamster-golden', 'tubes', { innerDiameterCm: 6 }, { ownedItems: { cage: { type: 'WIRE', floorWcm: 80, floorDcm: 50, heightCm: 40, barGapMm: 9 } } });
     expect(ruleIds(r.compat.reasons).some((x) => x.startsWith('cr-dwarf-'))).toBe(false);
@@ -116,7 +123,7 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
     expect(seed.curatedProducts.filter((p) => p.status === 'ACTIVE').map((p) => p.id)).toEqual([]);
     expect(JSON.parse(readFileSync(join(SEED_DIR, 'review-signatures.json'), 'utf8'))).toEqual([]);
   });
-  it('메모리 서명(가짜 확인표 전 ☑·C·D1): 패킷 52행만 VERIFIED·kenny·2026-10-24 — 사료만 VET_PUBLISHED_SOURCE, 나머지 EXPERIENCED_KEEPER, 상품·최소 규격·사료 ROW_CHECKED 21 / 나머지 AI_RESEARCH_BULK 31(BE92: SupplyItem food 추가)', () => {
+  it('메모리 서명(가짜 확인표 전 ☑·C·D1): 패킷 52행만 VERIFIED·kenny·2026-10-24 — 사료만 VET_PUBLISHED_SOURCE, 나머지 EXPERIENCED_KEEPER, 상품·최소 규격·사료 ROW_CHECKED 22 / 나머지 AI_RESEARCH_BULK 30(BE92: SupplyItem food 추가, 245: req-dwarf-tubes 최소 규격 → A11)', () => {
     const { seed: signed, manifest } = dwarfSignedWith();
     const v = metaOf(signed).filter((x) => x.reviewStatus === 'VERIFIED');
     expect(v).toHaveLength(52);
@@ -125,9 +132,9 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
       expect([r.id, r.reviewerType, r.verifiedBy, r.verifiedAt]).toEqual([r.id, type, 'kenny', '2026-10-24']);
     }
     expect(v.filter((r) => r.reviewBasis === 'ROW_CHECKED').map((r) => r.id).sort()).toEqual(
-      ['req-dwarf-bedding', 'req-dwarf-cage', 'req-dwarf-food', 'req-dwarf-wheel', ...signed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-')).map((p) => p.id)].sort(),
+      ['req-dwarf-bedding', 'req-dwarf-cage', 'req-dwarf-food', 'req-dwarf-tubes', 'req-dwarf-wheel', ...signed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-')).map((p) => p.id)].sort(),
     );
-    expect(v.filter((r) => r.reviewBasis === 'AI_RESEARCH_BULK')).toHaveLength(31);
+    expect(v.filter((r) => r.reviewBasis === 'AI_RESEARCH_BULK')).toHaveLength(30);
     expect(manifest).toHaveLength(52);
   });
   // BE92: SupplyItem food 는 C 일괄로 이동(오케스트레이터 90 Q1), 공용 cr-wheel-cage·cr-water-cage 는 삭제(85 근거 없음).

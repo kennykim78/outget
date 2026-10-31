@@ -203,14 +203,14 @@ describe("isFieldOptionalForDisplay(field, minSpec) — '· 선택' 표시", () 
     expect(isFieldOptionalForDisplay(f('plain'), { rules: 'x' } as unknown as RuleSet)).toBe(true);
     expect(isFieldOptionalForDisplay(f('plain'), [{ key: 'plain' }] as unknown as RuleSet)).toBe(true);
   });
-  it("실시드 골든·드워프: '선택' 을 잃는 optional 필드는 cage.barGapMm 하나(minSpec 참조) — 프리렌더 HTML 에서도 같다", () => {
+  it("실시드 골든·드워프: '선택' 을 잃는 optional 필드는 cage.barGapMm + 드워프 tubes.innerDiameterCm(245 최소 규격) — 프리렌더 HTML 에서도 같다", () => {
     const cat = createCatalog(realSeed());
     const lost: string[] = [];
     for (const typeId of ['hamster-golden', 'hamster-dwarf'])
       for (const r of listResolvedRequirements(cat, typeId))
         for (const x of visibleSpecFields(r.item.specSchema, r.minSpec, r.recommendedSpec).filter(hasCompleteOptionLabels))
           if (x.optional === true && !isFieldOptionalForDisplay(x, r.minSpec)) lost.push(`${typeId}.${r.supplyItemId}.${x.key}`);
-    expect(lost).toEqual(['hamster-golden.cage.barGapMm', 'hamster-dwarf.cage.barGapMm']);
+    expect(lost).toEqual(['hamster-golden.cage.barGapMm', 'hamster-dwarf.cage.barGapMm', 'hamster-dwarf.tubes.innerDiameterCm']);
     const b = build();
     const html = (path: string): string => {
       const p = b.pages.find((x) => x.route.path === path)?.html ?? '';
