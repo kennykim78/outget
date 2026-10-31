@@ -47,6 +47,8 @@
 
 **기획(BMAD) / 규율(Superpowers):** 기획 산출물은 `bmad-*` → `docs/planning-artifacts/`. 브레인스토밍·TDD·검증 규율은 `superpowers:*`. 구현과 권위 있는 QA 게이트는 `withsmall-build`.
 
+**git 규칙 (Kenny 결정 2026-10-31):** `git commit --no-verify` 금지 — pre-commit 훅(gitleaks 비밀값 스캔, `.githooks/`)을 건너뛰지 않는다. 임시 브랜치 push 불허, push 는 Kenny 승인 건만. 실제 비밀값이 나오면 키 교체만(이력 재작성·강제 push 없음), 교체 전까지 CI 빨강 유지, 위치·종류만 보고(값 금지).
+
 **작업 공간:** `_workspace/{step}_{agent}_{artifact}.md` + `_workspace/decisions.md`(오케스트레이터 결정 로그 — Kenny가 나중에 뒤집을 수 있게 근거 포함).
 
 **변경 이력:**
@@ -55,3 +57,4 @@
 | 2026-06-07~09 | Outget 하네스 구축·재배선·Epic 1~6 구현(상세는 `docs/legacy/outget/CLAUDE-outget.md`) | 전체 | — |
 | 2026-09-30 | **피벗: Outget → WithSmall.** 불변식을 제품기획 v0.2.3 §2로 교체. 기획 문서(제품기획·PRD v1.3·UX v2.3.1·브리프·시드 스펙·이미지/베타 절차) 작성, 디자인 시스템 v1.2·캔버스 v14를 `docs/design/`로 내보냄 | 문서·불변식·design | 분양 플랫폼은 법적으로 무리(동물판매업 알선·중개) → 사육 준비 오케스트레이션으로 정의 |
 | 2026-09-30 | **하네스 재배선(Outget→WithSmall) + 모델 등급제.** 오케스트레이터 `withsmall-build`(결정 권한 매트릭스·라운드 R0~R6), 에이전트 6→9(`design-liaison`·`small-dev`·`content-curator` 신설), opus/sonnet 등급 지정, 도구 스킬 내용 교체, `settings.json` 기본 모델 opus | .claude/*, CLAUDE.md | Kenny 판단 외 전부 자율 진행 요구. 코드 복구(§7.4)부터 Claude Code에서 일괄 진행 |
+| 2026-10-31 | **git 규칙 추가:** `--no-verify` 금지·임시 브랜치 push 불허·실제 비밀 발견 시 키 교체만 | CLAUDE.md | Kenny 결정 K-4·K-5(gitleaks 도입, ORDERS §23) |
