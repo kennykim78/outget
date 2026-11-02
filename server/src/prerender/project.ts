@@ -349,14 +349,15 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
   const exposedItems = new Set(types.flatMap((t) => t.requirements.map((r) => r.item.id)));
   const exposedReqIds = new Set(types.flatMap((t) => t.requirements.map((r) => r.requirementId)));
   const profileIds = new Set(types.map((t) => t.rec.careProfileId as string));
-  const typeTaxaByProfile = new Map<string, Set<string>>();
-  for (const t of types) {
-    if (typeof t.rec.taxonId !== 'string') continue;
-    const pid = t.rec.careProfileId as string;
-    const set = typeTaxaByProfile.get(pid) ?? new Set<string>();
-    set.add(t.rec.taxonId);
-    typeTaxaByProfile.set(pid, set);
-  }
+  // 277 QA M-1(PM 대안 규칙): 프로필 taxonIds 에서 「비노출 AnimalType 의 taxonId」인 Taxon 만 뺀다 — 자기 PLANNED 타입이 있는 종(로보)은
+  //   가려지고, 자기 타입이 없는 종(캠벨)은 isTaxonExposable 이면 남는다. 노출 타입도 쓰는 taxon 은 빼지 않는다.
+  const exposedTypeIds = new Set(types.map((t) => t.id));
+  const exposedTypeTaxa = new Set(types.map((t) => t.rec.taxonId).filter((x): x is string => typeof x === 'string'));
+  const hiddenTypeTaxa = new Set(
+    [...cat.animalTypes.values()]
+      .filter((a) => !exposedTypeIds.has(a.id) && typeof a.taxonId === 'string' && !exposedTypeTaxa.has(a.taxonId))
+      .map((a) => a.taxonId as string),
+  );
 
   const animalTypes: AnimalTypeRec[] = types.map((t) => {
     const allowed = itemsByType.get(t.id) as Set<string>;
@@ -383,10 +384,9 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
   const careProfiles: CareProfileRec[] = [...cat.careProfiles.values()]
     .filter((p) => profileIds.has(p.id))
     .map((p) => {
-      // 271 qa LOW-1: 공유 프로필 taxonIds 는 그 프로필을 쓰는 「노출된 AnimalType 의 taxon」으로만 좁힌다 — 비공개 종 taxon 이
-      //   VERIFIED 여도 공유 프로필 경유로 학명·id 가 나가지 않게(불변식 7). seed-exposure.mjs ids.taxa 미러.
-      const own = typeTaxaByProfile.get(p.id) ?? new Set<string>();
-      const taxonIds = p.taxonIds.filter((x) => own.has(x) && isTaxonExposable(cat, x, asOf));
+      // 271 qa LOW-1 → 277 QA M-1: 비공개 타입의 종 taxon 은 VERIFIED 여도 공유 프로필 경유로 학명·id 가 나가지 않게(불변식 7).
+      //   seed-exposure.mjs ids.taxa 미러.
+      const taxonIds = p.taxonIds.filter((x) => !hiddenTypeTaxa.has(x) && isTaxonExposable(cat, x, asOf));
       return { ...publicMeta(p), id: p.id, name: p.name, taxonIds, facts: p.facts, careNotes: [...p.careNotes] };
     });
   const supplyItems: SupplyItemRec[] = [...cat.supplyItems.values()]

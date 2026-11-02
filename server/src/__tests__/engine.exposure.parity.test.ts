@@ -7,6 +7,7 @@ import { PHOTO_USABLE_STATUSES, STALE_DAYS, isPhotoUsable, isoDayNumber, parseCc
 import { SEED_FILES } from '../seed/common.js';
 import { projectSite } from '../prerender/project.js';
 import {
+  DWARF_PREVIEW_AS_OF,
   FIXTURE_AS_OF,
   FIXTURE_FIRST_STALE,
   FIXTURE_LAST_FRESH,
@@ -14,6 +15,7 @@ import {
   SECOND,
   V,
   V_LEGAL,
+  dwarfPreview,
   patch,
   promoted,
   promotedTwo,
@@ -217,10 +219,9 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
       expect(mjsTaxa(s)).toEqual([GOLDEN_TAXON_ID]);
     });
 
-    // 271 qa LOW-1(QA 68 LOW 의미 교체): 프로필 taxonIds 는 「그 프로필을 쓰는 노출 AnimalType 의 taxon」으로만 좁힌다.
-    //   타입 taxonId 가 아닌, 노출 프로필 taxonIds 에만 있는 VERIFIED Taxon 은 양쪽 참조 0, 비노출 타입(디스크 PLANNED 드워프)의
-    //   프로필에만 있는 VERIFIED Taxon 도 양쪽 0.
-    it('프로필 taxonIds 에만 있는 VERIFIED Taxon → 양쪽 참조 0(노출 타입 taxon 만), 비노출 프로필 전용 Taxon 도 양쪽 0', () => {
+    // 277 QA M-1(PM 대안 규칙): 프로필 taxonIds 에서 「비노출 AnimalType 의 taxonId」만 뺀다. 자기 타입이 없는 프로필 전용 VERIFIED Taxon 은
+    //   양쪽 참조에 남고(QA 68 LOW 동작 복귀), 비노출 타입(디스크 PLANNED 드워프)의 프로필에만 있는 VERIFIED Taxon 은 프로필째 비노출이라 양쪽 0.
+    it('자기 타입 없는 프로필 전용 VERIFIED Taxon → 양쪽 참조에 포함, 비노출 프로필 전용 Taxon 은 양쪽 0', () => {
       const s = promoted({ taxonVerified: true });
       const src = s.taxa.find((t) => t.id === GOLDEN_TAXON_ID);
       if (!src) throw new Error('fixture: 골든 Taxon 없음');
@@ -228,10 +229,29 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
       patch(s, 'careProfiles', 'cp-hamster-syrian', { taxonIds: [GOLDEN_TAXON_ID, 'fixture-profile-only'] });
       patch(s, 'taxa', 'phodopus-sungorus', { ...V_LEGAL }); // cp-hamster-dwarf 전용 — hamster-dwarf 는 PLANNED
       expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
-      expect(engineTaxonRefs(s)).toEqual([GOLDEN_TAXON_ID]);
-      expect(mjsTaxa(s)).toEqual([GOLDEN_TAXON_ID]);
+      const want = ['fixture-profile-only', GOLDEN_TAXON_ID].sort();
+      expect(engineTaxonRefs(s)).toEqual(want);
+      expect(mjsTaxa(s)).toEqual(want);
       const cp = projectSite(s, FIXTURE_AS_OF).catalog.careProfiles.find((p) => p.id === 'cp-hamster-syrian');
-      expect(cp?.taxonIds).toEqual([GOLDEN_TAXON_ID]);
+      expect(cp?.taxonIds).toEqual([GOLDEN_TAXON_ID, 'fixture-profile-only']);
+    });
+
+    // 277 QA M-1 (a): 드워프 공유 프로필 — 노출 타입 hamster-dwarf(taxonId sungorus) 하나뿐이어도, 자기 타입이 없는 캠벨은
+    //   VERIFIED 면 cp-hamster-dwarf.taxonIds 에 남는다(엔진·mjs 같음). 78d266f 규칙(노출 타입 taxon 만)이면 캠벨이 빠져 빨강.
+    it('dwarfPreview: sungorus·campbelli 둘 다 VERIFIED → cp-hamster-dwarf.taxonIds 에 둘 다 남음(양쪽 동일)', () => {
+      const s = dwarfPreview();
+      const dwarf = s.animalTypes.find((t) => t.id === 'hamster-dwarf');
+      expect(dwarf?.taxonId).toBe('phodopus-sungorus');
+      expect(s.animalTypes.some((t) => t.taxonId === 'phodopus-campbelli')).toBe(false); // 캠벨은 자기 타입 없음
+      patch(s, 'taxa', 'phodopus-sungorus', { ...V_LEGAL });
+      patch(s, 'taxa', 'phodopus-campbelli', { ...V_LEGAL });
+      const c = projectSite(s, DWARF_PREVIEW_AS_OF).catalog;
+      expect(c.animalTypes.map((t) => t.id)).toContain('hamster-dwarf');
+      expect(c.careProfiles.find((p) => p.id === 'cp-hamster-dwarf')?.taxonIds).toEqual(['phodopus-sungorus', 'phodopus-campbelli']);
+      const refs = [...new Set([...c.animalTypes.map((t) => t.taxonId), ...c.careProfiles.flatMap((p) => p.taxonIds)].filter((x): x is string => typeof x === 'string'))].sort();
+      expect(refs).toEqual(expect.arrayContaining(['phodopus-campbelli', 'phodopus-sungorus']));
+      expect([...mjs.computeExposure(rawOf(s), DWARF_PREVIEW_AS_OF).ids.taxa].sort()).toEqual(refs);
+      expect(engineIds(s, DWARF_PREVIEW_AS_OF)).toEqual(mjsIds(s, DWARF_PREVIEW_AS_OF));
     });
 
     // 271 qa LOW-1 본 시나리오: 비공개 종(로보) Taxon 이 VERIFIED 로 합성되고 노출 프로필(공유)에 들어가도 산출물에 id·학명 0.

@@ -15,7 +15,7 @@
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
 //   setupBundle        = verified ∧ ∃ 노출 type t: careProfileId 일치 ∧ itemIds 비어있지 않고 전부 (t,item) 노출
 //   compatibilityRule  = verified ∧ a·b 둘 다 노출 item ∧ (careProfileId 없음 ∨ 노출 타입의 프로필)
-//   taxon              = verified ∧ 노출 type 의 taxonId (공유 프로필 taxonIds 경유 없음, 271 qa LOW-1) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
+//   taxon              = verified ∧ (노출 type 의 taxonId ∨ 노출 careProfile 의 taxonIds 중 비노출 type 의 taxonId 아닌 것, 277 QA M-1) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
 //   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
@@ -358,7 +358,16 @@ export function computeExposure(seed, asOf) {
 
   const typeProfiles = new Set([...types.values()].map((t) => t.careProfileId));
   const typeTaxa = new Set([...types.values()].map((t) => t.taxonId).filter((x) => typeof x === 'string'));
-  // 271 qa LOW-1: 노출 프로필 taxonIds 는 더하지 않는다 — Taxon 참조는 노출 type 의 taxonId 만(project.ts 프로필 taxonIds 좁힘 미러).
+  // 271 qa LOW-1 → 277 QA M-1(PM 대안 규칙): 노출 프로필 taxonIds 도 더하되, 비노출 type 의 taxonId(노출 type 도 쓰는 것 제외)는 뺀다
+  //   — 로보처럼 자기 PLANNED 타입이 있는 종은 가려지고, 자기 타입이 없는 종(캠벨)은 남는다(project.ts 미러).
+  const hiddenTypeTaxa = new Set();
+  for (const a of rows('animalTypes')) {
+    if (isObj(a) && !types.has(a.id) && typeof a.taxonId === 'string' && !typeTaxa.has(a.taxonId)) hiddenTypeTaxa.add(a.taxonId);
+  }
+  for (const p of rows('careProfiles')) {
+    if (!isObj(p) || !typeProfiles.has(p.id) || !Array.isArray(p.taxonIds)) continue;
+    for (const x of p.taxonIds) if (typeof x === 'string' && !hiddenTypeTaxa.has(x)) typeTaxa.add(x);
+  }
 
   const vetIds = idsWhere(rows('vetClinics'), (v) => isObj(v.verification) && v.verification.status === 'VERIFIED');
   const vetRegions = new Set();
