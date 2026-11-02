@@ -1,12 +1,14 @@
 // 타입 홈 B(컨텍스트 헤더 + 5섹션, UX §3.1 B) · 구성안(/setup) · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
 //   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 칩. 병원은 /vet 링크만.
 import { PICK_PATH, chipSpecText, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, visibleSpecFields, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
+import { affiliateDisclosureOn, renderableSearchLinks } from '../affiliate.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { RequirementModel, SiteModel, TypeModel } from '../project.js';
 import {
   LIKE_PLACEHOLDER,
   SCRIM,
+  affiliateLink,
   allTypes,
   emptyLi,
   externalLink,
@@ -177,15 +179,35 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
     .join('\n');
 }
 
+/** 259 고지 A 의 id(261 §1: ws-aff-a-{supplyItemId} — 페이지당 레이어 aside 1개라 유일, 빌드마다 같다). */
+const affNoteId = (r: RequirementModel): string => `ws-aff-a-${r.item.id}`;
+
+/** 259 제휴 고지(111/261 §1) — note-a(검색 블록 안, 상인 버튼 바로 위) · note-b(레이어 본문 첫 요소). 문구 = COPY.affiliate.coupang 원문. */
+function affNote(kind: 'a' | 'b', id?: string): string {
+  return `<p class="ws-t-meta ws-aff-note"${id ? ` id="${a(id)}"` : ''} data-ws-aff="note-${kind}">${h(COPY.affiliate.coupang)}</p>`;
+}
+
+/** 고지 B — A 와 같은 판정(affiliateDisclosureOn: 렌더 필터 통과 AFFILIATE ≥ 1). 아니면 ''(꺼짐 = 바이트 동일). */
+function affNoteB(r: RequirementModel): string {
+  return affiliateDisclosureOn(r.pub.searchLinks) ? affNote('b') : '';
+}
+
 function searchBlock(r: RequirementModel): string {
-  if (r.pub.searchLinks.length === 0) return '';
+  const links = renderableSearchLinks(r.pub.searchLinks);
+  if (links.length === 0) return '';
+  const on = affiliateDisclosureOn(r.pub.searchLinks);
   return [
     '<div class="ws-search">',
     `<h3>${h(COPY.supplyLayer.findWithCondition)}</h3>`,
     `<p>${h(COPY.supplyLayer.searchKeyword)}: <span class="ws-keyword">${h(r.pub.searchKeyword)}</span></p>`,
-    ...r.pub.searchLinks.map((l) => externalLink(l.href, LINK_TEXT[l.provider])),
+    on ? affNote('a', affNoteId(r)) : '',
+    ...links.map((l) =>
+      l.kind === 'AFFILIATE' ? affiliateLink(l.href, LINK_TEXT[l.provider], affNoteId(r)) : externalLink(l.href, LINK_TEXT[l.provider]),
+    ),
     '</div>',
-  ].join('\n');
+  ]
+    .filter((x) => x !== '')
+    .join('\n');
 }
 
 /** L4 용품 상세 — 순서 고정: 왜 → 조건(최소/권장) → 주의 → 피할 것 → 대안 → [규격 확인][찾기] → 마지막 검수 → 상품 2~3. */
@@ -208,6 +230,7 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     `<aside class="ws-layer" id="ws-layer" data-ws-layer="L4" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
     `<h2 id="ws-layer-title" data-ws-id="supplyItems#${a(r.item.id)}">${h(r.item.name)}</h2>`,
     layerClose(parentPath),
+    affNoteB(r),
     `<p class="ws-meta">${h(COPY.priority[p.priority])} · ${h(COPY.orderHint[p.orderHint])}</p>`,
     p.priority === 'NOT_NOW' ? `<p>${h(COPY.supplyLayer.notNow)}${p.notNowReason ? ` — ${h(p.notNowReason)}` : ''}</p>` : '',
     `<section data-ws-part="why"><h3>${h(COPY.supplyLayer.why)}</h3><p>${h(p.why)}</p></section>`,
@@ -303,6 +326,7 @@ function layerL7(t: TypeModel, p: PublicProduct): string {
     layerClose(base(t)),
     p.imageAsset ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" decoding="async" width="160" height="160">` : imageTile(r.item.glyph),
     `<h2 id="ws-layer-title">${h(p.title)}</h2>`,
+    affNoteB(r),
     `<p class="ws-meta" data-ws-id="supplyItems#${a(r.item.id)}">${h(r.item.name)}</p>`,
     spec ? `<p class="ws-spec">${h(spec)}</p>` : '',
     `<p>${meetsBadge()}</p>`,

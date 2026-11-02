@@ -59,6 +59,7 @@ describe('engine purity', () => {
         'expr.ts',
         'index.ts',
         'links.ts',
+        'providers.ts',
         'public.ts',
         'resolve.ts',
         'rules.ts',

@@ -31,6 +31,7 @@ export const SELF_FILES = new Set([
   'scripts/lib/rules-source.mjs',
   'scripts/lib/rules-output.mjs',
   'scripts/lib/asset-patterns.mjs',
+  'scripts/lib/rules-affiliate.mjs', // 260: C10-AFF 규칙 패턴(제휴 호스트·라우트 마디)을 담는다
 ]);
 
 // 지도 SDK (파일, 호스트) 예외 — 이 파일들에서만 지도 호스트 리터럴 허용.
@@ -959,7 +960,7 @@ const DEPLOY_REAL_ENV_RE = /^deploy\/(?:.*\/)?[^/]+\.env$/;
 //   server.env · prod.env.local 은 잡고, config.env.test.ts · x.env.json 같은 코드·데이터 파일은 잡지 않는다.
 const TRACKED_ENV_RE = /^[^.][^/]*\.env(?:\.(?!(?:[cm]?[jt]sx?|json|ya?ml|md|txt|example)$)[A-Za-z0-9_-]+)?$/;
 
-const isTestFile = (rel) => /(^|\/)__tests__\//.test(rel) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) || rel.startsWith('client/src/test/');
+export const isTestFile = (rel) => /(^|\/)__tests__\//.test(rel) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) || rel.startsWith('client/src/test/');
 
 function lines(s) {
   return s.split('\n');

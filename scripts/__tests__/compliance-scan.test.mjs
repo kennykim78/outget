@@ -2765,7 +2765,9 @@ const SRC_BAD = [
   ['sourceRefs 배열 아님', (d) => { toV2(d); d.data.requirements[0].sourceRefs = 0; }, /sourceRefs 형식/],
   ['v1 에 sourceRefs(형식 혼합)', (d) => { d.data.requirements[0].sourceRefs = [0]; }, /v1 인데 requirement/],
   ['v1 에 최상위 sources(형식 혼합)', (d) => { d.sources = []; }, /v1 인데 최상위 sources/],
-  ['알 수 없는 v', (d) => { d.v = 3; }, /알 수 없는 v=3/],
+  // 260(258 단계 4): v3(= v2 형식 + 선택 aff)은 수용 — 알 수 없는 v 는 4 로 본다. v3 aff 규칙은 C10-AFF-OUT.
+  ['알 수 없는 v', (d) => { d.v = 4; }, /알 수 없는 v=4/],
+  ['v3 인데 최상위 sources 없음', (d) => { d.v = 3; }, /sources 형식/],
   // S6 O-1·O-2: 디코더(ws-wire.ts decodeWsPage)와 같은 거부 조건.
   ['표 중복 {url,title}', (d) => { const s = { url: j(HTTPS, 'example.org/a'), title: 'a' }; toV2(d, [s, { ...s }]); }, /sources\[1\] 중복 표 항목/],
   ['v2 인데 최상위 sources 없음', (d) => { toV2(d); delete d.sources; }, /최상위 sources 없음/],
@@ -3151,4 +3153,714 @@ test('C3-OUT-ID 239 #7: ws-data 식별자 자리에 객체(toString 이 문자�
   assert.equal(safeLabel(Symbol(QA4_M)), '‹symbol›');
   assert.equal(safeLabel(12), '12');
   assert.equal(safeLabel(null), 'null');
+});
+
+// ── 260 · C10-AFF-*(258 단계 7) — 검색 딥링크 제휴 격리·고지·리다이렉트·수수료 자리 0 ─────────────
+//   규칙마다 변이(위반 주입 → FAIL)와 짝(정상 → 해당 규칙 0)을 둔다. 제휴 모듈(259 작업)이 아직 없어도 되게 픽스처 트리에 최소 엔진·클라를 만든다.
+const AFF_HOST = j('link.', 'coupang.com');
+const AFF_CODE = 'FAKE0001';
+const AFF_HREF = j(HTTPS, AFF_HOST, '/a/', AFF_CODE);
+const AFF_NOTE = j('이 게시물은 쿠팡 파트너스 활동의 일환으로, ', '이에 따른 일정액의 수수료를 제공받습니다.');
+const CP_SEARCH = (kw) => j(HTTPS, 'www.coupang.com/np/search?q=', encodeURIComponent(kw));
+
+/** 최소 엔진(결정 파일 8개 + 배럴 + search-links·providers) + 클라(순서 모듈 4개 + 상인 링크 컴포넌트 2개). */
+function affEngineClient() {
+  return {
+    'server/src/engine/index.ts': "export * from './domain.js';\nexport { buildSearchLinks } from './search-links.js';\nexport { PROVIDERS } from './providers.js';\n",
+    'server/src/engine/domain.ts': 'export const ORDER_HINTS = [1];\n',
+    'server/src/engine/types.ts': "import type { X } from './domain.js';\nexport type T = X;\n",
+    'server/src/engine/exposure.ts': "import { ORDER_HINTS } from './domain.js';\nimport { resolveRequirement } from './resolve.js';\nimport { checkAnimalMinSpec } from './spec-check.js';\nexport const E = [ORDER_HINTS, resolveRequirement, checkAnimalMinSpec];\n",
+    'server/src/engine/resolve.ts': "import { ORDER_HINTS } from './domain.js';\nexport const resolveRequirement = () => ORDER_HINTS;\n",
+    'server/src/engine/spec-check.ts': "import { evalExpr } from './expr.js';\nimport { evaluate } from './rules.js';\nimport { buildSearchKeyword } from './search-keyword.js';\nexport const checkAnimalMinSpec = () => [evalExpr, evaluate, buildSearchKeyword];\n",
+    'server/src/engine/expr.ts': "import type { T } from './types.js';\nexport const evalExpr = (t: T) => t;\n",
+    'server/src/engine/rules.ts': "import type { T } from './types.js';\nexport const evaluate = (t: T) => t;\n",
+    'server/src/engine/catalog.ts': "import type { T } from './types.js';\nexport const createCatalog = (t: T) => t;\n",
+    'server/src/engine/search-keyword.ts': "import { evaluate } from './rules.js';\nexport const buildSearchKeyword = () => evaluate;\n",
+    'server/src/engine/search-links.ts': "import { PROVIDERS } from './providers.js';\nexport const buildSearchLinks = () => PROVIDERS;\n",
+    'server/src/engine/providers.ts': j("export const PROVIDERS = { COUPANG: { affiliate: { prefix: '", HTTPS, AFF_HOST, "/a/' } }, NAVER: { affiliate: null } };\n"),
+    'client/src/main.tsx': "import './home/HomeB';\n",
+    'client/src/checklist/derive.ts': "import { ORDER_HINTS, type PublicRequirement } from '@ws/engine';\nimport type { S } from './setupStore';\nexport const derive = (r: PublicRequirement, s: S) => [ORDER_HINTS, r, s];\n",
+    'client/src/checklist/setupStore.ts': "import { isWsId } from '../lib/storage';\nexport const store = { import(p) { return isWsId(p); } };\nexport type S = 1;\n",
+    'client/src/lib/storage.ts': 'export const isWsId = (x) => !!x;\n',
+    'client/src/home/HomeB.tsx': "import { derive } from '../checklist/derive';\nimport ProductCard from './ProductCard';\nexport default function HomeB() { return [derive, ProductCard]; }\n",
+    'client/src/home/ProductCard.tsx': 'export default function ProductCard() { return null; }\n',
+    'client/src/reaction/reactionStore.ts': "import { isWsId } from '../lib/storage';\nexport const r = isWsId;\n",
+    'client/src/supply/SearchBlock.tsx': "import { buildSearchLinks, PROVIDERS } from '@ws/engine';\nexport default function SearchBlock() { return [buildSearchLinks, PROVIDERS]; }\n",
+    'client/src/speccheck/SpecSearch.tsx': "import { buildSearchLinks } from '@ws/engine';\nexport default function SpecSearch() { return buildSearchLinks; }\n",
+  };
+}
+/** 엔진·클라 픽스처 + 덮어쓰기(over: { 경로: 내용|null(삭제) }) 로 스캔. */
+async function affScan(over = {}, opts = {}) {
+  return scan(
+    await makeRoot({
+      ...opts,
+      source: (s) => {
+        Object.assign(s, affEngineClient());
+        for (const [k, v] of Object.entries(over)) {
+          if (v === null) delete s[k];
+          else s[k] = v;
+        }
+      },
+    }),
+  );
+}
+const affFindings = (res, rule, severity = 'FAIL') => (res.json?.findings ?? []).filter((f) => f.rule === rule && f.severity === severity);
+function expectAff(res, rule, fileOrNull, label) {
+  assert.ok(res.json, `비정상 종료(${label}): ${(res.stderr ?? '').slice(0, 300)}`);
+  const hits = affFindings(res, rule).filter((f) => fileOrNull === null || f.file === fileOrNull);
+  assert.ok(hits.length > 0, `${label}: ${rule} FAIL 기대(${fileOrNull ?? '*'}), 실제 ${JSON.stringify(res.json.findings)}`);
+  assert.equal(res.code, 1, label);
+}
+function expectNoAff(res, rule, label) {
+  assert.ok(res.json, `비정상 종료(${label}): ${(res.stderr ?? '').slice(0, 300)}`);
+  assert.deepEqual(affFindings(res, rule), [], `${label}: ${rule} 없어야 함 — ${JSON.stringify(res.json.findings)}`);
+}
+
+test('C10-AFF 기준: 엔진·클라·providers 픽스처만 → 전체 clean(제휴 규칙 0건)', async () => {
+  expectClean(await affScan());
+  // 엔진·클라 표지(index.ts·main.tsx)가 없는 트리(기존 픽스처)는 감시 대상 누락을 묻지 않는다.
+  expectClean(scan(await makeRoot()));
+});
+
+test('C10-AFF-IMPORT 변이: 엔진 결정 파일이 제휴 모듈에 닿으면 FAIL(직접·전이·형식별)', async () => {
+  const exp = 'server/src/engine/exposure.ts';
+  const base = affEngineClient()[exp];
+  const cases = [
+    ['직접 side-effect', exp, `import './providers.js';\n${base}`, exp],
+    ['직접 named', exp, `import { buildSearchLinks } from './search-links.js';\n${base}`, exp],
+    ['type 전용', exp, `import type { SearchLink } from './search-links.js';\n${base}`, exp],
+    ['여러 줄', exp, `import {\n  PROVIDERS,\n} from\n  './providers.js';\n${base}`, exp],
+    ['export from', exp, `${base}export { PROVIDERS } from './providers.js';\n`, exp],
+    ['동적 리터럴', exp, `${base}export const lazy = () => import('./providers.js');\n`, exp],
+    ['require', exp, `${base}const p = require('./providers');\n`, exp],
+    ['확장자 없음·.ts', exp, `import './providers';\nimport './search-links.ts';\n${base}`, exp],
+    ['배럴 경유 금지 심볼', exp, `import { buildSearchLinks as b } from './index.js';\n${base}`, exp],
+    ['@ws/engine 별칭 금지 심볼', exp, `import { affiliateHref } from '@ws/engine';\n${base}`, exp],
+    ['배럴 네임스페이스', exp, `import * as E from './index.js';\n${base}`, exp],
+    ['providers 새 값 export 자동 포함', exp, `import { NEW_AFF_THING } from './index.js';\n${base}`, exp],
+    ['전이(domain → search-links)', 'server/src/engine/domain.ts', "import { buildSearchLinks } from './search-links.js';\nexport const ORDER_HINTS = [buildSearchLinks];\n", 'server/src/engine/domain.ts'],
+    ['맵 로더(259 전 — 파일 없음)', 'server/src/engine/rules.ts', "import { parseAffiliateMap } from '../prerender/affiliate.js';\nexport const evaluate = parseAffiliateMap;\n", 'server/src/engine/rules.ts'],
+    ['맵 JSON', 'server/src/engine/catalog.ts', "import map from '../../affiliate/coupang.json';\nexport const createCatalog = () => map;\n", 'server/src/engine/catalog.ts'],
+    ['비리터럴 동적 import(fail-closed)', exp, `${base}export const lazy = (p) => import(p);\n`, exp],
+    ['템플릿 보간 동적 import', exp, `${base}const n = 'providers';\nexport const lazy = () => import(\`./\${n}.js\`);\n`, exp],
+    ['해석 불가 상대 경로', exp, `import { x } from './nope.js';\n${base}`, exp],
+    ['모르는 @ws/ 별칭', exp, `import { x } from '@ws/affiliate';\n${base}`, exp],
+  ];
+  const providersPlus = `${affEngineClient()['server/src/engine/providers.ts']}export const NEW_AFF_THING = 1;\n`;
+  for (const [label, file, text, at] of cases) expectAff(await affScan({ [file]: text, 'server/src/engine/providers.ts': providersPlus }), 'C10-AFF-IMPORT', at, label);
+  // 감시 대상 파일 이름이 바뀌면(삭제) fail-closed
+  expectAff(await affScan({ 'server/src/engine/search-keyword.ts': null, 'server/src/engine/spec-check.ts': 'export const checkAnimalMinSpec = 1;\n' }), 'C10-AFF-IMPORT', 'server/src/engine/search-keyword.ts', '감시 대상 누락');
+});
+
+test('C10-AFF-IMPORT 짝: 주석·문자열 속 import, 비결정 파일(search-links·public·ws-wire)의 제휴 import, 패키지 import 는 통과', async () => {
+  const exp = 'server/src/engine/exposure.ts';
+  const base = affEngineClient()[exp];
+  const ok = [
+    ['주석', exp, `// import './providers.js';\n/* import { PROVIDERS } from './providers.js'; */\n${base}`],
+    ['문자열', exp, `${base}export const note = "import x from './providers.js'";\nexport const t = \`from './search-links.js'\`;\n`],
+    ['패키지', exp, `import { z } from 'zod';\n${base}`],
+    ['public.ts 의 타입 import', 'server/src/engine/public.ts', "import type { SearchLink } from './search-links.js';\nexport type P = SearchLink;\n"],
+    ['ws-wire 의 buildSearchLinks', 'server/src/engine/ws-wire.ts', "import { buildSearchLinks } from './search-links.js';\nexport const enc = buildSearchLinks;\n"],
+    ['배럴 허용 심볼(심볼 단위 — 배럴 import 자체는 FAIL 아님)', exp, `import { ORDER_HINTS as O, type SearchLink } from './index.js';\n${base}`],
+    ['@ws/engine 허용 심볼', exp, `import { ORDER_HINTS as O } from '@ws/engine';\n${base}`],
+    ['메서드 이름 import·require', exp, `${base}export const o = { import(p) { return p; }, require(q): number { return q; } };\n`],
+  ];
+  for (const [label, file, text] of ok) expectNoAff(await affScan({ [file]: text }), 'C10-AFF-IMPORT', label);
+});
+
+test('C10-AFF-IMPORT 변이: 클라 순서·노출 모듈 — 배럴 심볼 단위·상인 링크 컴포넌트·전이', async () => {
+  const d = 'client/src/checklist/derive.ts';
+  const cases = [
+    ['buildSearchLinks', d, "import { ORDER_HINTS, buildSearchLinks } from '@ws/engine';\nexport const x = [ORDER_HINTS, buildSearchLinks];\n", d],
+    ['as 별칭', d, "import { buildSearchLinks as b, ORDER_HINTS } from '@ws/engine';\nexport const x = [b, ORDER_HINTS];\n", d],
+    ['type PROVIDERS', d, "import type { PROVIDERS } from '@ws/engine';\nexport type X = typeof PROVIDERS;\n", d],
+    ['네임스페이스', d, "import * as E from '@ws/engine';\nexport const x = E;\n", d],
+    ['export *', d, "export * from '@ws/engine';\n", d],
+    ['동적 배럴', 'client/src/reaction/reactionStore.ts', "export const r = () => import('@ws/engine');\n", 'client/src/reaction/reactionStore.ts'],
+    ['배럴 파일 상대 경로', d, "import { PROVIDERS } from '../../../server/src/engine/index';\nexport const x = PROVIDERS;\n", d],
+    ['SearchBlock 직접', 'client/src/home/HomeB.tsx', "import SearchBlock from '../supply/SearchBlock';\nexport default function HomeB() { return SearchBlock; }\n", 'client/src/home/HomeB.tsx'],
+    ['SpecSearch 직접', 'client/src/checklist/setupStore.ts', "import SpecSearch from '../speccheck/SpecSearch.tsx';\nexport const s = SpecSearch;\nexport type S = 1;\n", 'client/src/checklist/setupStore.ts'],
+    ['전이(ProductCard → 헬퍼 → buildSearchLinks)', 'client/src/home/ProductCard.tsx', "import { links } from '../ui/links';\nexport default function ProductCard() { return links; }\n", 'client/src/home/HomeB.tsx'],
+    ['providers 상대 경로', 'client/src/reaction/reactionStore.ts', "import { PROVIDERS } from '../../../server/src/engine/providers';\nexport const r = PROVIDERS;\n", 'client/src/reaction/reactionStore.ts'],
+  ];
+  for (const [label, file, text, at] of cases) {
+    const over = { [file]: text, 'client/src/ui/links.ts': "import { buildSearchLinks } from '@ws/engine';\nexport const links = buildSearchLinks;\n" };
+    expectAff(await affScan(over), 'C10-AFF-IMPORT', at, label);
+  }
+  expectAff(await affScan({ 'client/src/home/HomeB.tsx': null, 'client/src/main.tsx': 'export {};\n' }), 'C10-AFF-IMPORT', 'client/src/home/HomeB.tsx', '클라 감시 대상 누락');
+  // 짝: 배럴에서 허용 심볼(ORDER_HINTS·타입)만 — SearchBlock 자신이 PROVIDERS 를 쓰는 것은 대상 아님(기준 픽스처)
+  expectNoAff(await affScan({ [d]: "import { ORDER_HINTS, type PublicRequirement, type SearchLink } from '@ws/engine';\nexport const x = [ORDER_HINTS];\n" }), 'C10-AFF-IMPORT', '허용 심볼');
+});
+
+test('C10-AFF-RUNTIME: 서버 런타임·메일 폐포가 맵 로더에 닿으면 WARN(FAIL 아님)', async () => {
+  const res = await affScan({
+    'server/src/index.ts': "import { seoulToday } from './prerender/cli.js';\nexport const s = seoulToday;\n",
+    'server/src/prerender/cli.ts': "import { parseAffiliateMap } from './affiliate.js';\nexport const seoulToday = () => parseAffiliateMap;\n",
+    'server/src/prerender/affiliate.ts': 'export const parseAffiliateMap = () => null;\n',
+  });
+  assert.ok(affFindings(res, 'C10-AFF-RUNTIME', 'WARN').some((f) => f.file === 'server/src/prerender/cli.ts'), JSON.stringify(res.json?.findings));
+  assert.equal(res.code, 0, res.stdout);
+  expectNoAff(res, 'C10-AFF-RUNTIME', 'WARN 만');
+});
+
+test('C10-AFF-HOST 변이: 제휴 호스트 리터럴은 providers·테스트·맵 JSON 만 — 표현 우회 포함', async () => {
+  const bad = [
+    ['클라 리터럴', 'client/src/x.ts', j("export const u = '", AFF_HREF, "';\n")],
+    ['프리렌더', 'server/src/prerender/pages/x.ts', j("export const u = '", AFF_HOST, "';\n")],
+    ['메일', 'server/src/save/mail.ts', j("export const footer = '", AFF_HREF, "';\n")],
+    ['시드', 'server/seed/extra.json', JSON.stringify([{ id: 'x', note: AFF_HREF }])],
+    ['스크립트', 'scripts/ops/gen.mjs', j("export const P = '", AFF_HOST, "';\n")],
+    ['주석 속', 'client/src/y.ts', j('// ', AFF_HOST, '\nexport const y = 1;\n')],
+    ['\\u002e', 'client/src/z.ts', "export const u = 'link\\u002ecoupang.com';\n"],
+    ['\\x2e', 'client/src/z2.ts', "export const u = 'link\\x2ecoupang\\x2ecom';\n"],
+    ['정규식 \\.', 'client/src/z3.ts', 'export const R = /link\\.coupang\\.com/;\n'],
+    ['%2e·%252e', 'client/src/z4.ts', "export const u = 'link%2Ecoupang.com';\nexport const v = 'link%252ecoupang.com';\n"],
+    ['전각 점·대문자', 'client/src/z5.ts', "export const u = 'LINK．COUPANG.COM';\n"],
+    ['단축 호스트', 'client/src/z6.ts', j("export const u = '", HTTPS, 'coupa', ".ng/abc';\n")],
+    ['&#46;', 'client/src/z7.tsx', 'export const A = () => <a href="https://link&#46;coupang.com/a/x">x</a>;\n'],
+  ];
+  for (const [label, file, text] of bad) expectAff(await affScan({ [file]: text }), 'C10-AFF-HOST', file, label);
+  const ok = [
+    ['providers', 'server/src/engine/providers.ts', affEngineClient()['server/src/engine/providers.ts']],
+    ['서버 테스트', 'server/src/__tests__/aff.test.ts', j("const u = '", AFF_HREF, "';\n")],
+    ['픽스처', 'server/src/__tests__/fixtures/affiliate/coupang.fake.json', JSON.stringify({ code: AFF_HREF })],
+    ['클라 테스트', 'client/src/supply/SearchBlock.test.tsx', j("const u = '", AFF_HREF, "';\n")],
+    ['일반 검색 호스트', 'client/src/w.ts', j("export const u = '", CP_SEARCH('x'), "';\n")],
+  ];
+  for (const [label, file, text] of ok) expectNoAff(await affScan({ [file]: text }), 'C10-AFF-HOST', label);
+});
+
+test('C10-AFF-REDIRECT 변이: 경유 라우트 마디·외부 리다이렉트·식 리다이렉트 FAIL, 내부 경로·spa 정규화는 통과', async () => {
+  const bad = [
+    ['/go/:code', 'server/src/aff.routes.ts', "export const mount = (app) => app.get('/go/:code', (q, s) => s.end());\n"],
+    ['/out', 'server/src/a1.ts', "export const mount = (app) => app.get('/out', (q, s) => s.end());\n"],
+    ['/api/aff', 'server/src/a2.ts', "export const P = '/api/aff/:id';\n"],
+    ['/r/x', 'server/src/a3.ts', "export const P = '/r/:code';\n"],
+    ['/redirect', 'server/src/a4.ts', "router.use('/redirect', h);\n"],
+    ['클라 경유 라우트', 'client/src/app/routes.ts', "export const GO = '/go/:code';\n"],
+    ['외부 redirect', 'server/src/b1.ts', j("export const h = (q, s) => s.redirect(302, '", AFF_HREF, "');\n")],
+    ['식 redirect', 'server/src/b2.ts', 'export const h = (q, s) => s.redirect(q.query.to);\n'],
+    ['템플릿 redirect', 'server/src/b3.ts', 'export const h = (q, s) => s.redirect(`/${q.query.to}`);\n'],
+    ['프로토콜 상대', 'server/src/b4.ts', "export const h = (q, s) => s.redirect('//evil.example');\n"],
+    ['Location 헤더', 'server/src/b5.ts', "export const h = (q, s) => { s.setHeader('Location', q.query.to); s.statusCode = 302; };\n"],
+    ['res.location', 'server/src/b6.ts', 'export const h = (q, s) => s.location(q.query.to).end();\n'],
+    ['spa.ts 외부 리터럴', 'server/src/middleware/spa.ts', j(spaTs(), "export const x = (s) => s.redirect(301, '", HTTPS, "evil.example/');\n")],
+  ];
+  for (const [label, file, text] of bad) expectAff(await affScan({ [file]: text }), 'C10-AFF-REDIRECT', file, label);
+  const ok = [
+    ['내부 리터럴', 'server/src/c1.ts', "export const h = (q, s) => s.redirect(303, '/save?ok=1');\n"],
+    ['/logout·/routes·/output', 'server/src/c2.ts', "export const P = ['/logout', '/api/routes', '/output', '/go-guide', '/robots.txt'];\n"],
+    ['spa.ts 정규화(식)', 'server/src/middleware/spa.ts', j(spaTs(), 'export const x = (s, n) => s.redirect(301, n.location);\n')],
+    ['서버 테스트', 'server/src/__tests__/r.test.ts', "app.get('/go/x', h);\n"],
+  ];
+  for (const [label, file, text] of ok) expectNoAff(await affScan({ [file]: text }), 'C10-AFF-REDIRECT', label);
+});
+
+/** 맵 파일 픽스처 — 운영자 수동 생성 형태. */
+const affMap = (over = {}, entry = {}) => ({
+  v: 1, provider: 'COUPANG', subId: 'fx', source: 'MANUAL', generatedAt: '2026-11-01',
+  entries: [{ keyword: '햄스터 케이지', landingUrl: CP_SEARCH('햄스터 케이지'), code: AFF_CODE, ...entry }],
+  ...over,
+});
+
+test('C10-AFF-FIELD 변이: 시드·Prisma·코드 식별자의 수수료류·affiliate*·subId, 맵 키 집합', async () => {
+  const seedBad = [
+    ['affiliateUrl', (s) => { s['curated-products.json'][0].affiliateUrl = CP_SEARCH('x'); }],
+    ['중첩 commissionRate', (s) => { s['curated-products.json'][0].specValues = { floorWcm: 80, meta: { commissionRate: 3 } }; }],
+    ['subId', (s) => { s['setup-bundles.json'][0].subId = 'x'; }],
+    ['sub_id', (s) => { s['curated-products.json'][1].sub_id = 'x'; }],
+  ];
+  for (const [label, mut] of seedBad) {
+    const res = scan(await makeRoot({ source: (s) => Object.assign(s, affEngineClient()), seed: mut }));
+    expectAff(res, 'C10-AFF-FIELD', null, label);
+  }
+  const prismaBad = [
+    ['commissionRate', 'model CuratedProduct {\n  id String @id\n  commissionRate Float?\n}\n'],
+    ['subId', 'model Link {\n  id String @id\n  subId String\n}\n'],
+    ['model AffiliateLink', 'model AffiliateLink {\n  id String @id\n}\n'],
+  ];
+  for (const [label, schema] of prismaBad) expectAff(await affScan({ 'server/prisma/schema.prisma': `${baseSource()['server/prisma/schema.prisma']}${schema}` }), 'C10-AFF-FIELD', 'server/prisma/schema.prisma', label);
+  const codeBad = [
+    ['providers commission 필드', 'server/src/engine/providers.ts', 'export const PROVIDERS = { COUPANG: { commissionRate: 0.03 } };\n'],
+    ['키 문자열', 'client/src/q.ts', "export const k = (o) => o['commission_rate'];\n"],
+    ['rebate', 'scripts/ops/x.mjs', 'export const rebatePct = 1;\n'],
+  ];
+  for (const [label, file, text] of codeBad) expectAff(await affScan({ [file]: text }), 'C10-AFF-FIELD', file, label);
+  // 맵 파일
+  const M = 'server/affiliate/coupang.json';
+  const mapBad = [
+    ['최상위 수수료 키', affMap({ commissionRate: 0.03 })],
+    ['항목 추가 키', affMap({}, { commission: 1 })],
+    ['항목 가격 키', affMap({}, { price: 1000 })],
+    ['code 형식', affMap({}, { code: '../x' })],
+    ['code 길이', affMap({}, { code: 'abc' })],
+    ['landingUrl 불일치', affMap({}, { landingUrl: CP_SEARCH('다른 검색어') })],
+    ['landingUrl 상품 페이지', affMap({}, { landingUrl: j(HTTPS, 'www.coupang.com/vp/products/1') })],
+    ['keyword 비정규화', affMap({}, { keyword: ' 햄스터  케이지', landingUrl: CP_SEARCH('햄스터 케이지') })],
+    ['source API', affMap({ source: 'API' })],
+    ['v 2', affMap({ v: 2 })],
+    ['provider 불일치', affMap({ provider: 'NAVER' })],
+    ['subId 누락', (() => { const m = affMap(); delete m.subId; return m; })()],
+    ['중복 keyword', (() => { const m = affMap(); m.entries.push({ ...m.entries[0], code: 'FAKE0002' }); return m; })()],
+    ['__proto__', '{"v":1,"provider":"COUPANG","subId":"","source":"MANUAL","generatedAt":"2026-11-01","entries":[],"__proto__":{"x":1}}'],
+    ['문법 오류(fail-closed)', '{"v":1,"provider":"COUPANG",}'],
+    ['최상위 배열', '[]'],
+  ];
+  for (const [label, doc] of mapBad) expectAff(await affScan({ [M]: typeof doc === 'string' ? doc : JSON.stringify(doc) }), 'C10-AFF-FIELD', M, label);
+  expectAff(await affScan({ 'server/affiliate/rates.csv': 'keyword,commission\nx,3\n' }), 'C10-AFF-FIELD', 'server/affiliate/rates.csv', '맵 디렉터리 CSV');
+  expectAff(await affScan({ 'server/affiliate/naver.json': JSON.stringify(affMap({ provider: 'NAVER' })) }), 'C10-AFF-FIELD', 'server/affiliate/naver.json', 'NAVER 맵(affiliate=null 공급자)');
+  // 짝: 유효 맵·빈 맵(259 커밋 형태)·무관 식별자·한글 고지 낱말
+  expectClean(await affScan({ [M]: JSON.stringify(affMap()) }));
+  expectClean(await affScan({ [M]: JSON.stringify(affMap({ subId: '', entries: [] })) }));
+  expectNoAff(await affScan({ 'client/src/ok.ts': "export const missionCount = 0;\nexport const note = '수수료';\n" }), 'C10-AFF-FIELD', '무관 식별자·한글 문구');
+});
+
+// ── 산출물(C10-AFF-OUT) 픽스처: 제휴 켜진 L4 레이어 페이지 ─────────────────────
+const NAVER_A = j('<a href="', HTTPS, 'search.shopping.naver.com/search/all?query=x" target="_blank" rel="noopener noreferrer nofollow">네이버에서 찾기</a>');
+const NOTE_A = j('<p class="ws-t-meta ws-aff-note" id="ws-aff-a-1" data-ws-aff="note-a">', AFF_NOTE, '</p>');
+const NOTE_B = j('<p class="ws-t-meta ws-aff-note" data-ws-aff="note-b">', AFF_NOTE, '</p>');
+const affA = (attrs, href = AFF_HREF) => j('<a href="', href, '" target="_blank" ', attrs, '>쿠팡에서 찾기</a>');
+const AFF_A_OK = affA('rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"');
+function affLayer({ noteA = NOTE_A, noteB = NOTE_B, link = AFF_A_OK, layer = 'L4', noteAAfter = false, wrapSearch = (x) => x } = {}) {
+  return [
+    `<aside class="ws-layer" id="ws-layer" data-ws-layer="${layer}" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#req-cage">`,
+    '<h2 id="ws-layer-title" data-ws-id="supplyItems#cage">케이지</h2>',
+    noteB,
+    '<p class="ws-meta">꼭 필요 · 오기 전</p>',
+    wrapSearch(['<div class="ws-search">', '<h3>이 조건으로 찾기</h3>', '<p>검색어: <span class="ws-keyword">햄스터 케이지</span></p>', noteAAfter ? '' : noteA, link, NAVER_A, noteAAfter ? noteA : '', '</div>'].join('')),
+    '</aside>',
+  ].join('');
+}
+const affWire = (reqOver = {}, top = {}) => ({
+  v: 3,
+  route: { kind: 'TYPE', path: '/hamster/golden', typeId: 'hamster-golden' },
+  layer: null,
+  catalogUrl: '/data/catalog.v1.abcd1234.json',
+  data: {
+    types: [{ id: 'hamster-golden', slug: 'hamster/golden', displayName: '골든햄스터' }],
+    requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'cage', searchKeyword: '햄스터 케이지', sourceRefs: [0], aff: { COUPANG: AFF_CODE }, ...reqOver }],
+    products: [], bundles: [], vets: [], testimonials: [],
+  },
+  sources: [{ url: j(HTTPS, 'example.org/care'), title: 'care guide' }],
+  ...top,
+});
+const AFF_MAIN = '<main class="ws-page" data-ws-route="TYPE" data-ws-type="hamster-golden"><section data-ws-section="now"><h2>지금 필요한 것</h2></section></main>';
+/** 제휴 켜진 산출물 스캔. layerOpts·wire·mode·extra(o)·body 로 변이. */
+async function affOut({ layerOpts = {}, wire = affWire(), mode = 'production', extra = noop, body = null } = {}) {
+  return scan(
+    await makeRoot({
+      source: (s) => Object.assign(s, affEngineClient()),
+      output: (o) => {
+        o['hamster/golden/index.html'] = page(body ?? `${AFF_MAIN}${affLayer(layerOpts)}`, wire);
+        extra(o);
+      },
+      manifest: (dg) => manifestFor(dg, { mode }),
+    }),
+  );
+}
+const OUT_PAGE = 'client/dist/hamster/golden/index.html';
+
+test('C10-AFF-OUT 짝: 제휴 켜진 운영 산출물(고지 A·B·rel sponsored·describedby·ws-data v3) → clean, 기존(꺼짐) 산출물 → clean', async () => {
+  expectClean(await affOut());
+  expectClean(await affOut({ layerOpts: { layer: 'L7' } }));
+  expectClean(scan(await makeRoot({ output: noop })));
+});
+
+test('C10-AFF-OUT 변이: 고지·rel·위치·숨김·개발 빌드·ws-data·호스트 형태', async () => {
+  const cases = [
+    ['rel sponsored 없음', { layerOpts: { link: affA('rel="nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"') } }],
+    ['describedby 없음', { layerOpts: { link: affA('rel="sponsored nofollow noopener noreferrer"') } }],
+    ['describedby 다른 id', { layerOpts: { link: affA('rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-layer-title"') } }],
+    ['고지 A 없음', { layerOpts: { noteA: '' } }],
+    ['고지 A 1글자 변경', { layerOpts: { noteA: NOTE_A.replace('수수료를', '수수료가') } }],
+    ['고지 A 마침표 제거', { layerOpts: { noteA: NOTE_A.replace('습니다.<', '습니다<') } }],
+    ['고지 A 앞뒤 공백', { layerOpts: { noteA: NOTE_A.replace('">이 게시물', '"> 이 게시물') } }],
+    ['고지 A 버튼 뒤', { layerOpts: { noteAAfter: true } }],
+    ['고지 A 숨김 클래스', { layerOpts: { noteA: NOTE_A.replace('ws-aff-note"', 'ws-aff-note ws-visually-hidden"') } }],
+    ['고지 A hidden', { layerOpts: { noteA: NOTE_A.replace('<p ', '<p hidden ') } }],
+    ['고지 A 툴팁', { layerOpts: { noteA: NOTE_A.replace('<p ', '<p title="x" ') } }],
+    ['접기(details)', { layerOpts: { wrapSearch: (x) => `<details><summary>더보기</summary>${x}</details>` } }],
+    ['고지 A nowrap', { layerOpts: { noteA: NOTE_A.replace('<p ', '<p style="white-space:nowrap" ') } }],
+    ['고지 A 가 span', { layerOpts: { noteA: NOTE_A.replace('<p ', '<span ').replace('</p>', '</span>') } }],
+    ['고지 B 없음', { layerOpts: { noteB: '' } }],
+    ['고지 B 문구 변경', { layerOpts: { noteB: NOTE_B.replace('쿠팡', '쿠 팡') } }],
+    ['고지 B 중복', { layerOpts: { noteB: `${NOTE_B}${NOTE_B}` } }],
+    ['L5 정적 레이어', { layerOpts: { layer: 'L5' } }],
+    ['상인 버튼 class 다름', { layerOpts: { link: affA('class="ws-btn ws-btn--fill" rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"') } }],
+    ['개발 빌드에 제휴', { mode: 'development' }],
+    ['code 위반 href', { layerOpts: { link: affA('rel="sponsored noopener" aria-describedby="ws-aff-a-1"', j(HTTPS, AFF_HOST, '/a/../x')) } }],
+    ['대문자 호스트', { layerOpts: { link: affA('rel="sponsored noopener" aria-describedby="ws-aff-a-1"', j(HTTPS, AFF_HOST.toUpperCase(), '/a/', AFF_CODE)) } }],
+    ['위장 하위 도메인', { layerOpts: { link: affA('rel="sponsored noopener" aria-describedby="ws-aff-a-1"', j(HTTPS, AFF_HOST, '.evil.example/a/', AFF_CODE)) } }],
+    ['쿠팡 상품 페이지', { layerOpts: { link: affA('rel="noopener"', j(HTTPS, 'www.coupang.com/vp/products/123')) } }],
+    ['단축 호스트 a', { layerOpts: { link: affA('rel="sponsored noopener" aria-describedby="ws-aff-a-1"', j(HTTPS, 'coupa', '.ng/abcd')) } }],
+    ['ws-data v2 + aff', { wire: affWire({}, { v: 2 }) }],
+    ['ws-data v3 aff 0', { wire: affWire({ aff: undefined }) }],
+    ['ws-data aff 키 초과', { wire: affWire({ aff: { COUPANG: AFF_CODE, NAVER: 'FAKE0002' } }) }],
+    ['ws-data aff code 위반', { wire: affWire({ aff: { COUPANG: 'javascript:x' } }) }],
+    ['HTML 코드 ∉ ws-data', { wire: affWire({ aff: { COUPANG: 'FAKE0009' } }) }],
+    ['ws-data 다른 자리 commission', { wire: affWire({}, { data: { ...affWire().data, products: [{ id: 'cp-001', commissionRate: 1 }] } }) }],
+    ['a href 밖 제휴 호스트(텍스트)', { extra: (o) => { o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('</main>', j('<p>', AFF_HOST, '</p></main>')); } }],
+    ['짝 없는 고지(홈)', { extra: (o) => { o['index.html'] = o['index.html'].replace('</main>', `${NOTE_B}</main>`); } }],
+    ['홈에 제휴 a', { extra: (o) => { o['index.html'] = o['index.html'].replace('</main>', j('<a href="', AFF_HREF, '" rel="sponsored noopener">쿠팡</a></main>')); } }],
+    ['카탈로그에 aff', { extra: (o) => { o['data/catalog.v1.abcd1234.json'] = o['data/catalog.v1.abcd1234.json'].replace('"compatibilityRules":[]', '"compatibilityRules":[],"aff":{"COUPANG":"FAKE0001"}'); } }],
+    ['sitemap 에 제휴 호스트', { extra: (o) => { o['sitemap.xml'] = o['sitemap.xml'].replace('</urlset>', j('<!-- ', AFF_HOST, ' --></urlset>')); } }],
+  ];
+  for (const [label, opts] of cases) expectAff(await affOut(opts), 'C10-AFF-OUT', null, label);
+});
+
+test('C10-AFF-OUT: 꺼진(off) 형태 — 일반 쿠팡 검색 링크·ws-data v2 는 규칙 0, aff 없는 v3 는 FAIL', async () => {
+  const offLink = j('<a href="', CP_SEARCH('햄스터 케이지'), '" target="_blank" rel="noopener noreferrer nofollow">쿠팡에서 찾기</a>');
+  expectClean(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }) }));
+  expectAff(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }) }), 'C10-AFF-OUT', OUT_PAGE, 'aff 0 인 v3');
+});
+
+test('C10-AFF 단위: importEdges·normalizeHostText·elementTree — 최악 모양 선형(2배씩 4단계)', async () => {
+  const { importEdges, normalizeHostText, elementTree, coupangSearchHref } = await import('../lib/rules-affiliate.mjs');
+  // 274: 구문 트리 기준(이름 순서 = 절 순서 — default 먼저)
+  assert.deepEqual(
+    importEdges("import a, { b as c, type D } from './x.js';\nexport * from './y';\nimport './z';\n").map((e) => [e.spec, e.names]),
+    [['./x.js', ['default', 'b', 'D']], ['./y', ['*']], ['./z', []]],
+  );
+  assert.equal(importEdges("const s = \"import x from './p.js'\";\n// import y from './q.js'\n").length, 0);
+  assert.equal(importEdges('const o = { import(p) { return p; } };\n').length, 0);
+  assert.equal(importEdges('export const f = (p) => import(p);\n')[0].spec, null);
+  assert.equal(normalizeHostText('LINK\\u002eCOUPANG%2Ecom'), 'link.coupang.com');
+  assert.equal(normalizeHostText('\\x6cink\\u{2E}coupang.com'), 'link.coupang.com');
+  assert.equal(coupangSearchHref(' 햄스터  케이지 '), CP_SEARCH('햄스터 케이지'));
+  const time = (fn) => {
+    const t = process.hrtime.bigint();
+    fn();
+    return Number(process.hrtime.bigint() - t) / 1e6;
+  };
+  // 274: 짝 괄호 없는 'import(a ' 반복은 구문 분석기가 깊은 중첩으로 RangeError — 모듈 캐시가 errors 로 바꿔 FAIL(fail-closed, 아래 274 시험).
+  //   여기서는 선형 모양만: 삼항 동적 import·템플릿 보간 import 반복으로 바꿨다.
+  const shapes = [
+    ['import·export 키워드 반복(따옴표 없음)', importEdges, (n) => 'import export '.repeat(n)],
+    ['삼항 안 비리터럴 동적 import 반복', importEdges, (n) => 'x ? import(p) : null;\n'.repeat(n)],
+    ['템플릿 보간 안 import 반복', importEdges, (n) => "`${import('./p.js')}`;\n".repeat(n)],
+    ['키워드 + 따옴표 반복', importEdges, (n) => "import '".repeat(n)],
+    ['열린 div 반복 + 다른 닫는 태그', elementTree, (n) => `${'<div class="ws-search">'.repeat(n)}${'</span>'.repeat(n)}`],
+    ['열고 닫기 짝 반복', elementTree, (n) => `${'<div>'.repeat(n)}${'</div>'.repeat(n)}`],
+    ['점 표기 반복', normalizeHostText, (n) => '\\u002e%2e&#46;'.repeat(n)],
+  ];
+  const rows = [];
+  for (const [name, fn, make] of shapes) {
+    fn(make(500)); // 워밍업
+    const ms = [2000, 4000, 8000, 16000].map((n) => time(() => fn(make(n))));
+    rows.push(`${name}: ${ms.map((x) => x.toFixed(1)).join(' / ')} ms`);
+    // 16배 입력에서 제곱이면 256배 — 64배 미만이면 선형으로 본다(작은 n 의 고정비 잡음 허용).
+    assert.ok(ms[3] < Math.max(ms[0], 1) * 64, rows.join('\n'));
+  }
+  process.stdout.write(`# 260 최악 모양 시간(2천/4천/8천/1만6천)\n${rows.map((r) => `#   ${r}`).join('\n')}\n`);
+});
+
+test('C10-AFF 우회 시도(작성자 틀 밖): 대소문자 경로·import.meta.glob·Location 객체·한글 식별자·subId 은닉·자식 태그 고지·고지 class·meta refresh·CSS 숨김', async () => {
+  const exp = 'server/src/engine/exposure.ts';
+  const base = affEngineClient()[exp];
+  expectAff(await affScan({ [exp]: `import './Providers.js';\n${base}` }), 'C10-AFF-IMPORT', exp, '대소문자 다른 경로(대소문자 무시 FS 에서는 같은 파일 — 어느 OS 든 FAIL)');
+  expectAff(await affScan({ 'client/src/checklist/derive.ts': "export const all = import.meta.glob('../supply/*.tsx');\n" }), 'C10-AFF-IMPORT', 'client/src/checklist/derive.ts', 'import.meta.glob');
+  expectAff(await affScan({ 'server/src/d1.ts': 'export const h = (q, s) => { s.writeHead(302, { Location: q.query.to }); s.end(); };\n' }), 'C10-AFF-REDIRECT', 'server/src/d1.ts', 'writeHead Location 객체');
+  expectAff(await affScan({ 'server/src/d2.ts': 'export const h = (q, s) => s.status(302).set({ location: q.query.to }).end();\n' }), 'C10-AFF-REDIRECT', 'server/src/d2.ts', 'set({ location })');
+  expectAff(await affScan({ 'server/src/engine/providers.ts': 'export const 수수료율 = 0.03;\n' }), 'C10-AFF-FIELD', 'server/src/engine/providers.ts', '한글 식별자');
+  expectNoAff(await affScan({ 'server/src/prerender/x.ts': "export const NOTE = '일정액의 수수료를 제공받습니다.';\n" }), 'C10-AFF-FIELD', '고지 문구 문자열(식별자 아님)');
+  expectAff(scan(await makeRoot({ source: (s) => Object.assign(s, affEngineClient()), seed: (sd) => { sd['curated-products.json'][0].수수료 = 1; } })), 'C10-AFF-FIELD', null, '시드 한글 키');
+  expectAff(await affScan({ 'server/affiliate/coupang.json': JSON.stringify(affMap({ subId: 'rate=3.5% commission' })) }), 'C10-AFF-FIELD', 'server/affiliate/coupang.json', 'subId 에 수수료 정보 은닉');
+  const hiddenChild = NOTE_A.replace(AFF_NOTE, j('<span style="display:none">', AFF_NOTE, '</span>'));
+  expectAff(await affOut({ layerOpts: { noteA: hiddenChild } }), 'C10-AFF-OUT', OUT_PAGE, '숨긴 자식 span 으로 원문 일치 위장');
+  expectAff(await affOut({ layerOpts: { noteB: NOTE_B.replace('ws-aff-note"', 'ws-aff-note ws-tiny"') } }), 'C10-AFF-OUT', OUT_PAGE, '고지 B 에 다른 class(CSS 축소 통로)');
+  expectAff(await affOut({ extra: (o) => { o['index.html'] = o['index.html'].replace('<title>', '<meta http-equiv="refresh" content="0;url=/x"><title>'); } }), 'C10-AFF-OUT', 'client/dist/index.html', 'meta refresh');
+  expectAff(await affOut({ extra: (o) => { o['assets/index-abc.css'] = '.a{color:red}@media (min-width:1px){.ws-search .ws-aff-note{display:none}}'; } }), 'C10-AFF-OUT', 'client/dist/assets/index-abc.css', 'CSS 로 고지 숨김');
+  expectClean(await affOut({ extra: (o) => { o['assets/index-abc.css'] = '.ws-aff-note { color: var(--ws-ink-muted); margin: 0; }'; } }));
+});
+
+// ── 274 · C10-AFF 보강 — 260 QA(262b D3·D4·D5·D6) · Codex(1102_222214 MED 5·LOW 3) 재현 입력을 그대로 변이로, 정상 짝 1개 이상 ─────────
+//   각 변이는 260 코드에서 C10 findings 0 이던 입력이다(Codex 표·QA probe run.mjs P1·P2·P5·P7·P9).
+const REPO_ROOT = resolve(HERE, '..', '..');
+/** 규칙 FAIL 중 메시지에 needle 이 든 것이 있어야 한다(같은 규칙의 다른 이유로 통과하는 것을 막는다). */
+function expectAffMsg(res, rule, fileOrNull, needle, label) {
+  expectAff(res, rule, fileOrNull, label);
+  const hits = affFindings(res, rule).filter((f) => (fileOrNull === null || f.file === fileOrNull) && String(f.message).includes(needle));
+  assert.ok(hits.length > 0, `${label}: ${rule} 메시지에 「${needle}」 기대, 실제 ${JSON.stringify(affFindings(res, rule))}`);
+}
+
+test('274 ① import 간선: 삼항 안 비리터럴 import()·템플릿 보간 안 import() → FAIL, 메서드 정의·문자열 속 import 는 통과', async () => {
+  const exp = 'server/src/engine/exposure.ts';
+  const base = affEngineClient()[exp];
+  const bad = [
+    ['Codex 삼항 비리터럴', `${base}export const load = (p) => true ? import(p) : null;\n`],
+    ['삼항 리터럴', `${base}export const load = (c) => c ? import('./providers.js') : null;\n`],
+    ['Codex 템플릿 보간 안 import()', `${base}export const t = \`\${import('./providers.js')}\`;\n`],
+    ['보간 안 require', `${base}export const t = \`\${require('./search-links')}\`;\n`],
+    ['require 별칭', `${base}const r = require;\nexport const t = r('./providers.js');\n`],
+    ['createRequire', `import { createRequire } from 'node:module';\n${base}export const t = createRequire(import.meta.url)('./providers.js');\n`],
+    ['import type 질의(typeof import)', `${base}export type P = typeof import('./providers.js');\n`],
+  ];
+  for (const [label, text] of bad) expectAff(await affScan({ [exp]: text }), 'C10-AFF-IMPORT', exp, label);
+  // 276(Codex 재검증 MED 1): CJS helper 의 계산 멤버 module['require'] — 감시 루트 → helper.cjs(.cts) → providers
+  expectAffMsg(
+    await affScan({ [exp]: `import './helper.cjs';\n${base}`, 'server/src/engine/helper.cts': "export const p = module['require']('./providers.js');\n" }),
+    'C10-AFF-IMPORT', exp, '제휴 모듈에 닿음', "Codex module['require']",
+  );
+  const ok = [
+    ['메서드 정의 import(p) {} · 반환 타입 있는 메서드', `${base}export class C { import(p: string): string { return p; } }\nexport const o = { import(p) { return p; } };\n`],
+    ['삼항 안 문자열', `${base}export const s = (c) => c ? 'import("./providers.js")' : null;\n`],
+  ];
+  for (const [label, text] of ok) expectNoAff(await affScan({ [exp]: text }), 'C10-AFF-IMPORT', label);
+});
+
+test('274 ② 배럴 재수출 별칭·지역 상수·재수출 사슬·원본 폐포 → FAIL, 무관 별칭·타입 별칭은 통과', async () => {
+  const exp = 'server/src/engine/exposure.ts';
+  const idx = 'server/src/engine/index.ts';
+  const baseIdx = affEngineClient()[idx];
+  const base = affEngineClient()[exp];
+  const d = 'client/src/checklist/derive.ts';
+  const cases = [
+    ['Codex export { PROVIDERS as supplierConfig } from', { [idx]: `${baseIdx}export { PROVIDERS as supplierConfig } from './providers.js';\n`, [exp]: `import { supplierConfig } from './index.js';\n${base}` }, exp],
+    ['QA P1 export { buildSearchLinks as mk } from', { [idx]: `${baseIdx}export { buildSearchLinks as mk } from './search-links.js';\n`, [exp]: `import { mk } from './index.js';\n${base}` }, exp],
+    ['QA P2 export const mk = buildSearchLinks', { [idx]: `import { buildSearchLinks } from './search-links.js';\nexport const mk = buildSearchLinks;\n${baseIdx}`, [exp]: `import { mk } from './index.js';\n${base}` }, exp],
+    ['지역 상수가 감싼 값(export const mk = { f: inner })', { [idx]: `import { buildSearchLinks as b } from './search-links.js';\nconst inner = [b];\nexport const mk = { f: inner };\n${baseIdx}`, [exp]: `import { mk } from './index.js';\n${base}` }, exp],
+    ['재수출 사슬(index → export * hub → PROVIDERS as cfg)', { [idx]: `${baseIdx}export * from './hub.js';\n`, 'server/src/engine/hub.ts': "export { PROVIDERS as cfg } from './providers.js';\n", [exp]: `import { cfg } from './index.js';\n${base}` }, exp],
+    ['네임스페이스 재수출(export * as ns from providers)', { [idx]: `${baseIdx}export * as ns from './providers.js';\n`, [exp]: `import { ns } from './index.js';\n${base}` }, exp],
+    ['QA P5 helper → 배럴 {PROVIDERS as P}', { 'server/src/engine/helper.ts': "export { PROVIDERS as P } from './index.js';\n", 'server/src/engine/rules.ts': "import { P } from './helper.js';\nexport const evaluate = P;\n" }, 'server/src/engine/rules.ts'],
+    ['클라 @ws/engine 별칭 이름', { [idx]: `${baseIdx}export { buildSearchLinks as makeLinks } from './search-links.js';\n`, [d]: "import { makeLinks } from '@ws/engine';\nexport const x = [makeLinks];\n" }, d],
+    ['배럴 심볼 원본 파일의 폐포(hints.ts → search-links)', { [idx]: `${baseIdx}export { hint } from './hints.js';\n`, 'server/src/engine/hints.ts': "import { buildSearchLinks } from './search-links.js';\nexport const hint = () => buildSearchLinks;\n", [d]: "import { hint } from '@ws/engine';\nexport const x = [hint];\n" }, d],
+  ];
+  for (const [label, over, at] of cases) expectAff(await affScan(over), 'C10-AFF-IMPORT', at, label);
+  const sl = "import { PROVIDERS } from './providers.js';\nexport interface SearchLink { href: string }\nexport const buildSearchLinks = () => PROVIDERS;\n";
+  const ok = [
+    ['무관 별칭(ORDER_HINTS as HINTS)', { [idx]: `${baseIdx}export { ORDER_HINTS as HINTS } from './domain.js';\n`, [exp]: `import { HINTS } from './index.js';\n${base}` }],
+    ['타입 별칭(export type { SearchLink as SL })', { 'server/src/engine/search-links.ts': sl, [idx]: `${baseIdx}export type { SearchLink as SL } from './search-links.js';\n`, [d]: "import { ORDER_HINTS, type SL } from '@ws/engine';\nexport type Y = SL;\nexport const x = [ORDER_HINTS];\n" }],
+    ['배럴 지역 상수(제휴 무관)', { [idx]: `import { ORDER_HINTS } from './domain.js';\nexport const LOCAL = ORDER_HINTS.length;\n${baseIdx}`, [d]: "import { LOCAL } from '@ws/engine';\nexport const x = [LOCAL];\n" }],
+  ];
+  for (const [label, over] of ok) expectNoAff(await affScan(over), 'C10-AFF-IMPORT', label);
+});
+
+test('274 ③ 호스트 인코딩·상수 결합: 이스케이프·결합·상수 보간 → FAIL, 동적 보간·일반 검색 호스트는 통과', async () => {
+  const LC = j('coupa', 'ng.com');
+  const bad = [
+    ['Codex \\x6c', 'server/src/h1.ts', j("export const u = '", HTTPS, '\\x6cink.', LC, "/a/FAKE0001';\n")],
+    ['\\u006c', 'client/src/h2.ts', j("export const u = '", HTTPS, '\\u006cink.', LC, "/a/';\n")],
+    ['\\u{6c}', 'client/src/h3.ts', j("export const u = '\\u{6c}ink.", LC, "';\n")],
+    ['8진 \\154', 'client/src/h4.ts', j("export const u = '\\154ink.", LC, "';\n")],
+    ['QA P7 인접 리터럴 + 결합', 'server/src/engine/rules.ts', j("export const evaluate = '", HTTPS, "link.' + '", LC, "/a/';\n")],
+    ['여러 줄·주석 사이 결합', 'client/src/h5.ts', j("export const u = '", HTTPS, "link' /* x */ +\n  '.' + ('", LC, "');\n")],
+    ['QA P9 상수 보간 템플릿', 'server/src/engine/rules.ts', j('export const evaluate = `', HTTPS, "link${'.'}", LC, '/a/`;\n')],
+    ['보간 안 상수 결합', 'client/src/h6.ts', j('export const u = `', HTTPS, "${'li' + 'nk.'}", LC, '`;\n')],
+    ['시드 JSON \\u006c', 'server/seed/extra.json', j('[{"id":"x","note":"', HTTPS, '\\u006cink.', LC, '/a/FAKE0001"}]')],
+    ['퍼센트 %6c', 'client/src/h7.ts', j("export const u = '", HTTPS, '%6cink.', LC, "';\n")],
+    ['엔티티 &#108;', 'client/src/h8.tsx', j('export const A = () => <a href="', HTTPS, '&#108;ink.', LC, '/a/x">x</a>;\n')],
+  ];
+  for (const [label, file, text] of bad) expectAff(await affScan({ [file]: text }), 'C10-AFF-HOST', file, label);
+  const ok = [
+    ['동적 보간(알려진 한계 — 산출물 ⑦이 막음)', 'client/src/k1.ts', j('export const u = (h) => `', HTTPS, '${h}.', LC, '/a/`;\n')],
+    ['일반 검색 결과 링크 결합', 'client/src/k2.ts', j("export const u = (k) => '", HTTPS, "www.coupang.com/np/search?q=' + encodeURIComponent(k);\n")],
+    ['link 다른 호스트 결합', 'client/src/k3.ts', "export const u = 'link' + '.example.com';\n"],
+  ];
+  for (const [label, file, text] of ok) expectNoAff(await affScan({ [file]: text }), 'C10-AFF-HOST', label);
+});
+
+test('274 ④ 리다이렉트 우회: 계산 멤버·이스케이프 헤더·헤더 이름 식·메서드 참조 → FAIL, 상수 헤더·Map.set·내부 리터럴은 통과', async () => {
+  const bad = [
+    ["Codex s['redirect']", "export const h = (q, s) => s['redirect'](q.query.to);\n"],
+    ['계산 멤버 결합', 'export const h = (q, s) => s["redi" + "rect"](302, q.query.to);\n'],
+    ["계산 멤버 이스케이프 s['loc\\u0061tion']", "export const h = (q, s) => s['loc\\u0061tion'](q.query.to).end();\n"],
+    ["Codex setHeader('Loc\\x61tion')+statusCode", "export const h = (q, s) => { s.setHeader('Loc\\x61tion', q.query.to); s.statusCode = 302; };\n"],
+    ['계산 멤버 setHeader', "export const h = (q, s) => s['setHeader']('Location', q.query.to);\n"],
+    ['헤더 이름 식', 'export const h = (q, s, k) => s.setHeader(k, q.query.to);\n'],
+    ['writeHead 헤더 변수', 'export const h = (q, s, hd) => s.writeHead(302, hd);\n'],
+    ['writeHead 계산 키', "export const h = (q, s) => s.writeHead(302, { ['Loc' + 'ation']: q.query.to });\n"],
+    ['메서드 참조', 'export const h = (q, s) => { const r = s.redirect; return r(q.query.to); };\n'],
+    ['.call', 'export const h = (q, s) => s.redirect.call(s, q.query.to);\n'],
+    ['이스케이프 외부 URL', "export const h = (q, s) => s.redirect('\\x2f\\x2fevil.example');\n"],
+  ];
+  for (const [label, text] of bad) expectAff(await affScan({ 'server/src/rr.ts': text }), 'C10-AFF-REDIRECT', 'server/src/rr.ts', label);
+  const ok = [
+    ['상수 헤더', "export const h = (q, s) => { s.setHeader('Content-Type', 'text/plain'); s.setHeader('X-A', q.v); };\n"],
+    ['Map.set·URLSearchParams.append', 'export const m = new Map();\nexport const put = (k, v, u) => { m.set(k, v); u.append(k, v); };\n'],
+    ['req.header 읽기', "export const a = (req, k) => [req.header('authorization'), req.header(k)];\n"],
+    ['계산 멤버 내부 리터럴', "export const ok = (q, s) => s['redirect'](303, '/save?ok=1');\n"],
+  ];
+  for (const [label, text] of ok) expectNoAff(await affScan({ 'server/src/rr.ts': text }), 'C10-AFF-REDIRECT', label);
+});
+
+test('274 ⑤ 출력: 버튼 style·속성·자식 차이, 고지 일반 선택자·조상·인라인 style·<style> 숨김 → FAIL, 실제 클라 CSS 는 통과', async () => {
+  const R = 'rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"';
+  const css = (text) => ({ extra: (o) => { o['assets/index-abc.css'] = text; } });
+  const cases = [
+    ['Codex 쿠팡 a style="font-size:64px"', { layerOpts: { link: affA(`style="font-size:64px" ${R}`) } }, '상인 링크와 다르다'],
+    ['추가 data 속성', { layerOpts: { link: affA(`data-promo="1" ${R}`) } }, '상인 링크와 다르다'],
+    ['rel 의 sponsored 밖 토큰 차이', { layerOpts: { link: affA('rel="sponsored nofollow noopener noreferrer ugc" aria-describedby="ws-aff-a-1"') } }, 'rel'],
+    ['자식 <strong>', { layerOpts: { link: j('<a href="', AFF_HREF, '" target="_blank" ', R, '><strong>쿠팡에서 찾기</strong></a>') } }, '자식 구조'],
+    ['Codex CSS p { display:none }', css('p { display:none }'), '고지'],
+    ['조상 .ws-search nowrap', css('.ws-search{white-space:nowrap}'), '고지'],
+    ['aside p font-size 0', css('aside p{font-size:0}'), '고지'],
+    ['#ws-layer > p opacity 0', css('#ws-layer > p{opacity:0}'), '고지'],
+    ['속성 선택자 [data-ws-aff] clip', css('[data-ws-aff]{clip-path:inset(50%)}'), '고지'],
+    ['버튼 차등 a[rel~=sponsored]', css('a[rel~="sponsored"]{font-size:2em}'), '구별'],
+    ['버튼 차등 [aria-describedby]', css('.ws-search [aria-describedby]{padding:2rem}'), '구별'],
+    ['해석 불가 선택자 + 숨김', css('%x p{display:none}'), '판정 불가'],
+    ['인라인 <style>', { extra: (o) => { o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('</head>', '<style>p{visibility:hidden}</style></head>'); } }, '고지'],
+    ['고지 인라인 style(숨김 아님)', { layerOpts: { noteA: NOTE_A.replace('<p ', '<p style="color:#eee" ') } }, '인라인 style'],
+    // 276: :not 을 평가하게 된 뒤에도 — 고지를 빼지 않는 :not·평가 못 하는 인수는 여전히 FAIL
+    [':not(.x) 는 고지를 빼지 않음', css('p:not(.ws-x){display:none}'), '고지'],
+    [':not(:hover) 는 확실히 빼지 못함', css('p:not(:hover){display:none}'), '고지'],
+    [':not(결합자 인수) 는 알 수 없음', css('p:not(div > p){display:none}'), '고지'],
+  ];
+  for (const [label, opts, needle] of cases) expectAffMsg(await affOut(opts), 'C10-AFF-OUT', null, needle, label);
+  // 정상 짝: 실제 클라 CSS 전부(client/src/styles/*.css)를 산출물 CSS 로 — 고지·버튼 규칙 0
+  // 275 A-1: client/src 아래 *.css 전부(styles/ 밖 animal/picker.css·checklist/checklist.css 포함) — 목록을 손으로 두지 않는다
+  const { walk } = await import('../lib/files.mjs');
+  const cssFiles = walk(join(REPO_ROOT, 'client', 'src')).filter((f) => f.endsWith('.css'));
+  assert.ok(cssFiles.some((f) => f.replace(/\\/g, '/').endsWith('client/src/animal/picker.css')) && cssFiles.some((f) => f.replace(/\\/g, '/').endsWith('client/src/checklist/checklist.css')), `styles 밖 CSS 누락: ${cssFiles.length}개`);
+  const real = cssFiles.map((f) => readFileSync(f, 'utf8')).join('\n');
+  assert.ok(real.length > 1000, '실제 클라 CSS 를 읽지 못함');
+  expectNoAff(await affOut(css(real)), 'C10-AFF-OUT', `실제 클라 CSS ${cssFiles.length}개`);
+  // 275 A-1 오탐 회귀: Vite 가 줄인 번들 형태(@keyframes 의 from → 0%)·벤더 접두·@font-face 는 요소 선택자가 아니다
+  expectNoAff(
+    await affOut(css('@keyframes k{0%{opacity:0}to{opacity:1}}@-webkit-keyframes w{0%{opacity:0}50%{visibility:hidden}100%{opacity:1}}@font-face{font-family:x;font-display:swap;src:url(/f.woff2)}@media (min-width:1px){@keyframes m{from{opacity:0}}}')),
+    'C10-AFF-OUT', '줄인 번들 @keyframes·@font-face',
+  );
+  // 짝: at-rule 을 지운 뒤에도 그 뒤 규칙은 그대로 검사한다
+  expectAffMsg(await affOut(css('@keyframes k{0%{opacity:0}to{opacity:1}}p{display:none}')), 'C10-AFF-OUT', null, '고지', '@keyframes 뒤 일반 규칙');
+  expectNoAff(await affOut(css('.ws-card p{display:none}\n.ws-search a{color:red}\n.ws-search a::after{content:"";display:none}\n.ws-search a:focus-visible{outline:2px solid}\n')), 'C10-AFF-OUT', '고지 밖 숨김·버튼 공통 규칙');
+  // 276 오탐 회귀(Codex 재검증 LOW 5): 고지를 빼는 :not 규칙 — 숨김 선언이 있어도 고지에 적용되지 않는다
+  expectNoAff(
+    await affOut(css('p:not(.ws-aff-note){display:none}\np:not([data-ws-aff]){visibility:hidden}\n.ws-search p:not(.ws-t-meta, .ws-aff-note){white-space:nowrap}\n')),
+    'C10-AFF-OUT', '고지 제외 :not 규칙',
+  );
+});
+
+test('274 ⑥ 문법 오류·분석 실패 fail-closed: 감시 대상·전이 파일·배럴 구문 오류, 깊은 중첩 → FAIL, 감시 밖 파일은 무관', async () => {
+  const exp = 'server/src/engine/exposure.ts';
+  const base = affEngineClient()[exp];
+  expectAffMsg(await affScan({ [exp]: `${base}export const broken = ;\n` }), 'C10-AFF-IMPORT', exp, '구문 오류', 'Codex export const broken = ;');
+  expectAffMsg(await affScan({ 'server/src/engine/domain.ts': 'export const ORDER_HINTS = [1;\n' }), 'C10-AFF-IMPORT', 'server/src/engine/domain.ts', '구문 오류', '전이 파일 구문 오류');
+  expectAffMsg(await affScan({ 'server/src/engine/index.ts': `${affEngineClient()['server/src/engine/index.ts']}export const = 1;\n` }), 'C10-AFF-IMPORT', 'server/src/engine/index.ts', '구문 오류', '배럴 구문 오류(클라 derive 가 배럴 심볼 원본 추적)');
+  expectAffMsg(await affScan({ [exp]: `${base}${'import(a '.repeat(20000)}\n` }), 'C10-AFF-IMPORT', exp, '구문', '깊은 중첩(분석기 RangeError)');
+  expectNoAff(await affScan({ 'server/src/other/x.ts': 'export const broken = ;\n' }), 'C10-AFF-IMPORT', '감시 밖 파일 구문 오류');
+});
+
+test('274 ⑦ 맵 규약 = 로더(prerender/affiliate.ts parseAffiliateMapText) — 같은 입력 짝 시험 + 스캐너 경로', async () => {
+  const { mapProblems, jsonDuplicateKeys } = await import('../lib/rules-affiliate.mjs');
+  const S = JSON.stringify;
+  const two = (a, b) => {
+    const m = affMap();
+    m.entries = [{ keyword: '햄스터 케이지', landingUrl: CP_SEARCH('햄스터 케이지'), code: a }, { keyword: '햄스터 베딩', landingUrl: CP_SEARCH('햄스터 베딩'), code: b }];
+    return m;
+  };
+  const cases = [
+    ['정상', S(affMap()), 'accept'],
+    ['정상 빈 맵', S(affMap({ subId: '', entries: [] })), 'accept'],
+    ['정상 두 항목', S(two('FAKE0001', 'FAKE0002')), 'accept'],
+    ['Codex 코드 중복', S(two('FAKE0001', 'FAKE0001')), 'reject'],
+    ['Codex 2026-02-30', S(affMap({ generatedAt: '2026-02-30' })), 'reject'],
+    ['Codex 시각 형식', S(affMap({ generatedAt: '2026-11-02T00:00:00Z' })), 'reject'],
+    ['원문 중복 키(최상위)', S(affMap()).replace('{"v":1', '{"v":1,"v":1'), 'reject'],
+    ['원문 중복 키(항목)', S(affMap()).replace(`"code":"${AFF_CODE}"`, `"code":"${AFF_CODE}","code":"${AFF_CODE}"`), 'reject'],
+    ['키워드 중복', (() => { const m = affMap(); m.entries.push({ ...m.entries[0], code: 'FAKE0002' }); return S(m); })(), 'reject'],
+    ['최상위 추가 키', S(affMap({ rate: 1 })), 'reject'],
+    ['항목 추가 키', S(affMap({}, { price: 1 })), 'reject'],
+    ['subId 누락', (() => { const m = affMap(); delete m.subId; return S(m); })(), 'reject'],
+    ['v 2', S(affMap({ v: 2 })), 'reject'],
+    ['source API', S(affMap({ source: 'API' })), 'reject'],
+    ['provider NAVER', S(affMap({ provider: 'NAVER' })), 'reject'],
+    ['subId 형식', S(affMap({ subId: 'a b' })), 'reject'],
+    ['landingUrl 불일치', S(affMap({}, { landingUrl: CP_SEARCH('다른') })), 'reject'],
+    ['keyword 비정규화', S(affMap({}, { keyword: ' 햄스터 케이지' })), 'reject'],
+    ['keyword 빈 값', S(affMap({}, { keyword: '', landingUrl: CP_SEARCH('') })), 'reject'],
+    ['code 형식', S(affMap({}, { code: 'ab' })), 'reject'],
+    ['__proto__', S(affMap()).replace('{"v":1', '{"__proto__":{"x":1},"v":1'), 'reject'],
+    ['entries 객체', S(affMap({ entries: {} })), 'reject'],
+    ['최상위 배열', '[]', 'reject'],
+    ['문법 오류', '{"v":1,', 'reject'],
+    ['BOM(276 Codex 재검증 LOW 7)', String.fromCharCode(0xfeff) + S(affMap()), 'reject'],
+    ['BOM 빈 맵', String.fromCharCode(0xfeff) + S(affMap({ subId: '', entries: [] })), 'reject'],
+  ];
+  // 로더 쪽 — tsx 로 실제 TS 모듈을 적재(같은 입력 원문)
+  const dir = mkdtempSync(join(tmpdir(), 'aff-pair-'));
+  made.push(dir);
+  const runner = join(dir, 'pair.mjs');
+  writeFileSync(runner, [
+    "import { pathToFileURL } from 'node:url';",
+    'const m = await import(pathToFileURL(process.argv[2]).href);',
+    "let s = ''; for await (const c of process.stdin) s += c;",
+    'const raws = JSON.parse(s);',
+    "const text = typeof m.parseAffiliateMapText === 'function';",
+    "const out = raws.map((r) => { try { text ? m.parseAffiliateMapText(r) : m.parseAffiliateMap(JSON.parse(r)); return 'accept'; } catch { return 'reject'; } });",
+    'process.stdout.write(JSON.stringify({ text, out }));',
+  ].join('\n'));
+  const r = spawnSync(process.execPath, ['--import', 'tsx', runner, join(REPO_ROOT, 'server', 'src', 'prerender', 'affiliate.ts')], { cwd: REPO_ROOT, input: JSON.stringify(cases.map((c) => c[1])), encoding: 'utf8' });
+  assert.equal(r.status, 0, `로더 짝 실행 실패: ${String(r.stderr).slice(0, 400)}`);
+  const loader = JSON.parse(r.stdout);
+  assert.ok(loader.text, 'prerender/affiliate.ts 에 parseAffiliateMapText(원문 검사 — 273) 가 없다');
+  const rows = [];
+  cases.forEach(([label, raw, want], i) => {
+    const scanner = mapProblems(raw, 'coupang.json').length === 0 ? 'accept' : 'reject';
+    rows.push(`${label}: 로더 ${loader.out[i]} · 스캐너 ${scanner}`);
+    assert.equal(loader.out[i], want, `${label}: 로더 기대 ${want}`);
+    assert.equal(scanner, loader.out[i], `${label}: 스캐너(${scanner}) ≠ 로더(${loader.out[i]})`);
+  });
+  process.stdout.write(`# 274 맵 규약 짝(로더 parseAffiliateMapText ↔ 스캐너 mapProblems)\n${rows.map((x) => `#   ${x}`).join('\n')}\n`);
+  assert.deepEqual(jsonDuplicateKeys('{"a":1,"b":{"a":2},"c":[{"d":1},{"d":2}]}'), [], '다른 객체의 같은 키는 중복 아님');
+  assert.deepEqual(jsonDuplicateKeys('{"a":1,"\\u0061":2}'), ['a'], '이스케이프된 같은 키');
+  // 스캐너 경로(파일) — C10-AFF-FIELD
+  const M = 'server/affiliate/coupang.json';
+  for (const label of ['Codex 코드 중복', 'Codex 2026-02-30', 'Codex 시각 형식', '원문 중복 키(최상위)', 'BOM 빈 맵']) {
+    expectAff(await affScan({ [M]: cases.find((c) => c[0] === label)[1] }), 'C10-AFF-FIELD', M, label);
+  }
+  expectClean(await affScan({ [M]: S(two('FAKE0001', 'FAKE0002')) }));
+});
+
+test('274 ⑧ 전체 HTML 검사(checkHtmlAff) 선형 — 블록 배수 대비 시간 비율 단언', async () => {
+  const { checkHtmlAff } = await import('../lib/rules-affiliate.mjs');
+  const blockHtml = (i) => [
+    '<aside class="ws-layer" data-ws-layer="L4">', NOTE_B,
+    '<div class="ws-search">', NOTE_A.replace('ws-aff-a-1', `ws-aff-a-${i}`),
+    affA(`rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-${i}"`), NAVER_A, '</div></aside>',
+  ].join('');
+  const html = (n) => page(Array.from({ length: n }, (_, i) => blockHtml(i)).join(''), affWire());
+  const time = (h) => {
+    let best = Infinity;
+    for (let k = 0; k < 3; k++) {
+      const t = process.hrtime.bigint();
+      checkHtmlAff(h, 'x.html', false, () => {});
+      best = Math.min(best, Number(process.hrtime.bigint() - t) / 1e6);
+    }
+    return best;
+  };
+  time(html(50)); // 워밍업
+  const sizes = [200, 400, 800, 1600];
+  const ms = sizes.map((n) => time(html(n)));
+  const row = sizes.map((n, k) => `${n}=${ms[k].toFixed(1)}ms`).join(' / ');
+  process.stdout.write(`# 274 checkHtmlAff 블록 수별 최소 시간: ${row} (비율 ${(ms[3] / Math.max(ms[0], 1)).toFixed(1)}배, 입력 8배)\n`);
+  // 입력 8배: 선형 ≈ 8배, 제곱 ≈ 64배 — 24배 미만이면 선형 근사로 본다(260 의 800 블록 1,937ms 는 이 기준에서 FAIL).
+  assert.ok(ms[3] < Math.max(ms[0], 1) * 24, row);
+});
+
+test('274 ⑨ 감시 목록(QA D5)·별칭 표(QA D6): 265 신규 파일 도달 FAIL, 표 밖 별칭·#·~ 지정자 FAIL, 실제 tsconfig·vite 별칭 = ALIASES', async () => {
+  const { ALIASES, CLIENT_LINK_COMPONENTS, readAliasConfig } = await import('../lib/rules-affiliate.mjs');
+  assert.ok(CLIENT_LINK_COMPONENTS.includes('client/src/supply/searchLinks.ts') && CLIENT_LINK_COMPONENTS.includes('client/src/supply/AffNote.tsx'), 'D5 목록');
+  const extra = { 'client/src/supply/searchLinks.ts': 'export const renderSearchLinks = (x) => x;\n', 'client/src/supply/AffNote.tsx': 'export default function AffNote() { return null; }\n' };
+  expectAffMsg(await affScan({ ...extra, 'client/src/home/HomeB.tsx': "import { renderSearchLinks } from '../supply/searchLinks';\nexport default function HomeB() { return renderSearchLinks; }\n" }), 'C10-AFF-IMPORT', 'client/src/home/HomeB.tsx', '상인 링크', 'D5 searchLinks.ts');
+  expectAffMsg(await affScan({ ...extra, 'client/src/checklist/setupStore.ts': "import AffNote from '../supply/AffNote';\nexport const s = AffNote;\nexport type S = 1;\n" }), 'C10-AFF-IMPORT', 'client/src/checklist/setupStore.ts', '상인 링크', 'D5 AffNote.tsx');
+  // D6 — 실제 저장소 설정 자동 대조
+  const real = readAliasConfig(REPO_ROOT);
+  const table = (file) => Object.fromEntries(real.filter((a) => a.file === file).map((a) => [a.key, a.target]));
+  assert.deepEqual(real.filter((a) => a.problem), [], '실제 별칭 설정 해석 불가 항목');
+  assert.deepEqual(table('client/tsconfig.json'), { ...ALIASES }, 'client/tsconfig.json paths ≠ ALIASES');
+  assert.deepEqual(table('client/vite.config.ts'), { ...ALIASES }, 'client/vite.config.ts resolve.alias ≠ ALIASES');
+  assert.deepEqual(real.filter((a) => a.file !== 'client/tsconfig.json' && a.file !== 'client/vite.config.ts'), [], '다른 tsconfig 에 paths');
+  // D6 — 픽스처: 표 밖 별칭·대상 불일치·해석 불가 형식 FAIL, 실제 설정 복사본은 통과
+  const tsRaw = readFileSync(join(REPO_ROOT, 'client', 'tsconfig.json'), 'utf8');
+  const viteRaw = readFileSync(join(REPO_ROOT, 'client', 'vite.config.ts'), 'utf8');
+  const TS = 'client/tsconfig.json';
+  const VITE = 'client/vite.config.ts';
+  expectAffMsg(await affScan({ [TS]: tsRaw.replace('"paths": {', '"paths": {\n      "~aff": ["../server/src/engine/providers.ts"],') }), 'C10-AFF-IMPORT', TS, '표 밖 별칭', 'tsconfig 표 밖 별칭');
+  expectAffMsg(await affScan({ [VITE]: viteRaw.replace('alias: {', "alias: {\n      '#aff': fromHere('../server/src/engine/providers.ts'),") }), 'C10-AFF-IMPORT', VITE, '표 밖 별칭', 'vite 표 밖 별칭');
+  expectAffMsg(await affScan({ [VITE]: viteRaw.replace("'@ws/copy': fromHere('../server/src/prerender/copy.ts')", "'@ws/copy': fromHere('../server/src/engine/providers.ts')") }), 'C10-AFF-IMPORT', VITE, '다르다', 'vite 대상 불일치');
+  expectAffMsg(await affScan({ [VITE]: viteRaw.replace('alias: {', "alias: [{ find: 'x', replacement: 'y' }], aliasOld: {") }), 'C10-AFF-IMPORT', VITE, '객체 리터럴이 아니다', 'vite 배열 alias');
+  const d = 'client/src/checklist/derive.ts';
+  expectAff(await affScan({ [d]: "import { x } from '~aff/links';\nexport const y = x;\n" }), 'C10-AFF-IMPORT', d, '~ 지정자');
+  expectAff(await affScan({ [d]: "import { x } from '#aff';\nexport const y = x;\n" }), 'C10-AFF-IMPORT', d, '# 지정자(package imports)');
+  expectNoAff(await affScan({ [TS]: tsRaw, [VITE]: viteRaw }), 'C10-AFF-IMPORT', '실제 tsconfig·vite 복사본');
 });

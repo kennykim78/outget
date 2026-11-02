@@ -9,6 +9,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { formatIssue, isIsoDate } from '../seed/common.js';
 import { asSeedBundle, readSeedDirRaw } from '../seed/read.js';
+import { affiliateGate, affiliateMapWarnings, parseAffiliateMapText, toAffiliateLinkMap, type AffiliateLinkMap, type AffiliateMapFile } from './affiliate.js';
 import { validateSeed } from '../seed/validate.js';
 import { seedDigest } from './digest.js';
 import { loadMascots } from './mascot.js';
@@ -39,9 +40,11 @@ export const DEFAULT_PUBLIC = resolve(HERE, '..', '..', '..', 'client', 'public'
 /** 마스코트 원본(리포 디자인 자산, 스펙22 §2.16) — 히어로·컨텍스트 헤더 인라인 SVG. */
 export const DEFAULT_MASCOTS = resolve(HERE, '..', '..', '..', 'docs', 'design', 'mascots');
 const DEFAULT_ORIGIN = 'http://localhost:3001';
+/** 259 제휴 링크 코드 맵(운영자 수동 생성, 커밋되는 ops 데이터). 게이트가 켜졌을 때만 읽는다. */
+export const DEFAULT_AFFILIATE_MAP = resolve(HERE, '..', '..', 'affiliate', 'coupang.json');
 
 const USAGE =
-  'usage: prerender [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now]';
+  'usage: prerender [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now] [--affiliate-map <file>]';
 
 interface Args {
   seedDir: string;
@@ -49,12 +52,14 @@ interface Args {
   publicDir: string;
   origin: string | null;
   now: string | null;
+  /** 259 제휴 맵 경로(기본 DEFAULT_AFFILIATE_MAP). 게이트 꺼짐이면 읽지 않는다. */
+  affiliateMap: string;
   /** 테스트·재현용: 운영(NODE_ENV=production)에서도 오늘(서울) 아닌 --now 허용(S-R4 L-B). */
   allowPastNow: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args | string {
-  const args: Args = { seedDir: DEFAULT_SEED_DIR, out: DEFAULT_OUT, publicDir: DEFAULT_PUBLIC, origin: null, now: null, allowPastNow: false };
+  const args: Args = { seedDir: DEFAULT_SEED_DIR, out: DEFAULT_OUT, publicDir: DEFAULT_PUBLIC, origin: null, now: null, allowPastNow: false, affiliateMap: DEFAULT_AFFILIATE_MAP };
   for (let i = 0; i < argv.length; i++) {
     const raw = argv[i];
     if (raw === '--allow-past-now') {
@@ -79,6 +84,9 @@ function parseArgs(argv: readonly string[]): Args | string {
         break;
       case '--site-origin':
         args.origin = v;
+        break;
+      case '--affiliate-map':
+        args.affiliateMap = resolve(v);
         break;
       case '--now':
         if (!isIsoDate(v)) return `--now 는 YYYY-MM-DD: ${v}`;
@@ -227,11 +235,36 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
     return 2;
   }
 
+  // 259 제휴 게이트(기본 꺼짐): production ∧ WS_AFFILIATE_PROVIDERS ∋ COUPANG ∧ origin ∈ WS_AFFILIATE_ORIGINS.
+  //   꺼짐이면 맵을 읽지 않는다 — 산출물은 제휴 코드 이전과 바이트 동일. 켜짐인데 맵이 없거나 무효면 입력 오류(exit 2). 네트워크 0.
+  const gate = affiliateGate(io.env, origin, production);
+  let affFile: AffiliateMapFile | null = null;
+  let affiliate: AffiliateLinkMap | undefined;
+  if (gate.on) {
+    let text: string;
+    try {
+      text = readFileSync(args.affiliateMap, 'utf8');
+      JSON.parse(text);
+    } catch {
+      io.stderr(`prerender: 제휴 게이트 켜짐인데 맵을 읽을 수 없다(없음·JSON 아님): ${args.affiliateMap}`);
+      return 2;
+    }
+    try {
+      affFile = parseAffiliateMapText(text); // 273: 원문 중복 키까지 거부
+    } catch (e) {
+      io.stderr(`prerender: ${(e as Error).message}`);
+      return 2;
+    }
+    affiliate = toAffiliateLinkMap(affFile);
+  } else if ((io.env.WS_AFFILIATE_PROVIDERS ?? '').trim() !== '') {
+    io.stderr(`prerender: 제휴 꺼짐(${gate.reason})`);
+  }
+
   let b: SiteBuild;
   try {
     // G-4: 지도 키는 존재 여부만 넘긴다(값은 프리렌더 산출물에 들어가지 않는다).
     const vetMap = (io.env.VITE_NAVER_MAP_CLIENT_ID ?? '').trim() !== '';
-    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots, vetMap, production });
+    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots, vetMap, production, affiliate });
   } catch (e) {
     io.stderr(`prerender: ${(e as Error).message}`);
     return 1;
@@ -264,6 +297,13 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
     }
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, content);
+  }
+
+  if (affFile !== null) {
+    const keywords = new Set(b.model.types.flatMap((t) => t.requirements.map((r) => r.pub.searchKeyword)));
+    for (const w of affiliateMapWarnings(affFile, keywords, asOf)) io.stderr(`prerender: ${w}`);
+    const matched = affFile.entries.filter((e) => keywords.has(e.keyword)).length;
+    io.stdout(`prerender — affiliate COUPANG on, map entries ${affFile.entries.length}, matched ${matched}/${keywords.size} keywords`);
   }
 
   const pages = b.routes.filter((r) => r.kind !== 'NOT_FOUND').length;

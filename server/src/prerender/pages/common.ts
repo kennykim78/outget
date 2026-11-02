@@ -253,6 +253,11 @@ export function externalLink(href: string, text: string): string {
   return `<a href="${a(href)}" target="_blank" rel="noopener noreferrer nofollow">${h(text)}<span class="ws-visually-hidden">${h(` ${COPY.a11y.newWindow}`)}</span></a>`;
 }
 
+/** 259 제휴 링크(111/261 §1) — externalLink 와 라벨·새 창 안내 같고 rel 에 sponsored, 고지 A 를 aria-describedby 로 잇는다. */
+export function affiliateLink(href: string, text: string, describedBy: string): string {
+  return `<a href="${a(href)}" target="_blank" rel="sponsored nofollow noopener noreferrer" aria-describedby="${a(describedBy)}">${h(text)}<span class="ws-visually-hidden">${h(` ${COPY.a11y.newWindow}`)}</span></a>`;
+}
+
 // ── 병원 카드(G-4, 스펙33 §4 VetCard) — /vet·/vet/{region}·타입 홈 ④ 공용 ─────────────
 /**
  * li.ws-vet: 병원명 → 확인 배지(verifiedAt 있을 때 "✓ 전화 확인 YYYY.MM") → 주소 → 전화번호 meta(DR m-5) → 진료 동물(노출 타입 표시명만, 원시 id 0)

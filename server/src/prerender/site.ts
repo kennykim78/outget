@@ -1,7 +1,7 @@
 // 사이트 빌드(메모리) — 시드 묶음 + client/dist/index.html 템플릿 → 파일 목록. 디스크 쓰기는 F3 cli.ts.
 //   결정론: 같은 입력이면 같은 바이트(빌드 시각·난수 없음, D19). seedDigest 는 호출부가 계산해 넘긴다(lane E 계약).
 import { createHash } from 'node:crypto';
-import { encodeWsPage, type PublicCatalog, type RouteKind, type SeedBundle, type WsLayer, type WsPageData } from '../engine/index.js';
+import { encodeWsPage, toWsPageV1, type AffiliateCodes, type PublicCatalog, type RouteKind, type SeedBundle, type WsLayer, type WsPageData } from '../engine/index.js';
 import { jsonForScript } from './html.js';
 import { projectSite, type SiteModel } from './project.js';
 import { planRoutes, type RoutePlan } from './routes.js';
@@ -28,10 +28,18 @@ export interface BuildSiteOptions {
   /** /vet 지도 레이아웃 예약(G-4): 빌드 시 지도 키가 "있는지"만. 키 값은 받지도 싣지도 않는다. 기본 false(목록 전용). */
   vetMap?: boolean;
   /**
-   * ws-data 와이어 버전(기본 2 = engine/ws-wire encodeWsPage — searchLinks 제거·출처 표). 1 = 메모리 객체 그대로(구 형식).
+   * ws-data 와이어 버전(기본 2 = engine/ws-wire encodeWsPage — searchLinks 제거·출처 표, 제휴 링크가 있는 페이지는 3).
+   *   1 = 구 형식(engine/ws-wire toWsPageV1 — 메모리 객체에서 SEARCH 링크의 kind 키만 뺀 것, 273). 제휴 꺼짐이면 제휴 코드 이전 v1 바이트와 같다
+   *   (fixtures/affiliate/off-baseline-v1.sha256.json). 메모리 객체 그대로가 아니다 — 259 의 kind:'SEARCH' 는 v1 에 싣지 않는다.
    *   1 은 구·신 빌드 대조 테스트와 긴급 롤백용 — ws-data 밖 HTML 바이트는 두 값에서 같다.
    */
   wsDataWire?: 1 | 2;
+  /**
+   * 259 제휴 링크 맵(검색어 → 공급자 코드, prerender/affiliate.ts toAffiliateLinkMap). 없으면 꺼짐 — 산출물은 제휴 코드 이전과 바이트 동일.
+   *   cli.ts 는 게이트(affiliateGate)가 켜졌을 때만 넘긴다. 링크 href·고지에만 쓰이고 노출·순서에는 영향 0(불변식 ③).
+   *   와이어: 제휴 링크가 있는 페이지만 v3(aff), 나머지는 v2 그대로.
+   */
+  affiliate?: ReadonlyMap<string, AffiliateCodes>;
   /**
    * 운영 빌드(NODE_ENV=production 프리렌더, cli.ts)면 true → manifest.mode 'production'. 기본 false('development').
    *   compliance C9-PRIVACY 가 이 값으로 /privacy 자리표시({{KENNY:})를 FAIL(운영)·WARN(개발)으로 가른다 — 'development' 가 아니면 운영으로 본다.
@@ -132,7 +140,7 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   if (!/^[0-9a-f]{64}$/.test(opts.seedDigest)) throw new Error('site: seedDigest 는 sha256 hex 64자');
   const origin = normalizeOrigin(opts.origin);
   const siteIndexable = opts.indexable === true;
-  const model = projectSite(seed, opts.asOf);
+  const model = projectSite(seed, opts.asOf, opts.affiliate);
   const routes = planRoutes(model);
 
   const catalog: PublicCatalog = { v: 1, seedDigest: opts.seedDigest, ...model.catalog };
@@ -146,7 +154,7 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   const files = new Map<string, string>();
   const pages: BuiltPage[] = routes.map((route) => {
     const p = render(model, { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true });
-    const json = jsonForScript(opts.wsDataWire === 1 ? p.data : encodeWsPage(p.data));
+    const json = jsonForScript(opts.wsDataWire === 1 ? toWsPageV1(p.data) : encodeWsPage(p.data));
     const html = injectTemplate(opts.template, {
       head: templateHasColorScheme ? p.head.replace(`${COLOR_SCHEME_META}\n`, '') : p.head,
       body: p.body,

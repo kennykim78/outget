@@ -10,6 +10,7 @@ import {
   buildSearchLinks,
   decodeWsPage,
   encodeWsPage,
+  toWsPageV1,
   type SeedBundle,
   type WsPageData,
 } from '../engine/index.js';
@@ -87,15 +88,17 @@ describe.each(FIXTURES)('ws-wire round-trip — %s', (_name, seedOf, asOf) => {
     expect(again.pages.map((p) => p.html)).toEqual(b.pages.map((p) => p.html));
   });
 
-  it('구·신 빌드(wsDataWire 1 vs 기본 2): ws-data 밖 HTML 바이트 동일, v1 JSON = 메모리 data, decode(v2) = parse(v1)', () => {
+  it('구·신 빌드(wsDataWire 1 vs 기본 2): ws-data 밖 HTML 바이트 동일, v1 JSON = toWsPageV1(메모리 data), decode(v2) = 메모리 data', () => {
     const old = build(seedOf(), asOf, 1);
     expect(old.pages.map((p) => p.route.path)).toEqual(b.pages.map((p) => p.route.path));
     for (const [i, p] of b.pages.entries()) {
       const o = old.pages[i];
       expect(p.html.replace(WS_RE, ''), p.route.path).toBe(o.html.replace(WS_RE, ''));
       const v1Json = WS_RE.exec(o.html)?.[1];
-      expect(v1Json).toBe(jsonForScript(o.data));
-      expect(decodeWsPage(wireOf(p.html))).toEqual(JSON.parse(v1Json ?? 'null'));
+      // 273: v1 은 SEARCH 링크의 kind 를 싣지 않는다(제휴 코드 이전 바이트) — 그 밖은 메모리 data 그대로.
+      expect(v1Json).toBe(jsonForScript(toWsPageV1(o.data)));
+      expect(v1Json).not.toContain('"kind":"SEARCH"');
+      expect(JSON.stringify(decodeWsPage(wireOf(p.html)))).toBe(JSON.stringify(o.data));
       // 요구사항 없는 페이지는 `,"sources":[]` 13B 만 늘고, 요구사항이 있으면 줄어든다.
       if (p.data.data.requirements.length > 0) expect(p.wsDataBytes, p.route.path).toBeLessThan(o.wsDataBytes);
       else expect(p.wsDataBytes, p.route.path).toBe(o.wsDataBytes + ',"sources":[]'.length);

@@ -22,6 +22,7 @@ import {
   type CatalogInput,
   type CompatibilityRuleRec,
   type ContentMeta,
+  type AffiliateCodes,
   type CuratedProductRec,
   type EngineCatalog,
   type PhotoRec,
@@ -148,6 +149,7 @@ function projectRequirement(
   at: AnimalTypeRec,
   r: ResolvedRequirement,
   exposedItemIds: ReadonlySet<string>,
+  affiliate: ReadonlyMap<string, AffiliateCodes> | undefined,
 ): Omit<PublicRequirement, 'requirementId'> {
   const keyword = buildSearchKeyword(at, r);
   const lastVerifiedAt =
@@ -169,7 +171,8 @@ function projectRequirement(
     caution: r.caution,
     avoid: r.avoid,
     searchKeyword: keyword,
-    searchLinks: buildSearchLinks(keyword),
+    // 259: 제휴 코드는 링크 href 형식만 바꾼다(맵에 없으면 일반 검색 링크). 노출·순서 계산에는 쓰지 않는다(불변식 ③).
+    searchLinks: buildSearchLinks(keyword, affiliate?.get(keyword)),
     item: {
       id: r.item.id,
       name: r.item.name,
@@ -197,8 +200,12 @@ function projectType(at: AnimalTypeRec, slug: string, careProfileId: string): Pu
   };
 }
 
-/** asOf = 노출 기준일(YYYY-MM-DD, 필수) — 모든 노출 판정에 같은 값(M-1). 모델·산출물에는 넣지 않는다. */
-export function projectSite(seed: SeedBundle, asOf: string): SiteModel {
+/**
+ * asOf = 노출 기준일(YYYY-MM-DD, 필수) — 모든 노출 판정에 같은 값(M-1). 모델·산출물에는 넣지 않는다.
+ * affiliate(선택, 259) = 검색어 → 제휴 코드. projectRequirement 의 searchLinks 에만 전달한다 —
+ *   isAnimalTypeExposable·isRequirementExposable·orderExposableProducts·번들·후기 등 노출·순서 판정 인자에는 넣지 않는다(불변식 ③).
+ */
+export function projectSite(seed: SeedBundle, asOf: string, affiliate?: ReadonlyMap<string, AffiliateCodes>): SiteModel {
   const cat = createCatalog(seed);
   const types: TypeModel[] = [];
   const reqRowById = new Map<string, SupplyRequirementRec>();
@@ -232,7 +239,7 @@ export function projectSite(seed: SeedBundle, asOf: string): SiteModel {
       }));
       return {
         requirementId: base.id,
-        pub: { requirementId: base.id, ...projectRequirement(at, r, exposedItemIds) },
+        pub: { requirementId: base.id, ...projectRequirement(at, r, exposedItemIds, affiliate) },
         item: {
           id: r.item.id,
           name: r.item.name,

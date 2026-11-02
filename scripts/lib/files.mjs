@@ -67,7 +67,7 @@ const REGEX_KW = new Set(['return', 'typeof', 'case', 'in', 'of', 'delete', 'voi
  * 경량 JS/TS 렉서(정밀 파서 아님).
  *   code    = 주석만 공백화(문자열 유지) — URL·import·라우트 검사용
  *   bare    = 주석 + 문자열·정규식 내용 공백화(따옴표는 남김) — 식별자 검사용
- *   strings = 문자열 리터럴 내용 + 시작 줄
+ *   strings = 문자열 리터럴 내용(이스케이프 원문 그대로) + 시작 줄 + start/end 인덱스
  * 길이·줄바꿈은 보존한다. '·" 문자열은 줄바꿈에서 끝낸다(JSX 텍스트의 아포스트로피 피해를 한 줄로 제한).
  */
 export function lexJs(src) {
@@ -117,8 +117,10 @@ export function lexJs(src) {
         k++;
       }
       blank(bare, i + 1, Math.min(k, n));
-      strings.push({ text, line: lineOf(i), quote: c });
-      i = k < n && src[k] === c ? k + 1 : k;
+      const end = k < n && src[k] === c ? k + 1 : k;
+      // start = 여는 따옴표 위치, end = 닫는 따옴표 다음(닫히지 않으면 끊긴 위치) — 인접 리터럴 접기·인수 영역 판정용(274).
+      strings.push({ text, line: lineOf(i), quote: c, start: i, end });
+      i = end;
       lastSig = 'a';
       lastWord = '';
       continue;

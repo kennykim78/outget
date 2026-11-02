@@ -114,9 +114,10 @@ function checkWsWire(d, rel, line, add) {
     for (const q of reqs) if (q.sourceRefs !== undefined) bad(`v1 인데 requirement ${pairLabel(q.animalTypeId, q.supplyItemId)} 에 sourceRefs`);
     return;
   }
-  if (d.v !== 2) return bad(`알 수 없는 v=${L(JSON.stringify(d.v))}`);
+  // 260(258 단계 4): v3 = v2 와 같은 최상위·표 형식 + requirement 선택 aff(검사는 rules-affiliate.mjs C10-AFF-OUT — aff 0 인 v3·v2 의 aff 는 거기서 FAIL).
+  if (d.v !== 2 && d.v !== 3) return bad(`알 수 없는 v=${L(JSON.stringify(d.v))}`);
   const own = Object.keys(d);
-  if (own.length !== WS_V2_KEYS.length || !WS_V2_KEYS.every((k) => Object.hasOwn(d, k))) bad(`v2 최상위 키 집합 불일치(${L(own.join(','))})`);
+  if (own.length !== WS_V2_KEYS.length || !WS_V2_KEYS.every((k) => Object.hasOwn(d, k))) bad(`v${d.v} 최상위 키 집합 불일치(${L(own.join(','))})`);
   if (!Array.isArray(d.sources)) return bad('v2 sources 형식(최상위 sources 없음 또는 배열 아님)');
   const table = d.sources;
   const seen = new Set();
