@@ -15,6 +15,10 @@ import { seedDigest } from './digest.js';
 import { loadMascots } from './mascot.js';
 import { buildSite, type SiteBuild } from './site.js';
 import { BODY_MARKER, HEAD_MARKER } from './template.js';
+import { seoulToday } from '../config/dates.js';
+
+// seoulToday 는 config/dates.ts 로 이동(277 B) — 기존 import 경로 호환용 재 export.
+export { seoulToday };
 
 export interface PrerenderIo {
   stdout: (line: string) => void;
@@ -310,16 +314,6 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   const idx = b.routes.filter((r) => r.indexable).length;
   io.stdout(`prerender — pages ${pages} (+404), indexable ${idx}, types ${b.model.types.length}`);
   return 0;
-}
-
-/**
- * 오늘(Asia/Seoul) YYYY-MM-DD — CI `TZ=Asia/Seoul date +%F` 와 같은 뜻(S-R4 L-A). 러너 로컬 시간대(UTC 등)와 무관.
- *   scripts/compliance-scan.mjs seoulToday 와 같은 구현(패리티 테스트).
- */
-export function seoulToday(at: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
-  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 function isMain(): boolean {

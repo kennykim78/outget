@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import type { PrismaClient } from '@prisma/client';
 import { checkProfileMinSpec, createCatalog } from '../engine/index.js';
 import type { SpecValues } from '../engine/index.js';
-import { seoulToday } from '../prerender/cli.js';
+import { seoulToday } from '../config/dates.js';
 import { asSeedBundle, formatIssue, isIsoDate } from './common.js';
 import { DEFAULT_SEED_DIR } from './cli-validate.js';
 import { applyWrites, readback } from './load.js';

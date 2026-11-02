@@ -12,7 +12,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { isProdLike } from '../config/env.js';
-import { seoulToday } from '../prerender/cli.js';
+import { seoulToday } from '../config/dates.js';
 import { REACTION_RETENTION_DAYS } from '../privacy/policy.js';
 
 export const MIN_SECRET_LENGTH = 32;

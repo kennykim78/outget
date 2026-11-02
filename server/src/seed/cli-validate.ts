@@ -3,7 +3,7 @@
 //   exit 0 = errors 0. 출력: `ERROR|WARN [rule] file#id path: message` + 요약 1줄.
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { seoulToday } from '../prerender/cli.js';
+import { seoulToday } from '../config/dates.js';
 import { formatIssue, isIsoDate } from './common.js';
 import { readSeedDirRaw } from './read.js';
 import { validateSeed } from './validate.js';

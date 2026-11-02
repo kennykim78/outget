@@ -9,7 +9,7 @@
 //   로그: '[privacy] retention …' 건수만(식별자 0), 사용자 삭제는 eraseAccount 의 'channel=RETENTION' 한 줄씩.
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { seoulToday } from '../prerender/cli.js';
+import { seoulToday } from '../config/dates.js';
 import { daysBefore } from '../reaction/anon-key.js';
 import { eraseAccount, stdoutLog, type ErasureStore, type PrivacyLog } from './erase.js';
 import {

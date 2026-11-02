@@ -1,4 +1,4 @@
-// 기준일 — 오늘(Asia/Seoul) YYYY-MM-DD. CI `TZ=Asia/Seoul date +%F` · server/src/prerender/cli.ts seoulToday 와 같은 뜻(S-R4 L-A).
+// 기준일 — 오늘(Asia/Seoul) YYYY-MM-DD. CI `TZ=Asia/Seoul date +%F` · server/src/config/dates.ts seoulToday 와 같은 뜻(S-R4 L-A).
 //   러너 로컬 시간대(UTC 등)와 무관. 패리티: server/src/__tests__/engine.exposure.parity.test.ts.
 
 /** @param {Date} [at] */
