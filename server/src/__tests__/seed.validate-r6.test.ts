@@ -98,9 +98,9 @@ const issuesOf = (s: RawSeed, rule: string) => {
 const clone = <T,>(v: T): T => structuredClone(v);
 
 describe('M6 R01b — ACTIVE AnimalType.taxonId ∈ CareProfile.taxonIds (K-1 안 A)', () => {
-  /** 합성 taxon(골든 taxon 복제, id 만 바꿈). */
+  /** 합성 taxon(골든 taxon 복제, id 와 학명만 바꿈 — 학명 유일 R11 과 겹치지 않게 합성 학명). */
   const addTaxon = (s: Required<RawSeed>, id: string) => {
-    s.taxa.push({ ...clone(row(s, 'taxa', 'mesocricetus-auratus')), id } as Rec);
+    s.taxa.push({ ...clone(row(s, 'taxa', 'mesocricetus-auratus')), id, scientificName: `Fixtura ${id.replace(/[^a-z]/g, '')}` } as Rec);
   };
 
   it('실제 시드: R01b 0', () => {
@@ -121,7 +121,8 @@ describe('M6 R01b — ACTIVE AnimalType.taxonId ∈ CareProfile.taxonIds (K-1 �
     addTaxon(s, 'fixture-taxon-b');
     (row(s, 'careProfiles', 'cp-hamster-syrian').taxonIds as string[]).push('fixture-taxon-b');
     row(s, 'animalTypes', 'hamster-golden').taxonId = 'fixture-taxon-b';
-    expect(issuesOf(s, 'R01b')).toEqual({ errors: [], warnings: [], allErrors: [] });
+    // R01b 는 0. 합성 학명은 법 게이트 허용 (taxonId, 학명) 쌍 밖이라 X02 만 남는다 — 271 R11·쌍 규칙이 의도한 동작(학명 복제로 X02 우회 불가).
+    expect(issuesOf(s, 'R01b')).toEqual({ errors: [], warnings: [], allErrors: ['X02'] });
   });
 
   it('PASS: ACTIVE 아닌(PLANNED) 타입은 검사 안 함', () => {

@@ -89,7 +89,8 @@ describe('specCheck × bird-cage 스키마(합성 규칙, 메모리)', () => {
     expect(specCheck(cat, BIRD, 'bird-cage', { ...full, barOrientation: 'HORIZONTAL' }).verdict).toBe('BELOW_MIN');
   });
   it('선택 필드 barOrientation 미입력 → CHECK(값이 없어 판정 불가)', () => {
-    const { barOrientation: _omit, ...rest } = full;
+    const rest = { ...full } as Partial<typeof full>;
+    delete rest.barOrientation;
     const r = specCheck(cat, BIRD, 'bird-cage', rest);
     expect(r.verdict).toBe('CHECK');
     expect(r.reasons.some((x) => x.kind === 'INPUT' && x.key === 'barOrientation')).toBe(true);

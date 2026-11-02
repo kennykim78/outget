@@ -55,7 +55,7 @@ describe('DailyCap (순수 카운터)', () => {
   });
 
   it('복원: 날짜가 바뀔 때만 1회(매 요청 COUNT 없음), 동시 요청은 같은 복원을 기다리고 상한을 넘지 않는다', async () => {
-    const restore = vi.fn(async (_d: string) => 8);
+    const restore = vi.fn(async () => 8);
     const cap = new DailyCap(10, restore);
     const got = await Promise.all(Array.from({ length: 5 }, () => cap.take(1, D1_LATE)));
     expect(got.map((g) => g.allowed)).toEqual([1, 1, 0, 0, 0]);
