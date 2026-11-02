@@ -4,7 +4,7 @@
 #   로그: journald(bootstrap.sh 가 7일·500M 보관) — 앱·Caddy 모두 IP·요청 주소를 남기지 않는다(docs/ops/deploy.md 7절).
 #   불변식 ④ 결제 없음 · ⑧ 위치 저장 없음 — 이 구성은 두 컨테이너(app·caddy)뿐.
 #   격리(security 139 LOW-2): 두 컨테이너 모두 read_only 루트 + tmpfs /tmp(noexec) — 쓰기는 볼륨(app /data · caddy /data·/config)과 /tmp 뿐.
-#     이미지의 /app 은 root 소유(Dockerfile) → app 사용자는 코드를 바꾸지 못한다. 자원 상한: A1.Flex 2 OCPU / 12 GB 기준(mem·cpus·pids).
+#     이미지의 /app 은 root 소유(Dockerfile) → app 사용자는 코드를 바꾸지 못한다. 자원 상한: A1.Flex 1 OCPU(vCPU 1) / 6 GB 기준(mem·cpus·pids) — cpus 는 서비스마다 1.0 이하여야 docker 가 컨테이너를 만든다(ORDERS §33).
 #   caddy 이미지는 다이제스트 고정(LOW-3) — 갱신 절차 docs/ops/deploy.md 6절 '베이스 이미지 갱신'.
 name: withsmall
 
@@ -33,7 +33,7 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
     mem_limit: 1g
-    cpus: 1.5
+    cpus: 1.0
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
@@ -66,7 +66,7 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=16m
     mem_limit: 256m
-    cpus: 1.0
+    cpus: 0.5
     pids_limit: 128
     security_opt:
       - no-new-privileges:true

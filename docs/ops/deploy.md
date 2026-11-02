@@ -144,7 +144,7 @@
 
 1. 네트워킹 → 가상 클라우드 네트워크 → "인터넷 연결이 있는 VCN 생성" 마법사(공용 서브넷 + 인터넷 게이트웨이 + 기본 라우트가 만들어짐).
 2. 공용 서브넷의 기본 Security List → 수신 규칙 추가(소스 `0.0.0.0/0`): TCP 80, TCP 443, UDP 443. TCP 22 는 마법사 기본값 유지(GitHub Actions 러너 IP 가 고정이 아니라 좁힐 수 없음 — 키 전용 + 강제 명령으로 막는다, 위험 R7).
-3. 컴퓨트 → 인스턴스 생성: 이미지 **Canonical Ubuntu 24.04**(aarch64), 셰이프 **VM.Standard.A1.Flex 2 OCPU / 12 GB**(Always Free 범위), 위 공용 서브넷, 공용 IPv4 할당, Kenny 의 관리용 SSH 공개키 등록. 용량 부족(Out of host capacity)이면 다른 가용 도메인·나중에 재시도.
+3. 컴퓨트 → 인스턴스 생성: 이미지 **Canonical Ubuntu 24.04**(aarch64), 셰이프 **VM.Standard.A1.Flex 1 OCPU / 6 GB**(Always Free 범위, 2026-11-02 생성. `compose.yaml` cpus 는 서비스마다 1.0 이하여야 한다. 올리면 cpus 도 함께 조정, Ubuntu 24.04 Minimal 이미지도 bootstrap 이 필요한 패키지를 설치한다), 위 공용 서브넷, 공용 IPv4 할당, Kenny 의 관리용 SSH 공개키 등록. 용량 부족(Out of host capacity)이면 다른 가용 도메인·나중에 재시도.
 4. 네트워킹 → IP 관리 → **예약된 공용 IP** 생성 → 인스턴스 → 연결된 VNIC → IPv4 주소 → 기본 사설 IP 편집 → 공용 IP 없음으로 바꿨다가 예약된 공용 IP 선택(임시 IP → 예약 IP). Always Free 에서 무료인지 콘솔 비용 표시로 확인(위험 R5).
 5. VCN Flow Logs·Logging 은 켜지 않는다(7절).
 6. (권장) 유휴 회수 방지: 결제 → 종량제(PAYG) 업그레이드 + 예산 0원 알림(위험 R2, 공식 문서 재확인).

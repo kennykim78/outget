@@ -499,6 +499,14 @@ test('139 LOW-2: compose — app·caddy 모두 read_only + tmpfs /tmp(noexec) + 
   assert.deepEqual([...svc('app').matchAll(/^ {6}- (\.\/\S+):(\S+)$/gm)].map((m) => m[2]), ['/data']);
 });
 
+test('운영 호스트 A1.Flex 1 OCPU(vCPU 1): compose cpus 는 각 서비스 1.0 이하 — 넘으면 docker 가 컨테이너 생성을 거부(ORDERS §33)', () => {
+  const svc = (name) => new RegExp(`^ {2}${name}:\\n((?: {4,}.*\\n|\\n)+)`, 'm').exec(COMPOSE)[1];
+  for (const name of ['app', 'caddy']) {
+    const cpus = Number(/^ {4}cpus: (\d+(?:\.\d+)?)$/m.exec(svc(name))[1]);
+    assert.ok(cpus > 0 && cpus <= 1.0, `${name} cpus=${cpus}`);
+  }
+});
+
 test('139 LOW-2: Dockerfile — /app 은 root 소유 그대로(chown 은 /data 만), 비루트 실행', () => {
   assert.doesNotMatch(DOCKERFILE, /chown[^\n]*\/app/, '/app chown 금지');
   assert.match(DOCKERFILE, /^RUN mkdir -p \/data && chown node:node \/data$/m);
