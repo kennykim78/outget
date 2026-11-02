@@ -1,5 +1,5 @@
 # WithSmall 내부 테스트 배포(Oracle Cloud ap-tokyo-1, A1.Flex arm64). 수동 실행만(workflow_dispatch) — Kenny 2026-10-27.
-#   흐름: build-push(GHCR private, sha-<12> 태그, QEMU arm64) → deploy(SSH 강제 명령 deploy-gate.sh → deploy.sh) → 외부 확인(basic_auth 401).
+#   흐름: build-push(GHCR private, sha-<12> 태그, QEMU arm64) → deploy(SSH 강제 명령 deploy-gate.sh → deploy.sh) → 외부 확인(공개 200 · robots Disallow · X-Robots-Tag noindex — ORDERS §40).
 #   CI 게이트(ci.yml)가 초록인 커밋에서만 실행한다 — build-push 첫 단계가 GitHub API 로 이 커밋(GITHUB_SHA)의 ci.yml 최신 실행이
 #   completed·success 인지 확인하고, 아니면 빌드 전에 멈춘다(QA122 LOW-4). ci.yml 은 pull_request·main push 에서 돈다 → PR 이 열린 커밋이어야 한다.
 #   (이미지 빌드 자체도 프리렌더·seed validate·산출물 컴플라이언스를 다시 돈다.)
@@ -154,19 +154,28 @@ jobs:
             -o ServerAliveInterval=30 -o ServerAliveCountMax=4 \
             "$DEPLOY_USER@$DEPLOY_HOST" "$CMD"
 
-      - name: External check (basic_auth 401 expected)
+      - name: External check (public 200 + robots Disallow + X-Robots-Tag noindex)
         env:
           SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
         run: |
           set -eu
-          code=000
+          # 비밀번호 없음(Kenny 2026-11-02, ORDERS §40) — 누구나 연다. 검색 노출 차단은 그대로 확인한다:
+          #   robots.txt 에 정확히 "Disallow: /" 줄(빌드 WS_INDEXABLE=0 — server/src/prerender/robots.ts) + 응답 헤더 X-Robots-Tag noindex(Caddyfile).
+          #   공개 전환(docs/ops/deploy.md 9절) 때 이 단계의 robots·noindex 기준을 바꾼다.
+          t="$(mktemp -d)"
+          code=000; rcode=000; robots=no; noindex=no
           for _ in 1 2 3 4 5 6; do
-            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/" || true)"
-            [ "$code" = "401" ] && break
+            : > "$t/h"; : > "$t/r"
+            code="$(curl -s -o /dev/null -D "$t/h" -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/" || true)"
+            rcode="$(curl -s -o "$t/r" -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/robots.txt" || true)"
+            if tr -d '\r' < "$t/r" | grep -qxF 'Disallow: /'; then robots=yes; else robots=no; fi
+            if tr -d '\r' < "$t/h" | grep -qiE '^x-robots-tag:.*noindex'; then noindex=yes; else noindex=no; fi
+            [ "$code" = "200" ] && [ "$rcode" = "200" ] && [ "$robots" = "yes" ] && [ "$noindex" = "yes" ] && break
             sleep 5
           done
-          echo "external status: $code"
-          [ "$code" = "401" ]
+          rm -rf "$t"
+          echo "external status: $code · robots.txt $rcode Disallow-all=$robots · X-Robots-Tag noindex=$noindex"
+          [ "$code" = "200" ] && [ "$rcode" = "200" ] && [ "$robots" = "yes" ] && [ "$noindex" = "yes" ]
 
       - name: Remove SSH key
         if: always()

@@ -12,7 +12,7 @@
 3. `prisma migrate deploy`. 실패하면 중단 — 롤백은 2)의 백업 파일을 DB 경로로 되돌린다(3절).
 4. 서버 기동. 개인정보 자동 파기는 기동 1회 + 24시간 주기(5절).
 
-운영 호스트: Oracle Cloud Always Free, ap-tokyo-1(일본 도쿄), VM.Standard.A1.Flex(arm64). 앞단 Caddy(TLS·basic_auth) → 앱 컨테이너. 이미지는 GHCR 비공개. 배포·롤백은 6절, 호스트 준비는 8절.
+운영 호스트: Oracle Cloud Always Free, ap-tokyo-1(일본 도쿄), VM.Standard.A1.Flex(arm64). 앞단 Caddy(TLS·`X-Robots-Tag: noindex`, 비밀번호 없음 — Kenny 2026-11-02 ORDERS §40) → 앱 컨테이너. 이미지는 GHCR 비공개. 배포·롤백은 6절, 호스트 준비는 8절.
 
 ## 2. 환경 변수 (이름·의미)
 
@@ -68,19 +68,18 @@
 | 파일 | 서버 위치 | 역할 |
 |---|---|---|
 | `compose.yaml` | `/opt/withsmall/compose.yaml` | `app`(이미지 `WS_IMAGE`, 호스트 포트 없음) + `caddy`(80·443, 이미지 다이제스트 고정). 둘 다 `read_only` 루트 + tmpfs `/tmp`(noexec) + `mem_limit`·`cpus`·`pids_limit`, cap 전부 제거. 로그 journald |
-| `Caddyfile` | `/opt/withsmall/Caddyfile` | basic_auth · `X-Robots-Tag: noindex` · `-Server` · www → apex 302 · 접속 기록 0(7절) |
+| `Caddyfile` | `/opt/withsmall/Caddyfile` | 비밀번호 없음(basic_auth 폐기, ORDERS §40) · `X-Robots-Tag: noindex`(오류 응답 포함) · `-Server` · www → apex 302 · 접속 기록 0(7절) |
 | `deploy.sh` | `/opt/withsmall/bin/deploy.sh` | `deploy sha-<12>` / `rollback` |
 | `deploy-gate.sh` | `/opt/withsmall/bin/deploy-gate.sh` | SSH 강제 명령. `deploy sha-<16진 12자>`·`rollback` 외 전부 거부 |
 | `bootstrap.sh` | (1회 실행) | 새 호스트 준비(8절). sshd `AllowUsers deploy <관리 계정>`·포워딩 끔, 운영자 접속 기록 1년(7절) |
 | `server.env.example` | `/opt/withsmall/server.env`(0600, deploy 소유) | 앱 런타임 env. 시크릿 3개는 bootstrap 이 서버에서 생성 |
-| `caddy.env.example` | `/opt/withsmall/caddy.env`(0600) | `WS_BASIC_USER`·`WS_BASIC_HASH`(bcrypt, 작은따옴표) |
 | `deploy.conf.example` | `/opt/withsmall/deploy.conf` | `WS_IMAGE_REPO=ghcr.io/<owner>/<repo>`(소문자) |
 
-흐름: GitHub Actions `Deploy (internal test)`(수동 실행만, **main 에서만** — 첫 job `require-main` 이 `github.ref != refs/heads/main` 이면 실패하고 build-push·deploy·rollback 모두 돌지 않는다, security 139 LOW-1) → `build-push`(첫 단계: 이 커밋의 `ci.yml` 최신 실행이 completed·success 가 아니면 중단 — `ci.yml` 은 pull_request·main push 에서만 돌므로 **PR 이 열려 CI 가 초록인 커밋**만 배포된다, QEMU arm64, GHCR 비공개, 태그 `sha-<커밋 12자>`, provenance 끔) → `deploy`(SSH `deploy sha-…`) → 외부 확인(`401` = basic_auth 가 앞에 있음).
+흐름: GitHub Actions `Deploy (internal test)`(수동 실행만, **main 에서만** — 첫 job `require-main` 이 `github.ref != refs/heads/main` 이면 실패하고 build-push·deploy·rollback 모두 돌지 않는다, security 139 LOW-1) → `build-push`(첫 단계: 이 커밋의 `ci.yml` 최신 실행이 completed·success 가 아니면 중단 — `ci.yml` 은 pull_request·main push 에서만 돌므로 **PR 이 열려 CI 가 초록인 커밋**만 배포된다, QEMU arm64, GHCR 비공개, 태그 `sha-<커밋 12자>`, provenance 끔) → `deploy`(SSH `deploy sha-…`) → 외부 확인(`/` 200 · 응답 헤더 `X-Robots-Tag` 에 noindex · `/robots.txt` 에 `Disallow: /` 줄 = WS_INDEXABLE=0. 6번 × 5초 재시도). caddy.env 는 쓰지 않는다(basic_auth 폐기 — 옛 서버에 남아 있어도 무시, 아래 'basic_auth 제거 반영').
 
 `deploy.sh deploy <tag>` 순서:
 
-1. 잠금(`state/.lock`, 안에 `info` = pid·시작 시각) → 사전 점검: `server.env`·`caddy.env` 존재·권한 600·`__SET_ME__` 없음.
+1. 잠금(`state/.lock`, 안에 `info` = pid·시작 시각) → 사전 점검: `server.env` 존재·권한 600·`__SET_ME__` 없음(caddy.env 는 보지 않는다).
 2. `docker pull` → 이미지 아키텍처 = 호스트(arm64) 확인. 다르면 중단(아무것도 바꾸지 않음).
 3. 현재 이미지와 새 이미지의 `prisma/migrations` 목록 비교. 한쪽이라도 목록을 읽지 못하면(docker 실패·빈 목록) '같음'으로 보지 않고 **배포하지 않는다**(app·DB 그대로, 종료 1 — QA133 LOW-12). rollback 도 같다.
 4. `app` 정지 → 배포 전 백업 `data/backup/prod-<UTC>-predeploy.db`(이름이 `prod-*.db`라 7일·5개 정리 대상 — 처리방침 백업 7일과 같음). DB 가 있는데 백업이 실패하면 배포하지 않고 이전 이미지를 다시 띄운다(종료 1).
@@ -112,10 +111,17 @@
 **베이스 이미지 갱신(security 139 LOW-3).** `Dockerfile` 의 `node:22-alpine` 세 단계와 `compose.yaml` 의 `caddy` 는 다이제스트(`@sha256:…`)로 고정한다 — 같은 태그가 다른 내용으로 바뀌어도 빌드·배포가 따라가지 않는다. 지금 값: `caddy:2.11-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f`(2.11.7, 2026-10-28 고정), node 는 `Dockerfile` 머리 주석.
 
 1. Dependabot(`.github/dependabot.yml`, 매주 월요일)이 `docker`(Dockerfile)·`docker-compose`(deploy/compose.yaml) 갱신 PR 을 연다. 손으로 할 때: `docker buildx imagetools inspect node:22-alpine`·`docker buildx imagetools inspect caddy:2.11-alpine` 의 맨 위 `Digest:`(멀티 아키텍처 **인덱스** 다이제스트 — 아래 플랫폼별 다이제스트가 아니다)를 넣는다. node 는 세 `FROM` 줄을 같은 값으로(테스트가 본다).
-2. PR 에서 CI 초록 확인 — `docker build + boot smoke` 가 read-only·상한 그대로 기동하는지, `scripts/__tests__/deploy-config.test.mjs` 가 다이제스트 형식·문서 일치를 본다(caddy 를 바꾸면 이 절의 값과 8절 B3 명령도 같은 값으로).
-3. caddy 마이너 변경(2.11 → 2.12)이면 로컬에서 한 번: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" -e WS_BASIC_USER=u -e WS_BASIC_HASH='<아무 bcrypt>' <새 이미지> caddy validate --config /etc/caddy/Caddyfile` 와 401·502 응답에 `X-Robots-Tag` 가 붙고 `Server` 가 없는지(2026-10-28 2.11.7 에서 확인).
+2. PR 에서 CI 초록 확인 — `docker build + boot smoke` 가 read-only·상한 그대로 기동하는지, `scripts/__tests__/deploy-config.test.mjs` 가 다이제스트 형식·문서 일치를 본다(caddy 를 바꾸면 이 절의 값도 같은 값으로).
+3. caddy 마이너 변경(2.11 → 2.12)이면 로컬에서 한 번: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" <새 이미지> caddy validate --config /etc/caddy/Caddyfile` 와 200·502 응답에 `X-Robots-Tag` 가 붙고 `Server` 가 없는지(2026-10-28 2.11.7 에서 확인).
 4. 병합 → main 에서 `deploy`. caddy 이미지만 바뀐 경우에도 서버의 `/opt/withsmall/compose.yaml` 은 bootstrap 이 복사한 것이므로 `sudo install -m 0644 deploy/compose.yaml /opt/withsmall/compose.yaml` 로 바꾼 뒤 배포(또는 `sudo -u deploy docker compose … up -d caddy`).
 5. Actions(SHA 고정, `uses: owner/action@<40자> # vX.Y.Z`)도 Dependabot `github-actions` PR 로만 바꾼다 — 손으로 바꿀 때는 `git ls-remote https://github.com/<owner>/<action>.git refs/tags/vX.Y.Z` 의 커밋 SHA(주석 태그면 `^{}` 줄).
+
+**basic_auth 제거 반영 — 이미 bootstrap 된 서버(ORDERS §40, 작업 256).** 서버의 `compose.yaml`·`Caddyfile`·`bin/deploy.sh` 는 bootstrap 이 복사한 옛판이고 CI 배포는 이 셋을 바꾸지 않는다(이미지만 바꾼다). 순서가 중요하다 — 옛 `compose.yaml` 은 `./caddy.env` 를 요구하고 옛 `deploy.sh` 는 caddy.env 를 사전 점검하므로, **세 파일을 먼저 바꾸고 caddy.env 는 마지막에** 지운다.
+1. 새 `deploy/` 를 서버로(`scp -r deploy ubuntu@<IP>:~/`).
+2. 권장(최소 변경): `sudo install -m 0644 -o root -g root ~/deploy/compose.yaml /opt/withsmall/compose.yaml && sudo install -m 0644 -o root -g root ~/deploy/Caddyfile /opt/withsmall/Caddyfile && sudo install -m 0755 -o root -g root ~/deploy/deploy.sh /opt/withsmall/bin/deploy.sh && sudo rm -f /opt/withsmall/caddy.env`.
+   또는 bootstrap 재실행(멱등 — 8절 B2 와 같은 인수, 같은 배포 공개키): `compose.yaml`·`Caddyfile`·`deploy.sh`·`deploy-gate.sh` 를 매번 덮어쓰고 옛 `caddy.env` 를 지운다. `server.env` 는 있으면 그대로 둔다(시크릿 재생성 없음). sshd·방화벽·journald 설정도 다시 쓰므로 끝난 뒤 새 터미널에서 관리 계정 접속을 먼저 확인한다.
+3. Actions `deploy` 1회. caddy 서비스 설정(env_file 제거)이 바뀌었으므로 `deploy.sh` 의 `up -d` 가 caddy 컨테이너를 다시 만들고 새 Caddyfile(비밀번호 없음)을 읽는다. 외부 확인이 `external status: 200 · robots.txt 200 Disallow-all=yes · X-Robots-Tag noindex=yes` 면 끝.
+   caddy 가 아직 한 번도 뜨지 않은 서버(첫 배포 전)면 1·2 뒤 8절 E 첫 배포가 곧 이 단계다.
 
 ## 7. 로그·접속 기록 (처리방침과 같아야 함)
 
@@ -153,10 +159,10 @@
 
 1. GitHub Actions 용 배포 키 쌍을 **Kenny PC 에서** 만든다: `ssh-keygen -t ed25519 -C gha-deploy -f withsmall_deploy -N ""` (비밀키 `withsmall_deploy` 는 GitHub Secret 에만, PC 사본은 등록 뒤 삭제).
 2. 저장소 `deploy/` 폴더와 공개키를 서버로 복사(`scp -r deploy withsmall_deploy.pub ubuntu@<IP>:~/`) → 서버에서 `sudo sh ~/deploy/bootstrap.sh --image-repo ghcr.io/<owner 소문자>/<repo 소문자> --deploy-pubkey "$(cat ~/withsmall_deploy.pub)" --admin-user ubuntu`(공개키 내용을 따옴표로. `--admin-user` 를 빼면 sudo 를 부른 사용자. sshd `AllowUsers` 가 deploy + 이 계정만 남기므로 **bootstrap 뒤 새 터미널에서 관리 계정 SSH 접속이 되는지 먼저 확인**하고 기존 세션을 닫는다).
-3. `caddy.env` 채우기: `sudo docker run --rm -it caddy:2.11-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f caddy hash-password`(대화형, 평문이 셸 기록에 남지 않음. `sudo` 가 필요하다 — 관리 계정(ubuntu)은 docker 그룹이 아니다, bootstrap 은 deploy 만 docker 그룹에 넣는다) → `sudo -u deploy sh -c 'umask 077; cat > /opt/withsmall/caddy.env'` 로 `WS_BASIC_USER=<사용자>`, `WS_BASIC_HASH='<해시>'`(작은따옴표) 입력. **basic_auth 비밀번호는 무작위 16자 이상**(security 150 LOW-3) — 예: `openssl rand -base64 18`(24자)로 만들어 비밀번호 관리자에만 두고, hash-password 대화형 입력에 붙여 넣는다(명령 인수·셸 기록·저장소에 평문 없음). 사람이 고른 단어·재사용 금지.
+3. (삭제 — ORDERS §40, basic_auth 폐기. caddy.env 를 만들거나 채우지 않는다. 번호는 B4·B5 참조를 지키려고 남긴다.)
 4. GHCR 로그인(deploy 사용자): GitHub → Settings → Developer settings → **classic PAT**, 범위 `read:packages`만, 만료일 지정(위험 R11 — **만료 7일 전 알림을 달력에 넣는다**: 만료되면 `docker pull` 이 실패해 배포가 `pull 실패` 로 멈춘다. 갱신은 같은 범위로 새 PAT → 아래 로그인 다시, security 150 LOW-3) → `sudo -u deploy -H docker login ghcr.io -u <github 사용자> --password-stdin`(붙여넣고 Enter, Ctrl-D. `-H` 로 로그인 정보가 deploy 홈 `~/.docker/config.json` 에 저장된다 — deploy.sh 의 pull 이 쓴다).
 5. 호스트 키 지문 기록: `ssh-keyscan -t ed25519 <예약 IP>` 출력(한 줄)을 `DEPLOY_KNOWN_HOSTS` 로. 지문은 서버에서 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` 와 같은지 확인.
-6. 확인: `sudo iptables -L INPUT -n --line-numbers`(80·443 ACCEPT 가 REJECT 보다 위), `ls -l /opt/withsmall`(server.env·caddy.env `-rw-------`), `journalctl --disk-usage`.
+6. 확인: `sudo iptables -L INPUT -n --line-numbers`(80·443 ACCEPT 가 REJECT 보다 위), `ls -l /opt/withsmall`(server.env `-rw-------`, caddy.env 없음), `journalctl --disk-usage`.
 7. 로그 보관 확인(처리방침 '서버 오류 기록 7일'): `systemd-analyze cat-config systemd/journald.conf | grep -E 'ForwardToSyslog|MaxFileSec|MaxRetentionSec'`(마지막 값이 `no`·`1day`·`7day`), `systemctl list-timers withsmall-journal-vacuum.timer`(다음 실행 있음), `dpkg -l rsyslog`(있으면 `ls /etc/rsyslog.d/00-withsmall-drop.conf`). 첫 배포 뒤 `journalctl -t withsmall-app --since -1h | head`(기록이 journald 에 있음), `journalctl -u ssh --since -1h | head`(sshd 기록도 journald 에), `sudo grep -c withsmall /var/log/syslog`(파일이 있으면 0 — Ubuntu 는 전달 자체가 꺼져 자명하게 0, Oracle Linux 는 `/var/log/messages` 로 확인해야 rsyslog 버림 규칙 검증이 된다). 운영자 접속 기록(7절): 첫 배포 뒤 `sudo systemctl start withsmall-admin-log.service && sudo grep -c ws-admin-deploy /var/log/withsmall-admin/access.log`(1 이상), `sudo grep -c withsmall-app /var/log/withsmall-admin/access.log`(0).
 
 **C. DNS (LETO — DNS 는 LETO 유지)**
@@ -173,10 +179,12 @@
 
 **E. 첫 배포**
 
+- **basic_auth 없는 배포 전에(Kenny): 처리방침 6값(`officerName`·`officerEmail`·`hostingContact`·`resendContact`·`resendLogRetention`·`effectiveDate`) 채우기와 `server.env` 의 `WS_ALLOW_PRIVACY_PLACEHOLDER` 줄 삭제 여부를 확인한다** — 비밀번호가 없으면 `/privacy` 의 자리표시가 누구에게나 보인다(security 257).
+
 0. 배포할 커밋에 `ci.yml` 이 초록이어야 한다(PR 을 열어 CI 를 돌린다 — 없거나 진행 중·실패면 `build-push` 첫 단계에서 멈춘다).
 1. Actions → `Deploy (internal test)` → Run workflow → 브랜치 **`main`**, action `deploy`. (CLI: `gh workflow run deploy.yml --ref main -f action=deploy`.) main 이 아니면 첫 job `require-main` 이 실패하고 아무것도 빌드·배포하지 않는다(security 139 LOW-1 — 운영자 실수 방지이지 보안 경계는 아니다: 다른 브랜치의 워크플로 파일은 이 검사를 지울 수 있다). 그래서 이 브랜치가 main 에 합쳐진 뒤부터 배포한다. QEMU arm64 빌드라 15~40분.
-2. 성공 기준: `build-push` 초록 → `deploy` 로그 `[deploy] OK ghcr.io/...:sha-…` → 외부 확인 `external status: 401`.
-3. 브라우저로 `https://withsmall.kr` → basic_auth 창 → 홈. `/privacy` 에 국외 이전(일본·Oracle) 블록, 페이지 끝 자리표시 경고는 내부 테스트라 정상(`WS_ALLOW_PRIVACY_PLACEHOLDER=1`).
+2. 성공 기준: `build-push` 초록 → `deploy` 로그 `[deploy] OK ghcr.io/...:sha-…` → 외부 확인 `external status: 200 · robots.txt 200 Disallow-all=yes · X-Robots-Tag noindex=yes`.
+3. 브라우저로 `https://withsmall.kr` → (비밀번호 창 없이) 홈. `curl -sI https://withsmall.kr/ | grep -i x-robots-tag` 에 `noindex, nofollow`, `curl -s https://withsmall.kr/robots.txt` 가 `Disallow: /`. `/privacy` 에 국외 이전(일본·Oracle) 블록, 페이지 끝 자리표시 경고는 E 앞 줄(처리방침 6값·`WS_ALLOW_PRIVACY_PLACEHOLDER` 줄 확인, Kenny)을 거친 경우에만 정상 — 비밀번호가 없어 누구에게나 보인다(QA262 LOW-6).
 4. 저장 연결(메일)은 Resend 인증 전이라 503(저장 불가 안내)이 정상.
 5. 롤백 연습: action `rollback`(previous 가 있을 때만 — 두 번째 배포 뒤).
 
@@ -185,8 +193,8 @@
 - [ ] **순서: 자리표시를 먼저 채운 뒤에 WS_INDEXABLE=1 로 재빌드** — 공개 빌드는 자리표시가 남으면 WS_ALLOW_PRIVACY_PLACEHOLDER=1 이어도 기동을 거부한다(app 헬스 실패 → deploy.sh 자동 롤백)
 - [ ] 처리방침 자리표시 전부 채움(`officerName`·`officerEmail`·`hostingContact`·`resendContact`·`resendLogRetention`·`effectiveDate`) → `server.env` 에서 `WS_ALLOW_PRIVACY_PLACEHOLDER` 줄 삭제
 - [ ] 접속 기록·개인정보 처리 시스템 접속 기록 보관 의무 법적 확인(웹 접속 기록 0 유지 가능한지). 운영자 접속 기록 1년은 구현됨(7절, Kenny 승인) — 처리방침 반영됨(보호 조치 문장·보유 기간 행), 법적 확인 때 함께 본다
-- [ ] Variables `WS_INDEXABLE=1` 후 재빌드 · Caddyfile 에서 basic_auth·`X-Robots-Tag` 제거 · www 302 → 308 · deploy.yml 외부 확인 401 → 200
-- [ ] HSTS 단계 적용(짧은 max-age 부터)
+- [x] **1단계 접근 공개**: Caddyfile 에서 basic_auth 제거 · caddy.env 폐기 · deploy.yml 외부 확인 401 → 200 + noindex·robots Disallow 확인 — **§40 완료**(Kenny 2026-11-02, 작업 256). 검색 노출 차단(`X-Robots-Tag`·WS_INDEXABLE=0)은 그대로
+- [ ] **2단계 색인 공개(Kenny 별도 결정)**: Variables `WS_INDEXABLE=1` 후 재빌드 · Caddyfile 의 `header`·`handle_errors` 에서 `X-Robots-Tag` 제거(이 단계에서만) · www 302 → 308 · HSTS 단계 적용(짧은 max-age 부터) · deploy.yml 외부 확인의 robots(`Disallow: /` → `Allow: /`)·noindex 기준과 `scripts/__tests__/deploy-config.test.mjs` 를 같이 바꾼다
 - [ ] Resend 발신 도메인 인증 + `MAIL_TRANSPORT=resend`(10절)
 - [ ] 외부 백업(OCI Object Storage, 7일 수명 주기 — `erasures.jsonl` 포함) · PAYG 업그레이드
 - [ ] 제휴 도메인 등록(공개 시점) · NCP 지도 URL

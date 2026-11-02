@@ -19,8 +19,9 @@
 #     5) deploy 사용자(docker 그룹) + 강제 명령 키(restrict,command=deploy-gate.sh) · sshd 강화(비밀번호·root 로그인 끔,
 #        AllowUsers deploy·관리 계정, TCP·에이전트·X11·소켓 포워딩·터널 끔 — security 139 LOW-5)
 #     6) /opt/withsmall/{bin,state,data,data/backup}: data 는 1000:1000 750(컨테이너 node 사용자)
-#     7) compose.yaml·Caddyfile·deploy.sh·deploy-gate.sh 복사, deploy.conf 작성, server.env·caddy.env 없으면 예시로 만든다(0600, deploy 소유).
-#        server.env 의 시크릿 3개(__SET_ME__)는 이 서버에서 openssl 로 채운다 — 값은 출력하지 않는다. caddy.env 는 Kenny 가 채운다.
+#     7) compose.yaml·Caddyfile·deploy.sh·deploy-gate.sh 복사(매번 덮어쓴다), deploy.conf 작성, server.env 없으면 예시로 만든다(0600, deploy 소유).
+#        server.env 의 시크릿 3개(__SET_ME__)는 이 서버에서 openssl 로 채운다 — 값은 출력하지 않는다.
+#        basic_auth 폐기(ORDERS §40): 옛 bootstrap 이 만든 caddy.env 가 있으면 지운다(읽는 곳 없음).
 #   인수 검사만(아무것도 바꾸지 않음): WS_BOOTSTRAP_ARGS_ONLY=1 — scripts/__tests__/deploy-config.test.mjs.
 #   하지 않는 것: GHCR 로그인(PAT — Kenny 가 deploy 사용자로 직접), 시크릿 출력, 외부 백업, 지도·메일 설정.
 set -eu
@@ -87,7 +88,7 @@ host_short="$(hostname -s 2>/dev/null || hostname)"
 case "$host_short" in
   "$DEPLOY_USER"|"$ADMIN_USER") die "호스트 이름($host_short)이 계정 이름과 같다 — hostnamectl set-hostname withsmall 등으로 바꾼 뒤 다시 실행" ;;
 esac
-for f in compose.yaml Caddyfile deploy.sh deploy-gate.sh server.env.example caddy.env.example; do
+for f in compose.yaml Caddyfile deploy.sh deploy-gate.sh server.env.example; do
   [ -f "$SRC_DIR/$f" ] || die "$SRC_DIR/$f 없음 — deploy/ 폴더 전체를 올린다"
 done
 
@@ -380,15 +381,15 @@ if [ ! -f "$ROOT/server.env" ]; then
   mv "$ROOT/server.env.tmp" "$ROOT/server.env"
   log "server.env 작성(시크릿 3개 생성, 값 출력 없음)"
 fi
-if [ ! -f "$ROOT/caddy.env" ]; then
-  umask 077
-  tr -d '\r' < "$SRC_DIR/caddy.env.example" > "$ROOT/caddy.env"
-  log "caddy.env 작성 — WS_BASIC_USER·WS_BASIC_HASH 를 채워야 배포된다"
+# basic_auth 폐기(ORDERS §40) — 옛 bootstrap 이 만든 caddy.env 는 compose·Caddyfile 어디서도 읽지 않는다. 내용은 출력하지 않는다.
+if [ -e "$ROOT/caddy.env" ]; then
+  rm -f "$ROOT/caddy.env"
+  log "옛 caddy.env 삭제(basic_auth 폐기)"
 fi
-chown "$DEPLOY_USER:$DEPLOY_USER" "$ROOT/server.env" "$ROOT/caddy.env"
-chmod 0600 "$ROOT/server.env" "$ROOT/caddy.env"
+chown "$DEPLOY_USER:$DEPLOY_USER" "$ROOT/server.env"
+chmod 0600 "$ROOT/server.env"
 
 # 운영자 접속 기록 첫 내보내기(지금 journald 에 있는 것부터).
 systemctl start withsmall-admin-log.service 2>/dev/null || log "운영자 접속 기록 첫 내보내기 실패 — systemctl status withsmall-admin-log.service 확인"
 
-log "완료. 다음: (1) caddy.env 채우기 (2) deploy 사용자로 GHCR 로그인 (3) DNS 확인 후 첫 배포 — docs/ops/deploy.md 8절"
+log "완료. 다음: (1) deploy 사용자로 GHCR 로그인 (2) DNS 확인 후 첫 배포 — docs/ops/deploy.md 8절"

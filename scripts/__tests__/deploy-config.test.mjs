@@ -1,5 +1,6 @@
 // deploy/ 정적 검사 — 접속 기록 0(Caddy·compose), 수동 실행만(deploy.yml), 시크릿 0(저장소), 로그 보관 7일 패리티.
-//   Kenny 2026-10-27: 내부 테스트, workflow_dispatch 만, basic_auth, "접속 기록 남기지 않음".
+//   Kenny 2026-10-27: 내부 테스트, workflow_dispatch 만, "접속 기록 남기지 않음".
+//   Kenny 2026-11-02(ORDERS §40): 비밀번호(basic_auth) 없음 — 공개 접근, 검색 노출 차단(X-Robots-Tag noindex·robots Disallow)은 유지.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -66,18 +67,24 @@ test('Caddyfile: 사이트 블록에 log 지시어 0(접속 기록 없음), 전�
   assert.doesNotMatch(CADDY, /^\s*(log_credentials|trusted_proxies|client_ip_headers)\b/m);
 });
 
-test('Caddyfile: basic_auth 는 env 자리만, 해시·평문 0 · noindex · -Server · www 302', () => {
+test('Caddyfile: 비밀번호 없음(basic_auth 0 · env 자리 0, ORDERS §40) · noindex · -Server · www 302', () => {
   const blocks = caddyBlocks(CADDY);
   const apex = blocks.find((b) => b.head === 'withsmall.kr');
   const words = apex.lines.map((l) => l.words.join(' '));
-  const ba = apex.lines.findIndex((l) => l.words[0] === 'basic_auth');
-  assert.ok(ba >= 0, 'basic_auth');
-  assert.deepEqual(apex.lines[ba + 1].words, ['{$WS_BASIC_USER}', '{$WS_BASIC_HASH}']);
+  // 어느 블록·깊이에서도 인증 지시어 없음(basicauth 는 옛 이름) — 제휴 심사자가 바로 연다.
+  for (const b of blocks) {
+    for (const l of b.lines) assert.ok(!/^(basic_?auth|forward_auth)$/i.test(l.words[0]), `${b.head}: ${l.words.join(' ')}`);
+  }
+  assert.doesNotMatch(CADDY.replace(/(^|\s)#.*$/gm, ''), /\{\$[A-Z_]+|\{env\./, 'Caddyfile 은 환경 변수를 읽지 않는다(caddy.env 없음 — {$X}·{env.X} 둘 다, QA262 INFO-4)');
   assert.doesNotMatch(CADDY, /\$2[aby]\$\d\d\$/, 'bcrypt 해시가 저장소에');
   assert.ok(words.includes('-Server'));
   assert.ok(words.includes('X-Robots-Tag "noindex, nofollow"'));
+  // noindex 가 모든 경로에 붙는다 — apex 의 header 블록은 경로 매처 없이 하나(QA262 LOW-1).
+  const hdrDepth = apex.lines.find((l) => l.words[0] === 'reverse_proxy').depth;
+  const hdr = apex.lines.filter((l) => l.words[0] === 'header' && l.depth === hdrDepth);
+  assert.deepEqual(hdr.map((l) => l.words), [['header', '{']], 'apex header 블록은 매처 없이 하나');
   assert.ok(words.includes('reverse_proxy app:3001'));
-  // 오류 응답(401·502)에도 -Server·noindex — 지연 헤더는 오류 경로에 안 붙는다(로컬 caddy 2.10 재현).
+  // 오류 응답(502 등)에도 -Server·noindex — 지연 헤더는 오류 경로에 안 붙는다(로컬 caddy 2.10 재현).
   const he = apex.lines.findIndex((l) => l.words[0] === 'handle_errors');
   assert.ok(he >= 0, 'handle_errors');
   const heBody = apex.lines.slice(he + 1).filter((l) => l.depth === apex.lines[he].depth + 1).map((l) => l.words.join(' '));
@@ -138,7 +145,9 @@ test('compose: app 은 호스트 포트 0·journald, caddy 만 80/443, 이미지
   assert.doesNotMatch(app, /^\s+ports:/m, 'app 호스트 포트 공개 금지');
   assert.match(app, /image: \$\{WS_IMAGE:\?/);
   assert.match(app, /env_file:\n\s+- \.\/server\.env/);
-  assert.match(caddy, /env_file:\n\s+- \.\/caddy\.env/);
+  // basic_auth 폐기(ORDERS §40): caddy 는 env 파일·환경 변수를 받지 않는다 — 서버에 옛 caddy.env 가 없어도 기동.
+  assert.doesNotMatch(caddy, /^\s+(env_file|environment):/m, 'caddy env_file/environment');
+  assert.doesNotMatch(COMPOSE.replace(/^\s*#.*$/gm, ''), /caddy\.env/, 'compose 에 caddy.env 참조(주석 제외)');
   for (const s of [app, caddy]) assert.match(s, /logging:\n\s+driver: journald/);
   assert.match(caddy, /- "80:80"/);
   assert.match(caddy, /- "443:443"/);
@@ -161,7 +170,12 @@ test('bootstrap: ufw 안 씀, Oracle REJECT 앞 삽입, 강제 명령 키, data 
   assert.match(BOOTSTRAP, /iptables -I INPUT "\$pos"/);
   assert.match(BOOTSTRAP, /restrict,command="%s\/bin\/deploy-gate\.sh"/);
   assert.match(BOOTSTRAP, /install -d -m 0750 -o 1000 -g 1000 "\$ROOT\/data"/);
-  assert.match(BOOTSTRAP, /chmod 0600 "\$ROOT\/server\.env" "\$ROOT\/caddy\.env"/);
+  assert.match(BOOTSTRAP, /^chmod 0600 "\$ROOT\/server\.env"$/m);
+  // caddy.env 는 만들지 않고(예시 복사 0), 옛 bootstrap 이 만든 것은 지운다(ORDERS §40).
+  assert.doesNotMatch(BOOTSTRAP, /caddy\.env\.example/);
+  assert.doesNotMatch(BOOTSTRAP, /> "\$ROOT\/caddy\.env"/);
+  assert.match(BOOTSTRAP, /^  rm -f "\$ROOT\/caddy\.env"$/m);
+  assert.doesNotMatch(BOOTSTRAP, /caddy\.env 채우기|WS_BASIC/);
   assert.match(BOOTSTRAP, /PasswordAuthentication no/);
   // QA133 INFO-11: 배포 키로 env(WS_ROOT·WS_DOCKER 등) 주입 불가를 기본값이 아니라 설정으로 고정.
   assert.match(BOOTSTRAP, /^PermitUserEnvironment no$/m);
@@ -171,7 +185,8 @@ test('bootstrap: ufw 안 씀, Oracle REJECT 앞 삽입, 강제 명령 키, data 
 });
 
 test('예시 env: 시크릿 자리는 __SET_ME__ 만, 값 0', () => {
-  for (const f of ['server.env.example', 'caddy.env.example', 'deploy.conf.example']) {
+  assert.ok(!existsSync(join(ROOT, 'deploy', 'caddy.env.example')), 'caddy.env.example 은 없다(basic_auth 폐기)');
+  for (const f of ['server.env.example', 'deploy.conf.example']) {
     const t = read('deploy', f);
     for (const l of t.split('\n')) {
       if (l.startsWith('#') || l.trim() === '') continue;
@@ -306,8 +321,8 @@ test('QA122 MED-2: deploy/ 전체 eol=lf(.gitattributes) — git check-attr + au
 });
 
 test('QA122 MED-2: bootstrap server.env 채우기 — CRLF 예시에서도 시크릿 3개 64hex, 나머지 줄 그대로, CR 0', { skip: !SH_BIN }, () => {
-  const m = /\nif \[ ! -f "\$ROOT\/server\.env" \]; then\n([\s\S]*?)\nfi\nif \[ ! -f "\$ROOT\/caddy\.env" \]; then\n([\s\S]*?)\nfi\n/.exec(BOOTSTRAP);
-  assert.ok(m, 'server.env·caddy.env 블록');
+  const m = /\nif \[ ! -f "\$ROOT\/server\.env" \]; then\n([\s\S]*?)\nfi\n/.exec(BOOTSTRAP);
+  assert.ok(m, 'server.env 블록');
   assert.doesNotMatch(m[1], /\bsed\b/, '시크릿을 sed 인수로 넘기지 않는다(프로세스 목록)');
   const dir = mkdtempSync(join(tmpdir(), 'ws-boot-env-'));
   try {
@@ -316,10 +331,9 @@ test('QA122 MED-2: bootstrap server.env 채우기 — CRLF 예시에서도 시�
     mkdirSync(join(dir, 'bin'));
     const crlf = (t) => t.replace(/\r?\n/g, '\r\n');
     writeFileSync(join(dir, 'src', 'server.env.example'), crlf(read('deploy', 'server.env.example')));
-    writeFileSync(join(dir, 'src', 'caddy.env.example'), crlf(read('deploy', 'caddy.env.example')));
     // openssl 대역(값 고정 아님: 호출마다 다른 64hex).
     writeFileSync(join(dir, 'bin', 'openssl'), '#!/bin/sh\nn=$(cat "$0.n" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$0.n"\nprintf "%064x\\n" "$n"\n', { mode: 0o755 });
-    const script = `set -eu\nlog() { :; }\ndie() { echo "DIE $*" >&2; exit 1; }\nSRC_DIR='${fwdp(join(dir, 'src'))}'\nROOT='${fwdp(join(dir, 'root'))}'\nif [ ! -f "$ROOT/server.env" ]; then\n${m[1]}\nfi\nif [ ! -f "$ROOT/caddy.env" ]; then\n${m[2]}\nfi\n`;
+    const script = `set -eu\nlog() { :; }\ndie() { echo "DIE $*" >&2; exit 1; }\nSRC_DIR='${fwdp(join(dir, 'src'))}'\nROOT='${fwdp(join(dir, 'root'))}'\nif [ ! -f "$ROOT/server.env" ]; then\n${m[1]}\nfi\n`;
     writeFileSync(join(dir, 'run.sh'), script);
     const sep = process.platform === 'win32' ? ';' : ':';
     const r = spawnSync(SH_BIN, [fwdp(join(dir, 'run.sh'))], { encoding: 'utf8', env: { ...process.env, PATH: `${join(dir, 'bin')}${sep}${process.env.PATH}` } });
@@ -332,7 +346,6 @@ test('QA122 MED-2: bootstrap server.env 채우기 — CRLF 예시에서도 시�
     assert.equal(new Set(secrets).size, 3, '키마다 다른 값');
     assert.equal(env.replace(/^(JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|REACTION_KEY_SECRET)=.*$/gm, '$1=__SET_ME__'), read('deploy', 'server.env.example'));
     assert.equal(r.stdout + r.stderr, '', '출력 0(시크릿 노출 없음)');
-    assert.ok(!readFileSync(join(dir, 'root', 'caddy.env'), 'utf8').includes('\r'), 'caddy.env CR');
     assert.ok(!existsSync(join(dir, 'root', 'server.env.tmp')));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -528,7 +541,7 @@ test('139 LOW-3: 베이스·Caddy 이미지 다이제스트 고정(세 단계 �
   assert.match(caddy[0], /^caddy:2\.\d+-alpine@sha256:[0-9a-f]{64}$/);
   // 문서의 해시 생성 명령도 같은 이미지(태그만 다르면 다른 Caddy 로 해시를 만든다).
   const doc = read('docs', 'ops', 'deploy.md');
-  assert.ok(doc.includes(caddy[0]), 'deploy.md 의 caddy hash-password 이미지 = compose 이미지');
+  assert.ok(doc.includes(caddy[0]), 'deploy.md 6절 베이스 이미지 갱신의 caddy 이미지 = compose 이미지');
 });
 
 test('139 LOW-5: sshd 드롭인 — AllowUsers deploy·관리 계정, 포워딩·터널 끔, 잠김 확인이 바꾸기 전', () => {
@@ -804,9 +817,95 @@ test('QA148 MED-1: SQLITE_TMPDIR 는 /data 볼륨 안(백업 폴더·erasures �
   assert.notEqual(want, '/data');
 });
 
-test('QA148 INFO-1: caddy.env.example 의 hash-password 이미지 = compose caddy 이미지', () => {
-  const img = /^\s+image: (caddy:\S+)$/m.exec(COMPOSE)[1];
-  assert.ok(read('deploy', 'caddy.env.example').includes(`docker run --rm -it ${img} caddy hash-password`));
+test('ORDERS §40: deploy.yml 외부 확인 = 공개 200 + robots.txt "Disallow: /" 줄 + X-Robots-Tag noindex(401 기대 0), 재시도 6×5초·10초 제한', () => {
+  const step = /\n {6}- name: (External check[^\n]*)\n([\s\S]*?)(?=\n {6}- name: |\n\S|$)/.exec(WORKFLOW);
+  assert.ok(step, 'External check 단계');
+  assert.doesNotMatch(step[1], /basic_auth|401/, step[1]);
+  const body = step[2];
+  assert.doesNotMatch(body, /401|basic_auth/);
+  assert.match(body, /"\$SITE_ORIGIN\/"/);
+  assert.match(body, /"\$SITE_ORIGIN\/robots\.txt"/);
+  assert.match(body, /grep -qxF 'Disallow: \/'/, 'Disallow: / 는 줄 전체 일치(Disallow: /save 를 통과시키지 않게)');
+  assert.match(body, /grep -qiE '\^x-robots-tag:\.\*noindex'/);
+  assert.match(body, /for _ in 1 2 3 4 5 6; do/);
+  assert.match(body, /sleep 5/);
+  assert.equal((body.match(/--max-time 10/g) || []).length, 2);
+  // 리다이렉트를 따라가면 다른 호스트의 200+noindex 로도 통과한다(QA262 LOW-2).
+  assert.doesNotMatch(body, /(^|\s)(-L|--location)(\s|$)|curl\s+-[A-Za-z]*L/, '외부 확인 curl 은 리다이렉트를 따라가지 않는다');
+  assert.ok(!/(^|\n)#[^\n]*basic_auth 401/.test(WORKFLOW), '머리 주석 basic_auth 401');
+  // deploy.sh 사전 점검은 server.env 만(옛 서버의 caddy.env 예시가 배포를 막지 않게).
+  assert.match(read('deploy', 'deploy.sh'), /^  for f in server\.env; do$/m);
+});
+
+test('ORDERS §40: 외부 확인 스크립트 실행(가짜 curl) — 200+Disallow+noindex 만 통과, 401·색인 robots·noindex 없음·robots 404 는 실패', { skip: !SH_BIN }, () => {
+  const step = /\n {6}- name: External check[^\n]*\n[\s\S]*?\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/.exec(WORKFLOW);
+  assert.ok(step, 'External check run 블록');
+  const script = step[1].split('\n').map((l) => l.replace(/^ {10}/, '')).join('\n');
+  // 앱의 실제 robots(WS_INDEXABLE=0) 출력 — server/src/prerender/robots.ts DISALLOW_ALL.
+  const rm = /const DISALLOW_ALL = '([^']*)'/.exec(read('server', 'src', 'prerender', 'robots.ts'));
+  assert.ok(rm, 'robots.ts DISALLOW_ALL');
+  const disallowAll = rm[1].replace(/\\n/g, '\n');
+  const indexable = 'User-agent: *\nAllow: /\nDisallow: /save\n\nSitemap: https://withsmall.kr/sitemap.xml\n';
+  const goodHdr = 'HTTP/2 200\r\ncontent-type: text/html\r\nx-robots-tag: noindex, nofollow\r\n\r\n';
+  const dir = mkdtempSync(join(tmpdir(), 'ws-extcheck-'));
+  try {
+    mkdirSync(join(dir, 'bin'));
+    mkdirSync(join(dir, 'f'));
+    writeFileSync(join(dir, 'bin', 'curl'), [
+      '#!/bin/sh',
+      'o=; d=; url=',
+      'while [ $# -gt 0 ]; do',
+      '  case "$1" in',
+      '    -o) o="$2"; shift 2 ;;',
+      '    -D) d="$2"; shift 2 ;;',
+      '    -w|--max-time) shift 2 ;;',
+      '    -*) shift ;;',
+      '    *) url="$1"; shift ;;',
+      '  esac',
+      'done',
+      'echo "$url" >> "$FAKE_DIR/urls"',
+      'case "$url" in',
+      '  */robots.txt) if [ "$o" != /dev/null ]; then cat "$FAKE_DIR/robots" > "$o"; fi; printf %s "$(cat "$FAKE_DIR/robots.code")" ;;',
+      '  *) if [ -n "$d" ]; then cat "$FAKE_DIR/headers" > "$d"; fi; printf %s "$(cat "$FAKE_DIR/root.code")" ;;',
+      'esac',
+      '',
+    ].join('\n'), { mode: 0o755 });
+    writeFileSync(join(dir, 'bin', 'sleep'), '#!/bin/sh\n:\n', { mode: 0o755 });
+    writeFileSync(join(dir, 'run.sh'), script);
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const run = ({ code = '200', hdr = goodHdr, robots = disallowAll, rcode = '200' }) => {
+      const f = join(dir, 'f');
+      writeFileSync(join(f, 'root.code'), code);
+      writeFileSync(join(f, 'headers'), hdr);
+      writeFileSync(join(f, 'robots'), robots);
+      writeFileSync(join(f, 'robots.code'), rcode);
+      writeFileSync(join(f, 'urls'), '');
+      const r = spawnSync(SH_BIN, [fwdp(join(dir, 'run.sh'))], {
+        encoding: 'utf8',
+        env: { ...process.env, SITE_ORIGIN: 'https://withsmall.kr', FAKE_DIR: fwdp(f), PATH: `${join(dir, 'bin')}${sep}${process.env.PATH}` },
+      });
+      const urls = readFileSync(join(f, 'urls'), 'utf8').trim().split('\n').filter(Boolean);
+      return { status: r.status, out: r.stdout + r.stderr, urls };
+    };
+    let r = run({});
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /external status: 200/);
+    assert.deepEqual(r.urls, ['https://withsmall.kr/', 'https://withsmall.kr/robots.txt'], '통과면 한 번에 멈춘다');
+    const bad = {
+      '401(옛 basic_auth)': { code: '401' },
+      '색인 허용 robots(Disallow: /save 만)': { robots: indexable },
+      'X-Robots-Tag 가 noindex 아님': { hdr: 'HTTP/2 200\r\nx-robots-tag: all\r\n\r\n' },
+      'robots.txt 404': { rcode: '404' },
+    };
+    // (사례마다 6회 재시도 — Windows 에선 사례당 20초대. 사례는 판정 갈래마다 하나씩만.)
+    for (const [name, c] of Object.entries(bad)) {
+      r = run(c);
+      assert.notEqual(r.status, 0, `${name}: 통과하면 안 된다\n${r.out}`);
+      assert.equal(r.urls.filter((u) => u === 'https://withsmall.kr/').length, 6, `${name}: 6번 재시도`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('bootstrap: 호스트 이름이 배포·관리 계정 이름과 같으면 변경 전에 멈춘다(QA152 LOW-1)', () => {

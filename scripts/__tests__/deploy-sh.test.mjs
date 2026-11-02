@@ -47,7 +47,7 @@ function host() {
   mkdirSync(join(root, 'data', 'backup'), { recursive: true });
   writeFileSync(join(root, 'deploy.conf'), `WS_IMAGE_REPO=${REPO}\n`);
   writeFileSync(join(root, 'server.env'), 'NODE_ENV=production\nJWT_ACCESS_SECRET=x\n', { mode: 0o600 });
-  writeFileSync(join(root, 'caddy.env'), "WS_BASIC_USER=u\nWS_BASIC_HASH='h'\n", { mode: 0o600 });
+  // caddy.env 없음(basic_auth 폐기 — ORDERS §40). 옛 서버에 남은 경우는 아래 '옛 caddy.env' 테스트.
   writeFileSync(join(root, 'compose.yaml'), 'name: withsmall\n');
   writeFileSync(join(root, 'Caddyfile'), '');
   return { root, fake };
@@ -185,14 +185,29 @@ test('아키텍처 불일치·pull 실패·잘못된 태그·env 자리표시는
     assert.equal(deploy(h, ['deploy', T1, 'extra']).status, 2);
     assert.equal(deploy(h, ['nope']).status, 2);
 
-    writeFileSync(join(h.root, 'caddy.env'), "WS_BASIC_USER=__SET_ME__\nWS_BASIC_HASH='__SET_ME__'\n", { mode: 0o600 });
+    writeFileSync(join(h.root, 'server.env'), 'NODE_ENV=production\nJWT_ACCESS_SECRET=__SET_ME__\n', { mode: 0o600 });
     r = deploy(h, ['deploy', T1]);
     assert.equal(r.status, 1);
-    assert.match(out(r), /__SET_ME__/);
+    assert.match(out(r), /server\.env 에 __SET_ME__/);
     assert.equal(st(h, 'current'), null);
     assert.doesNotMatch(calls(h), /compose .* up/);
   } finally {
     rmSync(h.root, { recursive: true, force: true });
+  }
+});
+
+test('ORDERS §40: caddy.env 는 사전 점검 대상 아님 — 없어도, 옛 bootstrap 예시(__SET_ME__·0644)가 남아 있어도 배포된다', () => {
+  for (const old of [null, "# 옛 예시\nWS_BASIC_USER=__SET_ME__\nWS_BASIC_HASH='__SET_ME__'\n"]) {
+    const h = host();
+    try {
+      if (old !== null) writeFileSync(join(h.root, 'caddy.env'), old, { mode: 0o644 });
+      const r = deploy(h, ['deploy', T1]);
+      assert.equal(r.status, 0, out(r));
+      assert.doesNotMatch(out(r), /caddy\.env/);
+      assert.equal(st(h, 'current'), `${REPO}:${T1}`);
+    } finally {
+      rmSync(h.root, { recursive: true, force: true });
+    }
   }
 });
 
@@ -1399,7 +1414,7 @@ test('139 MED-3: log() 줄마다 logger -p authpriv.info -t ws-admin-deploy, 시
     assert.match(body, new RegExp(`시작: deploy ${T1}`));
     assert.match(body, new RegExp(`OK ${REPO}:${T1}`));
     assert.match(body, /종료 코드 0/);
-    // server.env 의 값(JWT_ACCESS_SECRET=x)·caddy.env 해시 자리는 보내지 않는다.
+    // server.env 의 값(JWT_ACCESS_SECRET=x)은 보내지 않는다(옛 caddy.env 해시 이름도 0).
     assert.doesNotMatch(body, /JWT_ACCESS_SECRET|WS_BASIC_HASH/);
     // FAIL 줄도 운영자 기록에 남는다(거부·실패를 1년 기록으로 확인).
     r = deploy(h, ['deploy', 'sha-zz'], { WS_ADMIN_LOGGER: fwd(lg) });

@@ -1,6 +1,6 @@
 # WithSmall 운영 compose(내부 테스트). 배포 위치: /opt/withsmall/compose.yaml — 상대 경로는 이 파일 기준.
 #   이미지 태그는 deploy.sh 가 state/image.env(WS_IMAGE=ghcr.io/<owner>/<repo>:sha-<12>)로만 바꾼다.
-#   시크릿은 server.env·caddy.env(0600, 저장소 밖)에서만. 이 파일에 값 없음.
+#   시크릿은 server.env(0600, 저장소 밖)에서만. 이 파일에 값 없음. caddy 는 env 파일을 읽지 않는다(basic_auth 폐기 — ORDERS §40, 옛 caddy.env 가 서버에 남아 있어도 무시).
 #   로그: journald(bootstrap.sh 가 7일·500M 보관) — 앱·Caddy 모두 IP·요청 주소를 남기지 않는다(docs/ops/deploy.md 7절).
 #   불변식 ④ 결제 없음 · ⑧ 위치 저장 없음 — 이 구성은 두 컨테이너(app·caddy)뿐.
 #   격리(security 139 LOW-2): 두 컨테이너 모두 read_only 루트 + tmpfs /tmp(noexec) — 쓰기는 볼륨(app /data · caddy /data·/config)과 /tmp 뿐.
@@ -51,9 +51,6 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    # basic_auth 사용자·bcrypt 해시(WS_BASIC_USER·WS_BASIC_HASH). env_file 이어야 한다 — compose 파일 보간에 해시의 $ 가 먹히지 않게.
-    env_file:
-      - ./caddy.env
     ports:
       - "80:80"
       - "443:443"

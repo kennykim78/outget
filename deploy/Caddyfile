@@ -1,4 +1,6 @@
 # WithSmall 앞단 프록시(Caddy 2.8+, 내부 테스트 단계). 배포 위치: /opt/withsmall/Caddyfile(읽기 전용 마운트).
+#   비밀번호 없음(Kenny 2026-11-02, ORDERS §40 — 10-27 basic_auth 결정 폐기, 제휴 심사자가 바로 볼 수 있게).
+#   검색 노출은 계속 막는다: 이 파일의 X-Robots-Tag "noindex, nofollow"(오류 응답 포함) + 앱 빌드 WS_INDEXABLE=0(robots.txt = Disallow: /).
 #   설계: _workspace/119 · docs/ops/deploy.md. 정적 검사: scripts/__tests__/deploy-config.test.mjs.
 #
 #   접속 기록 0(Kenny 2026-10-27 "접속 기록 남기지 않음"):
@@ -8,7 +10,7 @@
 #     - 남는 것: 인증서 발급(tls.*)·기동 기록. IP·요청 주소 없음.
 #   trusted_proxies 없음 → 들어온 X-Forwarded-For 는 무시·덮어쓴다(앱 TRUST_PROXY=1 이 이 한 홉만 믿는다).
 #   encode 없음(앱이 .br/.gz 사전 압축본을 직접 서빙). HSTS 는 내부 테스트 동안 끔(공개 전환 때 단계 적용).
-#   basic_auth 사용자·해시는 caddy.env(env_file, 0600)에서만 — 이 파일·저장소에 값 없음.
+#   이 파일은 환경 변수를 읽지 않는다(caddy.env 없음).
 {
 	log default {
 		output stderr
@@ -22,11 +24,8 @@ withsmall.kr {
 		-Server
 		X-Robots-Tag "noindex, nofollow"
 	}
-	basic_auth {
-		{$WS_BASIC_USER} {$WS_BASIC_HASH}
-	}
 	reverse_proxy app:3001
-	# 오류 응답(401 인증 요구·502)에도 같은 헤더 — 지연(deferred) 헤더는 오류 경로에 적용되지 않는다(2026-10-27 로컬 재현).
+	# 오류 응답(502 등)에도 같은 헤더 — 지연(deferred) 헤더는 오류 경로에 적용되지 않는다(2026-10-27 로컬 재현).
 	handle_errors {
 		header -Server
 		header X-Robots-Tag "noindex, nofollow"

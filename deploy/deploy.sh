@@ -88,7 +88,8 @@ read_conf() {
 file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || true; }
 
 preflight() {
-  for f in server.env caddy.env; do
+  # caddy.env 는 보지 않는다(basic_auth 폐기 — ORDERS §40). 이미 bootstrap 된 서버에 예시 그대로(__SET_ME__) 남아 있어도 배포를 막지 않는다.
+  for f in server.env; do
     p="$ROOT/$f"
     [ -f "$p" ] || fail "$f 없음 — deploy/$f.example 을 보고 만든다(0600)"
     if [ "${WS_SKIP_MODE_CHECK:-0}" != "1" ]; then
