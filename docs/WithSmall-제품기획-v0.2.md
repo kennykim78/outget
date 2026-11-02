@@ -1,6 +1,6 @@
 # WithSmall 제품기획 v0.2 — 소동물 사육 준비·구매·관리 오케스트레이션
 
-Status: **동결(Frozen) v0.2.4** — Phase 0 개발 기준. 이후 변경은 §9 백로그의 트리거 조건으로만 연다.
+Status: **동결(Frozen) v0.2.5** — Phase 0 개발 기준. 이후 변경은 §9 백로그의 트리거 조건으로만 연다.
 Date: 2026-09-30 · 이전 버전: v0.1(피벗 타당성·분양 플랫폼 안) — 본 문서가 대체
 추가 아이디어 게이트: **기존 AnimalType/CareProfile + SupplyRequirement/SupplyItem + Checklist 데이터로 해결되는가?** Yes → Phase 0 검토, No → §9 백로그.
 법적 서술은 리스크 분석이며 법률 자문이 아니다.
@@ -79,13 +79,13 @@ WithSmall의 답: **정보 → 왜 필요한가 → 어떤 규격 → 어디서 
 | SetupBundle(구성안) | 종별 **실속 / 균형 / 중고 활용** 3안 = SupplyItem 묶음 + 예상 총액 범위(텍스트) + 구매 순서. "이미 가진 것"은 구성에서 제외 계산 | 데이터 정의만. 실제 상품·가격 채우기는 Phase 1(§9). **"최저가"·"판매순" 표현 금지** — 가격 전수 수집 불가라 보증 못 함. 조건 명시 가능해질 때만 "검색 기준 최저가" |
 | 반응 신호(좋아요) | **정보 → 👍 도움됐어요**, **상품 → ♥ 마음에 들어요**(상품은 Phase 1 CuratedProduct와 함께). 보조로 "⚠ 다시 확인해주세요". 댓글·피드·팔로우 없음 — 커뮤니티가 아니라 데이터 레이어. 익명(localStorage+IP 제한) | 용도: 재검수 우선순위(조회 多·도움 少·확인요청 多 항목부터), Supply Action 보조, 향후 상품 선호 순위. **검수 등급·규격 적합성을 대체하지 않음** |
 | 수동 규격 확인기 + **호환성** | 사용자가 치수·수치 입력 → 프로필 기준 판정. **"내 케이지"(타입·바닥 치수)를 한 번 입력(localStorage)하면 이후 항목 판정이 그 컨텍스트를 참조** — 쳇바퀴 지름 vs 케이지 바닥·높이, 급수기 거치 방식 vs 케이지 타입, 은신처 vs 바닥 면적 등 규칙 3~5개 | URL 분석 아님(불변식 1). 낱개 판매하는 몰이 못 주는 "이 조합이 맞는가". 상품 간 호환은 Phase 1 |
-| 새 제품 검색 딥링크 | 종 조건을 붙인 검색어 자동 생성 → 쿠팡·네이버 검색 링크 | 제휴 태그는 Phase 1 |
-| 병원 맵 | 운영자 시드(서울·경기 우선) + 진료가능 종·야간 필터 + 전화·길찾기. 제보는 받되 검수 전 비공식 표시 | NaverMapShell 재사용 |
+| 새 제품 검색 딥링크 | 종 조건을 붙인 검색어 자동 생성 → 쿠팡·네이버 검색 링크. 검색 블록은 어느 화면에서나 처음부터 펼쳐 둔다(접기·펼침 버튼·더보기 없음) | 공급자 공식 제휴 링크로 바꾸는 것만 허용(같은 검색 결과 페이지·고지 필수·노출·순서 영향 0, PRD US-012). 상품 단위 제휴는 Phase 1 |
+| 병원 맵 | 운영자 시드(서울·경기 우선) + 진료가능 종·야간 필터 + 전화·길찾기. 제보는 받되 검수 전 비공식 표시, 확인(VERIFIED)되지 않은 사용자 제보는 접수 후 180일 보존 뒤 삭제(처리방침 보존 기간 표에 기재) | NaverMapShell 재사용 |
 | 프리렌더 SEO | 빌드 타임 정적 HTML + 하이드레이션. title/description/canonical/sitemap/robots/OG/구조화 데이터 | 프레임워크 이전 없음 |
 | 최소 이벤트 | `species_selected, setup_started, item_checked, item_unchecked, setup_100_reached, spec_checker_used, external_product_clicked, vet_clicked, bundle_viewed, helpful_clicked` | 비로그인 익명 |
 
 ### 4.2 Phase 0에 없음 (§9 백로그 참조)
-계정, 큐레이션 제품·제휴, 비용 계산기, My Small·리마인더·계절, 중고·나눔·구해요, 재입양, AI, 커뮤니티.
+계정, 큐레이션 제품 단위 제휴(상품 URL·가격·판매처), 비용 계산기, My Small·리마인더·계절, 중고·나눔·구해요, 재입양, AI, 커뮤니티.
 
 ### 4.3 착수 조건
 1. CareProfile별 **규격·용품 검수자**(햄스터·저빌·기니피그·소형앵무 각 1명 이상, 카페 경험 집사, `EXPERIENCED_KEEPER`) 확보. 먹이·건강 항목은 수의사 인맥 없이 **출처 등급**(§7.3)으로 푼다 — 수의사 공개 발행 자료·수의대·해외 특수동물 기관 자료 인용 없이는 노출하지 않는다. 검수자가 없으면 종 수를 줄인다.
@@ -201,14 +201,14 @@ VetClinic
 - 판매·거래 대신 준비·구하기. "이건 지금 안 사셔도 됩니다"를 숨기지 않는다. 구성안은 "상품 세트"가 아니라 **"첫 환경 — 실속/균형/기존 물품 활용"**처럼 "왜 이 조합인가"가 먼저 나오는 사육 구성으로 부른다.
 - 신뢰를 숫자로 만들지 않는다("정확도 98%", "전문가 4명 추천" 금지). 근거(규격·출처·검수)와 반응(👍♥⚠)만 분리해 표시.
 - 규격은 수치로, 근거는 한 줄로. 의료 문구는 "병원에 문의"까지만.
-- 제휴·광고는 카드 안에 표시(Phase 1).
+- 상품 카드의 제휴·광고는 카드 안에 표시(Phase 1). 검색 딥링크 제휴(Phase 0)는 공급자 권장 문구 원문으로 검색 블록 안(상인 버튼 바로 위)과 레이어·페이지 본문 첫 부분에 고지하고, 접기·더보기·툴팁 뒤에 두지 않는다(PRD US-012).
 
 ---
 
 ## 7. 아키텍처
 
 ### 7.1 스택 결정
-- 유지: 모노레포(client Vite+React PWA / server Express ESM), SQLite+Prisma(M2 Postgres), 동일 오리진 단일 컨테이너, CI compliance-scan, auth(US-025 이메일 저장용)·security-headers·rate-limit·governance·notification 모듈. chat·badge는 Phase 0 범위 밖 — R5에서 언마운트(UGC·계정 기능 도입 시 재검토).
+- 유지: 모노레포(client Vite+React PWA / server Express ESM), SQLite+Prisma(M2 Postgres), 동일 오리진 단일 컨테이너, CI compliance-scan, auth(US-025 이메일 저장용 — Phase 0 동안 운영자 경로 `/auth/login`·`/auth/refresh`·`/auth/me`·`/admin`·`/admin/*`는 외부에서 404, 이메일 저장 경로는 유지)·security-headers·rate-limit·governance·notification 모듈. chat·badge는 Phase 0 범위 밖 — R5에서 언마운트(UGC·계정 기능 도입 시 재검토).
 - **SEO: 빌드 타임 프리렌더.** `/{group}/{type}`(예 `/hamster/golden`, `/gerbil`, `/parrot/budgie`), `/{group}/{type}/check/{item}`, `/supplies/{item}`, `/vet/*`를 시드 데이터에서 정적 HTML 생성 + 하이드레이션. 프레임워크 이전 없음. Express는 정적 파일 + JSON API.
 - 신규 서버 모듈: `animal/`(AnimalType·Taxon·CareProfile 마스터 + 별칭 검색), `supply/`(SupplyItem·SupplyRequirement·SetupBundle·CuratedProduct), `vet/`(기존 보강), `spec-check/`(판정 로직, 순수 함수·테스트 가능), `reaction/`(ReactionSignal), `analytics/`(이벤트 수집 최소).
 - 신규 클라이언트: `animal/`(2단계 선택·Hub), `supply/`(용품 상세·용품으로 찾기), `checklist/`(localStorage 스토어), `speccheck/`, `vet/`. 재사용: `map/`, `board/` 카드·바텀시트, 테마 CSS, `governance/` 신고.
@@ -299,6 +299,7 @@ Phase 0 판단 기준: 4주 내 검색 유입 → 종 선택 → 첫 체크 전�
 | 날짜 | 변경 |
 |---|---|
 | 2026-09-30 | v0.1(분양 플랫폼) → v0.2(사육 준비·구매·관리 오케스트레이션) 전환·동결. 재입양 격하, Phase 0 범위 확정, 데이터 모델·프리렌더·검수 워크플로·백로그 트리거 정의 |
+| 2026-11-02 | **v0.2.5** — §4.1 검색 딥링크: 공급자 공식 제휴 링크로 바꾸는 범위(같은 검색 결과 페이지·고지·노출·순서 영향 0)와 검색 블록 전부 펼침(제휴 여부 무관), 병원 맵 제보 보존 180일. §4.2 Phase 0 제외를 「큐레이션 제품 단위 제휴」로 좁힘. §6.3 검색 딥링크 제휴 고지(검색 블록 안 + 본문 첫 부분, 접기 금지). §7.1 Phase 0 운영자 경로 외부 404(Kenny 결정 2026-10-27·2026-11-02) |
 | 2026-10-02 | **v0.2.4** — §7.1 유지 목록에서 chat·badge를 "Phase 0 범위 밖 — R5에서 언마운트(UGC·계정 기능 도입 시 재검토)"로 정정, auth는 US-025 이메일 저장용으로 유지(Kenny 결정) |
 | 2026-09-30 | **v0.2.3** — 호환성(CompatibilityRule) 추가: "내 케이지" 컨텍스트 기반 용품 간 조합 판정을 규격 확인기에 확장(Phase 0 규칙 3~5개), `specSchema`·`inspectCycleDays` 필드, 구성안 카피 원칙("상품 세트" 아님·신뢰 수치화 금지). 상품 간 호환·소진 예측·점검 알림은 §9 |
 | 2026-09-30 | **v0.2.2** — "Species 3종" 폐기. 데이터 축을 `AnimalType(사용자 언어) → Taxon(법) → CareProfile(사육) → SupplyRequirement → SupplyItem`으로 교체(Care & Supply Engine). 종 추가 비용 비선형화, "용품으로 찾기" 역방향 진입, 2단계 동물 선택 + 별칭("사막다람쥐"→저빌). Phase 0 타입 7~8개(햄스터 5·저빌·기니피그·사랑앵무·왕관앵무), CareProfile 4~5개, 목표 지표를 종 수→핵심 용품 커버율로. 모란·코뉴어·퀘이커·친칠라·토끼·식별 도우미·종간 비교는 §9 |

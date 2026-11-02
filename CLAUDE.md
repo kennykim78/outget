@@ -3,9 +3,9 @@
 작은 반려동물(골든햄스터부터)을 처음 준비할 때 **무엇이 필요하고 무엇은 지금 필요 없는지를 종별 기준으로 먼저 결정해 주고**, 규격을 숫자로 판정하고, 기준에 맞는 준비물과 진료 병원까지 한곳에서 잇는 서비스. 정보 사이트도 쇼핑몰도 분양 플랫폼도 아니다 — **"겉은 서비스, 속은 도구."** Outget(지도 기반 아울렛 구매대행 보드)에서 피벗했다. Outget 문서는 `docs/legacy/outget/`.
 
 **권위 문서(동결·이 순서로 우선):**
-1. `docs/WithSmall-제품기획-v0.2.md` **v0.2.4** — 정의·불변식·데이터 모델·아키텍처·복구 순서 §7.4·백로그 §9
-2. `docs/planning-artifacts/PRD.md` **v1.3.1** — US-001~026 수용 기준, 부록 A(specSchema/minSpec/CompatibilityRule JSON), 부록 B(시드 공통 필드)
-3. `docs/planning-artifacts/UX-기획.md` **v2.3.1** — 상단 내비 + 상하 흐름 + 가로 레일 + 레이어(L1~L8), 반응형 3단, 홈 2종(미선택 4섹션 / 선택 컨텍스트 헤더+5섹션)
+1. `docs/WithSmall-제품기획-v0.2.md` **v0.2.5** — 정의·불변식·데이터 모델·아키텍처·복구 순서 §7.4·백로그 §9
+2. `docs/planning-artifacts/PRD.md` **v1.3.2** — US-001~026 수용 기준, 부록 A(specSchema/minSpec/CompatibilityRule JSON), 부록 B(시드 공통 필드)
+3. `docs/planning-artifacts/UX-기획.md` **v2.3.2** — 상단 내비 + 상하 흐름 + 가로 레일 + 레이어(L1~L8), 반응형 3단, 홈 2종(미선택 4섹션 / 선택 컨텍스트 헤더+5섹션)
 4. `docs/planning-artifacts/디자인-브리프.md` v2.3.1 + `docs/design/`(디자인 시스템 토큰·마스코트·캔버스 보드 HTML) — 시각 규칙의 원본
 5. `docs/planning-artifacts/골든햄스터-콘텐츠-시드-v1.0.md` + `seed-draft/*.json` — 첫 동물 시드(DRAFT)
 6. `docs/planning-artifacts/이미지-소싱.md` · `베타-후기-수집.md` — 운영 절차
