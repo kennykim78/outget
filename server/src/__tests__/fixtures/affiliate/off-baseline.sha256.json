@@ -1,6 +1,6 @@
 {
-  "head": "7ba51a1",
-  "note": "259 단계 0 — 제휴 코드 변경 전 꺼짐 빌드",
+  "head": "c03f3d2+overlay",
+  "note": "264 처리방침 동물병원 제보 보관 행 반영 — 제휴 이전 코드 c03f3d2 + 264 파일",
   "templateSha256": "3e13f48faee605886ac0e00a7cdc0ebc4ee71f4e0269e3ddbe25dc3fa675ceab",
   "cases": {
     "real": {
@@ -10,7 +10,7 @@
       "index.html": "18131c5c5a88da58e299d8dc6be5f8fe88143a5252240bf007ebdfd139ed8fb7",
       "pick/index.html": "e1ac8e187a1106a2d5d6227227a583813c15e7c05b45bbe4c4a497192c77cdd1",
       "prerender-manifest.json": "51d649c870b120930a254855d94e935e76f5c77bb34217b4de7892ed651377ec",
-      "privacy/index.html": "b01a6537a11140e8a38d7e8fe69a17450d1c6adb66c300259c05691db499d9d0",
+      "privacy/index.html": "35f91bc9b95f36570a0d388ed3bcc74f623c780f6f30843427823e46cec873bb",
       "robots.txt": "1a7163cf6a1f941596faca54c63fdbbfe9d1e02e109a37e37828c70c6d807e81",
       "save/index.html": "6312623da5c0dc9f0010f2b489941fdb26a154b2e5e48544245627ec960fe4f8",
       "sitemap.xml": "28844a1dab0912a1065556f5ab7a521700a0c7182304089c267dfd99839607f7",
@@ -39,7 +39,7 @@
       "index.html": "65e4f50d6e91f5f5f9802449983593913f98853d690be560eb593552e0d2e2ba",
       "pick/index.html": "814cd4e3c70c3bce44298e1bbd4dfec4b33bf580dc4210d63c105bfcd1a5b6ba",
       "prerender-manifest.json": "b93605c480d5c888731739a723f91a52d17a5e93344ab4600447f9619d1fb6e3",
-      "privacy/index.html": "127ae87aab38bfbead5f09c1fccf9ca08e319ffd12c9449f19b0faad9858a446",
+      "privacy/index.html": "b208afd443ebaa7b1ec63620084b55e06822195c0505cdb5d9676aa19d5f4db6",
       "robots.txt": "1a7163cf6a1f941596faca54c63fdbbfe9d1e02e109a37e37828c70c6d807e81",
       "save/index.html": "e0719f2960816041e40bbae534e8c2841fb2b845e7e8276ed31bb6d4d257357c",
       "sitemap.xml": "846006ababf94aedd1d28d9ec78aec83cc711d14287fa712291bcb45881c7f45",
@@ -107,7 +107,7 @@
       "index.html": "90cb34d389ae1073b8aa5f58c518e445f1d72b313156e8b8d190fcf489f0b3a8",
       "pick/index.html": "9b5d6d549e37ca10c42ab8513fdb2fe3de5e2f2ef28b6411b85c2d9409377230",
       "prerender-manifest.json": "1ab8db9d7311ec3746d6dc5049fd532b5fa081b63e521e7c9b672a3c829f518a",
-      "privacy/index.html": "81d8b57fb0cc0651687636ab3655775faddaee5ed28b69cc3747e7a10cf0d231",
+      "privacy/index.html": "52e757bb6cd644e8622523ddb50c0873bbad0027728db5a6ecae1bc8fe4ba82a",
       "robots.txt": "1a7163cf6a1f941596faca54c63fdbbfe9d1e02e109a37e37828c70c6d807e81",
       "save/index.html": "1f726421d0fda7128ecbb5836925548a0dae8cdc638e9684830aaa5b228735dc",
       "sitemap.xml": "a52070ad5f6ab6cd2e3942bf3cc582bd22fec430734631d66a11c4e4f30576d6",

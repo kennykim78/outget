@@ -16,6 +16,19 @@ import { resolveSaveConfig, type SaveConfig } from './save/config.js';
 import { createMagicRouter } from './save/magic.routes.js';
 import { createSaveRouter, SAVE_ERASE_LIMIT } from './save/save.routes.js';
 import type { Clock } from './save/session.js';
+import {
+  capHitLogger,
+  DailyCap,
+  DEFAULT_VET_REPORT_PER_IP_DAILY,
+  PerKeyDailyLimit,
+  VET_REPORT_PER_IP_DAILY_ENV,
+  DEFAULT_EVENT_DAILY_CAP,
+  DEFAULT_VET_REPORT_DAILY_CAP,
+  EVENT_DAILY_CAP_ENV,
+  resolveDailyCap,
+  VET_REPORT_DAILY_CAP_ENV,
+} from './middleware/daily-cap.js';
+import { seoulDayStartIso } from './privacy/retention.js';
 
 // 자체 본문 파서를 쓰는 경로는 전역 JSON 파서에서 제외한다(Express 라우팅은 대소문자 무시 — 동일하게 맞춘다).
 //   POST /api/events: text/plain sendBeacon + JSON, ≤16KB.  PUT /api/save: JSON 만, ≤32KB(C-R5-2).
@@ -42,6 +55,11 @@ export interface CreateAppOptions {
   knownTargetIds?: ReadonlySet<string>;
   /** Express 'trust proxy' 정수 홉 수(SEC-3 M-2). 기본: env TRUST_PROXY(미설정 0) — true·비정수는 기동 throw. */
   trustProxy?: number;
+  /**
+   * 일일 전역 저장 상한(264). 기본: env WS_EVENT_DAILY_CAP(10,000행)·WS_VET_REPORT_DAILY_CAP(100건) — 0 이상 정수 아니면 throw.
+   *   넘치면 저장하지 않고 응답은 그대로(이벤트 204·제보 202). 카운터는 앱마다 새로(메모리 + 서울 날짜 경계, 날짜가 바뀌면 저장소에서 1회 복원).
+   */
+  dailyCaps?: { events?: number; vetReports?: number; vetReportsPerIp?: number; now?: () => Date; log?: (line: string) => void };
 }
 
 export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOptions = {}): Express {
@@ -50,6 +68,24 @@ export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOpt
   const now: Clock = opts.save?.now ?? (() => new Date());
   const rateLimits = opts.rateLimits ?? process.env.NODE_ENV !== 'test';
   const limiters = makeAppLimiters(rateLimits);
+  const eventCap = new DailyCap(
+    opts.dailyCaps?.events ?? resolveDailyCap(process.env, EVENT_DAILY_CAP_ENV, DEFAULT_EVENT_DAILY_CAP),
+    (date) => repos.event.countOnDate(date),
+    undefined,
+    capHitLogger('events', opts.dailyCaps?.log),
+  );
+  const vetReportCap = new DailyCap(
+    opts.dailyCaps?.vetReports ?? resolveDailyCap(process.env, VET_REPORT_DAILY_CAP_ENV, DEFAULT_VET_REPORT_DAILY_CAP),
+    (date) => repos.vet.countReportsSince(seoulDayStartIso(date)),
+    undefined,
+    capHitLogger('vetReports', opts.dailyCaps?.log),
+  );
+  // 제보 IP별 하루 한도(security 264 ④b, 기본 10) — 메모리 HMAC 키만, 날짜마다 비움.
+  const vetReportPerIp = new PerKeyDailyLimit(
+    opts.dailyCaps?.vetReportsPerIp ?? resolveDailyCap(process.env, VET_REPORT_PER_IP_DAILY_ENV, DEFAULT_VET_REPORT_PER_IP_DAILY),
+  );
+  // 시험용 고정 시계(서울 날짜 경계 — 264 QA LOW-3). 미지정이면 두 라우터 모두 실제 시계(기존 동작).
+  const capNow = opts.dailyCaps?.now;
 
   const app = express();
   // 139 LOW-4: 프레임워크 노출 헤더(X-Powered-By: Express) 제거 — SPA·정적·API·오류 응답 모두.
@@ -146,7 +182,7 @@ export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOpt
   //   /api/vets 읽기 라우터(/:id)보다 먼저 마운트한다.
   app.use(
     '/api/vets/reports',
-    createVetReportRouter(repos.vet, { limiter: limiters.vetReport, knownTypeIds: opts.knownTypeIds }),
+    createVetReportRouter(repos.vet, { limiter: limiters.vetReport, knownTypeIds: opts.knownTypeIds, cap: vetReportCap, perIp: vetReportPerIp, ...(capNow ? { now: capNow } : {}) }),
   );
 
   // 특수동물 진료 병원 — 읽기 전용, VERIFIED 만 노출(불변식 7).
@@ -157,6 +193,8 @@ export function createApp(repos: Repos = makeInMemoryRepos(), opts: CreateAppOpt
     '/api/events',
     makeEventsRoutes(repos.event, {
       limiter: rateLimits ? limiters.events : undefined,
+      cap: eventCap,
+      ...(capNow ? { now: capNow } : {}),
     }),
   );
 

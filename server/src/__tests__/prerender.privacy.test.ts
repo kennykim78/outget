@@ -150,6 +150,20 @@ describe('/privacy 본문(P8·P10)', () => {
     expect(textOf(html2)).toContain('1년 동안 보관하고, 1년이 지나면 자동으로 지워요.');
   });
 
+  it('264 보유 기간 표: 동물병원 제보 행 = policy.ts VET_REPORT_RETENTION_DAYS(180) — 산출물 span 값도 같다, 확인된 병원은 남는다는 조건 포함', () => {
+    expect(POLICY_PERIODS.VET_REPORT_RETENTION_DAYS).toBe(policy.VET_REPORT_RETENTION_DAYS);
+    const sec = PRIVACY_POLICY.sections.find((s) => s.id === 'retention');
+    const tb = sec?.blocks.find((b) => 'table' in b);
+    if (!tb || !('table' in tb)) throw new Error('보유 기간 표 없음');
+    const rows = tb.table.rows.filter((r) => typeof r[0] === 'string' && r[0].startsWith('동물병원 제보'));
+    expect(rows).toEqual([
+      ['동물병원 제보(병원 이름·주소·전화번호)', '받은 날부터 {policy:VET_REPORT_RETENTION_DAYS}일 동안 보관해요. 전화로 확인해 병원 목록에 올린 병원은 목록 정보로 남아요.'],
+    ]);
+    const sec2 = /<section[^>]*id="privacy-retention"[\s\S]*?<\/section>/.exec(html)?.[0] ?? '';
+    expect(sec2).toContain(`<span data-ws-policy="VET_REPORT_RETENTION_DAYS">${policy.VET_REPORT_RETENTION_DAYS}</span>`);
+    expect(textOf(sec2).replace(/\s+/g, ' ')).toContain('동물병원 제보(병원 이름·주소·전화번호) 받은 날부터 180 일 동안 보관해요.');
+  });
+
   it('해요체: 문단(p)·intro 는 "요." 또는 "요" 로 끝난다(라벨형 문단 서버 위치는 예외)', () => {
     const paras = [...PRIVACY_POLICY.intro, ...PRIVACY_POLICY.sections.flatMap((s) => s.blocks.flatMap((b) => ('p' in b ? [b.p] : [])))];
     for (const p of paras) {

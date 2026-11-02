@@ -7,6 +7,7 @@ import express, { Router, type RequestHandler } from 'express';
 import { randomUUID } from 'node:crypto';
 import { rateLimit } from 'express-rate-limit';
 import { MAX_BODY_BYTES, validateBatch, type TrackEvent } from '../shared/event-contract.js';
+import type { DailyCap, DailyCapTake } from '../middleware/daily-cap.js';
 import type { EventRepository, EventRow } from './event.repo.js';
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -50,6 +51,11 @@ export function makeEventsLimiter(opts: { limit?: number; windowMs?: number } = 
 export interface EventsRouteOptions {
   limiter?: RequestHandler;
   now?: () => Date;
+  /**
+   * 일일 전역 저장 상한(264, security 257 3c). 넘친 이벤트는 저장하지 않고 응답은 그대로 204(클라이언트 변화 0).
+   *   배치가 남은 자리보다 크면 앞에서부터 남은 수만 저장. 미지정 = 상한 없음(단위 시험용 — app.ts 는 늘 넘긴다).
+   */
+  cap?: DailyCap;
 }
 
 const ACCEPTED_TYPES = ['text/plain', 'application/json'];
@@ -94,9 +100,17 @@ export function makeEventsRoutes(repo: EventRepository, opts: EventsRouteOptions
       res.status(400).json(result.index === undefined ? { error: result.error } : { error: result.error, index: result.index });
       return;
     }
+    const at = now();
+    let taken: DailyCapTake | undefined;
     try {
-      await repo.append(toEventRows(result.events, now()));
+      let events = result.events;
+      if (opts.cap) {
+        taken = await opts.cap.take(events.length, at);
+        events = events.slice(0, taken.allowed);
+      }
+      if (events.length > 0) await repo.append(toEventRows(events, at));
     } catch {
+      if (opts.cap && taken) opts.cap.release(taken);
       res.status(500).json({ error: 'internal' });
       return;
     }

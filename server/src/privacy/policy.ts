@@ -12,6 +12,12 @@ export const UNUSED_USER_RETENTION_DAYS = 365;
 export const EVENT_LOG_RETENTION_DAYS = 90;
 /** 익명 반응(ReactionSignal.createdAt) 400일 — reaction/anon-key.ts REACTION_KEY_WINDOW_DAYS 이하여야 한다(기동 검사). */
 export const REACTION_RETENTION_DAYS = 400;
+/**
+ * 동물병원 제보(VetClinic source USER_REPORT ∧ status REPORTED — 병원 이름·주소·전화·진료 동물) 접수 시각(createdAt) 후 180일
+ *   (Kenny 2026-11-02 ORDERS §41, security 257 3d). BLINDED 등 VERIFIED 외 사용자 제보는 모두 같은 기한에 지운다(264 QA LOW-1·security ②b).
+ *   운영자가 전화 확인해 VERIFIED 로 바꾼 행만 남긴다 — 그때부터는 공개 병원 목록 데이터(처리방침 "목록에 올린 병원은 남아요"). 시각 데이터라 now − 180×24h 보다 이른 접수만 지운다(정확히 180일째는 남김).
+ */
+export const VET_REPORT_RETENTION_DAYS = 180;
 /** DB 백업 파일 7일(scripts/prune-backups.sh 의 WS_BACKUP_MAX_AGE_DAYS 기본값과 같다). */
 export const BACKUP_RETENTION_DAYS = 7;
 /**

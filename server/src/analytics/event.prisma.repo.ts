@@ -20,4 +20,9 @@ export class PrismaEventRepository implements EventRepository {
     });
     return count;
   }
+
+  /** 일일 상한 복원(264) — receivedDate 인덱스(마이그레이션 20261102000000_vet_report_created_at)로 범위 조회. */
+  countOnDate(receivedDate: string): Promise<number> {
+    return this.prisma.eventLog.count({ where: { receivedDate } });
+  }
 }

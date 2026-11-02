@@ -95,6 +95,94 @@ test('Caddyfile: 비밀번호 없음(basic_auth 0 · env 자리 0, ORDERS §40) 
   assert.ok(www.lines.some((l) => l.words.join(' ') === 'redir https://withsmall.kr{uri} 302'));
 });
 
+// 264(Kenny ORDERS §41, security 257 4a·4b): Phase 0 동안 운영자 경로만 외부 404. 저장 흐름(US-025)은 열어 둔다.
+//   /auth/logout 은 저장 흐름이 아니라 운영자 로그아웃(auth.routes.ts:134), 클라 미사용 — 막지 않아도 무해(bcrypt 없음·refresh 쿠키 필요).
+const OPERATOR_BLOCKED = ['/auth/login', '/auth/login/', '/auth/refresh', '/auth/refresh/', '/auth/me', '/auth/me/', '/admin', '/admin/*'];
+// 열어 두는 경로: 저장 흐름(server/src/save/magic.routes.ts) + 운영자 로그아웃(위 주석) — 하나라도 매처에 걸리면 안 된다.
+const SAVE_FLOW_OPEN = ['/auth/magic/request', '/auth/magic/verify', '/auth/session', '/auth/logout'];
+
+/** Caddy path 매처 한 패턴이 경로와 맞는지(정확 일치 또는 끝 '*' 접두, 대소문자 무시 — Caddy MatchPath 와 같은 범위만). */
+function caddyPathMatches(pattern, path) {
+  const p = pattern.toLowerCase();
+  const x = path.toLowerCase();
+  if (p.endsWith('*') && !p.slice(0, -1).includes('*')) return x.startsWith(p.slice(0, -1));
+  if (p.includes('*')) return null; // 이 파일에서 쓰지 않는 형태 — 판정 불가로 실패시킨다
+  return x === p;
+}
+
+/** apex 블록의 운영자 404 구성 → 막는 경로 목록. 어긋나면 throw(변이 시험이 같은 함수를 쓴다). */
+function operatorGuard(text) {
+  const apex = caddyBlocks(text).find((b) => b.head === 'withsmall.kr');
+  assert.ok(apex, 'apex 블록');
+  const top = apex.lines.find((l) => l.words[0] === 'reverse_proxy').depth;
+  const at = apex.lines.filter((l) => l.depth === top);
+  const matchers = at.filter((l) => l.words[0].startsWith('@'));
+  assert.deepEqual(matchers.map((l) => l.words[0]), ['@operator'], 'apex 이름 매처는 @operator 하나');
+  const m = matchers[0].words;
+  assert.equal(m[1], 'path', '@operator 는 path 매처 한 줄(블록·다른 매처 없음)');
+  assert.ok(m.length > 2 && !m.includes('{'), '@operator path 목록');
+  const paths = m.slice(2);
+  // respond @operator 404 — 상태만, 본문 0. error(오류 경로 → handle_errors) 가 아니라 respond(위 header 블록이 그대로 붙음).
+  const resp = at.filter((l) => l.words[0] === 'respond');
+  assert.deepEqual(resp.map((l) => l.words), [['respond', '@operator', '404']], 'respond @operator 404 한 줄(본문 없음)');
+  assert.ok(!apex.lines.some((l) => l.words[0] === 'error'), 'error 지시어 0(오류 경로로 보내지 않는다)');
+  assert.ok(!at.some((l) => /^(handle|handle_path|route)$/.test(l.words[0])), 'handle/route 블록 0 — 순서는 Caddy 기본 지시어 순서(respond 가 reverse_proxy 앞)');
+  const idx = (w) => at.findIndex((l) => l.words[0] === w);
+  assert.ok(idx('@operator') < idx('respond') && idx('respond') < idx('reverse_proxy'), '매처 → respond → reverse_proxy 순서(읽기 순서)');
+  for (const open of SAVE_FLOW_OPEN) {
+    for (const p of paths) {
+      const hit = caddyPathMatches(p, open);
+      assert.notEqual(hit, null, `판정 못 하는 패턴 ${p}`);
+      assert.equal(hit, false, `${p} 가 저장 흐름 ${open} 을 막는다`);
+    }
+    // 대소문자·끝 슬래시 변형도 열려 있어야 한다.
+    for (const v of [open.toUpperCase(), `${open}/`]) assert.ok(!paths.some((p) => caddyPathMatches(p, v)), `저장 흐름 변형 ${v} 이 막힘`);
+  }
+  return paths;
+}
+
+test('Caddyfile 264: 운영자 경로 외부 404 — 목록 정확히, 저장 흐름(/auth/magic/*·/auth/session)·운영자 로그아웃(/auth/logout) 미차단', () => {
+  assert.deepEqual(operatorGuard(CADDY), OPERATOR_BLOCKED);
+  // 실제 운영자 경로가 전부 막힌다(대소문자 무시 — Express 라우팅도 같음).
+  for (const x of ['/auth/login', '/AUTH/Login', '/auth/login/', '/auth/refresh', '/auth/refresh/', '/auth/me', '/auth/me/', '/admin', '/admin/', '/admin/ping', '/Admin/Ping']) {
+    assert.ok(OPERATOR_BLOCKED.some((p) => caddyPathMatches(p, x)), x);
+  }
+  // 앱 공개 경로는 그대로.
+  for (const x of ['/', '/privacy', '/health', '/api/events', '/api/save', '/api/vets/reports', '/auth/magic/verify', '/auth/session', '/auth/logout', '/administrator-guide']) {
+    assert.ok(!OPERATOR_BLOCKED.some((p) => caddyPathMatches(p, x)), x);
+  }
+});
+
+test('Caddyfile 264 변이: 경로 빠짐·저장 흐름 차단·error 로 바꿈·본문 추가·매처 이름 변경·순서 바꿈은 모두 실패', () => {
+  const swap = (a, b) => {
+    assert.ok(CADDY.includes(a), `변이 원본 없음: ${a}`);
+    return CADDY.replace(a, b);
+  };
+  const line = '@operator path /auth/login /auth/login/ /auth/refresh /auth/refresh/ /auth/me /auth/me/ /admin /admin/*';
+  const mutants = {
+    '로그인 빠짐': swap(line, line.replace('/auth/login /auth/login/ ', '')),
+    'admin/* 빠짐': swap(line, line.replace(' /admin/*', '')),
+    'magic 차단': swap(line, `${line} /auth/magic/*`),
+    'auth 전체 차단': swap(line, '@operator path /auth/* /admin /admin/*'),
+    'session 차단': swap(line, `${line} /auth/session`),
+    'logout 차단': swap(line, `${line} /auth/logout`),
+    'error 경로': swap('respond @operator 404', 'error @operator 404'),
+    '본문 추가': swap('respond @operator 404', 'respond @operator "Not Found" 404'),
+    '상태 바꿈': swap('respond @operator 404', 'respond @operator 403'),
+    'respond 없음': swap('\trespond @operator 404\n', ''),
+    '매처 이름': CADDY.replaceAll('@operator', '@ops'),
+  };
+  for (const [name, text] of Object.entries(mutants)) {
+    assert.throws(() => assert.deepEqual(operatorGuard(text), OPERATOR_BLOCKED), `변이 "${name}" 가 통과했다`);
+  }
+  // 순서: respond 를 reverse_proxy 뒤로.
+  const reordered = CADDY.replace('\trespond @operator 404\n', '').replace('\treverse_proxy app:3001\n', '\treverse_proxy app:3001\n\trespond @operator 404\n');
+  assert.notEqual(reordered, CADDY);
+  assert.throws(() => operatorGuard(reordered), '순서 변이 통과');
+  // 원본은 통과(변이 함수 자체가 늘 throw 하는 것이 아님).
+  assert.doesNotThrow(() => operatorGuard(CADDY));
+});
+
 test('deploy.yml: 트리거는 workflow_dispatch 하나뿐', () => {
   const lines = WORKFLOW.split('\n');
   const onIdx = lines.findIndex((l) => /^on:\s*$/.test(l));
@@ -902,6 +990,103 @@ test('ORDERS §40: 외부 확인 스크립트 실행(가짜 curl) — 200+Disall
       r = run(c);
       assert.notEqual(r.status, 0, `${name}: 통과하면 안 된다\n${r.out}`);
       assert.equal(r.urls.filter((u) => u === 'https://withsmall.kr/').length, 6, `${name}: 6번 재시도`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 264(ORDERS §41, security ⑤b): 배포 뒤 외부에서 운영자 경로 404 를 확인한다(§40 외부 확인 단계 바로 뒤의 별도 단계 — §40 단계 단언은 그대로).
+const OPS_STEP_RE = /\n {6}- name: (Operator paths 404 check[^\n]*)\n[\s\S]*?\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/;
+
+test('264 deploy.yml: 운영자 경로 404 확인 단계 — §40 외부 확인 뒤, POST /auth/login·/AUTH/LOGIN·/admin/ping 404, GET /auth/session ≠404, 404 에 noindex, -L 없음', () => {
+  const m = OPS_STEP_RE.exec(WORKFLOW);
+  assert.ok(m, 'Operator paths 404 check 단계');
+  assert.ok(WORKFLOW.indexOf('- name: External check') < m.index, '§40 외부 확인 단계 뒤');
+  assert.ok(m.index < WORKFLOW.indexOf('- name: Remove SSH key'), 'SSH 키 제거 단계 앞(같은 deploy job)');
+  const body = m[2];
+  assert.match(body, /-X POST "\$SITE_ORIGIN\/auth\/login"/);
+  assert.match(body, /-X POST "\$SITE_ORIGIN\/AUTH\/LOGIN"/);
+  assert.match(body, /"\$SITE_ORIGIN\/admin\/ping"/);
+  assert.match(body, /"\$SITE_ORIGIN\/auth\/session"/);
+  assert.match(body, /tr -d '\\r' < "\$t\/h" \| grep -qiE '\^x-robots-tag:\.\*noindex'/);
+  assert.equal((body.match(/--max-time 10/g) || []).length, 4);
+  assert.doesNotMatch(body, /(^|\s)(-L|--location)(\s|$)|curl\s+-[A-Za-z]*L/, '리다이렉트를 따라가지 않는다');
+  assert.doesNotMatch(body, /\/auth\/magic/, '저장 흐름 쓰기 경로(메일 발송)는 건드리지 않는다');
+});
+
+test('264 deploy.yml: 운영자 경로 404 확인 실행(가짜 curl) — 정상만 통과, 하나라도 어긋나면 실패(3번 재시도)', { skip: !SH_BIN }, () => {
+  const m = OPS_STEP_RE.exec(WORKFLOW);
+  assert.ok(m, 'run 블록');
+  const script = m[2].split('\n').map((l) => l.replace(/^ {10}/, '')).join('\n');
+  const dir = mkdtempSync(join(tmpdir(), 'ws-opscheck-'));
+  try {
+    mkdirSync(join(dir, 'bin'));
+    mkdirSync(join(dir, 'f'));
+    // 응답 표: f/<키>.code (키 = login·upper·admin·session), 헤더는 -D 로 f/login.headers.
+    writeFileSync(join(dir, 'bin', 'curl'), [
+      '#!/bin/sh',
+      'o=; d=; url=; meth=GET',
+      'while [ $# -gt 0 ]; do',
+      '  case "$1" in',
+      '    -o) o="$2"; shift 2 ;;',
+      '    -D) d="$2"; shift 2 ;;',
+      '    -X) meth="$2"; shift 2 ;;',
+      '    -w|--max-time) shift 2 ;;',
+      '    -*) shift ;;',
+      '    *) url="$1"; shift ;;',
+      '  esac',
+      'done',
+      'echo "$meth $url" >> "$FAKE_DIR/urls"',
+      'case "$meth $url" in',
+      '  "POST https://withsmall.kr/auth/login") k=login ;;',
+      '  "POST https://withsmall.kr/AUTH/LOGIN") k=upper ;;',
+      '  "GET https://withsmall.kr/admin/ping") k=admin ;;',
+      '  "GET https://withsmall.kr/auth/session") k=session ;;',
+      '  *) k=other ;;',
+      'esac',
+      'if [ -n "$d" ]; then cat "$FAKE_DIR/$k.headers" > "$d" 2>/dev/null || : > "$d"; fi',
+      'printf %s "$(cat "$FAKE_DIR/$k.code" 2>/dev/null || echo 000)"',
+      '',
+    ].join('\n'), { mode: 0o755 });
+    writeFileSync(join(dir, 'bin', 'sleep'), '#!/bin/sh\n:\n', { mode: 0o755 });
+    writeFileSync(join(dir, 'run.sh'), script);
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const good404 = 'HTTP/2 404\r\nx-robots-tag: noindex, nofollow\r\ncontent-length: 0\r\n\r\n';
+    const run = ({ login = '404', upper = '404', admin = '404', session = '200', hdr = good404 }) => {
+      const f = join(dir, 'f');
+      for (const [k, v] of Object.entries({ login, upper, admin, session })) writeFileSync(join(f, `${k}.code`), v);
+      writeFileSync(join(f, 'login.headers'), hdr);
+      writeFileSync(join(f, 'urls'), '');
+      const r = spawnSync(SH_BIN, [fwdp(join(dir, 'run.sh'))], {
+        encoding: 'utf8',
+        env: { ...process.env, SITE_ORIGIN: 'https://withsmall.kr', FAKE_DIR: fwdp(f), PATH: `${join(dir, 'bin')}${sep}${process.env.PATH}` },
+      });
+      const urls = readFileSync(join(f, 'urls'), 'utf8').trim().split('\n').filter(Boolean);
+      return { status: r.status, out: r.stdout + r.stderr, urls };
+    };
+    let r = run({});
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /operator paths: POST \/auth\/login 404 · POST \/AUTH\/LOGIN 404 · \/admin\/ping 404 · GET \/auth\/session 200 · 404 X-Robots-Tag noindex=yes/);
+    assert.deepEqual(r.urls, [
+      'POST https://withsmall.kr/auth/login',
+      'POST https://withsmall.kr/AUTH/LOGIN',
+      'GET https://withsmall.kr/admin/ping',
+      'GET https://withsmall.kr/auth/session',
+    ], '통과면 한 번에 멈춘다');
+    assert.equal(run({ session: '401' }).status, 0, '세션 401 도 "막히지 않음"');
+    const bad = {
+      '로그인 열림(앱 401)': { login: '401' },
+      '대문자 경로 열림': { upper: '401' },
+      '관리 경로 열림': { admin: '401' },
+      '세션까지 막힘(404)': { session: '404' },
+      '세션 연결 실패(000)': { session: '000' },
+      '404 에 noindex 없음': { hdr: 'HTTP/2 404\r\ncontent-length: 0\r\n\r\n' },
+    };
+    for (const [name, c] of Object.entries(bad)) {
+      r = run(c);
+      assert.notEqual(r.status, 0, `${name}: 통과하면 안 된다\n${r.out}`);
+      assert.equal(r.urls.filter((u) => u === 'POST https://withsmall.kr/auth/login').length, 3, `${name}: 3번 재시도`);
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });

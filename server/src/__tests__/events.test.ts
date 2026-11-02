@@ -434,6 +434,7 @@ describe('POST /api/events', () => {
         append: async () => {
           throw new Error('db down at /secret/path');
         },
+        countOnDate: async () => 0,
       }),
     );
     const res = await request(app).post('/api/events').send(batch([valid()]));

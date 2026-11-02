@@ -75,7 +75,12 @@ export class PrismaVetClinicRepository implements VetClinicRepository, VetReport
         status: 'REPORTED',
         lat: null,
         lng: null,
+        createdAt: rec.createdAt,
       },
     });
+  }
+
+  countReportsSince(sinceIso: string): Promise<number> {
+    return this.prisma.vetClinic.count({ where: { source: 'USER_REPORT', createdAt: { gte: sinceIso } } });
   }
 }

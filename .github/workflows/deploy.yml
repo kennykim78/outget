@@ -177,6 +177,30 @@ jobs:
           echo "external status: $code · robots.txt $rcode Disallow-all=$robots · X-Robots-Tag noindex=$noindex"
           [ "$code" = "200" ] && [ "$rcode" = "200" ] && [ "$robots" = "yes" ] && [ "$noindex" = "yes" ]
 
+      - name: Operator paths 404 check (Phase 0, ORDERS §41)
+        env:
+          SITE_ORIGIN: ${{ vars.SITE_ORIGIN }}
+        run: |
+          set -eu
+          # Phase 0 운영자 경로는 Caddy 에서 외부 404(deploy/Caddyfile @operator — Kenny 2026-11-02 ORDERS §41, security 257 4a·4b).
+          #   확인: POST /auth/login·POST /AUTH/LOGIN(대소문자)·GET /admin/ping = 404, 404 응답에도 X-Robots-Tag noindex,
+          #   저장 흐름 GET /auth/session 은 404 가 아님(막히지 않음). 리다이렉트는 따라가지 않는다. 3번 × 5초 재시도.
+          t="$(mktemp -d)"
+          login=000; upper=000; admin=000; session=000; noindex=no; ok=no
+          for _ in 1 2 3; do
+            : > "$t/h"
+            login="$(curl -s -o /dev/null -D "$t/h" -w '%{http_code}' --max-time 10 -X POST "$SITE_ORIGIN/auth/login" || true)"
+            upper="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST "$SITE_ORIGIN/AUTH/LOGIN" || true)"
+            admin="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/admin/ping" || true)"
+            session="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_ORIGIN/auth/session" || true)"
+            if tr -d '\r' < "$t/h" | grep -qiE '^x-robots-tag:.*noindex'; then noindex=yes; else noindex=no; fi
+            if [ "$login" = "404" ] && [ "$upper" = "404" ] && [ "$admin" = "404" ] && [ "$session" != "404" ] && [ "$session" != "000" ] && [ "$noindex" = "yes" ]; then ok=yes; break; fi
+            sleep 5
+          done
+          rm -rf "$t"
+          echo "operator paths: POST /auth/login $login · POST /AUTH/LOGIN $upper · /admin/ping $admin · GET /auth/session $session · 404 X-Robots-Tag noindex=$noindex"
+          [ "$ok" = "yes" ]
+
       - name: Remove SSH key
         if: always()
         run: rm -f ~/.ssh/id_deploy

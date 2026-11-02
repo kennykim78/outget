@@ -23,6 +23,7 @@ function row(id: string, status: string, extra: Partial<VetClinicRow> = {}): Vet
     verificationMethod: status === 'VERIFIED' ? 'PHONE_CALL' : null,
     verifiedAt: status === 'VERIFIED' ? '2026-10-01' : null,
     verificationNote: '운영자 메모',
+    createdAt: '',
     ...extra,
   };
 }

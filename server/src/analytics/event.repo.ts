@@ -17,6 +17,8 @@ export interface EventRow {
 export interface EventRepository {
   /** 배치 적재, 적재 행 수 반환. */
   append(rows: EventRow[]): Promise<number>;
+  /** 그 수신 일자(서울)에 저장된 행 수 — 일일 상한 카운터 복원용(기동 뒤·날짜 바뀔 때 1회, 264). */
+  countOnDate(receivedDate: string): Promise<number>;
 }
 
 export class InMemoryEventRepository implements EventRepository {
@@ -25,6 +27,10 @@ export class InMemoryEventRepository implements EventRepository {
   async append(rows: EventRow[]): Promise<number> {
     for (const r of rows) this.rows.push({ ...r });
     return rows.length;
+  }
+
+  async countOnDate(receivedDate: string): Promise<number> {
+    return this.rows.filter((r) => r.receivedDate === receivedDate).length;
   }
 
   /** 테스트·dev 확인용 사본. */

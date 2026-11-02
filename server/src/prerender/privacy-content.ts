@@ -21,6 +21,7 @@ import {
   SERVER_LOG_RETENTION_DAYS,
   TOMBSTONE_RETENTION_DAYS,
   UNUSED_USER_RETENTION_DAYS,
+  VET_REPORT_RETENTION_DAYS,
 } from '../privacy/policy.js';
 import { SESSION_MAX_AGE_S } from '../save/cookie.js';
 import { MAGIC_TTL_MS } from '../save/magic.routes.js';
@@ -30,6 +31,7 @@ export const POLICY_PERIODS = Object.freeze({
   UNUSED_USER_RETENTION_DAYS,
   EVENT_LOG_RETENTION_DAYS,
   REACTION_RETENTION_DAYS,
+  VET_REPORT_RETENTION_DAYS,
   BACKUP_RETENTION_DAYS,
   TOMBSTONE_RETENTION_DAYS,
   SERVER_LOG_RETENTION_DAYS,
@@ -165,6 +167,8 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
               ['연결 링크 토큰', '{const:MAGIC_LINK_MINUTES}분 뒤 만료되고 한 번 쓰면 끝나요. 만료되거나 쓰인 토큰은 지워요.'],
               ['이용 통계', '{policy:EVENT_LOG_RETENTION_DAYS}일 동안 보관해요.'],
               ['반응 집계', '{policy:REACTION_RETENTION_DAYS}일 동안 보관해요.'],
+              // 264(Kenny ORDERS §41): privacy/retention.ts 가 접수 후 180일 지난 VERIFIED 외 사용자 제보를 지운다 — 확인(VERIFIED)된 병원은 목록 데이터로 남는다.
+              ['동물병원 제보(병원 이름·주소·전화번호)', '받은 날부터 {policy:VET_REPORT_RETENTION_DAYS}일 동안 보관해요. 전화로 확인해 병원 목록에 올린 병원은 목록 정보로 남아요.'],
               ['서버 백업', '{policy:BACKUP_RETENTION_DAYS}일이 지난 백업 파일은 정기 정리 때 지워요.'],
               ['삭제 기록', '지운 뒤 {policy:TOMBSTONE_RETENTION_DAYS}일 보관하고, 백업에서 복원한 계정을 다시 지운 경우에는 그날부터 같은 기간을 다시 보관해요. 지운 이메일 주소가 백업에서 되살아나지 않게, 원래 주소를 그대로 남기지 않는 값(해시)으로만 남겨요.'],
               ['남용 방지용 IP 주소', '저장하지 않아요. 서버 메모리에서 짧은 시간 동안만 세요.'],

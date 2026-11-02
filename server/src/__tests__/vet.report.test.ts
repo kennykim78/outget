@@ -99,7 +99,7 @@ describe('POST /api/vets/reports', () => {
   it('Prisma: create data = REPORTED·USER_REPORT·lat/lng null, 운영 메모·검수일 없음', async () => {
     let data: Record<string, unknown> | undefined;
     const repo = new PrismaVetClinicRepository({ vetClinic: { create: async (a: { data: Record<string, unknown> }) => void (data = a.data) } } as never);
-    await repo.createReport({ id: 'vr-1', region: '', ...OK });
+    await repo.createReport({ id: 'vr-1', region: '', ...OK, createdAt: '2026-11-02T03:00:00.000Z' });
     expect(data).toEqual({
       id: 'vr-1',
       name: OK.name,
@@ -111,6 +111,7 @@ describe('POST /api/vets/reports', () => {
       status: 'REPORTED',
       lat: null,
       lng: null,
+      createdAt: '2026-11-02T03:00:00.000Z',
     });
   });
 });

@@ -28,6 +28,9 @@
 | `WS_CLIENT_DIST` | 클라이언트 dist 경로. 개발·테스트 전용, 운영(`NODE_ENV=production`)에서는 무시 |
 | `SQLITE_TMPDIR` | SQLite 임시 파일 폴더. 이미지 기본 `/data/.sqlite-tmp`(compose·CI 스모크도 같은 값, 엔트리포인트가 0700 으로 만든다). read_only 루트에서 비우면 tmpfs `/tmp`(64m)로 떨어져 DB 가 약 64MB 를 넘으면 VACUUM(삭제 뒤 파기)이 실패한다(QA148 MED-1). `/data/backup` 밖이라 백업 정리와 무관 |
 | `WS_ERASURE_FILE` | 삭제 기록 파일. 기본 `/data/erasures.jsonl` — **백업 폴더 밖**에 둔다 |
+| `WS_EVENT_DAILY_CAP` | 익명 이벤트(`/api/events`) 하루 저장 행 상한(서울 날짜 기준, 기본 10000, 0 이상 정수 — 0이면 저장 안 함, 비숫자·음수면 기동 중단). 넘친 이벤트는 저장하지 않고 응답은 그대로 204. 근거: 행 약 250B(최대 1.4KB) × 90일 보존 → 평균 약 225MB, 최악 약 1.3GB(+VACUUM 사본·백업 5개) |
+| `WS_VET_REPORT_DAILY_CAP` | 병원 제보(`/api/vets/reports`) 하루 저장 상한(기본 100, 0 이상 정수). 넘친 제보는 저장하지 않고 응답은 그대로 202. 제보는 접수 후 180일 지나면 자동 정리(확인된 병원은 남김). 상한을 그날 처음 치면 `[cap] vetReports daily cap reached date=… limit=…` 한 줄(이벤트는 `[cap] events …`, 날짜·숫자만) |
+| `WS_VET_REPORT_PER_IP_DAILY` | 병원 제보 IP별 하루 한도(기본 10, 0 이상 정수). 넘친 제보는 전역 상한을 쓰지 않고 응답은 그대로 202. IP 는 서버 메모리에서 그날의 무작위 키로 만든 해시로만 세고 날짜가 바뀌면 버린다 — DB·파일·로그에 남지 않는다 |
 | `WS_ALLOW_PRIVACY_PLACEHOLDER` | `1`이면 `/privacy`에 `{{KENNY:` 자리표시가 남아도 기동(경고). 점검·CI·내부 테스트 전용, 공개 운영 금지 — 운영 기동 시 처리방침에 자리표시가 있으면 기동을 거부한다. **공개 빌드(빌드 인자 WS_INDEXABLE=1 → prerender-manifest.json indexable=true)에서는 이 값이 있어도 무시하고 거부한다**(security 139 MED-2). 내부 테스트는 WS_INDEXABLE=0 유지 |
 
 백업 나이는 런타임 규칙(`now − N×24h`보다 오래된 파일)과 같게 분 단위로 판정한다. 7일이 지난 백업은 다음 정리 작업(기동 시·24시간마다) 때 지워진다 — 실제로는 최대 약 8일 남을 수 있다.
@@ -68,7 +71,7 @@
 | 파일 | 서버 위치 | 역할 |
 |---|---|---|
 | `compose.yaml` | `/opt/withsmall/compose.yaml` | `app`(이미지 `WS_IMAGE`, 호스트 포트 없음) + `caddy`(80·443, 이미지 다이제스트 고정). 둘 다 `read_only` 루트 + tmpfs `/tmp`(noexec) + `mem_limit`·`cpus`·`pids_limit`, cap 전부 제거. 로그 journald |
-| `Caddyfile` | `/opt/withsmall/Caddyfile` | 비밀번호 없음(basic_auth 폐기, ORDERS §40) · `X-Robots-Tag: noindex`(오류 응답 포함) · `-Server` · www → apex 302 · 접속 기록 0(7절) |
+| `Caddyfile` | `/opt/withsmall/Caddyfile` | 비밀번호 없음(basic_auth 폐기, ORDERS §40) · 운영자 경로(`/auth/login`·`/auth/refresh`·`/auth/me`·`/admin`·`/admin/*`, 끝 슬래시 포함) 외부 404(ORDERS §41 — 저장 흐름 `/auth/magic/*`·`/auth/session`·`/auth/logout` 은 열림) · `X-Robots-Tag: noindex`(오류 응답 포함) · `-Server` · www → apex 302 · 접속 기록 0(7절) |
 | `deploy.sh` | `/opt/withsmall/bin/deploy.sh` | `deploy sha-<12>` / `rollback` |
 | `deploy-gate.sh` | `/opt/withsmall/bin/deploy-gate.sh` | SSH 강제 명령. `deploy sha-<16진 12자>`·`rollback` 외 전부 거부 |
 | `bootstrap.sh` | (1회 실행) | 새 호스트 준비(8절). sshd `AllowUsers deploy <관리 계정>`·포워딩 끔, 운영자 접속 기록 1년(7절) |
@@ -93,6 +96,9 @@
 11. DB 를 바꾸는 단계(새 이미지 기동 = 마이그레이션, 복원, 새 DB 치우기)에 들어갈 때 `state/dbchange` 표시를 둔다. **지우는 것은 DB 와 `image.env` 가 맞는 채 끝난 종료 0·1 뿐**(배포 성공, 자동 롤백 성공, 첫 배포 실패로 정지, rollback 성공, 복원 실패 후 원래 이미지 재기동). **종료 3(app 정지·수동 복원), 신호(129·130·143), kill -9·OOM·재부팅이면 남는다**(QA131 MED-4). 남아 있으면 다음 `deploy`/`rollback` 을 **docker 를 한 번도 부르지 않고 거부**한다 — 종료 3 뒤 같은 배포나 지금 태그를 다시 보내도 이전 이미지를 새 스키마 DB 위에 띄우지 않는다. 거부된 실행은 `deploy.log` 를 돌리지 않고 끝에 `거부된 실행`·`FAIL` 줄만 덧붙인다(중단된 실행의 기록 유지, QA131 LOW-11). 관리자가 아래 수동 조치로 확인한 뒤 `sudo -u deploy rm /opt/withsmall/state/dbchange`. 배포 키로는 풀 수 없다(의도). 남길 때 `deploy.log` 에 이유를 적는다 — `확인 지점 전에 끝남`(DB·image.env 가 어긋났을 수 있음) 또는 `확인 지점은 지났으나 종료 코드 N`(맞게 끝난 뒤 신호 등). 표시 파일을 쓰지 못하면(디스크 등) DB 를 바꾸는 단계로 가지 않고 이전 이미지를 다시 띄운 뒤 종료 1(QA133 INFO-10).
 
 `deploy.sh rollback`: current ↔ previous. 마이그레이션이 다르면 `state/predeploy` 백업을 복원한다 — **그 배포 뒤에 쓰인 데이터(저장 연결 등)는 사라진다.** 이전 이미지(로컬 또는 pull)와 백업 파일이 있는지는 **app 을 멈추기 전에** 확인한다 — 백업이 이미 정리됐거나 이미지를 못 받으면 서비스를 그대로 둔 채 거부(종료 1, 수동 복원). 복원 전에 지금 DB 를 `data/backup/prod-<UTC>-prerollback.db` 로 복사하므로, 복원 뒤 이전 이미지 헬스가 실패(종료 3)해도 배포 뒤 데이터로 되돌아갈 수 있다(7일·5개 정리 전까지). 복원 명령이 실패하면 지금 DB 는 그대로(짝 파일 포함) 두고 지금 이미지로 다시 띄운다(종료 1).
+
+- 병원 제보 보존 시계(264, 마이그레이션 `20261102000000_vet_report_created_at`): 이 마이그레이션 **전** 백업을 복원한 뒤 다시 배포하면 마이그레이션이 다시 돌아 그 백업 속 사용자 제보의 `createdAt` 을 재배포 시각으로 채운다 — 그 제보들의 180일 보존 시계가 다시 시작된다(최대 보존 = 재배포 시각 + 180일). 복원·재배포 날짜를 내부 기록에 남긴다.
+- 옛 이미지(이 마이그레이션 전 코드)가 새 스키마 DB 위에서 돌면(수동 기동 등) 그동안 받은 제보는 `createdAt` 이 빈 값('')으로 저장되고, 새 이미지로 돌아온 뒤 **다음 정리 때 바로 삭제된다**(빈 값 < 기준 시각). 옛 이미지를 새 스키마에 띄우지 않는 것이 원칙(위 11번 `state/dbchange`)이다.
 
 수동 조치(종료 코드 3 또는 첫 배포 실패). `state/` 는 0700 deploy 소유(`bootstrap.sh`)이고 docker 는 deploy 계정이 docker 그룹이라, 관리 계정(`ubuntu`)에서는 아래처럼 `sudo -u deploy` 로 실행한다(QA131 LOW-10):
 

@@ -1,7 +1,7 @@
 // 정리 작업 Prisma 구현(P5). 토큰·세션 정리는 save 저장소의 기존 메서드와 같은 조건(재사용).
 import type { PrismaClient } from '@prisma/client';
 import { PrismaMagicTokenRepository, PrismaSessionRepository } from '../save/save.prisma.repo.js';
-import type { RetentionStore, UserActivity } from './retention.js';
+import { VET_REPORT_KEEP_STATUS, type RetentionStore, type UserActivity } from './retention.js';
 
 export type DbProvider = 'sqlite' | 'postgresql';
 
@@ -51,6 +51,19 @@ export class PrismaRetentionStore implements RetentionStore {
 
   async deleteReactionsBefore(cutoffIso: string): Promise<number> {
     return (await this.prisma.reactionSignal.deleteMany({ where: { createdAt: { lt: cutoffIso } } })).count;
+  }
+
+  /**
+   * 264: VERIFIED 외 사용자 제보(REPORTED·BLINDED·모르는 값 — QA LOW-1·security ②b, 처리방침 "목록에 올린 병원은 남아요"와 일치).
+   *   VERIFIED(목록)·SEED 행은 지우지 않는다. createdAt '' (시드 행 기본값)도 '' < cutoff 이지만 source 조건으로 빠진다.
+   *   마이그레이션 20261102000000 이 기존 USER_REPORT 행을 그 시각으로 채우므로 USER_REPORT 의 createdAt 은 비지 않는다.
+   */
+  async deleteReportedVetsBefore(cutoffIso: string): Promise<number> {
+    return (
+      await this.prisma.vetClinic.deleteMany({
+        where: { source: 'USER_REPORT', status: { not: VET_REPORT_KEEP_STATUS }, createdAt: { lt: cutoffIso } },
+      })
+    ).count;
   }
 
   async vacuum(): Promise<void> {

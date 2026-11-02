@@ -24,6 +24,13 @@ withsmall.kr {
 		-Server
 		X-Robots-Tag "noindex, nofollow"
 	}
+	# Phase 0 운영자 경로 외부 404(Kenny 2026-11-02 ORDERS §41, security 257 4a·4b — 없는 계정도 bcrypt 비교 → 1 OCPU 고갈).
+	#   막는 것: 운영자 로그인·토큰 갱신·내 정보·관리 경로. 앱 라우팅(Express)은 끝 슬래시를 같은 경로로 받으므로 슬래시 붙은 형태도 막는다.
+	#   Caddy path 매처는 대소문자를 가리지 않는다(Express 도 같음). 열어 두는 것: /auth/magic/*·/auth/session(GET·DELETE)(US-025 저장 흐름) · /auth/logout(운영자 로그아웃
+	#   auth.routes.ts:134, 클라 미사용 — 막지 않아도 무해: bcrypt 없음·refresh 쿠키 필요).
+	#   respond 는 오류 경로가 아니라 위 header 블록(-Server·noindex)이 그대로 붙고 handle_errors 는 타지 않는다. 본문 0.
+	@operator path /auth/login /auth/login/ /auth/refresh /auth/refresh/ /auth/me /auth/me/ /admin /admin/*
+	respond @operator 404
 	reverse_proxy app:3001
 	# 오류 응답(502 등)에도 같은 헤더 — 지연(deferred) 헤더는 오류 경로에 적용되지 않는다(2026-10-27 로컬 재현).
 	handle_errors {

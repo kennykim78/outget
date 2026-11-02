@@ -3,7 +3,7 @@
 //   대상: 미사용 User(마지막 활동 = max(User.lastSeenAt, SaveSnapshot.updatedAt, User.createdAt), USER 역할만 — 운영자 계정 제외)
 //         QA95 D-1: Session.createdAt 은 근거로 쓰지 않는다(세션은 만료 즉시 정리되므로 근거가 사라져 '마지막으로 쓴 날부터 365일'보다
 //         일찍 지워졌다). lastSeenAt 은 verify·GET/PUT /api/save 때 서울 날짜가 바뀌었을 때만 갱신(touchLastSeen, 하루 1회 쓰기).
-//         · 만료 매직 토큰 · 비활성 세션 · EventLog · ReactionSignal · 묘비 · 백업 파일(나이만, P6 sh 와 같은 env).
+//         · 만료 매직 토큰 · 비활성 세션 · EventLog · ReactionSignal · 병원 제보(VERIFIED 외 사용자 제보, 264) · 묘비 · 백업 파일(나이만, P6 sh 와 같은 env).
 //   순서: 미사용 User 판정을 먼저(삭제 대상 계정의 세션·스냅샷을 함께 지운 뒤 나머지 정리), VACUUM 은 맨 끝(삭제 페이지 잔존 제거, R1).
 //   기동 1회 + 24h unref 타이머(startRetentionSchedule, index.ts). 실패는 로그만, 다음 주기에 재시도.
 //   로그: '[privacy] retention …' 건수만(식별자 0), 사용자 삭제는 eraseAccount 의 'channel=RETENTION' 한 줄씩.
@@ -24,12 +24,19 @@ import {
   RETENTION_INTERVAL_MS,
   SESSION_RETENTION_MS,
   UNUSED_USER_RETENTION_DAYS,
+  VET_REPORT_RETENTION_DAYS,
 } from './policy.js';
 
 /** 서울 날짜 YYYY-MM-DD 의 00:00(KST, UTC+9 고정·서머타임 없음) ISO. */
 export function seoulDayStartIso(date: string): string {
   return new Date(`${date}T00:00:00+09:00`).toISOString();
 }
+
+/**
+ * 180일 뒤에도 남기는 사용자 제보 상태 — VERIFIED(목록에 올린 병원) 하나뿐. 그 밖의 상태(REPORTED·BLINDED·앞으로 생길 값·잘못 들어간 값)는
+ *   전부 지운다(264 QA LOW-1 + security ②b — status 는 String 컬럼이라 허용목록이면 모르는 값이 처리방침 180일을 넘겨 남는다).
+ */
+export const VET_REPORT_KEEP_STATUS = 'VERIFIED';
 
 export interface RetentionCutoffs {
   /** EventLog.receivedDate < eventDate 삭제(오늘 포함 90개 서울 날짜 보존). */
@@ -40,6 +47,8 @@ export interface RetentionCutoffs {
   magicTokenIso: string;
   /** Session expiresAt ≤ 또는 revokedAt ≤ sessionIso 삭제. */
   sessionIso: string;
+  /** VetClinic source USER_REPORT ∧ status ≠ VERIFIED ∧ createdAt < vetReportIso 삭제(264). VERIFIED·시드 행은 대상 밖. */
+  vetReportIso: string;
   /** 마지막 활동 < unusedUserIso 인 USER 삭제(channel=RETENTION). */
   unusedUserIso: string;
   /** 묘비(DB·파일) retainUntil < tombstoneIso(= now) 삭제(101 MED-2 — erasedAt 아님, 재적용 연장 반영). */
@@ -57,6 +66,7 @@ export function computeCutoffs(now: Date, backupMaxAgeDays: number = BACKUP_RETE
     reactionIso: seoulDayStartIso(daysBefore(today, REACTION_RETENTION_DAYS - 1)),
     magicTokenIso: new Date(t - MAGIC_TOKEN_RETENTION_MS).toISOString(),
     sessionIso: new Date(t - SESSION_RETENTION_MS).toISOString(),
+    vetReportIso: new Date(t - VET_REPORT_RETENTION_DAYS * DAY_MS).toISOString(),
     unusedUserIso: new Date(t - UNUSED_USER_RETENTION_DAYS * DAY_MS).toISOString(),
     tombstoneIso: now.toISOString(),
     backupBeforeMs: t - backupMaxAgeDays * DAY_MS,
@@ -89,6 +99,8 @@ export interface RetentionStore {
   deleteInactiveSessions(cutoffIso: string): Promise<number>;
   deleteEventsBefore(date: string): Promise<number>;
   deleteReactionsBefore(cutoffIso: string): Promise<number>;
+  /** 오래된 병원 제보 삭제 — source USER_REPORT ∧ status ≠ VERIFIED ∧ createdAt < cutoffIso 만(264). */
+  deleteReportedVetsBefore(cutoffIso: string): Promise<number>;
   /** 삭제 페이지를 파일에서 제거. SQLite 만 의미 있음(구현 참고). */
   vacuum(): Promise<void>;
 }
@@ -149,6 +161,7 @@ export interface RetentionReport {
   sessions: number;
   events: number;
   reactions: number;
+  vetReports: number;
   tombstones: number;
   backups: number;
   vacuumed: boolean;
@@ -166,7 +179,7 @@ export interface RetentionDeps {
 export function retentionLogLine(r: RetentionReport): string {
   return (
     `[privacy] retention users=${r.users} magicTokens=${r.magicTokens} sessions=${r.sessions} events=${r.events}` +
-    ` reactions=${r.reactions} tombstones=${r.tombstones} backups=${r.backups} vacuum=${r.vacuumed ? 'yes' : 'no'}`
+    ` reactions=${r.reactions} vetReports=${r.vetReports} tombstones=${r.tombstones} backups=${r.backups} vacuum=${r.vacuumed ? 'yes' : 'no'}`
   );
 }
 
@@ -185,6 +198,7 @@ export async function runRetention(deps: RetentionDeps, now: Date): Promise<Rete
     sessions: await store.deleteInactiveSessions(c.sessionIso),
     events: await store.deleteEventsBefore(c.eventDate),
     reactions: await store.deleteReactionsBefore(c.reactionIso),
+    vetReports: await store.deleteReportedVetsBefore(c.vetReportIso),
     tombstones: await erasure.pruneTombstones(c.tombstoneIso),
     backups: await (deps.pruneBackups ?? pruneBackupsByAge)(deps.backup.dir, c.backupBeforeMs),
     vacuumed: false,

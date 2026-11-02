@@ -286,6 +286,9 @@ model VetClinic {
   verificationMethod String?
   verifiedAt         String?
   verificationNote   String?
+  // 사용자 제보 접수 시각 ISO(264, Kenny ORDERS §41). 보존: VERIFIED 외 사용자 제보(source USER_REPORT ∧ status ≠ VERIFIED)는 이 시각부터 180일(privacy/policy.ts
+  //   VET_REPORT_RETENTION_DAYS) 뒤 정리 작업이 지운다. 시드 행은 ''(시드가 관리 — 정리 대상 아님).
+  createdAt          String   @default("")
 
   @@index([status])
   @@index([region])
@@ -456,4 +459,6 @@ model EventLog {
 
   @@index([name, receivedDate])
   @@index([sessionKey])
+  // 일일 상한 복원 COUNT·보존 정리 deleteMany(receivedDate <) 범위 조회(264).
+  @@index([receivedDate])
 }

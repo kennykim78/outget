@@ -15,6 +15,8 @@ export interface VetClinicRepository {
  */
 export interface VetReportRepository {
   createReport(rec: VetReportRecord): Promise<void>;
+  /** createdAt ≥ sinceIso 인 사용자 제보 수 — 일일 상한 카운터 복원용(기동 뒤·날짜 바뀔 때 1회, 264). */
+  countReportsSince(sinceIso: string): Promise<number>;
 }
 
 export interface VetReportRecord {
@@ -24,10 +26,21 @@ export interface VetReportRecord {
   address: string;
   phone: string;
   treats: string[];
+  /** 접수 시각 ISO — 보존 180일 기준(privacy/policy.ts VET_REPORT_RETENTION_DAYS, 264). */
+  createdAt: string;
 }
 
-export function reportToStored(r: VetReportRecord): StoredVetClinic {
+/** 저장 행(비노출 접수 시각 포함). 공개 응답(toPublicVet·Prisma rowToStored)에는 createdAt 이 없다. */
+export type StoredVetReportRow = StoredVetClinic & { createdAt?: string };
+
+export function reportToStored(r: VetReportRecord): StoredVetReportRow {
   return { ...r, treats: [...r.treats], source: 'USER_REPORT', status: 'REPORTED' };
+}
+
+function publicOf(c: StoredVetReportRow): VetClinic {
+  const { createdAt: _at, ...rest } = c;
+  void _at;
+  return toPublicVet(rest);
 }
 
 export function matchesQuery(c: StoredVetClinic, query?: VetQuery): boolean {
@@ -41,29 +54,33 @@ export function matchesQuery(c: StoredVetClinic, query?: VetQuery): boolean {
 }
 
 export class InMemoryVetClinicRepository implements VetClinicRepository, VetReportRepository {
-  private readonly clinics: StoredVetClinic[];
+  private readonly clinics: StoredVetReportRow[];
 
-  constructor(rows: StoredVetClinic[] = []) {
+  constructor(rows: StoredVetReportRow[] = []) {
     this.clinics = [...rows];
   }
 
   async list(query?: VetQuery): Promise<VetClinic[]> {
     return this.clinics
       .filter((c) => isVetStatusListed(c.status) && matchesQuery(c, query))
-      .map(toPublicVet);
+      .map(publicOf);
   }
 
   async findById(id: string): Promise<VetClinic | null> {
     const found = this.clinics.find((c) => c.id === id && isVetStatusListed(c.status));
-    return found ? toPublicVet(found) : null;
+    return found ? publicOf(found) : null;
   }
 
   async createReport(rec: VetReportRecord): Promise<void> {
     this.clinics.push(reportToStored(rec));
   }
 
+  async countReportsSince(sinceIso: string): Promise<number> {
+    return this.clinics.filter((c) => c.source === 'USER_REPORT' && (c.createdAt ?? '') >= sinceIso).length;
+  }
+
   /** 테스트 전용 — 저장 행 사본(비노출 포함). */
-  dump(): StoredVetClinic[] {
+  dump(): StoredVetReportRow[] {
     return this.clinics.map((c) => ({ ...c, treats: [...c.treats] }));
   }
 }

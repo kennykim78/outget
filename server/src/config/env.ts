@@ -207,6 +207,16 @@ export async function collectEnvProblems(env: Env = process.env, opts: CollectEn
     problems.push(errMsg(e));
   }
 
+  // 264: 일일 전역 저장 상한(이벤트·병원 제보) — 0 이상 정수만. 잘못되면 createApp 도 throw 한다(여기서는 이름을 함께 모아 보인다).
+  const { resolveDailyCap, EVENT_DAILY_CAP_ENV, VET_REPORT_DAILY_CAP_ENV, VET_REPORT_PER_IP_DAILY_ENV } = await import('../middleware/daily-cap.js');
+  for (const name of [EVENT_DAILY_CAP_ENV, VET_REPORT_DAILY_CAP_ENV, VET_REPORT_PER_IP_DAILY_ENV]) {
+    try {
+      resolveDailyCap(env, name, 0);
+    } catch (e) {
+      problems.push(errMsg(e));
+    }
+  }
+
   if (prod) {
     for (const name of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const) {
       const v = env[name] ?? '';

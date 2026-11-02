@@ -27,6 +27,7 @@ describe('P1 policy.ts — K-1 값', () => {
     expect(policy.UNUSED_USER_RETENTION_DAYS).toBe(365);
     expect(policy.EVENT_LOG_RETENTION_DAYS).toBe(90);
     expect(policy.REACTION_RETENTION_DAYS).toBe(400);
+    expect(policy.VET_REPORT_RETENTION_DAYS).toBe(180); // 264 Kenny ORDERS §41
     expect(policy.BACKUP_RETENTION_DAYS).toBe(7);
     expect(policy.TOMBSTONE_RETENTION_DAYS).toBe(7);
     expect(policy.TOMBSTONE_RETENTION_DAYS).toBe(policy.BACKUP_RETENTION_DAYS);
@@ -70,6 +71,7 @@ describe('P5 computeCutoffs (가짜 시계)', () => {
     expect(c.tombstoneIso).toBe(NOW.toISOString());
     expect(c.backupBeforeMs).toBe(NOW.getTime() - 7 * DAY);
     expect(computeCutoffs(NOW, 3).backupBeforeMs).toBe(NOW.getTime() - 3 * DAY);
+    expect(c.vetReportIso).toBe(new Date(NOW.getTime() - 180 * DAY).toISOString()); // 264: 시각 기준 180×24h
     expect(c.magicTokenIso).toBe(NOW.toISOString());
     expect(c.sessionIso).toBe(NOW.toISOString());
   });
@@ -115,7 +117,7 @@ describe('P4 tombstoneVictims (순수)', () => {
 });
 
 describe('P5 runRetention (가짜 저장소) — 호출 순서·VACUUM 마지막', () => {
-  it('미사용 User 판정 → 토큰 → 세션 → 이벤트 → 반응 → 묘비 → 백업 → VACUUM', async () => {
+  it('미사용 User 판정 → 토큰 → 세션 → 이벤트 → 반응 → 병원 제보 → 묘비 → 백업 → VACUUM', async () => {
     const calls: string[] = [];
     const store: RetentionStore = {
       listUserActivity: async () => {
@@ -126,6 +128,7 @@ describe('P5 runRetention (가짜 저장소) — 호출 순서·VACUUM 마지막
       deleteInactiveSessions: async () => (calls.push('sessions'), 0),
       deleteEventsBefore: async () => (calls.push('events'), 0),
       deleteReactionsBefore: async () => (calls.push('reactions'), 0),
+      deleteReportedVetsBefore: async () => (calls.push('vetReports'), 0),
       vacuum: async () => void calls.push('vacuum'),
     };
     const erasure: ErasureStore = {
@@ -139,11 +142,11 @@ describe('P5 runRetention (가짜 저장소) — 호출 순서·VACUUM 마지막
       { store, erasure, backup: { dir: 'x', maxAgeDays: 7 }, log: (l) => lines.push(l), pruneBackups: async () => (calls.push('backups'), 2) },
       new Date('2026-10-25T03:00:00.000Z'),
     );
-    expect(calls).toEqual(['users', 'erase:gone', 'tokens', 'sessions', 'events', 'reactions', 'tombstones', 'backups', 'vacuum']);
+    expect(calls).toEqual(['users', 'erase:gone', 'tokens', 'sessions', 'events', 'reactions', 'vetReports', 'tombstones', 'backups', 'vacuum']);
     expect(r).toMatchObject({ users: 1, backups: 2, vacuumed: true });
     expect(lines).toEqual([
       '[privacy] erase channel=RETENTION',
-      '[privacy] retention users=1 magicTokens=0 sessions=0 events=0 reactions=0 tombstones=0 backups=2 vacuum=yes',
+      '[privacy] retention users=1 magicTokens=0 sessions=0 events=0 reactions=0 vetReports=0 tombstones=0 backups=2 vacuum=yes',
     ]);
   });
 });

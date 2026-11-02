@@ -251,8 +251,68 @@ describe('PrismaRetentionStore + runRetention (P5)', () => {
     expect(await prisma.user.count({ where: { id: staleId } })).toBe(0);
     expect((await prisma.user.findMany({ orderBy: { email: 'asc' } })).map((u) => u.email)).toEqual(['active@example.com', 'op@example.com']);
     expect(lines[0]).toBe('[privacy] erase channel=RETENTION');
-    expect(lines.at(-1)).toMatch(/^\[privacy\] retention users=1 magicTokens=\d+ sessions=\d+ events=1 reactions=1 tombstones=1 backups=0 vacuum=yes$/);
+    expect(lines.at(-1)).toMatch(/^\[privacy\] retention users=1 magicTokens=\d+ sessions=\d+ events=1 reactions=1 vetReports=0 tombstones=1 backups=0 vacuum=yes$/);
     expect(lines.join('\n')).not.toContain('@');
+  });
+
+  it('264 병원 제보 180일: REPORTED·BLINDED 179·180일(=기준, 유지)·181일(삭제) · VERIFIED·시드 행은 나이와 무관하게 유지(QA LOW-1)', async () => {
+    const prisma = await freshDb();
+    const c = computeCutoffs(NOW);
+    expect(c.vetReportIso).toBe(iso(NOW.getTime() - 180 * DAY));
+    const vet = (id: string, createdAt: string, status = 'REPORTED', source = 'USER_REPORT') =>
+      prisma.vetClinic.create({ data: { id, name: id, region: '', address: '서울 마포구 1', phone: '02-123-4567', treats: '[]', source, status, createdAt } });
+    await vet('d179', iso(NOW.getTime() - 179 * DAY));
+    await vet('d180', iso(NOW.getTime() - 180 * DAY)); // = 기준 → 유지(< 만 삭제)
+    await vet('d180p1ms', iso(NOW.getTime() - 180 * DAY - 1)); // 1ms 넘김 → 삭제
+    await vet('d181', iso(NOW.getTime() - 181 * DAY));
+    await vet('verified-old', iso(NOW.getTime() - 999 * DAY), 'VERIFIED');
+    await vet('blinded-old', iso(NOW.getTime() - 999 * DAY), 'BLINDED'); // 가린 제보 → 삭제(목록에 없는 제보)
+    await vet('b179', iso(NOW.getTime() - 179 * DAY), 'BLINDED');
+    await vet('b181', iso(NOW.getTime() - 181 * DAY), 'BLINDED');
+    await vet('seed-reported', '', 'REPORTED', 'SEED'); // 시드 행: createdAt '' — 시드가 관리
+    await vet('seed-blinded', '', 'BLINDED', 'SEED');
+    await vet('rejected181', iso(NOW.getTime() - 181 * DAY), 'REJECTED'); // security ②b: 모르는 상태값도 180일을 넘기지 않는다
+    await vet('rejected179', iso(NOW.getTime() - 179 * DAY), 'REJECTED');
+    const store = new PrismaRetentionStore(prisma);
+    expect(await store.deleteReportedVetsBefore(c.vetReportIso)).toBe(5);
+    expect((await prisma.vetClinic.findMany({ orderBy: { id: 'asc' } })).map((r) => r.id)).toEqual(
+      ['b179', 'd179', 'd180', 'rejected179', 'seed-blinded', 'seed-reported', 'verified-old'],
+    );
+    // runRetention 경로로도(건수 로그) — 하루 뒤 d180 이 181일째가 되어 지워진다.
+    const lines: string[] = [];
+    const r = await runRetention(
+      { store, erasure: new PrismaErasureStore(prisma), backup: { dir: '/nope', maxAgeDays: 7 }, log: (l) => lines.push(l), pruneBackups: async () => 0 },
+      new Date(NOW.getTime() + DAY),
+    );
+    expect(r.vetReports).toBe(1);
+    expect((await prisma.vetClinic.findMany({ orderBy: { id: 'asc' } })).map((x) => x.id)).toEqual(['b179', 'd179', 'rejected179', 'seed-blinded', 'seed-reported', 'verified-old']);
+    expect(lines.at(-1)).toContain(' vetReports=1 ');
+  });
+
+  it('264 마이그레이션: 기존 USER_REPORT 행은 마이그레이션 시각으로 채워져 첫 정리에서 바로 지워지지 않는다, 시드 행은 빈 값', async () => {
+    const sql = readFileSync(join(MIGRATIONS, '20261102000000_vet_report_created_at', 'migration.sql'), 'utf8');
+    expect(statements(sql)).toEqual([
+      `ALTER TABLE "VetClinic" ADD COLUMN "createdAt" TEXT NOT NULL DEFAULT ''`,
+      `UPDATE "VetClinic" SET "createdAt" = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE "source" = 'USER_REPORT'`,
+      `CREATE INDEX "EventLog_receivedDate_idx" ON "EventLog"("receivedDate")`,
+    ]);
+    // 실제 적용: 이전 마이그레이션까지 → 옛 행 2개 → 264 마이그레이션.
+    const dir = mkdtempSync(join(tmpdir(), 'ws-privacy-'));
+    const prisma = new PrismaClient({ datasourceUrl: sqliteDatasourceUrl(`file:${join(dir, 'test.db').replace(/\\/g, '/')}`) });
+    open.push({ dir, prisma });
+    const names = readdirSync(MIGRATIONS, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+    for (const n of names.filter((x) => x < '20261102000000')) {
+      for (const s of statements(readFileSync(join(MIGRATIONS, n, 'migration.sql'), 'utf8'))) await prisma.$executeRawUnsafe(s);
+    }
+    await prisma.$executeRawUnsafe(`INSERT INTO "VetClinic" ("id","name","region","address","phone","source","status") VALUES ('old-report','a','','b','02-123-4567','USER_REPORT','REPORTED'),('old-seed','c','r','d','02-123-4567','SEED','VERIFIED')`);
+    const before = Date.now();
+    for (const s of statements(sql)) await prisma.$executeRawUnsafe(s);
+    const rows = await prisma.$queryRawUnsafe<{ id: string; createdAt: string }[]>(`SELECT "id","createdAt" FROM "VetClinic" ORDER BY "id"`);
+    expect(rows.find((x) => x.id === 'old-seed')?.createdAt).toBe('');
+    const at = rows.find((x) => x.id === 'old-report')?.createdAt ?? '';
+    expect(at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(Date.parse(at)).toBeGreaterThanOrEqual(before - 1000);
+    expect(await new PrismaRetentionStore(prisma).deleteReportedVetsBefore(computeCutoffs(new Date()).vetReportIso)).toBe(0);
   });
 
   it('listUserActivity: lastSeenAt·스냅샷 updatedAt(세션 createdAt 은 근거 아님 — QA95 D-1)', async () => {
