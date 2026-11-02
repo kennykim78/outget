@@ -15,7 +15,7 @@
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
 //   setupBundle        = verified ∧ ∃ 노출 type t: careProfileId 일치 ∧ itemIds 비어있지 않고 전부 (t,item) 노출
 //   compatibilityRule  = verified ∧ a·b 둘 다 노출 item ∧ (careProfileId 없음 ∨ 노출 타입의 프로필)
-//   taxon              = verified ∧ (노출 type 의 taxonId ∨ 노출 careProfile 의 taxonIds) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
+//   taxon              = verified ∧ 노출 type 의 taxonId (공유 프로필 taxonIds 경유 없음, 271 qa LOW-1) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
 //   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
@@ -358,7 +358,7 @@ export function computeExposure(seed, asOf) {
 
   const typeProfiles = new Set([...types.values()].map((t) => t.careProfileId));
   const typeTaxa = new Set([...types.values()].map((t) => t.taxonId).filter((x) => typeof x === 'string'));
-  for (const p of rows('careProfiles')) if (isObj(p) && typeProfiles.has(p.id) && Array.isArray(p.taxonIds)) for (const x of p.taxonIds) if (typeof x === 'string') typeTaxa.add(x);
+  // 271 qa LOW-1: 노출 프로필 taxonIds 는 더하지 않는다 — Taxon 참조는 노출 type 의 taxonId 만(project.ts 프로필 taxonIds 좁힘 미러).
 
   const vetIds = idsWhere(rows('vetClinics'), (v) => isObj(v.verification) && v.verification.status === 'VERIFIED');
   const vetRegions = new Set();

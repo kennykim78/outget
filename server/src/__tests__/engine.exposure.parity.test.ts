@@ -133,7 +133,7 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
     expect(engineIds(s, asOf)).toEqual(mjsIds(s, asOf));
   });
 
-  const OLD = '2026-03-31'; // FIXTURE_AS_OF 기준 184일
+  const OLD = '2026-03-31'; // FIXTURE_AS_OF(2026-11-03) 기준 217일
   const links: Array<[keyof SeedBundle, string]> = [
     ['animalTypes', 'hamster-golden'],
     ['careProfiles', 'cp-hamster-syrian'],
@@ -217,18 +217,41 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
       expect(mjsTaxa(s)).toEqual([GOLDEN_TAXON_ID]);
     });
 
-    // QA 68 LOW(seed-exposure.mjs 프로필 taxonIds 루프 고정): 타입 taxonId 가 아닌, 노출 프로필 taxonIds 에만 있는 VERIFIED Taxon 도
-    //   양쪽 참조 집합에 들어가고, 비노출 타입(디스크 PLANNED 드워프)의 프로필에만 있는 VERIFIED Taxon 은 양쪽 모두 0.
-    it('프로필 taxonIds 에만 있는 VERIFIED Taxon → 양쪽 참조에 포함, 비노출 프로필 전용 Taxon 은 양쪽 0', () => {
-      const s = promoted();
+    // 271 qa LOW-1(QA 68 LOW 의미 교체): 프로필 taxonIds 는 「그 프로필을 쓰는 노출 AnimalType 의 taxon」으로만 좁힌다.
+    //   타입 taxonId 가 아닌, 노출 프로필 taxonIds 에만 있는 VERIFIED Taxon 은 양쪽 참조 0, 비노출 타입(디스크 PLANNED 드워프)의
+    //   프로필에만 있는 VERIFIED Taxon 도 양쪽 0.
+    it('프로필 taxonIds 에만 있는 VERIFIED Taxon → 양쪽 참조 0(노출 타입 taxon 만), 비노출 프로필 전용 Taxon 도 양쪽 0', () => {
+      const s = promoted({ taxonVerified: true });
       const src = s.taxa.find((t) => t.id === GOLDEN_TAXON_ID);
       if (!src) throw new Error('fixture: 골든 Taxon 없음');
-      s.taxa.push({ ...JSON.parse(JSON.stringify(src)), id: 'fixture-profile-only', ...V_LEGAL });
+      s.taxa.push({ ...JSON.parse(JSON.stringify(src)), id: 'fixture-profile-only', scientificName: 'Fixtureus profilonly', ...V_LEGAL });
       patch(s, 'careProfiles', 'cp-hamster-syrian', { taxonIds: [GOLDEN_TAXON_ID, 'fixture-profile-only'] });
       patch(s, 'taxa', 'phodopus-sungorus', { ...V_LEGAL }); // cp-hamster-dwarf 전용 — hamster-dwarf 는 PLANNED
       expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
-      expect(engineTaxonRefs(s)).toEqual(['fixture-profile-only']);
-      expect(mjsTaxa(s)).toEqual(['fixture-profile-only']);
+      expect(engineTaxonRefs(s)).toEqual([GOLDEN_TAXON_ID]);
+      expect(mjsTaxa(s)).toEqual([GOLDEN_TAXON_ID]);
+      const cp = projectSite(s, FIXTURE_AS_OF).catalog.careProfiles.find((p) => p.id === 'cp-hamster-syrian');
+      expect(cp?.taxonIds).toEqual([GOLDEN_TAXON_ID]);
+    });
+
+    // 271 qa LOW-1 본 시나리오: 비공개 종(로보) Taxon 이 VERIFIED 로 합성되고 노출 프로필(공유)에 들어가도 산출물에 id·학명 0.
+    it('공유 프로필에 비공개 종 Taxon(VERIFIED 합성) → 산출물 전체에 그 id·학명 0, 노출 타입 taxon 은 유지', () => {
+      const s = promoted({ taxonVerified: true });
+      const robo = s.taxa.find((t) => t.id === 'phodopus-roborovskii');
+      if (!robo) throw new Error('fixture: 로보 Taxon 없음');
+      const sci = String(robo.scientificName);
+      expect(sci).toMatch(/roborovskii/);
+      patch(s, 'taxa', 'phodopus-roborovskii', { ...V_LEGAL });
+      patch(s, 'careProfiles', 'cp-hamster-syrian', { taxonIds: [GOLDEN_TAXON_ID, 'phodopus-roborovskii'] });
+      const site = projectSite(s, FIXTURE_AS_OF);
+      expect(site.catalog.animalTypes.map((t) => t.id)).not.toContain('hamster-robo');
+      expect(site.catalog.careProfiles.find((p) => p.id === 'cp-hamster-syrian')?.taxonIds).toEqual([GOLDEN_TAXON_ID]);
+      const out = JSON.stringify(site);
+      expect(out).not.toContain('phodopus-roborovskii');
+      expect(out).not.toContain(sci);
+      expect(out).not.toMatch(/roborovskii/i);
+      expect(engineTaxonRefs(s)).toEqual([GOLDEN_TAXON_ID]);
+      expect(mjsTaxa(s)).toEqual([GOLDEN_TAXON_ID]);
     });
 
     it('2타입: B 의 Taxon 만 DRAFT 여도 두 타입 모두 노출, B 의 Taxon 참조만 빠진다(양쪽 동일)', () => {
@@ -250,7 +273,7 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
   });
 
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {
-    for (const v of [null, '2026-10-28', 'bad']) { // FIXTURE_AS_OF(2026-10-27) 다음 날 = 미래
+    for (const v of [null, '2026-11-04', 'bad']) { // FIXTURE_AS_OF(2026-11-03) 다음 날 = 미래
       const s = promoted();
       patch(s, 'careProfiles', 'cp-hamster-syrian', { verifiedAt: v });
       expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));

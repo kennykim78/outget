@@ -349,6 +349,14 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
   const exposedItems = new Set(types.flatMap((t) => t.requirements.map((r) => r.item.id)));
   const exposedReqIds = new Set(types.flatMap((t) => t.requirements.map((r) => r.requirementId)));
   const profileIds = new Set(types.map((t) => t.rec.careProfileId as string));
+  const typeTaxaByProfile = new Map<string, Set<string>>();
+  for (const t of types) {
+    if (typeof t.rec.taxonId !== 'string') continue;
+    const pid = t.rec.careProfileId as string;
+    const set = typeTaxaByProfile.get(pid) ?? new Set<string>();
+    set.add(t.rec.taxonId);
+    typeTaxaByProfile.set(pid, set);
+  }
 
   const animalTypes: AnimalTypeRec[] = types.map((t) => {
     const allowed = itemsByType.get(t.id) as Set<string>;
@@ -374,7 +382,13 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
   });
   const careProfiles: CareProfileRec[] = [...cat.careProfiles.values()]
     .filter((p) => profileIds.has(p.id))
-    .map((p) => ({ ...publicMeta(p), id: p.id, name: p.name, taxonIds: p.taxonIds.filter((x) => isTaxonExposable(cat, x, asOf)), facts: p.facts, careNotes: [...p.careNotes] }));
+    .map((p) => {
+      // 271 qa LOW-1: 공유 프로필 taxonIds 는 그 프로필을 쓰는 「노출된 AnimalType 의 taxon」으로만 좁힌다 — 비공개 종 taxon 이
+      //   VERIFIED 여도 공유 프로필 경유로 학명·id 가 나가지 않게(불변식 7). seed-exposure.mjs ids.taxa 미러.
+      const own = typeTaxaByProfile.get(p.id) ?? new Set<string>();
+      const taxonIds = p.taxonIds.filter((x) => own.has(x) && isTaxonExposable(cat, x, asOf));
+      return { ...publicMeta(p), id: p.id, name: p.name, taxonIds, facts: p.facts, careNotes: [...p.careNotes] };
+    });
   const supplyItems: SupplyItemRec[] = [...cat.supplyItems.values()]
     .filter((i) => exposedItems.has(i.id))
     .map((i) => ({
