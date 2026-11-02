@@ -4,6 +4,7 @@ import { exprRefs, parseExpr } from '../engine/expr.js';
 import { asRec, has, isNonEmptyStr, isSlotRow, type Rec } from './common.js';
 import type { Ctx } from './context.js';
 import { checkRuleSet } from './validate-structure.js';
+import { speciesOf } from './validate-gates.js';
 
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
@@ -113,10 +114,19 @@ function checkOverrides(ctx: Ctx, id: string, rec: Rec): void {
 
 function checkProfilesAndItems(ctx: Ctx): void {
   const { out } = ctx;
+  // R11(271 보안 LOW #5): Taxon 학명 유일 — 종(앞 두 단어) 기준, 종 형식이 아니면 trim 한 원문 기준. 같은 종을 두 행에 두면
+  //   X02 허용 쌍(TRIVIAL_LEGAL_TAXON_ID)·법 정보가 어느 행인지 모호해진다. revisionOf 개정 행은 같은 종일 수 있어 제외.
+  const speciesSeen = new Map<string, string>();
   for (const { rec, id } of ctx.rows.taxa) {
     if (rec.revisionOf !== null && rec.revisionOf !== undefined && !ctx.byId.taxa.has(rec.revisionOf as string)) {
       out.error('R04', 'taxa', id, 'revisionOf', `Taxon "${String(rec.revisionOf)}" 없음`);
     }
+    if (rec.revisionOf !== null && rec.revisionOf !== undefined) continue;
+    if (typeof rec.scientificName !== 'string' || rec.scientificName.trim() === '') continue; // 형식은 S03·V06 이 본다.
+    const key = speciesOf(rec.scientificName) ?? rec.scientificName.trim();
+    const prev = speciesSeen.get(key);
+    if (prev !== undefined) out.error('R11', 'taxa', id, 'scientificName', `학명 "${key}" 중복 — ${prev}`);
+    else speciesSeen.set(key, id);
   }
   for (const { rec, id } of ctx.rows.careProfiles) {
     const ids = strArr(rec.taxonIds);

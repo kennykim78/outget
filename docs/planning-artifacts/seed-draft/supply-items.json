@@ -1095,5 +1095,299 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "bird-cage",
+    "name": "새장",
+    "category": "CAGE",
+    "glyph": "🐦",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "type",
+          "label": "형태",
+          "type": "enum",
+          "options": [
+            "WIRE",
+            "ACRYLIC",
+            "OTHER"
+          ],
+          "optionLabels": {
+            "WIRE": "철망 새장",
+            "ACRYLIC": "아크릴 새장",
+            "OTHER": "기타"
+          }
+        },
+        {
+          "key": "widthCm",
+          "label": "가로(cm)",
+          "type": "number",
+          "min": 20,
+          "max": 300
+        },
+        {
+          "key": "depthCm",
+          "label": "세로(cm)",
+          "type": "number",
+          "min": 20,
+          "max": 200
+        },
+        {
+          "key": "heightCm",
+          "label": "높이(cm)",
+          "type": "number",
+          "min": 20,
+          "max": 300
+        },
+        {
+          "key": "barGapMm",
+          "label": "창살 간격(mm)",
+          "type": "number",
+          "min": 3,
+          "max": 50,
+          "optional": true
+        },
+        {
+          "key": "barOrientation",
+          "label": "창살 방향",
+          "type": "enum",
+          "options": [
+            "HORIZONTAL",
+            "VERTICAL",
+            "MIXED"
+          ],
+          "optional": true,
+          "optionLabels": {
+            "HORIZONTAL": "가로 창살",
+            "VERTICAL": "세로 창살",
+            "MIXED": "가로·세로 혼합"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "앵무새가 지내는 새장이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "perch",
+    "name": "횃대",
+    "category": "ETC",
+    "glyph": "🪵",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "diameterMm",
+          "label": "지름(mm)",
+          "type": "number",
+          "min": 5,
+          "max": 60
+        },
+        {
+          "key": "material",
+          "label": "재질",
+          "type": "enum",
+          "options": [
+            "WOOD",
+            "NATURAL_BRANCH",
+            "ROPE",
+            "PLASTIC",
+            "OTHER"
+          ],
+          "optionLabels": {
+            "WOOD": "나무",
+            "NATURAL_BRANCH": "자연목 가지",
+            "ROPE": "로프",
+            "PLASTIC": "플라스틱",
+            "OTHER": "기타"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "새가 발로 붙잡고 올라앉는 막대예요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "bird-food",
+    "name": "새 모이",
+    "category": "FOOD",
+    "glyph": "🌾",
+    "lifecycle": "CONSUMABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "form",
+          "label": "형태",
+          "type": "enum",
+          "options": [
+            "SEED",
+            "PELLET",
+            "MIXED"
+          ],
+          "optionLabels": {
+            "SEED": "씨앗 모이",
+            "PELLET": "펠릿",
+            "MIXED": "혼합형"
+          }
+        },
+        {
+          "key": "forSpecies",
+          "label": "대상 새",
+          "type": "enum",
+          "options": [
+            "BUDGIE",
+            "COCKATIEL",
+            "MULTI"
+          ],
+          "optional": true,
+          "ruleScoped": true,
+          "optionLabels": {
+            "BUDGIE": "사랑앵무용",
+            "COCKATIEL": "왕관앵무용",
+            "MULTI": "여러 새용"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "새에게 주는 모이·펠릿이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "mineral",
+    "name": "미네랄",
+    "category": "FOOD",
+    "glyph": "🪨",
+    "lifecycle": "CONSUMABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "kind",
+          "label": "종류",
+          "type": "enum",
+          "options": [
+            "BLOCK",
+            "CUTTLEBONE",
+            "OTHER"
+          ],
+          "optionLabels": {
+            "BLOCK": "미네랄 블록",
+            "CUTTLEBONE": "갑오징어뼈",
+            "OTHER": "기타"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "새장에 걸어 두는 미네랄 블록·갑오징어뼈 같은 용품이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "bird-bath",
+    "name": "새 목욕통",
+    "category": "BATH",
+    "glyph": "🛁",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": []
+    },
+    "compatibleAlternativeIds": [],
+    "description": "새가 물에 몸을 적시는 목욕 그릇이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "foraging-toy",
+    "name": "놀잇감",
+    "category": "TOY",
+    "glyph": "🪀",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "material",
+          "label": "재질",
+          "type": "enum",
+          "options": [
+            "WOOD",
+            "PAPER",
+            "PLASTIC",
+            "OTHER"
+          ],
+          "optionLabels": {
+            "WOOD": "나무",
+            "PAPER": "종이",
+            "PLASTIC": "플라스틱",
+            "OTHER": "기타"
+          }
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "부리로 뜯거나 숨은 모이를 찾게 만든 놀잇감이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "cage-cover",
+    "name": "새장 덮개",
+    "category": "ETC",
+    "glyph": "🧣",
+    "lifecycle": "DURABLE",
+    "specSchema": {
+      "fields": [
+        {
+          "key": "breathable",
+          "label": "통기 원단",
+          "type": "boolean"
+        }
+      ]
+    },
+    "compatibleAlternativeIds": [],
+    "description": "새장 위에 덮어 빛을 가리는 천이에요.",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "SPEC",
+    "source": []
   }
 ]

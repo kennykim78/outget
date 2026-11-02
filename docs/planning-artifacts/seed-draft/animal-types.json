@@ -211,8 +211,8 @@
       "잉꼬",
       "버지"
     ],
-    "taxonId": null,
-    "careProfileId": null,
+    "taxonId": "melopsittacus-undulatus",
+    "careProfileId": "cp-parrot-budgie",
     "careOverrides": {},
     "mascot": "budgie",
     "reviewStatus": "DRAFT",
@@ -232,10 +232,32 @@
     "aliases": [
       "코카티엘"
     ],
-    "taxonId": null,
-    "careProfileId": null,
+    "taxonId": "nymphicus-hollandicus",
+    "careProfileId": "cp-parrot-cockatiel",
     "careOverrides": {},
     "mascot": "cockatiel",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "hamster-robo",
+    "slug": "hamster/robo",
+    "group": "SMALL_MAMMAL",
+    "displayName": "로보로브스키햄스터",
+    "status": "PLANNED",
+    "aliases": [
+      "로보",
+      "로보로브스키"
+    ],
+    "taxonId": "phodopus-roborovskii",
+    "careProfileId": null,
+    "careOverrides": {},
+    "mascot": null,
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,

@@ -34,7 +34,7 @@ describe('S5 요구사항 14행 — 구성·검수 상태(불변식 7)', () => {
     expect(rows.map((r) => r.supplyItemId).sort()).toEqual(
       ['bedding', 'cage', 'carrier', 'chew', 'food', 'food-bowl', 'hay', 'hideout', 'sand-bath', 'sand-bath-box', 'thermo', 'tubes', 'water', 'wheel'].sort(),
     );
-    expect(seed.supplyItems).toHaveLength(20);
+    expect(seed.supplyItems).toHaveLength(27); // 271: 앵무 공통 용품 7(구조만, DRAFT)은 저빌과 무관 — 저빌 착지가 더한 SupplyItem 은 여전히 0
   });
   it('전부 DRAFT · AI_DRAFT · reviewBasis null · verifiedBy/At null (Taxon·CP·AnimalType·호환 규칙 포함)', () => {
     const metas = [

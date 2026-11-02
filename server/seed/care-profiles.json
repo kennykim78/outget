@@ -370,5 +370,37 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "cp-parrot-budgie",
+    "name": "사랑앵무 기본",
+    "taxonIds": [
+      "melopsittacus-undulatus"
+    ],
+    "facts": {},
+    "careNotes": [],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "cp-parrot-cockatiel",
+    "name": "왕관앵무 기본",
+    "taxonIds": [
+      "nymphicus-hollandicus"
+    ],
+    "facts": {},
+    "careNotes": [],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
   }
 ]

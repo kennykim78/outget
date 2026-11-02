@@ -97,7 +97,7 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
         }
       }
     }
-    expect(n).toBe(2 * 131); // 콘텐츠 8파일 131행 × 2 (BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
+    expect(n).toBe(2 * 144); // 콘텐츠 8파일 144행 × 2 (271: 1차 종 골격 Taxon +3 · CP +2 · SupplyItem +7 · AnimalType +1, BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
   });
   it('해시는 키 순서·optionLabels·검수 메타와 무관, 사실 1글자 변경에는 반응', () => {
     const r = clone(rowOf(realSeed(), 'supplyRequirements', 'req-dwarf-cage'));

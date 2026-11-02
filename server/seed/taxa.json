@@ -208,5 +208,62 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "phodopus-roborovskii",
+    "scientificName": "Phodopus roborovskii",
+    "koreanName": "로보로브스키햄스터",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "LEGAL",
+    "source": []
+  },
+  {
+    "id": "melopsittacus-undulatus",
+    "scientificName": "Melopsittacus undulatus",
+    "koreanName": "사랑앵무",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "LEGAL",
+    "source": []
+  },
+  {
+    "id": "nymphicus-hollandicus",
+    "scientificName": "Nymphicus hollandicus",
+    "koreanName": "왕관앵무",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "LEGAL",
+    "source": []
   }
 ]

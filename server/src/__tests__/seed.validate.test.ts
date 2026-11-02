@@ -85,14 +85,16 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 19 = W-EXPOSURE-ZERO 1 · W-RULESCOPED 1(S9 요구사항이 S3 6필드 참조 → playpen floorType 1만 남음 — playpen 은 min 없음·rec 크기만, Kenny 2026-10-27) · L03 13(caution 6(S9 req-guineapig-cage Kenny 확정 2문장 +1) + 번들 note 단위 1 + Taxon note 5(S7 기니피그 +1, 햄스터와 같은 틀 · 저빌 126 신고 안내 제21조제3항 +1) + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 20 = W-EXPOSURE-ZERO 1 · W-RULESCOPED 2(271 bird-food.forSpecies +1 — 앵무 요구사항 행 0 · S9 요구사항이 S3 6필드 참조 → playpen floorType 1만 남음 — playpen 은 min 없음·rec 크기만, Kenny 2026-10-27) · L03 13(caution 6(S9 req-guineapig-cage Kenny 확정 2문장 +1) + 번들 note 단위 1 + Taxon note 5(S7 기니피그 +1, 햄스터와 같은 틀 · 저빌 126 신고 안내 제21조제3항 +1) + 드워프 hideout 1 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, 'W-RULESCOPED': 1, L03: 13, L05: 4 });
-    expect(res.warnings).toHaveLength(19);
+    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, 'W-RULESCOPED': 2, L03: 13, L05: 4 });
+    expect(res.warnings).toHaveLength(20);
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
+    //   271: 앵무 bird-food.forSpecies(ruleScoped) 는 요구사항 행이 없어(사실값 대기) 참조 0 → +1.
     expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
+      'bird-food.specSchema.forSpecies',
       'playpen.specSchema.floorType',
     ]);
     // S9: req-guineapig-cage caution = Kenny 확정 2문장(2026-10-27) → L03 1건(경고, 문장 그대로).
