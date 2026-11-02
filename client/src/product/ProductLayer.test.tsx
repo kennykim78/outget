@@ -1,10 +1,23 @@
 // F1-3 L7 React + ♥: 추천 이유 = 템플릿만(상품별 자유 문구 0), count null → 숫자 0 · 10 → "10" · 9 → 0,
-//   product_viewed·reaction_like, 케이지 호환 실패해도 노출·순서 불변(③), 가격·"구매" 0, SearchBlock 펼침.
+//   product_viewed·reaction_like, 케이지 호환 실패해도 노출·순서 불변(③), 가격·"구매" 0,
+//   265 K6: SearchBlock 처음부터(접힘 0) + 꼬리 CTA = 검색 머리로 스크롤+포커스, 제휴 고지 A·B(on/off) + ws-data v3 하이드레이션 뒤 쿠팡 a 유지.
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY, formatCopy } from '@ws/copy';
-import { createCatalog, createEngine, type CatalogInput, type Engine, type PublicRequirement, type WsPageData } from '@ws/engine';
+import {
+  COUPANG_AFFILIATE_PREFIX,
+  WS_WIRE_VERSION_AFF,
+  buildSearchLinks,
+  createCatalog,
+  createEngine,
+  encodeWsPage,
+  type CatalogInput,
+  type Engine,
+  type PublicRequirement,
+  type WsPageData,
+} from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
+import { readPageData } from '../app/pageData';
 import { layerRegistry, layerWsId } from '../app/layerRegistry';
 import { cageKey } from '../context/cageStore';
 import { setTrackerForTest, type Tracker } from '../events/track';
@@ -164,14 +177,34 @@ describe('L7 ProductLayer', () => {
     expect(vi.mocked(reactionApi.send).mock.calls[0][1]).toEqual({ targetType: 'PRODUCT', targetId: 'p1', kind: 'LIKE' });
   });
 
-  it('[이 조건으로 찾기](채움 하나) → SearchBlock 펼침 + 가격·판매처 안내 meta', () => {
+  it('265 K6: SearchBlock + 가격·판매처 안내 meta 가 처음부터(접힘 0), 꼬리 [이 조건으로 찾기](채움 하나) = 검색 머리로 스크롤+포커스', () => {
     const d = openL7();
-    expect(d.querySelector('[data-ws-part="search"]')).toBeNull();
-    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
-    fireEvent.click(within(d).getByRole('button', { name: COPY.product.findWithCondition }));
+    // 열자마자 펼친 상태 — 누르기 전에도 검색 블록·상인 버튼·안내가 있다.
     expect(d.querySelector('[data-ws-part="search"]')).not.toBeNull();
     expect(d.textContent).toContain(COPY.product.priceNote);
     expect(Array.from(d.querySelectorAll('[data-ws-merchant]')).map((a) => a.getAttribute('data-ws-merchant'))).toEqual(['COUPANG', 'NAVER']);
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
+    // 상점 링크가 실제로 보인다 — 링크와 조상 어디에도 hidden / aria-hidden 이 없다(접힘 0).
+    const shop = within(d).getByRole('link', { name: new RegExp(COPY.supplyLayer.findCoupang) });
+    expect(shop.closest('[hidden],[aria-hidden="true"]')).toBeNull();
+    const cta = within(d).getByRole('button', { name: COPY.product.findWithCondition });
+    expect(cta.hasAttribute('aria-expanded')).toBe(false);
+    expect(d.querySelector('[aria-expanded]')).toBeNull();
+    const head = d.querySelector('[data-ws-part="search"] h3') as HTMLElement;
+    const scroll = vi.fn();
+    head.scrollIntoView = scroll;
+    fireEvent.click(cta);
+    expect(scroll).toHaveBeenCalledWith({ block: 'start' });
+    expect(document.activeElement).toBe(head);
+    // 다시 눌러도 블록은 그대로(토글이 아니다).
+    fireEvent.click(cta);
+    expect(d.querySelectorAll('[data-ws-part="search"]')).toHaveLength(1);
+    // 꺼짐(일반 검색 링크): 고지 0, rel 기존값, describedby 0.
+    expect(d.querySelector('[data-ws-aff]')).toBeNull();
+    for (const a of Array.from(d.querySelectorAll('[data-ws-merchant]'))) {
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+      expect(a.hasAttribute('aria-describedby')).toBe(false);
+    }
   });
 
   it('케이지 호환 BELOW_MIN: ✕ 줄 + 규칙 문구, 상품은 그대로 노출 · L4 상품 순서 불변(③)', async () => {
@@ -334,5 +367,96 @@ describe('ProductCard ♥(D-38)', () => {
     expect(like.textContent).not.toMatch(/\d/);
     fireEvent.click(like);
     expect(calls).toEqual([['reaction_like', { productId: 'p1' }]]);
+  });
+});
+
+describe('L7 제휴 고지(265 — 261 §1·§2.6)', () => {
+  const KW = '골든햄스터 쳇바퀴 28cm';
+  function affReq(): PublicRequirement {
+    return { ...wheel(), searchKeyword: KW, searchLinks: buildSearchLinks(KW, { COUPANG: 'FAKE0001' }) };
+  }
+  function affPage(r: PublicRequirement = affReq()): WsPageData {
+    return pageOf('TYPE', { requirements: [r], products: [P1, P2, P3] }, { typeId: golden.id, path: '/hamster/golden' });
+  }
+  function assertOn(d: HTMLElement) {
+    const body = d.querySelector('.ws-product-detail') as HTMLElement;
+    const b = body.firstElementChild as HTMLElement;
+    expect(b.getAttribute('data-ws-aff')).toBe('note-b');
+    expect(b.className).toBe('ws-t-meta ws-aff-note');
+    expect(b.textContent).toBe(COPY.affiliate.coupang);
+    expect(b.children).toHaveLength(0);
+    const a = d.querySelector('[data-ws-aff="note-a"]') as HTMLElement;
+    expect(a.id).toBe('ws-aff-a-wheel');
+    expect(a.className).toBe('ws-t-meta ws-aff-note');
+    expect(a.textContent).toBe(COPY.affiliate.coupang);
+    expect(a.children).toHaveLength(0);
+    expect(a.hasAttribute('title')).toBe(false);
+    expect(a.previousElementSibling?.classList.contains('ws-search-copied')).toBe(true);
+    expect(a.nextElementSibling?.className).toBe('ws-search-merchants');
+    const cp = d.querySelector('[data-ws-merchant="COUPANG"]') as HTMLElement;
+    const nv = d.querySelector('[data-ws-merchant="NAVER"]') as HTMLElement;
+    expect(cp.getAttribute('href')).toBe(`${COUPANG_AFFILIATE_PREFIX}FAKE0001`);
+    expect(cp.getAttribute('rel')).toBe('sponsored nofollow noopener noreferrer');
+    expect(cp.getAttribute('aria-describedby')).toBe(a.id);
+    expect(nv.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+    expect(nv.hasAttribute('aria-describedby')).toBe(false);
+    expect(cp.className).toBe(nv.className);
+    expect(cp.textContent).toBe(`${COPY.supplyLayer.findCoupang} ${COPY.a11y.newWindow}`);
+    expect(d.querySelectorAll('[data-ws-aff="note-a"]')).toHaveLength(1);
+    expect(d.querySelectorAll('[data-ws-aff="note-b"]')).toHaveLength(1);
+  }
+
+  it('켜짐: B = 본문 첫 요소, A = 복사 안내 뒤·상인 버튼 앞, 쿠팡 a sponsored + describedby, 네이버는 그대로', () => {
+    assertOn(openL7('p1', affPage()));
+  });
+
+  it('on/off: 고지·쿠팡 a 를 지우면 DOM 이 같다(노출·순서 영향 0, 불변식 ③)', () => {
+    const order = (d: HTMLElement) => Array.from(d.querySelectorAll('[data-ws-merchant]')).map((a) => a.getAttribute('data-ws-merchant'));
+    const strip = (d: HTMLElement) => {
+      const c = d.cloneNode(true) as HTMLElement;
+      c.querySelectorAll('[data-ws-aff], [data-ws-merchant="COUPANG"]').forEach((e) => e.remove());
+      return c.innerHTML.replace(/«?:?r[0-9a-z]+:?»?/g, 'ID');
+    };
+    const offReq: PublicRequirement = { ...affReq(), searchLinks: buildSearchLinks(KW) };
+    const dOn = openL7('p1', affPage());
+    const orderOn = order(dOn);
+    const on = strip(dOn);
+    act(() => layerStore.resetForTest());
+    document.body.innerHTML = '';
+    const dOff = openL7('p1', affPage(offReq));
+    const orderOff = order(dOff);
+    const off = strip(dOff);
+    expect(orderOn).toEqual(['COUPANG', 'NAVER']);
+    expect(orderOff).toEqual(orderOn);
+    expect(on).toBe(off);
+    expect(off).not.toContain('data-ws-aff');
+  });
+
+  it('허용 필터 밖 AFFILIATE(코드 형식 위반·네이버 제휴 위조)는 그리지 않고 고지도 0', () => {
+    const bad: PublicRequirement = {
+      ...affReq(),
+      searchLinks: [
+        { provider: 'COUPANG', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}FAKE0001/../x` },
+        { provider: 'NAVER', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}FAKE0001` },
+      ],
+    };
+    const d = openL7('p1', affPage(bad));
+    expect(d.querySelector('[data-ws-merchant]')).toBeNull();
+    expect(d.querySelector('[data-ws-aff]')).toBeNull();
+  });
+
+  it('하이드레이션: ws-data v3(aff) → readPageData → L7 에 쿠팡 제휴 a 가 남는다(259 남은 위험)', () => {
+    const wire = encodeWsPage(affPage());
+    expect(wire.v).toBe(WS_WIRE_VERSION_AFF);
+    const el = document.createElement('script');
+    el.id = 'ws-data';
+    el.type = 'application/json';
+    el.textContent = JSON.stringify(wire);
+    document.body.appendChild(el);
+    const hydrated = readPageData(document);
+    el.remove();
+    expect(hydrated).not.toBeNull();
+    expect(hydrated?.data.requirements[0].searchLinks[0]).toEqual({ provider: 'COUPANG', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}FAKE0001` });
+    assertOn(openL7('p1', hydrated as WsPageData));
   });
 });

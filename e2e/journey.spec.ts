@@ -167,10 +167,15 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     };
     await noCommerce('L7');
     await assertScreen(page, 'L7');
-    await tap(page, L7.locator('button.ws-product-detail-find'));
-    await expect(L7.locator('button.ws-product-detail-find')).toHaveAttribute('aria-expanded', 'true');
+    // K6 「전부 펼침」: 찾기 블록·면책 문구는 레이어를 열자마자 보인다(버튼은 토글이 아니라 검색 머리로 이동).
+    await expect(L7.locator('.ws-search')).toBeVisible();
+    await expect(L7).toContainText(PRICE_NOTES.find((n) => n.startsWith('가격')) ?? '');
+    const findBtn = L7.locator('button.ws-product-detail-find');
+    await expect(findBtn).not.toHaveAttribute('aria-expanded');
+    await tap(page, findBtn);
+    await expect(L7.locator('.ws-search h3')).toBeFocused();
     await noCommerce('L7 찾기 펼침');
-    // 펼치면 면책 문구(가격·판매처는 검색 결과에서)만.
+    // 면책 문구(가격·판매처는 검색 결과에서)만.
     await expect(L7).toContainText(PRICE_NOTES.find((n) => n.startsWith('가격')) ?? '');
     await assertScreen(page, 'L7 찾기 펼침');
   });

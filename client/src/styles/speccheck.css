@@ -322,11 +322,6 @@
   gap: var(--ws-space-3);
 }
 
-.ws-spec-search-toggle {
-  border: 0;
-  cursor: pointer;
-}
-
 .ws-search {
   display: flex;
   flex-direction: column;

@@ -16,7 +16,9 @@ import ReactionBar from '../reaction/ReactionBar';
 import Glyph, { type GlyphKind } from '../ui/Glyph';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
+import AffNote from './AffNote';
 import SearchBlock from './SearchBlock';
+import { affiliateDisclosureOn } from './searchLinks';
 import { useCageCompat, type CageCompat } from './useCageCompat';
 import '../styles/layers.css';
 
@@ -203,6 +205,7 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
     <>
       <LayerBody>
         <div className="ws-supply" data-ws-id={`supplyItems#${r.supplyItemId}`}>
+          {affiliateDisclosureOn(r.searchLinks) ? <AffNote kind="b" /> : null}
           <div className="ws-supply-meta">
             {state ? (
               <span className={`ws-state-chip ws-state-chip--${GLYPH_OF[state]} ws-t-label`}>

@@ -12,6 +12,8 @@ import { useLayerPage } from '../app/layerPage';
 import CageStep from '../context/CageStep';
 import { CAGE_ITEM_ID, toUserContext, useCage } from '../context/cageStore';
 import { track } from '../events/track';
+import AffNote from '../supply/AffNote';
+import { affiliateDisclosureOn } from '../supply/searchLinks';
 import { copyAt } from '../ui/copyText';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
@@ -161,13 +163,16 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
       }
     }
   }
-  const links = buildSearchLinks(keyword);
+  // 265: 키워드가 빌드 때와 같으면 ws-data 의 빌드 타임 링크(제휴 링크 포함) — 다르면 일반 검색 링크로 다시 만든다(제휴·고지 0).
+  const links = keyword === requirement.searchKeyword ? requirement.searchLinks : buildSearchLinks(keyword);
+  const affOn = affiliateDisclosureOn(links);
   const unavailable = catalog.status === 'failed' ? copyAt('checkLayer.unavailable') : null;
 
   return (
     <div className="ws-spec-layer" data-ws-step="L5">
       <LayerBody>
         <div className="ws-spec-body">
+          {affOn ? <AffNote kind="b" /> : null}
           <div className="ws-visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-ws-live="">
             {liveText}
           </div>

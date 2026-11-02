@@ -192,6 +192,7 @@
   padding: 0 var(--ws-space-2);
   text-align: center;
 }
+.ws-aff-note { color: var(--ws-ink-muted); margin: 0; }
 
 /* ── ReactionBar ──────────────────────────────────── */
 .ws-reactions {

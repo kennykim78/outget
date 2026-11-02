@@ -1,7 +1,8 @@
 // L7 상품 상세(UX §4 L7 · 스펙33 §5.4 · 계획 F1-3). 데이터는 같은 문서 ws-data(useLayerPage)만.
 //   순서: 이미지 1:1 160(운영자 자산만, 없으면 대체 타일) → meta "{용품명} · {specLine}" → ✓ 기준 충족 + 검수일 + ♥(공개 수 ≥10 만)
 //   → "WithSmall 추천 이유"(템플릿만: reasonCodes + 케이지 호환 줄·규칙 문구) → "{용품명} 기준 보기 ›"(→ L4 — 용품 why 는 L4 에서, DR B-1).
-//   꼬리 [이 조건으로 찾기](채움) → SearchBlock 펼침 + meta 가격·판매처 안내.
+//   → SearchBlock + meta 가격·판매처 안내(265 K6: 접힘 없이 처음부터). 꼬리 [이 조건으로 찾기](채움) = 검색 머리로 스크롤+포커스(L4 D-36과 같음).
+//   제휴 링크가 그려질 때만 본문 첫 요소에 고지 B(A 는 SearchBlock 안, 261 §1).
 //   상품별 자유 문구 0(추천 이유는 copy 템플릿 + 케이지 등록 시 호환 규칙 문구만), 가격·판매처명·별점·"구매"·마스코트 0.
 //   케이지 호환은 표시만 — 결과가 무엇이든 노출·순서 불변(불변식 ③). 판정 = 상품 실제 규격값 기준 엔진 productCageCompat(작업 183·185, 보유품 근거 없는 항목 제외). counts GET 은 이 레이어에서만(C-R5-3).
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -13,7 +14,9 @@ import { track } from '../events/track';
 import { safeProductImage } from '../home/ProductCard';
 import LikeToggle from '../reaction/LikeToggle';
 import { reactionCounts } from '../reaction/reactionStore';
+import AffNote from '../supply/AffNote';
 import SearchBlock from '../supply/SearchBlock';
+import { affiliateDisclosureOn } from '../supply/searchLinks';
 import { yearMonth } from '../supply/SupplyLayer';
 import { useProductCageCompat, type CageCompat } from '../supply/useCageCompat';
 import Glyph, { type GlyphKind } from '../ui/Glyph';
@@ -54,7 +57,6 @@ export default function ProductLayer({ props, close }: LayerContentProps) {
   const type = page.data.types.find((t) => t.id === typeId) ?? null;
   const ok = product !== null && requirement !== null && type !== null;
   const searchHeadId = `ws-search-head-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const [searchOpen, setSearchOpen] = useState(false);
   const [count, setCount] = useState<number | null>(null);
 
   useLayoutEffect(() => {
@@ -82,13 +84,6 @@ export default function ProductLayer({ props, close }: LayerContentProps) {
     };
   }, [ok, product]);
 
-  useEffect(() => {
-    if (!searchOpen) return;
-    const head = document.getElementById(searchHeadId);
-    head?.scrollIntoView?.({ block: 'start' });
-    head?.focus();
-  }, [searchOpen, searchHeadId]);
-
   const cageSchema = page.data.requirements.find((r) => r.animalTypeId === typeId && r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null;
   const { cage } = useCage(typeId, { schema: cageSchema });
   const userCtx = useMemo(() => toUserContext(cage), [cage]);
@@ -102,11 +97,17 @@ export default function ProductLayer({ props, close }: LayerContentProps) {
   const spec = specLine(r.item.specSchema, p.specValues);
   const lm = yearMonth(p.specVerifiedAt);
   const reasons = productReasons(p, r, type.displayName, compat);
+  const goSearch = () => {
+    const head = document.getElementById(searchHeadId);
+    head?.scrollIntoView?.({ block: 'start' });
+    head?.focus();
+  };
 
   return (
     <>
       <LayerBody>
         <div className="ws-product-detail">
+          {affiliateDisclosureOn(r.searchLinks) ? <AffNote kind="b" /> : null}
           {img ? (
             <img className="ws-product-detail-img" src={img} alt={p.title} decoding="async" width={160} height={160} />
           ) : (
@@ -147,16 +148,14 @@ export default function ProductLayer({ props, close }: LayerContentProps) {
           <a className="ws-compat-link" href={encodeURI(`/${type.slug}/supplies/${r.supplyItemId}`)}>
             {formatCopy(COPY.product.supplyBasisLink, { name: r.item.name })}
           </a>
-          {searchOpen ? (
-            <div className="ws-supply-part">
-              <SearchBlock requirement={r} headingId={searchHeadId} />
-              <p className="ws-t-meta">{COPY.product.priceNote}</p>
-            </div>
-          ) : null}
+          <div className="ws-supply-part">
+            <SearchBlock requirement={r} headingId={searchHeadId} />
+            <p className="ws-t-meta">{COPY.product.priceNote}</p>
+          </div>
         </div>
       </LayerBody>
       <LayerFoot>
-        <button type="button" className="ws-btn ws-btn--fill ws-product-detail-find" aria-expanded={searchOpen} onClick={() => setSearchOpen(true)}>
+        <button type="button" className="ws-btn ws-btn--fill ws-product-detail-find" onClick={goSearch}>
           {COPY.product.findWithCondition}
         </button>
       </LayerFoot>

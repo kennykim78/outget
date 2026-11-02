@@ -2,7 +2,7 @@
 //   [준비했어요] = PURCHASED(기존 ✓ 유지), data-ws-id, 👍·⚠, 내 케이지 서브카드(엔진 주입). 합성 fixture.
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY } from '@ws/copy';
-import type { Engine, PublicRequirement, WsPageData } from '@ws/engine';
+import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type Engine, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry, layerWsId } from '../app/layerRegistry';
@@ -315,5 +315,32 @@ describe('L4 내 케이지 서브카드 meta 문구 — usedRecommended(작업 1
     const off = engineWith({ verdict: 'OK', reasons: [], checkedRuleIds: ['r'] });
     expect(cageCompatOf(on, golden.id, 'wheel', ctx)).toEqual({ state: 'result', verdict: 'OK', reasons: [], usedRecommended: true });
     expect(cageCompatOf(off, golden.id, 'wheel', ctx)).toEqual({ state: 'result', verdict: 'OK', reasons: [] });
+  });
+});
+
+describe('L4 제휴 고지(265 — 261 §1·§2.2)', () => {
+  it('켜짐: B = .ws-supply 첫 자식, A = 상인 버튼 바로 앞, 쿠팡 a sponsored + describedby', () => {
+    const d = openL4(pageWith([wheel({ searchLinks: buildSearchLinks('골든햄스터 쳇바퀴 28cm', { COUPANG: 'FAKE0001' }) })]));
+    const b = (d.querySelector('.ws-supply') as HTMLElement).firstElementChild as HTMLElement;
+    expect(b.getAttribute('data-ws-aff')).toBe('note-b');
+    expect(b.className).toBe('ws-t-meta ws-aff-note');
+    expect(b.textContent).toBe(COPY.affiliate.coupang);
+    const a = d.querySelector('[data-ws-aff="note-a"]') as HTMLElement;
+    expect(a.id).toBe('ws-aff-a-wheel');
+    expect(a.nextElementSibling?.className).toBe('ws-search-merchants');
+    const cp = d.querySelector('[data-ws-merchant="COUPANG"]') as HTMLElement;
+    expect(cp.getAttribute('href')).toBe(`${COUPANG_AFFILIATE_PREFIX}FAKE0001`);
+    expect(cp.getAttribute('rel')).toBe('sponsored nofollow noopener noreferrer');
+    expect(cp.getAttribute('aria-describedby')).toBe('ws-aff-a-wheel');
+    const nv = d.querySelector('[data-ws-merchant="NAVER"]') as HTMLElement;
+    expect(nv.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+    expect(Array.from(d.querySelectorAll('[data-ws-merchant]')).map((x) => x.getAttribute('data-ws-merchant'))).toEqual(['COUPANG', 'NAVER']);
+  });
+
+  it('꺼짐(일반 검색 링크만): 고지 0, sponsored·describedby 0', () => {
+    const d = openL4(pageWith([wheel()]));
+    expect(d.querySelector('[data-ws-aff]')).toBeNull();
+    expect(d.querySelector('[aria-describedby^="ws-aff-a-"]')).toBeNull();
+    for (const x of Array.from(d.querySelectorAll('[data-ws-merchant]'))) expect(x.getAttribute('rel')).toBe('noopener noreferrer nofollow');
   });
 });

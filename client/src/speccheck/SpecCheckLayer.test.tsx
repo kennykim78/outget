@@ -4,7 +4,7 @@
 //   카탈로그 실패 → 폼 비활성 + 안내, D-35(입력 변경 → 결과 제거), 결과에 상품·♥ 0(D-43), L6 저장 키 = 스키마 키만.
 import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY } from '@ws/copy';
-import type { PublicRequirement, SpecSchema } from '@ws/engine';
+import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type PublicRequirement, type SpecSchema } from '@ws/engine';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry } from '../app/layerRegistry';
@@ -408,8 +408,12 @@ describe('L5 낭독 라이브 영역(WCAG 4.1.3)', () => {
     const r = await checkWheel(d, '30');
     await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.productOk));
     expect(live(d)).toBe(el); // 같은 노드(재삽입 아님)
-    // VerdictCard 안에는 라이브 속성 없음(이중 낭독 방지)
-    expect(r.querySelector('[aria-live]')).toBeNull();
+    // VerdictCard 안에는 판정 라이브 속성 없음(이중 낭독 방지). 265 K6: 검색 패널이 처음부터 그려져 복사 안내 p(aria-live, 비어 있음)
+    //   하나만 카드 안에 있다 — 판정 문구가 아니라 복사 확인 전용이고, 검색 블록(.ws-search) 밖에는 0.
+    const lives = Array.from(r.querySelectorAll('[aria-live]'));
+    expect(lives).toHaveLength(1);
+    expect(lives[0].closest('.ws-search')).not.toBeNull();
+    expect(lives[0].textContent).toBe('');
     expect(r.querySelector('[role="status"]')).toBeNull();
 
     setNumber(d, /지름/, '31'); // 입력 변경 → 결과 제거, 영역은 유지·비움
@@ -465,13 +469,15 @@ describe('L5 이벤트', () => {
 });
 
 describe('L5 화면 규칙', () => {
-  it('입력이 바뀌면 결과 제거·[판정하기] 다시 채움(D-35), 결과 후 채운 CTA 는 하나', async () => {
+  it('입력이 바뀌면 결과 제거·[판정하기] 다시 채움(D-35), 결과 후 채운 CTA 0(265 K6: 펼침 토글 제거, 261 §6 상한 규칙)', async () => {
     const d = await openL5('wheel');
     await ready(d);
     expect(submitBtn(d)).toHaveClass('ws-btn--fill');
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
     await checkWheel(d, '30');
     expect(submitBtn(d)).toHaveClass('ws-btn--outline');
-    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
+    expect(d.querySelector('[aria-expanded]')).toBeNull();
     setNumber(d, /지름/, '31');
     expect(within(d).queryByRole('region', { name: COPY.verdict.resultRegion })).toBeNull();
     expect(submitBtn(d)).toHaveClass('ws-btn--fill');
@@ -498,7 +504,13 @@ describe('L5 화면 규칙', () => {
     const d = await openL5('wheel');
     await ready(d);
     const r = await checkWheel(d, '30');
-    fireEvent.click(within(r).getByRole('button', { name: COPY.supplyLayer.findWithCondition }));
+    // 265 K6: 펼침 토글 없음 — 라벨(p) + 패널이 판정 뒤 처음부터. aria-expanded 0, 판정 뒤 채운 CTA 0.
+    expect(within(r).queryByRole('button', { name: COPY.supplyLayer.findWithCondition })).toBeNull();
+    expect(r.querySelector('[aria-expanded]')).toBeNull();
+    expect(r.querySelector('.ws-spec-search > p.ws-t-label.ws-spec-muted')?.textContent).toBe(COPY.supplyLayer.findWithCondition);
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
+    // 꺼짐(일반 검색 링크만): 고지 0, sponsored·describedby 0.
+    expect(d.querySelector('[data-ws-aff]')).toBeNull();
     expect(within(r).getByText('골든햄스터 쳇바퀴 30cm')).toBeInTheDocument();
     const links = [
       within(r).getByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findCoupang} ?[(]새 창[)]$`) }),
@@ -508,7 +520,8 @@ describe('L5 화면 규칙', () => {
     expect(links[1].getAttribute('href')).toMatch(/^https:\/\/search\.shopping\.naver\.com\/search\/all\?query=/);
     for (const l of links) {
       expect(l).toHaveAttribute('target', '_blank');
-      expect(l.getAttribute('rel')).toContain('nofollow');
+      expect(l.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+      expect(l.hasAttribute('aria-describedby')).toBe(false);
     }
     fireEvent.click(links[0]);
     expect(named('external_product_clicked')).toEqual([
@@ -533,7 +546,7 @@ describe('L5 화면 규칙', () => {
         ]}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: COPY.supplyLayer.findWithCondition }));
+    expect(screen.queryByRole('button', { name: COPY.supplyLayer.findWithCondition })).toBeNull();
     expect(screen.queryByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findCoupang} ?[(]새 창[)]$`) })).toBeNull();
     expect(screen.getByRole('link', { name: new RegExp(`^${COPY.supplyLayer.findNaver} ?[(]새 창[)]$`) })).toBeInTheDocument();
   });
@@ -785,5 +798,86 @@ describe('L6 내 케이지 스텝', () => {
     });
     expect(row).toHaveTextContent(COPY.verdict.compatNoRule);
     expect(row.querySelectorAll('a, button')).toHaveLength(0);
+  });
+});
+
+describe('L5 제휴 고지(265 — K6 전부 펼침 + 261 §1·§2.5)', () => {
+  const KW = `${golden.displayName} 쳇바퀴 30cm`; // 카탈로그 buildSearchKeyword 결과와 같은 값
+  const AFF = buildSearchLinks(KW, { COUPANG: 'FAKE0001' });
+  function affPage(keyword: string) {
+    const wheel = { ...preq('wheel', '합성 쳇바퀴', WHEEL_SCHEMA, WHEEL_MIN, WHEEL_REC, ['saucer']), searchKeyword: keyword, searchLinks: AFF };
+    return pageOf(
+      'TYPE',
+      { requirements: [preq('cage', '합성 케이지', CAGE_SCHEMA, CAGE_MIN), wheel, preq('saucer', '합성 소서', SAUCER_SCHEMA, { rules: [] })], products: [] },
+      { typeId: golden.id, path: '/hamster/golden' },
+    );
+  }
+  async function openWith(page: ReturnType<typeof affPage>): Promise<HTMLElement> {
+    render(
+      <LayerPageProvider page={page}>
+        <LayerHost registry={layerRegistry} />
+      </LayerPageProvider>,
+    );
+    act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'wheel' }, { url: '/hamster/golden/check/wheel' }));
+    const d = await screen.findByRole('dialog');
+    await within(d).findByText(COPY.checkLayer.intro, {}, { timeout: 15000 });
+    return d;
+  }
+
+  it('켜짐: 키워드 일치 → 빌드 타임 제휴 링크, B = 본문 첫 요소(판정 전부터), A = 상인 버튼 바로 앞, 쿠팡 a sponsored + describedby', async () => {
+    expect(AFF[0]).toEqual({ provider: 'COUPANG', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}FAKE0001` });
+    const d = await openWith(affPage(KW));
+    const body = d.querySelector('.ws-spec-body') as HTMLElement;
+    const b = body.firstElementChild as HTMLElement;
+    expect(b.getAttribute('data-ws-aff')).toBe('note-b');
+    expect(b.className).toBe('ws-t-meta ws-aff-note');
+    expect(b.textContent).toBe(COPY.affiliate.coupang);
+    await ready(d);
+    const r = await checkWheel(d, '30');
+    const notes = Array.from(r.querySelectorAll('[data-ws-aff="note-a"]'));
+    expect(notes).toHaveLength(1);
+    const a = notes[0] as HTMLElement;
+    expect(a.id).toBe('ws-aff-a-wheel');
+    expect(a.textContent).toBe(COPY.affiliate.coupang);
+    expect(a.nextElementSibling?.className).toBe('ws-search-merchants');
+    expect(a.closest('.ws-search')).not.toBeNull();
+    const [cp, nv] = Array.from(r.querySelectorAll('.ws-search-merchants a'));
+    expect(cp.getAttribute('href')).toBe(`${COUPANG_AFFILIATE_PREFIX}FAKE0001`);
+    expect(cp.getAttribute('rel')).toBe('sponsored nofollow noopener noreferrer');
+    expect(cp.getAttribute('aria-describedby')).toBe('ws-aff-a-wheel');
+    expect(nv.getAttribute('href')).toMatch(/^https:\/\/search\.shopping\.naver\.com\/search\/all\?query=/);
+    expect(nv.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+    expect(nv.hasAttribute('aria-describedby')).toBe(false);
+    // 상인 버튼 동등(D-37): 클래스 같음, 순서 쿠팡 → 네이버.
+    expect(cp.className).toBe(nv.className);
+    expect(d.querySelectorAll('[data-ws-aff="note-b"]')).toHaveLength(1);
+    expect(r.querySelector('[aria-expanded]')).toBeNull();
+  });
+
+  it('키워드 재계산 불일치 → 일반 링크로 다시 만들고 고지 A·B 0', async () => {
+    const d = await openWith(affPage(`${golden.displayName} 합성 쳇바퀴 다른 검색어`));
+    await ready(d);
+    const r = await checkWheel(d, '30');
+    expect(d.querySelector('[data-ws-aff]')).toBeNull();
+    const cp = r.querySelector('.ws-search-merchants a') as HTMLElement;
+    expect(cp.getAttribute('href')).toMatch(/^https:\/\/www\.coupang\.com\/np\/search\?q=/);
+    expect(cp.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+    expect(d.querySelector('[aria-describedby^="ws-aff-a-"]')).toBeNull();
+  });
+
+  it('SpecSearch 단독: 코드 형식 위반·하위 경로 AFFILIATE·kind 위조는 그리지 않고 고지도 0', () => {
+    render(
+      <SpecSearch
+        animalTypeId={golden.id}
+        supplyItemId="wheel"
+        keyword={KW}
+        links={[
+          { provider: 'COUPANG', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}bad/../x` },
+          { provider: 'NAVER', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}FAKE0001` },
+        ]}
+      />,
+    );
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(document.querySelector('[data-ws-aff]')).toBeNull();
   });
 });
