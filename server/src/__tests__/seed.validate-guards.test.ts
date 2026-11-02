@@ -22,7 +22,7 @@ import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, pro
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-27';
+const NOW = '2026-11-03';
 const BASE = readSeedDirRaw(SEED_DIR).raw;
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
 const rawOf = (seed: SeedBundle): Required<RawSeed> =>
@@ -679,14 +679,17 @@ describe('271 1차 종 게이트 — 로보·앵무 X02 fail-closed(허용목록
     return s;
   };
 
-  it('(i) 디스크: 로보는 드워프 프로필과 분리(careProfileId null · cp-hamster-dwarf.taxonIds 에 없음) · 별칭 유지 · legal 미확인 null', () => {
+  it('(i) 디스크: 로보는 드워프 프로필과 분리(careProfileId null · cp-hamster-dwarf.taxonIds 에 없음) · 별칭 유지 · legal act6 null(272-B 미확정)·cites false·화이트리스트 null', () => {
     const s = fresh();
     const at = row(s, 'animalTypes', 'hamster-robo');
     expect([at.status, at.careProfileId, at.aliases]).toEqual(['PLANNED', null, ['로보', '로보로브스키']]);
     expect(row(s, 'careProfiles', 'cp-hamster-dwarf').taxonIds).toEqual(['phodopus-sungorus', 'phodopus-campbelli']);
     const t = row(s, 'taxa', 'phodopus-roborovskii');
     expect([t.reviewStatus, t.reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
-    expect(t.legal).toEqual({ animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null, note: null });
+    // 277(271 보류분 적용): 1차 출처(시행규칙 제3조·Species+·CITES 고시·야생생물법·백색목록 고시) 접근일 2026-11-02. act6 은 Kenny 확인 전 null.
+    expect(t.legal).toEqual({ animalProtectionAct6: null, cites: false, designatedWildlifeWhitelist: null, note: null });
+    expect((t.source as Rec[]).map((x) => x.accessedAt)).toEqual(Array(5).fill('2026-11-02'));
+    expect(t.verifiedBy).toBeNull();
     // 디스크 그대로 ACTIVE 로 올리면 careProfileId 가 없어 R01(공개 불가).
     expect(errs(validateSeed(active('hamster-robo'), { now: NOW_W1 }), 'R01').map((i) => `${i.id} ${i.path}`)).toContain('hamster-robo status');
   });
@@ -732,6 +735,12 @@ describe('271 1차 종 게이트 — 로보·앵무 X02 fail-closed(허용목록
     ['budgie', 'melopsittacus-undulatus'],
     ['cockatiel', 'nymphicus-hollandicus'],
   ] as const) {
+    it(`(ii) 디스크: ${taxonId} DRAFT·AI_DRAFT · legal act6 false·cites false·화이트리스트 null · 출처 4(접근일 2026-11-02, 277)`, () => {
+      const t = row(fresh(), 'taxa', taxonId);
+      expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
+      expect(t.legal).toEqual({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null, note: null });
+      expect((t.source as Rec[]).map((x) => x.accessedAt)).toEqual(Array(4).fill('2026-11-02'));
+    });
     it(`(ii) ${typeId} ACTIVE + DRAFT(AI_DRAFT) Taxon → X02(허용목록 밖, 불리언 무관) · Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0`, () => {
       const x = x02Of(active(typeId), typeId);
       expect(x.map((i) => i.path)).toEqual(['taxonId']);

@@ -33,7 +33,7 @@ async function run(argv: string[], env: Record<string, string>, opts: { today?: 
     stdout: () => undefined,
     stderr: (l) => err.push(l),
     env,
-    today: () => opts.today ?? '2026-10-28', // 실시드 출처 접근일 최댓값(2026-10-27, 기니피그 S7·S8) 다음 날 — 과거 --now(10-27)도 S07 없이 검증
+    today: () => opts.today ?? '2026-11-04', // 실시드 출처 접근일 최댓값(2026-11-02, Taxon 법 칸 — 277) 이후의 고정 시계 다음 날 — 과거 --now(11-03)도 S07 없이 검증
     mascotDir: opts.mascotDir ?? MASCOT_DIR,
   };
   return { code: await runPrerenderCli(['--out', outDir(), '--public-dir', tmp('pub'), ...argv], io), err };
@@ -59,21 +59,21 @@ const PROD = { NODE_ENV: 'production', SITE_ORIGIN: 'https://staging.example' };
 
 describe('L-B 운영 빌드의 --now', () => {
   it('production + --now ≠ 오늘(서울) → exit 2', async () => {
-    const r = await run(['--now', '2026-10-27'], PROD);
+    const r = await run(['--now', '2026-11-03'], PROD);
     expect(r.code).toBe(2);
     expect(r.err.join('\n')).toMatch(/--allow-past-now/);
-    expect((await run(['--now', '2026-10-29'], PROD)).code).toBe(2); // 미래도 거부
+    expect((await run(['--now', '2026-11-05'], PROD)).code).toBe(2); // 미래도 거부
   });
   it('production + --now = 오늘 → 통과, --now 없음 → 통과', async () => {
-    expect((await run(['--now', '2026-10-28'], PROD)).code).toBe(0);
+    expect((await run(['--now', '2026-11-04'], PROD)).code).toBe(0);
     expect((await run([], PROD)).code).toBe(0);
   });
   it('production + --allow-past-now → 과거 --now 허용(테스트·재현)', async () => {
-    expect((await run(['--now', '2026-10-27', '--allow-past-now'], PROD)).code).toBe(0);
+    expect((await run(['--now', '2026-11-03', '--allow-past-now'], PROD)).code).toBe(0);
   });
   it('비운영(NODE_ENV 없음·development)은 과거 --now 허용', async () => {
-    expect((await run(['--now', '2026-10-27'], {})).code).toBe(0);
-    expect((await run(['--now', '2026-10-27'], { NODE_ENV: 'development' })).code).toBe(0);
+    expect((await run(['--now', '2026-11-03'], {})).code).toBe(0);
+    expect((await run(['--now', '2026-11-03'], { NODE_ENV: 'development' })).code).toBe(0);
   });
 });
 

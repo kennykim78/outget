@@ -9,7 +9,7 @@ import type { RawSeed, Rec } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-10-29';
+const NOW = '2026-11-03'; // 277: 10-29 → 11-03(실시드 Taxon 출처 접근일 2026-11-02 이상 — S07 미래 날짜 방지)
 const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 const GERBIL_CP = 'cp-gerbil-mongolian';
 const SRC = [{ url: 'https://example.com/package-label', title: '포장 표기 원문 사진 — 운영자 확인', accessedAt: '2026-10-28' }];

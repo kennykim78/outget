@@ -227,7 +227,7 @@ describe("isFieldOptionalForDisplay(field, minSpec) — '· 선택' 표시", () 
 });
 
 describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
-  const NOW = '2026-10-27';
+  const NOW = '2026-11-03';
   const fresh = () => structuredClone(readSeedDirRaw(SEED_DIR).raw);
   const find = (arr: unknown[] | undefined, id: string): Rec => {
     const r = (arr ?? []).find((x) => (x as Rec).id === id);

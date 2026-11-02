@@ -74,7 +74,7 @@ describe('가드 ①: 노출·검증·프리렌더 경로는 호환 가상 입�
 
   // ── 보상 단언(작업 228) ──────────────────────────────────────────────
   const qualitySrc = stripComments(readFileSync(join(SRC, ...COMPAT_QUALITY.split('/')), 'utf8'));
-  const NOW = '2026-10-27';
+  const NOW = '2026-11-03';
   const SEED_BASE: RawSeed = readSeedDirRaw(join(SRC, '..', 'seed')).raw;
   const RULE = 'cr-syrian-wheel-cage-bedding'; // a = wheel, b = cage(seed.validate-compat-quality.test.ts 와 같은 자리)
   const rowOf = (s: RawSeed, key: SeedKey, id: string): Rec => {

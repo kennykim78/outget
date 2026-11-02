@@ -215,7 +215,7 @@
     "koreanName": "로보로브스키햄스터",
     "legal": {
       "animalProtectionAct6": null,
-      "cites": null,
+      "cites": false,
       "designatedWildlifeWhitelist": null,
       "note": null
     },
@@ -226,15 +226,41 @@
     "verifiedAt": null,
     "reviewBasis": null,
     "contentKind": "LEGAL",
-    "source": []
+    "source": [
+      {
+        "url": "https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=273181",
+        "title": "동물보호법 시행규칙 제3조(반려동물의 범위) (농림축산식품부령 제731호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://speciesplus.net/api/v1/auto_complete_taxon_concepts.json?taxonomy=cites_eu&taxon_concept_query=Phodopus",
+        "title": "Species+ — \"Phodopus\" 검색(0건)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000275380",
+        "title": "국제적멸종위기종 목록 별표 (기후에너지환경부고시 제2026-63호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=279791",
+        "title": "야생생물 보호 및 관리에 관한 법률 제2조 (국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000269770",
+        "title": "백색목록 지정 별표 (기후에너지환경부고시 제2025-55호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      }
+    ]
   },
   {
     "id": "melopsittacus-undulatus",
     "scientificName": "Melopsittacus undulatus",
     "koreanName": "사랑앵무",
     "legal": {
-      "animalProtectionAct6": null,
-      "cites": null,
+      "animalProtectionAct6": false,
+      "cites": false,
       "designatedWildlifeWhitelist": null,
       "note": null
     },
@@ -245,15 +271,36 @@
     "verifiedAt": null,
     "reviewBasis": null,
     "contentKind": "LEGAL",
-    "source": []
+    "source": [
+      {
+        "url": "https://speciesplus.net/api/v1/taxon_concepts/5492.json",
+        "title": "Species+ — Melopsittacus undulatus (taxon concept 5492)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000275380",
+        "title": "국제적멸종위기종 목록 별표 (기후에너지환경부고시 제2026-63호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=273181",
+        "title": "동물보호법 시행규칙 제3조(반려동물의 범위) (농림축산식품부령 제731호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000269770",
+        "title": "백색목록 지정 별표 (기후에너지환경부고시 제2025-55호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      }
+    ]
   },
   {
     "id": "nymphicus-hollandicus",
     "scientificName": "Nymphicus hollandicus",
     "koreanName": "왕관앵무",
     "legal": {
-      "animalProtectionAct6": null,
-      "cites": null,
+      "animalProtectionAct6": false,
+      "cites": false,
       "designatedWildlifeWhitelist": null,
       "note": null
     },
@@ -264,6 +311,27 @@
     "verifiedAt": null,
     "reviewBasis": null,
     "contentKind": "LEGAL",
-    "source": []
+    "source": [
+      {
+        "url": "https://speciesplus.net/api/v1/taxon_concepts/8860.json",
+        "title": "Species+ — Nymphicus hollandicus (taxon concept 8860)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000275380",
+        "title": "국제적멸종위기종 목록 별표 (기후에너지환경부고시 제2026-63호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=273181",
+        "title": "동물보호법 시행규칙 제3조(반려동물의 범위) (농림축산식품부령 제731호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      },
+      {
+        "url": "https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000269770",
+        "title": "백색목록 지정 별표 (기후에너지환경부고시 제2025-55호, 국가법령정보센터)",
+        "accessedAt": "2026-11-02"
+      }
+    ]
   }
 ]
