@@ -121,8 +121,8 @@ describe('M6 R01b — ACTIVE AnimalType.taxonId ∈ CareProfile.taxonIds (K-1 �
     addTaxon(s, 'fixture-taxon-b');
     (row(s, 'careProfiles', 'cp-hamster-syrian').taxonIds as string[]).push('fixture-taxon-b');
     row(s, 'animalTypes', 'hamster-golden').taxonId = 'fixture-taxon-b';
-    // R01b 는 0. 합성 학명은 법 게이트 허용 (taxonId, 학명) 쌍 밖이라 X02 만 남는다 — 271 R11·쌍 규칙이 의도한 동작(학명 복제로 X02 우회 불가).
-    expect(issuesOf(s, 'R01b')).toEqual({ errors: [], warnings: [], allErrors: ['X02'] });
+    // R01b 는 0. 280(Kenny ORDERS §47): 법 게이트 X02 제거 — 미검수 합성 Taxon 이 대표 종이어도 다른 ERROR 0.
+    expect(issuesOf(s, 'R01b')).toEqual({ errors: [], warnings: [], allErrors: [] });
   });
 
   it('PASS: ACTIVE 아닌(PLANNED) 타입은 검사 안 함', () => {

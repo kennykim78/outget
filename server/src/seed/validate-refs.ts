@@ -115,7 +115,8 @@ function checkOverrides(ctx: Ctx, id: string, rec: Rec): void {
 function checkProfilesAndItems(ctx: Ctx): void {
   const { out } = ctx;
   // R11(271 보안 LOW #5): Taxon 학명 유일 — 종(앞 두 단어) 기준, 종 형식이 아니면 trim 한 원문 기준. 같은 종을 두 행에 두면
-  //   X02 허용 쌍(TRIVIAL_LEGAL_TAXON_ID)·법 정보가 어느 행인지 모호해진다. revisionOf 개정 행은 같은 종일 수 있어 제외.
+  //   CareProfile.taxonIds·AnimalType.taxonId 가 가리키는 종이 어느 행인지 모호해진다(데이터 무결성 — 법 게이트 아님, X02 는 280 에서 제거).
+  //   revisionOf 개정 행은 같은 종일 수 있어 제외.
   const speciesSeen = new Map<string, string>();
   for (const { rec, id } of ctx.rows.taxa) {
     if (rec.revisionOf !== null && rec.revisionOf !== undefined && !ctx.byId.taxa.has(rec.revisionOf as string)) {

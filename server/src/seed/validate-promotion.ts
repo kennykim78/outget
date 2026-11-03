@@ -4,8 +4,11 @@
 import { asRec, isNonEmptyStr, type Rec } from './common.js';
 import type { Ctx } from './context.js';
 
-/** V06: VERIFIED Taxon 의 legal 에서 boolean(null 불가)이어야 하는 키. designatedWildlifeWhitelist 는 null 허용(골든 관례). */
-export const TAXON_LEGAL_BOOLEAN_KEYS = ['animalProtectionAct6', 'cites'] as const;
+/**
+ * V06: VERIFIED Taxon 의 legal 불리언 키 — 형태만 본다(값이 있으면 true/false/null). 필수 아님(280, Kenny ORDERS §47:
+ *   법 상태는 공개 조건이 아니다 — legal 은 정보용 메모). null·누락도 통과한다. 문자열 "false" 같은 엉뚱한 타입만 막는다.
+ */
+export const TAXON_LEGAL_BOOLEAN_KEYS = ['animalProtectionAct6', 'cites', 'designatedWildlifeWhitelist'] as const;
 
 /**
  * V07: VERIFIED CareProfile.facts 필수 키.
@@ -28,8 +31,9 @@ function checkTaxon(ctx: Ctx, id: string, r: Rec): void {
     return;
   }
   for (const k of TAXON_LEGAL_BOOLEAN_KEYS) {
-    if (typeof legal[k] !== 'boolean') {
-      ctx.out.error('V06', 'taxa', id, `legal.${k}`, `VERIFIED Taxon 은 legal.${k} 가 true/false 여야 한다(null·누락 불가)`);
+    const v = legal[k];
+    if (v !== undefined && v !== null && typeof v !== 'boolean') {
+      ctx.out.error('V06', 'taxa', id, `legal.${k}`, `Taxon legal.${k} 는 true/false/null 이어야 한다(정보용 메모 — 필수 아님, 280)`);
     }
   }
 }

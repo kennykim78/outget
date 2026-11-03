@@ -1,4 +1,4 @@
-// R7 A3 — 승격 무결성: S03 학명 빈 문자열 금지(DRAFT 포함) · V06 VERIFIED Taxon 학명·legal boolean · V07 VERIFIED CareProfile facts 키·careNotes.
+// R7 A3 — 승격 무결성: S03 학명 빈 문자열 금지(DRAFT 포함) · V06 VERIFIED Taxon 학명·legal 형태(280: 불리언 필수 아님) · V07 VERIFIED CareProfile facts 키·careNotes.
 //   실제 server/seed 를 깊은 복사해 메모리에서만 주입한다(시드 사실은 바꾸지 않는다).
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
@@ -68,16 +68,26 @@ describe('seed:validate — 승격 무결성(R7 A3)', () => {
     }
   });
 
-  it('V06: VERIFIED Taxon legal.animalProtectionAct6 null → ERROR', () => {
+  // 280(Kenny ORDERS §47): 법 불리언은 정보용 메모 — VERIFIED Taxon 이라도 null·누락을 요구하지 않는다(공개 조건 아님).
+  it('V06(280): VERIFIED Taxon legal 불리언 전부 null → V06 0 · errors 0', () => {
     const s = verifiedTaxon();
-    (row(s, 'taxa', TAXON).legal as Rec).animalProtectionAct6 = null;
-    const v = errs(run(s), 'V06');
-    expect(v.map((i) => i.path)).toEqual(['legal.animalProtectionAct6']);
+    Object.assign(row(s, 'taxa', TAXON).legal as Rec, { animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null });
+    const res = run(s);
+    expect(errs(res, 'V06')).toEqual([]);
+    expect(res.errors).toEqual([]);
   });
 
-  it('V06: VERIFIED Taxon legal.cites 누락 → ERROR', () => {
+  it('V06(280): VERIFIED Taxon legal 불리언 키 누락(빈 객체) → V06 0 · errors 0', () => {
     const s = verifiedTaxon();
-    delete (row(s, 'taxa', TAXON).legal as Rec).cites;
+    row(s, 'taxa', TAXON).legal = {};
+    const res = run(s);
+    expect(errs(res, 'V06')).toEqual([]);
+    expect(res.errors).toEqual([]);
+  });
+
+  it('V06(280): 형태만 본다 — legal.cites 가 문자열 "false" 면 V06(타입 오류)', () => {
+    const s = verifiedTaxon();
+    (row(s, 'taxa', TAXON).legal as Rec).cites = 'false';
     expect(errs(run(s), 'V06').map((i) => i.path)).toEqual(['legal.cites']);
   });
 

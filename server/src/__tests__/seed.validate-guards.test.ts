@@ -1,22 +1,15 @@
-// R7-B 후속 방어 규칙(76): X01(QA 72 G-2 · K-B4) · V08(G-3) · X02(보안 71 M-1) · R01 taxonId(L-1).
+// R7-B 후속 방어 규칙(76): X01(QA 72 G-2 · K-B4) · V08(G-3) · R01 taxonId(L-1).
+//   X02(법 상태 게이트)는 280 에서 제거(Kenny ORDERS §47) — 여기서는 「법 상태는 노출을 막지 않는다」를 반대 단언으로 고정한다.
 //   실시드는 디스크 그대로 읽고, 위반은 메모리 사본에만 주입한다(디스크 시드 사실 불변).
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCatalog, listResolvedRequirements, type SeedBundle } from '../engine/index.js';
+import { createCatalog, isAnimalTypeExposable, isTaxonExposable, listResolvedRequirements, type SeedBundle } from '../engine/index.js';
 import { SEED_FILES, asSeedBundle, type RawSeed, type Rec, type SeedKey } from '../seed/common.js';
 import { readSeedDirRaw } from '../seed/read.js';
 import { isDomesticDomain } from '../seed/validate-review.js';
-import {
-  REQUIRED_ITEMS_BY_PROFILE,
-  TRIVIAL_LEGAL_SPECIES,
-  TRIVIAL_LEGAL_TAXON_ID,
-  genusOf,
-  isLegalNotGating,
-  isLegalTrivial,
-  isTaxonLegallyTrivial,
-  speciesOf,
-} from '../seed/validate-gates.js';
+import * as gates from '../seed/validate-gates.js';
+import { REQUIRED_ITEMS_BY_PROFILE, speciesOf } from '../seed/validate-gates.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, promotedTwo } from './fixtures/prerender-seed.js';
 
@@ -45,7 +38,7 @@ const dwarfPreviewFoodDraft = (): Required<RawSeed> => {
 };
 
 describe('실시드 — 새 규칙 오탐 0', () => {
-  it('server/seed: X01·X02·V08·R01 ERROR 0 (골든 ACTIVE 비노출, 드워프 PLANNED)', () => {
+  it('server/seed: X01·V08·R01 ERROR 0 · X02 없음(280 제거) (골든 ACTIVE 비노출, 드워프 PLANNED)', () => {
     const res = validateSeed(fresh(), { now: NOW });
     expect(res.errors).toEqual([]);
     for (const rule of ['X01', 'X02', 'V08', 'R01']) expect(errs(res, rule)).toEqual([]);
@@ -64,7 +57,7 @@ describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K
     const x = errs(res, 'X01');
     expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-dwarf requirements.food']);
     expect(x[0].message).toContain('req-dwarf-food');
-    // 드워프 Taxon 은 6종·CITES false·화이트리스트 null → X02 오탐 없음.
+    // 280: 법 게이트 X02 제거 — Taxon 법 값과 무관하게 X02 는 나지 않는다.
     expect(errs(res, 'X02')).toEqual([]);
   });
 
@@ -214,7 +207,7 @@ const guineaPigActive = (): Required<RawSeed> => {
   return s;
 };
 
-describe('기니피그 ACTIVE 전 게이트(QA118 X01·X02)', () => {
+describe('기니피그 ACTIVE 전 게이트(QA118 X01 — X02 는 280 에서 제거)', () => {
   it('X01 집합: cp-guineapig = cage·food·water·bedding·hideout·hay(쳇바퀴 없음), 동결', () => {
     expect([...REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']].sort()).toEqual(GP_FIXED);
     expect(REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']).not.toContain('wheel');
@@ -236,10 +229,10 @@ describe('기니피그 ACTIVE 전 게이트(QA118 X01·X02)', () => {
     for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']) expect(resolved.get(id), id).toBe('REQUIRED');
   });
 
-  it('메모리 ACTIVE + REQUIRED 체인 VERIFIED → X01 0(기니피그) · X02 0(Cavia 미검수 Taxon, 자명)', () => {
+  it('메모리 ACTIVE + REQUIRED 체인 VERIFIED → X01 0(기니피그) · 미검수 Taxon 이어도 기니피그 ERROR 0(280)', () => {
     const res = validateSeed(guineaPigActive(), { now: NOW });
     expect(errs(res, 'X01').filter((i) => i.id === 'guinea-pig')).toEqual([]);
-    expect(errs(res, 'X02').filter((i) => i.id === 'guinea-pig')).toEqual([]);
+    expect(res.errors.filter((i) => i.id === 'guinea-pig')).toEqual([]);
     expect(row(BASE, 'taxa', 'cavia-porcellus').reviewStatus).not.toBe('VERIFIED');
   });
 
@@ -272,17 +265,14 @@ describe('기니피그 ACTIVE 전 게이트(QA118 X01·X02)', () => {
     expect(x.map((i) => i.path)).toEqual(['requirements.hay']);
   });
 
-  it('X02: 기니피그 ACTIVE + 미검수 Taxon cites true 주입 → X02(Cavia 라도 불리언이 자명이 아니면 차단)', () => {
-    const s = guineaPigActive();
-    (row(s, 'taxa', 'cavia-porcellus').legal as Rec).cites = true;
-    const x = errs(validateSeed(s, { now: NOW }), 'X02');
-    expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['guinea-pig taxonId']);
-  });
-
-  it('isTaxonLegallyTrivial: 실시드 Cavia porcellus legal → true', () => {
-    const t = row(BASE, 'taxa', 'cavia-porcellus');
-    expect(genusOf(t.scientificName)).toBe('Cavia');
-    expect(isTaxonLegallyTrivial(t)).toBe(true);
+  it('280: 기니피그 ACTIVE + 미검수 Taxon legal 변형(cites true · 전부 null) → 기니피그 ERROR 0(법 상태는 노출 조건 아님)', () => {
+    for (const p of [{ cites: true }, { animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null }]) {
+      const s = guineaPigActive();
+      Object.assign(row(s, 'taxa', 'cavia-porcellus').legal as Rec, p);
+      const res = validateSeed(s, { now: NOW });
+      expect([p, res.errors.filter((i) => i.id === 'guinea-pig' || i.id === 'cavia-porcellus')]).toEqual([p, []]);
+      expect([p, isAnimalTypeExposable(createCatalog(asSeedBundle(s)), 'guinea-pig', NOW)]).toEqual([p, true]);
+    }
   });
 });
 
@@ -299,7 +289,7 @@ const gerbilActive = (): Required<RawSeed> => {
     verify(r, 'VET_PUBLISHED_SOURCE');
     verify(row(s, 'supplyItems', r.supplyItemId as string), 'EXPERIENCED_KEEPER');
   }
-  // 사료(FOOD) 행: 104 는 국내(.kr) 수의 출처를 찾지 못했다 → 디스크 행은 VERIFIED 가 되면 V08. 게이트(X01·X02)만 보려고
+  // 사료(FOOD) 행: 104 는 국내(.kr) 수의 출처를 찾지 못했다 → 디스크 행은 VERIFIED 가 되면 V08. 게이트(X01)만 보려고
   //   메모리 사본에만 자리표시 국내 출처를 붙인다(실제 출처 아님 — 디스크·패킷에는 없음, ACTIVE 전 보강 필요는 확인표 D).
   const food = row(s, 'supplyRequirements', 'req-gerbil-food');
   food.source = [...(food.source as Rec[]), { url: 'https://fixture.example.kr/gerbil-food', title: '픽스처 국내 출처(메모리 전용)', accessedAt: '2026-10-27' }];
@@ -307,14 +297,13 @@ const gerbilActive = (): Required<RawSeed> => {
 };
 const gerbilX = (s: RawSeed, rule: string) => errs(validateSeed(s, { now: NOW }), rule).filter((i) => i.id === 'gerbil-mongolian');
 
-describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 NOT_GATING_KENNY)', () => {
+describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 는 280 에서 제거)', () => {
   it('디스크: gerbil-mongolian PLANNED · Taxon meriones-unguiculatus DRAFT·AI_DRAFT · legal act6 false/cites false/화이트리스트 null', () => {
     const at = row(BASE, 'animalTypes', 'gerbil-mongolian');
     expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'DRAFT', 'AI_DRAFT']);
     const t = row(BASE, 'taxa', 'meriones-unguiculatus');
     expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
     expect(t.legal).toMatchObject({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
-    expect(isTaxonLegallyTrivial(t)).toBe(true);
   });
 
   it('X01 집합: cp-gerbil-mongolian = cage·food·water·bedding·hideout·sand-bath(쳇바퀴·건초 없음), 동결', () => {
@@ -338,7 +327,7 @@ describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 NOT_GATING
     for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']) expect(resolved.get(id), id).toBe('REQUIRED');
   });
 
-  it('(a·b) 메모리 ACTIVE + REQUIRED 체인 VERIFIED, 미검수 Taxon act6 false(디스크) / null → X01 0 · X02 0', () => {
+  it('(a·b) 메모리 ACTIVE + REQUIRED 체인 VERIFIED, 미검수 Taxon act6 false(디스크) / null → X01 0 · 저빌 ERROR 0', () => {
     expect(gerbilX(gerbilActive(), 'X01')).toEqual([]);
     expect(gerbilX(gerbilActive(), 'X02')).toEqual([]);
     const s = gerbilActive();
@@ -347,8 +336,9 @@ describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 NOT_GATING
     expect(validateSeed(s, { now: NOW }).errors.filter((i) => i.id === 'gerbil-mongolian')).toEqual([]);
   });
 
+  // 280: 예전 X02 차단 사례 — 이제 전부 통과(법 상태·학명은 공개 조건 아님). 남는 차단은 X01·검수뿐.
   const x02Cases: Array<[string, (t: Rec) => void]> = [
-    ['(c) act6 true(6종이라는 사실과 다른 값)', (t) => ((t.legal as Rec).animalProtectionAct6 = true)],
+    ['(c) act6 true', (t) => ((t.legal as Rec).animalProtectionAct6 = true)],
     ['(d) cites true', (t) => ((t.legal as Rec).cites = true)],
     ['화이트리스트 true', (t) => ((t.legal as Rec).designatedWildlifeWhitelist = true)],
     ['act6 키 누락', (t) => delete (t.legal as Rec).animalProtectionAct6],
@@ -356,26 +346,19 @@ describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 NOT_GATING
     ['같은 속 다른 종 Meriones crassus', (t) => (t.scientificName = 'Meriones crassus')],
   ];
   for (const [name, mutate] of x02Cases) {
-    it(`X02: 저빌 ACTIVE + 미검수 Taxon ${name} → X02(gerbil-mongolian taxonId)`, () => {
+    it(`280: 저빌 ACTIVE + 미검수 Taxon ${name} → ERROR 0 · 노출 유지`, () => {
       const s = gerbilActive();
       mutate(row(s, 'taxa', 'meriones-unguiculatus'));
-      expect(gerbilX(s, 'X02').map((i) => `${i.id} ${i.path}`)).toEqual(['gerbil-mongolian taxonId']);
+      expect(validateSeed(s, { now: NOW }).errors).toEqual([]);
+      expect(isAnimalTypeExposable(createCatalog(asSeedBundle(s)), 'gerbil-mongolian', NOW)).toBe(true);
     });
   }
 
-  it('legal null → 구조 단계에서 ERROR(게이트 전 차단, fail-closed)', () => {
+  it('legal null → 구조 단계(S — legal 은 객체 형태여야 함, 법 게이트 아님)에서 ERROR', () => {
     const s = gerbilActive();
     row(s, 'taxa', 'meriones-unguiculatus').legal = null;
     const e = validateSeed(s, { now: NOW }).errors.filter((i) => i.id === 'meriones-unguiculatus');
     expect(e.length).toBeGreaterThan(0);
-  });
-
-  it('X02: 같은 값이라도 Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0 (act6 true 주입)', () => {
-    const s = gerbilActive();
-    const t = row(s, 'taxa', 'meriones-unguiculatus');
-    (t.legal as Rec).animalProtectionAct6 = true;
-    verify(t, 'OFFICIAL_SOURCE');
-    expect(gerbilX(s, 'X02')).toEqual([]);
   });
 
   it('(g) X01: 메모리 ACTIVE 에서 sand-bath 요구사항 행 삭제 → X01 requirements.sand-bath', () => {
@@ -408,10 +391,11 @@ describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 NOT_GATING
     expect(gerbilX(s, 'X01').map((i) => i.path)).toEqual(['requirements.food']);
   });
 
-  it('PLANNED(디스크) 저빌은 대상 아님 — Taxon cites true 주입해도 X02 0', () => {
+  it('PLANNED(디스크) 저빌 — Taxon cites true 주입해도 ERROR 0 · 비노출(PLANNED)', () => {
     const s = fresh();
     (row(s, 'taxa', 'meriones-unguiculatus').legal as Rec).cites = true;
-    expect(gerbilX(s, 'X02')).toEqual([]);
+    expect(validateSeed(s, { now: NOW }).errors).toEqual([]);
+    expect(isAnimalTypeExposable(createCatalog(asSeedBundle(s)), 'gerbil-mongolian', NOW)).toBe(false);
   });
 });
 
@@ -467,41 +451,15 @@ describe('V08 — FOOD/HEALTH VERIFIED 국내 출처 1개 이상(G-3)', () => {
   });
 });
 
-describe('X02 — ACTIVE 타입 Taxon 미검수 ∧ 법 판단 필요(M-1, 제품기획 §9)', () => {
-  it('isLegalTrivial: 6종 ∧ CITES false ∧ 화이트리스트 null/false 만 자명', () => {
-    expect(isLegalTrivial({ animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null })).toBe(true);
-    expect(isLegalTrivial({ animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: false })).toBe(true);
-    expect(isLegalTrivial({ animalProtectionAct6: true, cites: true, designatedWildlifeWhitelist: null })).toBe(false);
-    expect(isLegalTrivial({ animalProtectionAct6: true, cites: null, designatedWildlifeWhitelist: null })).toBe(false);
-    expect(isLegalTrivial({ animalProtectionAct6: null, cites: false, designatedWildlifeWhitelist: null })).toBe(false);
-    expect(isLegalTrivial({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: false })).toBe(false);
-    expect(isLegalTrivial({ animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: true })).toBe(false);
-    expect(isLegalTrivial({ animalProtectionAct6: true, cites: false })).toBe(false); // 누락 = 판단 필요
-    expect(isLegalTrivial(null)).toBe(false);
+describe('280 — 법 상태는 노출을 막지 않는다(X02 제거, Kenny ORDERS §47)', () => {
+  // 위드스몰은 분양·양도·매칭을 하지 않는다(decisions.md 「10-27」) → Taxon.legal 은 정보용 메모. 공개를 막는 것은 검수뿐.
+  const anyX02 = (res: ValidateResult) => res.errors.concat(res.warnings).filter((i) => i.rule === 'X02');
+
+  it('validate-gates.ts 공개 API = X01 집합 · checkPublishGates · speciesOf(R11 용) — 법 허용목록·판정 함수 없음', () => {
+    expect(Object.keys(gates).sort()).toEqual(['REQUIRED_ITEMS_BY_PROFILE', 'checkPublishGates', 'speciesOf']);
   });
 
-  it('M-2 · 보안 129 LOW-1: 종 허용목록(앞 두 단어) — 햄스터 3종·Cavia porcellus = PET_ACT6, Meriones unguiculatus = NOT_GATING_KENNY, 동결', () => {
-    expect(TRIVIAL_LEGAL_SPECIES).toEqual({
-      'Mesocricetus auratus': 'PET_ACT6',
-      'Phodopus sungorus': 'PET_ACT6',
-      'Phodopus campbelli': 'PET_ACT6',
-      'Cavia porcellus': 'PET_ACT6',
-      'Meriones unguiculatus': 'NOT_GATING_KENNY',
-    });
-    expect(Object.isFrozen(TRIVIAL_LEGAL_SPECIES)).toBe(true);
-    // 허용목록 ⊆ 실시드 Taxon 학명(Taxon 없는 종은 넣지 않는다). 밖에 남는 실시드 종 = 앵무 2종(K-2) · 로보(272-B·Kenny 전, 271 LOW #4) — Taxon 검수 경로.
-    const taxaNames = (BASE.taxa as Rec[]).map((t) => t.scientificName as string);
-    for (const sp of Object.keys(TRIVIAL_LEGAL_SPECIES)) expect([sp, taxaNames.includes(sp)]).toEqual([sp, true]);
-    expect(taxaNames.filter((n) => !Object.prototype.hasOwnProperty.call(TRIVIAL_LEGAL_SPECIES, n)).sort()).toEqual(['Melopsittacus undulatus', 'Nymphicus hollandicus', 'Phodopus roborovskii']);
-    // 271 LOW #5: 허용 쌍(학명 → Taxon id)도 동결 · 키 = 허용목록 · 각 쌍이 실시드 행과 일치.
-    expect(Object.isFrozen(TRIVIAL_LEGAL_TAXON_ID)).toBe(true);
-    expect(Object.keys(TRIVIAL_LEGAL_TAXON_ID).sort()).toEqual(Object.keys(TRIVIAL_LEGAL_SPECIES).sort());
-    for (const [sp, tid] of Object.entries(TRIVIAL_LEGAL_TAXON_ID)) expect([sp, row(fresh(), 'taxa', tid).scientificName]).toEqual([sp, sp]);
-    expect(genusOf('Mesocricetus auratus')).toBe('Mesocricetus');
-    expect(genusOf('Phodopus')).toBe('Phodopus');
-    expect(genusOf('mesocricetus auratus')).toBeNull();
-    expect(genusOf('Meso-cricetus auratus')).toBeNull();
-    expect(genusOf(null)).toBeNull();
+  it('speciesOf(R11 학명 유일 키): 종 앞 두 단어 · 아종·명명자 무시 · 교잡·형식 밖은 null', () => {
     expect(speciesOf('Mesocricetus auratus')).toBe('Mesocricetus auratus');
     expect(speciesOf('  Cavia porcellus  ')).toBe('Cavia porcellus');
     expect(speciesOf('Phodopus sungorus sungorus')).toBe('Phodopus sungorus'); // 아종 이하 무시
@@ -524,129 +482,99 @@ describe('X02 — ACTIVE 타입 Taxon 미검수 ∧ 법 판단 필요(M-1, 제�
     for (const bad of ['Phodopus', 'Cavia Porcellus', 'cavia porcellus', 'Cavia  porcellus', 'Cavia porcellus2', null, 3]) expect([bad, speciesOf(bad)]).toEqual([bad, null]);
   });
 
-  it('M-2 · LOW-1 isTaxonLegallyTrivial: 같은 속의 다른 종·허용목록 밖 종은 불리언이 자명이어도 false', () => {
-    const ok = { animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null };
-    const ng = { animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null };
-    expect(isTaxonLegallyTrivial({ id: 'phodopus-sungorus', scientificName: 'Phodopus sungorus', legal: ok })).toBe(true);
-    expect(isTaxonLegallyTrivial({ id: 'phodopus-campbelli', scientificName: 'Phodopus campbelli', legal: ok })).toBe(true);
-    expect(isTaxonLegallyTrivial({ id: 'mesocricetus-auratus', scientificName: 'Mesocricetus auratus', legal: ok })).toBe(true);
-    expect(isTaxonLegallyTrivial({ id: 'cavia-porcellus', scientificName: 'Cavia porcellus', legal: ok })).toBe(true);
-    // 271 LOW #5: 허용 학명이라도 (taxonId, 학명) 쌍이 아니면 false — id 누락·다른 행 id 모두.
-    expect(isTaxonLegallyTrivial({ scientificName: 'Phodopus sungorus', legal: ok })).toBe(false);
-    expect(isTaxonLegallyTrivial({ id: 'melopsittacus-undulatus', scientificName: 'Phodopus sungorus', legal: ok })).toBe(false);
-    expect(isTaxonLegallyTrivial({ id: 'phodopus-campbelli', scientificName: 'Phodopus sungorus', legal: ok })).toBe(false);
-    for (const sci of ['Cavia aperea', 'Mesocricetus brandti', 'Pachyuromys duprasi', 'Phodopus roborovskii', 'Phodopus przewalskii', 'Melopsittacus undulatus', 'Nymphicus hollandicus', 'Meriones crassus', 'Mesocricetusx auratus', 'Cavia', 'Cavia porcellusx']) {
-      for (const id of [undefined, 'phodopus-roborovskii', 'melopsittacus-undulatus', 'mesocricetus-auratus']) {
-        expect([sci, id, isTaxonLegallyTrivial({ id, scientificName: sci, legal: ok })]).toEqual([sci, id, false]);
-        expect([sci, id, isTaxonLegallyTrivial({ id, scientificName: sci, legal: ng })]).toEqual([sci, id, false]);
-      }
-    }
-    expect(isTaxonLegallyTrivial({ id: 'phodopus-sungorus', scientificName: 'Phodopus sungorus', legal: { ...ok, cites: true } })).toBe(false);
-    // 근거가 섞이지 않는다: PET_ACT6 종에 6종 밖(false) 값 → false, NOT_GATING_KENNY 종(저빌)에 6종(true) 값 → false.
-    expect(isTaxonLegallyTrivial({ id: 'cavia-porcellus', scientificName: 'Cavia porcellus', legal: ng })).toBe(false);
-    expect(isTaxonLegallyTrivial({ id: 'meriones-unguiculatus', scientificName: 'Meriones unguiculatus', legal: ok })).toBe(false);
-    expect(isTaxonLegallyTrivial({ id: 'meriones-unguiculatus', scientificName: 'Meriones unguiculatus', legal: ng })).toBe(true);
+  it('Taxon.legal 데이터는 정보용으로 남아 있다(지우지 않음) — 디스크 Taxon 전부 legal 객체', () => {
+    for (const t of BASE.taxa as Rec[]) expect([t.id, typeof t.legal, t.legal === null]).toEqual([t.id, 'object', false]);
   });
 
-  it('isLegalNotGating(Kenny 2026-10-27 저빌): act6·cites·화이트리스트 모두 null/false 만 — act6 true·cites true·화이트리스트 true·키 누락 거부', () => {
-    for (const act6 of [null, false]) {
-      for (const cites of [null, false]) {
-        for (const w of [null, false]) expect(isLegalNotGating({ animalProtectionAct6: act6, cites, designatedWildlifeWhitelist: w })).toBe(true);
-      }
-    }
-    expect(isLegalNotGating({ animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null })).toBe(false);
-    expect(isLegalNotGating({ animalProtectionAct6: false, cites: true, designatedWildlifeWhitelist: null })).toBe(false);
-    expect(isLegalNotGating({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: true })).toBe(false);
-    expect(isLegalNotGating({ animalProtectionAct6: 'false', cites: false, designatedWildlifeWhitelist: null })).toBe(false);
-    expect(isLegalNotGating({ cites: false, designatedWildlifeWhitelist: null })).toBe(false); // act6 누락
-    expect(isLegalNotGating({ animalProtectionAct6: false, designatedWildlifeWhitelist: null })).toBe(false); // cites 누락
-    expect(isLegalNotGating({ animalProtectionAct6: false, cites: false })).toBe(false); // 화이트리스트 누락
-    expect(isLegalNotGating(null)).toBe(false);
-  });
-
-  for (const sci of ['Psittacula krameri', 'mesocricetus auratus', 'Cavia aperea', 'Mesocricetus brandti', 'Pachyuromys duprasi']) {
-    it(`M-2 · LOW-1: 허용목록 밖 학명(${sci}) + 자명 불리언 + 미검수 Taxon → X02`, () => {
+  const legalVariants: Array<[string, Rec]> = [
+    ['전부 null(중립)', { animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null }],
+    ['cites true', { cites: true }],
+    ['act6 false(6종 밖)', { animalProtectionAct6: false }],
+    ['화이트리스트 true', { designatedWildlifeWhitelist: true }],
+    ['act6·cites·화이트리스트 모두 true', { animalProtectionAct6: true, cites: true, designatedWildlifeWhitelist: true }],
+  ];
+  for (const [name, p] of legalVariants) {
+    it(`ACTIVE 골든 + 미검수(DRAFT·AI_DRAFT) Taxon legal ${name} → ERROR 0 · X02 0`, () => {
       const s = fresh();
-      row(s, 'taxa', 'mesocricetus-auratus').scientificName = sci;
-      const x = errs(validateSeed(s, { now: NOW }), 'X02');
-      expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-golden taxonId']);
-      expect(x[0].message).toContain('허용목록');
+      const t = row(s, 'taxa', 'mesocricetus-auratus');
+      expect([t.reviewStatus, t.reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
+      Object.assign(t.legal as Rec, p);
+      const res = validateSeed(s, { now: NOW });
+      expect(res.errors).toEqual([]);
+      expect(anyX02(res)).toEqual([]);
     });
   }
 
-  it('271 LOW #5 · R11: 다른 Taxon 행의 학명을 복제하면 R11(학명 유일) — 게이트 전 차단', () => {
+  it('legal 빈 객체({} — 키 전부 누락) + 미검수 Taxon + ACTIVE 골든 → ERROR 0', () => {
+    const s = fresh();
+    row(s, 'taxa', 'mesocricetus-auratus').legal = {};
+    expect(validateSeed(s, { now: NOW }).errors).toEqual([]);
+  });
+
+  for (const sci of ['Psittacula krameri', 'Cavia aperea', 'Mesocricetus brandti', 'Pachyuromys duprasi']) {
+    it(`예전 허용목록 밖 학명(${sci}) + 미검수 Taxon + ACTIVE 골든 → ERROR 0(학명은 법 게이트가 아니다)`, () => {
+      const s = fresh();
+      row(s, 'taxa', 'mesocricetus-auratus').scientificName = sci;
+      expect(validateSeed(s, { now: NOW }).errors).toEqual([]);
+    });
+  }
+
+  it('R11(학명 유일)은 유지 — 다른 Taxon 행의 학명 복제 → R11 · 아종 꼬리만 다른 같은 종도 중복', () => {
     const s = fresh();
     row(s, 'taxa', 'mesocricetus-auratus').scientificName = 'Meriones unguiculatus';
     const res = validateSeed(s, { now: NOW });
-    expect(errs(res, 'R11').map((i) => `${i.id} ${i.path}`)).toEqual(['meriones-unguiculatus scientificName']);
-    expect(errs(res, 'X02')).toEqual([]); // 구조·참조 ERROR 라 게이트 미실행(fail-closed: errors ≠ 0)
-    // 종 기준: 아종 꼬리만 다른 같은 종도 중복.
+    expect(res.errors.map((i) => `${i.rule} ${i.id} ${i.path}`)).toEqual(['R11 meriones-unguiculatus scientificName']);
     const s2 = fresh();
     row(s2, 'taxa', 'phodopus-campbelli').scientificName = 'Phodopus sungorus sungorus';
     expect(errs(validateSeed(s2, { now: NOW }), 'R11').map((i) => i.id)).toEqual(['phodopus-campbelli']);
   });
 
-  it('271 LOW #5: 허용 학명을 다른 Taxon 행으로 옮겨도(원 행은 개명) X02 — 판정은 (taxonId, 학명) 쌍', () => {
+  it('예전 허용 쌍(taxonId, 학명) 규칙 없음 — 학명을 다른 행으로 옮겨도(중복 없음) ERROR 0', () => {
     const s = fresh();
     row(s, 'taxa', 'meriones-unguiculatus').scientificName = 'Meriones crassus';
     row(s, 'taxa', 'mesocricetus-auratus').scientificName = 'Meriones unguiculatus';
-    Object.assign(row(s, 'taxa', 'mesocricetus-auratus').legal as Rec, { animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
-    const res = validateSeed(s, { now: NOW });
-    expect(errs(res, 'R11')).toEqual([]);
-    const x = errs(res, 'X02');
-    expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-golden taxonId']);
-    expect(x[0].message).toContain('허용 쌍 아님');
+    expect(validateSeed(s, { now: NOW }).errors).toEqual([]);
   });
 
-  it('M-2: 허용목록 밖이라도 Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0', () => {
-    const s = fresh();
-    const t = row(s, 'taxa', 'mesocricetus-auratus');
-    t.scientificName = 'Pachyuromys duprasi';
-    verify(t, 'OFFICIAL_SOURCE');
-    expect(errs(validateSeed(s, { now: NOW }), 'X02')).toEqual([]);
-  });
-
-  it('M-2 오탐 0: 드워프 ACTIVE(Phodopus, 미검수 Taxon) → X02 0', () => {
-    expect(errs(validateSeed(rawOf(dwarfPreview()), { now: DWARF_PREVIEW_AS_OF }), 'X02')).toEqual([]);
-  });
-
-  const cases: Array<[string, Rec]> = [
-    ['cites true(CITES 부속서)', { cites: true }],
-    ['cites null(미판단)', { cites: null }],
-    ['animalProtectionAct6 null(미판단)', { animalProtectionAct6: null }],
-    ['animalProtectionAct6 false(6종 밖 — 지정관리 판단 필요)', { animalProtectionAct6: false }],
-    ['designatedWildlifeWhitelist true(백색목록 종)', { designatedWildlifeWhitelist: true }],
-  ];
-  for (const [name, p] of cases) {
-    it(`ACTIVE 골든 + 미검수 Taxon ${name} → X02`, () => {
-      const s = fresh();
-      Object.assign(row(s, 'taxa', 'mesocricetus-auratus').legal as Rec, p);
-      const x = errs(validateSeed(s, { now: NOW }), 'X02');
-      expect(x.map((i) => `${i.id} ${i.path}`)).toEqual(['hamster-golden taxonId']);
-    });
-  }
-
-  it('같은 법 값이라도 Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0', () => {
-    const s = fresh();
-    const t = row(s, 'taxa', 'mesocricetus-auratus');
-    (t.legal as Rec).cites = true;
-    verify(t, 'OFFICIAL_SOURCE');
-    expect(errs(validateSeed(s, { now: NOW }), 'X02')).toEqual([]);
-  });
-
-  it('VERIFIED 라도 만료(+181일)면 미검수로 본다 → X02', () => {
+  it('VERIFIED Taxon 만료(+181일) + 법 값 무관 → X02 0(만료는 Taxon 내용 비노출일 뿐, 타입 공개 조건 아님)', () => {
     const s = fresh();
     const t = row(s, 'taxa', 'mesocricetus-auratus');
     (t.legal as Rec).cites = true;
     verify(t, 'OFFICIAL_SOURCE');
     t.verifiedAt = '2026-04-20';
-    expect(errs(validateSeed(s, { now: NOW }), 'X02').length).toBe(1);
+    const res = validateSeed(s, { now: NOW });
+    expect(anyX02(res)).toEqual([]);
+    expect(res.errors).toEqual([]);
   });
 
-  it('PLANNED 타입은 대상 아님(드워프 Taxon cites true 주입해도 X02 0)', () => {
+  it('남는 차단은 검수뿐: 노출 골든(픽스처) + Taxon DRAFT·AI_DRAFT·legal 전부 null → 타입 노출 · Taxon 내용 비노출 · ERROR 0', () => {
+    const s = rawOf(promoted({ publishable: true }));
+    const t = row(s, 'taxa', 'mesocricetus-auratus');
+    Object.assign(t, { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+    Object.assign(t.legal as Rec, { animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null });
+    expect(validateSeed(s, { now: FIXTURE_AS_OF }).errors).toEqual([]);
+    const cat = createCatalog(asSeedBundle(s));
+    expect(isAnimalTypeExposable(cat, 'hamster-golden', FIXTURE_AS_OF)).toBe(true);
+    expect(isTaxonExposable(cat, 'mesocricetus-auratus', FIXTURE_AS_OF)).toBe(false); // 불변식 7: 미검수 Taxon 내용은 싣지 않는다
+  });
+
+  it('남는 차단은 검수뿐: 같은 상태에서 필수 요구사항(water)을 DRAFT(AI_DRAFT)로 → X01 · AnimalType 을 DRAFT 로 → 비노출', () => {
+    const base = rawOf(promoted({ publishable: true }));
+    Object.assign(row(base, 'taxa', 'mesocricetus-auratus').legal as Rec, { animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null });
+    const a = structuredClone(base);
+    Object.assign(row(a, 'supplyRequirements', 'req-syrian-water'), { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+    expect(validateSeed(a, { now: FIXTURE_AS_OF }).errors.map((i) => `${i.rule} ${i.path}`)).toEqual(['X01 requirements.water']);
+    const b = structuredClone(base);
+    Object.assign(row(b, 'animalTypes', 'hamster-golden'), { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+    expect(isAnimalTypeExposable(createCatalog(asSeedBundle(b)), 'hamster-golden', FIXTURE_AS_OF)).toBe(false);
+  });
+
+  it('불변식 7 유지: AI_DRAFT Taxon 을 VERIFIED 로 → V01(법 값과 무관)', () => {
     const s = fresh();
-    (row(s, 'taxa', 'phodopus-sungorus').legal as Rec).cites = true;
-    expect(errs(validateSeed(s, { now: NOW }), 'X02')).toEqual([]);
+    const t = row(s, 'taxa', 'mesocricetus-auratus');
+    Object.assign(t, { reviewStatus: 'VERIFIED', verifiedBy: 'reviewer-handle', verifiedAt: '2026-09-30', reviewBasis: 'ROW_CHECKED' });
+    expect(t.reviewerType).toBe('AI_DRAFT');
+    expect(errs(validateSeed(s, { now: NOW }), 'V01').map((i) => i.id)).toContain('mesocricetus-auratus');
   });
 });
 
@@ -661,7 +589,7 @@ describe('L-1 — ACTIVE(노출 후보) 타입은 taxonId 비어 있지 않음(R
   }
 });
 
-describe('271 1차 종 게이트 — 로보·앵무 X02 fail-closed(허용목록 밖) · 앵무 X01 fail-closed', () => {
+describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 차단은 검수(노출 판정·X01·R01)뿐 · 앵무 X01 fail-closed', () => {
   // 위반·승격은 메모리 사본에만. NOW_W1 = 작업일(271).
   const NOW_W1 = '2026-11-02';
   const active = (typeId: string): Required<RawSeed> => {
@@ -669,7 +597,7 @@ describe('271 1차 종 게이트 — 로보·앵무 X02 fail-closed(허용목록
     row(s, 'animalTypes', typeId).status = 'ACTIVE';
     return s;
   };
-  const x02Of = (s: RawSeed, typeId: string) => errs(validateSeed(s, { now: NOW_W1 }), 'X02').filter((i) => i.id === typeId);
+  const exposable = (s: RawSeed, typeId: string): boolean => isAnimalTypeExposable(createCatalog(asSeedBundle(s)), typeId, NOW_W1);
   /** 로보 ACTIVE(메모리): 디스크는 careProfileId null(271 보안 MED #2 — 드워프 프로필과 분리)이라 R01 을 피하려 메모리에서만 드워프 프로필에 잇는다. */
   const roboActive = (legal?: Rec): Required<RawSeed> => {
     const s = active('hamster-robo');
@@ -679,88 +607,73 @@ describe('271 1차 종 게이트 — 로보·앵무 X02 fail-closed(허용목록
     return s;
   };
 
-  it('(i) 디스크: 로보는 드워프 프로필과 분리(careProfileId null · cp-hamster-dwarf.taxonIds 에 없음) · 별칭 유지 · legal act6 null(272-B 미확정)·cites false·화이트리스트 null', () => {
+  it('(i) 디스크: 로보는 드워프 프로필과 분리(careProfileId null · cp-hamster-dwarf.taxonIds 에 없음) · 별칭 유지 · legal 정보용 메모 그대로(act6 null·cites false·화이트리스트 null)', () => {
     const s = fresh();
     const at = row(s, 'animalTypes', 'hamster-robo');
     expect([at.status, at.careProfileId, at.aliases]).toEqual(['PLANNED', null, ['로보', '로보로브스키']]);
     expect(row(s, 'careProfiles', 'cp-hamster-dwarf').taxonIds).toEqual(['phodopus-sungorus', 'phodopus-campbelli']);
     const t = row(s, 'taxa', 'phodopus-roborovskii');
     expect([t.reviewStatus, t.reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
-    // 277(271 보류분 적용): 1차 출처(시행규칙 제3조·Species+·CITES 고시·야생생물법·백색목록 고시) 접근일 2026-11-02. act6 은 Kenny 확인 전 null.
+    // 277(271 보류분 적용): 1차 출처 접근일 2026-11-02. 280: legal 은 정보용 메모(지우지 않음) — 공개 조건 아님.
     expect(t.legal).toEqual({ animalProtectionAct6: null, cites: false, designatedWildlifeWhitelist: null, note: null });
     expect((t.source as Rec[]).map((x) => x.accessedAt)).toEqual(Array(5).fill('2026-11-02'));
     expect(t.verifiedBy).toBeNull();
-    // 디스크 그대로 ACTIVE 로 올리면 careProfileId 가 없어 R01(공개 불가).
+    // 디스크 그대로 ACTIVE 로 올리면 careProfileId 가 없어 R01(공개 불가) — 데이터 연결 규칙(법 아님).
     expect(errs(validateSeed(active('hamster-robo'), { now: NOW_W1 }), 'R01').map((i) => `${i.id} ${i.path}`)).toContain('hamster-robo status');
   });
 
-  it('(i) 로보 ACTIVE(메모리 연결): 허용목록 밖(271 LOW #4) → 디스크 null · 드워프 선례값 · 어떤 불리언이든 X02 · Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0', () => {
-    expect(Object.prototype.hasOwnProperty.call(TRIVIAL_LEGAL_SPECIES, 'Phodopus roborovskii')).toBe(false);
+  it('(i) 로보 ACTIVE(메모리 연결): legal 값 무엇이든(디스크 null·드워프 선례값·act6 true/false) ERROR 0 · X02 0 — 타입 미검수라 비노출(검수가 유일한 차단)', () => {
     const dwarfLegal = { ...(row(fresh(), 'taxa', 'phodopus-sungorus').legal as Rec), note: null };
-    for (const p of [undefined, dwarfLegal, { animalProtectionAct6: true, cites: false }, { animalProtectionAct6: false, cites: false }]) {
-      const res = validateSeed(roboActive(p), { now: NOW_W1 });
-      expect([p, res.errors.filter((i) => i.rule !== 'X02')]).toEqual([p, []]); // 게이트가 실제로 돌았다
-      const x = errs(res, 'X02').filter((i) => i.id === 'hamster-robo');
-      expect([p, x.map((i) => i.path)]).toEqual([p, ['taxonId']]);
-      expect(x[0].message).toContain('허용목록');
+    for (const p of [undefined, dwarfLegal, { animalProtectionAct6: true, cites: false }, { animalProtectionAct6: false, cites: false }, { animalProtectionAct6: null, cites: null }]) {
+      const s = roboActive(p);
+      const res = validateSeed(s, { now: NOW_W1 });
+      expect([p, res.errors]).toEqual([p, []]);
+      expect([p, res.warnings.filter((i) => i.rule === 'X02')]).toEqual([p, []]);
+      expect([p, exposable(s, 'hamster-robo')]).toEqual([p, false]); // AnimalType hamster-robo 미검수(DRAFT·AI_DRAFT)
     }
-    expect(isTaxonLegallyTrivial({ id: 'phodopus-roborovskii', scientificName: 'Phodopus roborovskii', legal: dwarfLegal })).toBe(false);
-    const reviewed = roboActive(dwarfLegal);
-    const tx = row(reviewed, 'taxa', 'phodopus-roborovskii');
-    verify(tx, 'OFFICIAL_SOURCE');
-    tx.source = structuredClone(row(reviewed, 'taxa', 'phodopus-sungorus').source);
-    expect(validateSeed(reviewed, { now: NOW_W1 }).errors).toEqual([]);
+    expect(row(fresh(), 'animalTypes', 'hamster-robo').reviewStatus).not.toBe('VERIFIED');
   });
 
-  it('(i) 271 LOW #5 회귀: budgie Taxon 행에 학명 Phodopus roborovskii·act6 true 위조 → R11(학명 중복) · 허용 학명(Phodopus sungorus) 위조 → X02(허용 쌍 아님)', () => {
+  it('(i) 271 LOW #5 회귀: budgie Taxon 행에 학명 Phodopus roborovskii 위조 → R11(학명 중복, 유지) · 원 행 개명 뒤 위조 → ERROR 0(허용 쌍 규칙 없음, 280)', () => {
     const s = active('budgie');
     Object.assign(row(s, 'taxa', 'melopsittacus-undulatus'), { scientificName: 'Phodopus roborovskii' });
-    Object.assign(row(s, 'taxa', 'melopsittacus-undulatus').legal as Rec, { animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null });
     const res = validateSeed(s, { now: NOW_W1 });
     expect(errs(res, 'R11').map((i) => i.path)).toEqual(['scientificName']);
-    expect(res.errors.length).toBeGreaterThan(0);
-    // 원 행을 개명해 중복을 피해도 (taxonId, 학명) 쌍이 아니라 X02.
     const s2 = active('budgie');
     row(s2, 'taxa', 'phodopus-sungorus').scientificName = 'Phodopus przewalskii';
     Object.assign(row(s2, 'taxa', 'melopsittacus-undulatus'), { scientificName: 'Phodopus sungorus' });
-    Object.assign(row(s2, 'taxa', 'melopsittacus-undulatus').legal as Rec, { animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null });
-    const r2 = validateSeed(s2, { now: NOW_W1 });
-    expect(errs(r2, 'R11')).toEqual([]);
-    const x = errs(r2, 'X02').filter((i) => i.id === 'budgie');
-    expect(x.map((i) => i.path)).toEqual(['taxonId']);
-    expect(x[0].message).toContain('허용 쌍 아님');
+    expect(validateSeed(s2, { now: NOW_W1 }).errors).toEqual([]);
   });
 
   for (const [typeId, taxonId] of [
     ['budgie', 'melopsittacus-undulatus'],
     ['cockatiel', 'nymphicus-hollandicus'],
   ] as const) {
-    it(`(ii) 디스크: ${taxonId} DRAFT·AI_DRAFT · legal act6 false·cites false·화이트리스트 null · 출처 4(접근일 2026-11-02, 277)`, () => {
+    it(`(ii) 디스크: ${taxonId} DRAFT·AI_DRAFT · legal 정보용 메모 그대로(act6 false·cites false·화이트리스트 null) · 출처 4(접근일 2026-11-02, 277)`, () => {
       const t = row(fresh(), 'taxa', taxonId);
       expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
       expect(t.legal).toEqual({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null, note: null });
       expect((t.source as Rec[]).map((x) => x.accessedAt)).toEqual(Array(4).fill('2026-11-02'));
     });
-    it(`(ii) ${typeId} ACTIVE + DRAFT(AI_DRAFT) Taxon → X02(허용목록 밖, 불리언 무관) · Taxon VERIFIED(OFFICIAL_SOURCE) → X02 0`, () => {
-      const x = x02Of(active(typeId), typeId);
-      expect(x.map((i) => i.path)).toEqual(['taxonId']);
-      expect(x[0].message).toContain('허용목록');
-      // 불리언을 PET_ACT6 모양으로 바꿔도 허용목록 밖이라 X02(시드 편집으로 우회 불가).
-      const forged = active(typeId);
-      Object.assign(row(forged, 'taxa', taxonId).legal as Rec, { animalProtectionAct6: true, cites: false, designatedWildlifeWhitelist: null });
-      expect(x02Of(forged, typeId).map((i) => i.path)).toEqual(['taxonId']);
-      // VERIFIED 경로: V06(불리언)·V04(출처)를 형식만 채운 합성값 — 게이트가 실제로 돌았는지(구조·참조·검수 오류 0)도 확인.
+    it(`(ii) ${typeId} ACTIVE + DRAFT(AI_DRAFT) Taxon → ERROR 0 · X02 0(legal 값 무관) · 체인 미검수라 비노출 · Taxon VERIFIED(불리언 null)로도 ERROR 0`, () => {
+      for (const p of [{}, { animalProtectionAct6: true, cites: false }, { animalProtectionAct6: null, cites: null, designatedWildlifeWhitelist: null }, { cites: true }]) {
+        const s = active(typeId);
+        Object.assign(row(s, 'taxa', taxonId).legal as Rec, p);
+        const res = validateSeed(s, { now: NOW_W1 });
+        expect([p, res.errors]).toEqual([p, []]);
+        expect([p, exposable(s, typeId)]).toEqual([p, false]); // AnimalType·CareProfile 미검수 — 검수 전 공개 차단
+      }
+      // VERIFIED 경로: V04(출처)를 형식만 채운 합성값. legal 불리언은 null(280: V06 필수 아님).
       const reviewed = active(typeId);
       const tx = row(reviewed, 'taxa', taxonId);
       verify(tx, 'OFFICIAL_SOURCE');
-      Object.assign(tx.legal as Rec, { animalProtectionAct6: false, cites: false });
+      Object.assign(tx.legal as Rec, { animalProtectionAct6: null, cites: null });
       tx.source = structuredClone(row(reviewed, 'taxa', 'mesocricetus-auratus').source);
-      const res = validateSeed(reviewed, { now: NOW_W1 });
-      expect(res.errors).toEqual([]);
+      expect(validateSeed(reviewed, { now: NOW_W1 }).errors).toEqual([]);
     });
   }
 
-  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + X01 집합 없는 cp-parrot-budgie → X01 careProfileId(fail-closed)', () => {
+  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + X01 집합 없는 cp-parrot-budgie → X01 careProfileId 만(fail-closed) · Taxon 미검수여도 X02 0', () => {
     expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-budgie')).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-cockatiel')).toBe(false);
     const s = active('budgie');
@@ -788,14 +701,14 @@ describe('271 1차 종 게이트 — 로보·앵무 X02 fail-closed(허용목록
     });
     verify(req, 'EXPERIENCED_KEEPER');
     (s.supplyRequirements as Rec[]).push(req);
+    // 앵무 Taxon 은 DRAFT·AI_DRAFT 그대로 — 280 이전엔 X02 도 났다.
+    expect(row(s, 'taxa', 'melopsittacus-undulatus').reviewStatus).toBe('DRAFT');
+    expect(exposable(s, 'budgie')).toBe(true);
     const res = validateSeed(s, { now: NOW_W1 });
-    // 게이트가 실제로 돌았는지(구조·참조 오류 0) — 남는 ERROR 는 X01(집합 없음) · X02(앵무 Taxon 미검수)뿐.
-    expect(res.errors.filter((i) => i.rule !== 'X01' && i.rule !== 'X02')).toEqual([]);
-    expect(errs(res, 'X01').filter((i) => i.id === 'budgie').map((i) => i.path)).toEqual(['careProfileId']);
-    expect(errs(res, 'X02').filter((i) => i.id === 'budgie').map((i) => i.path)).toEqual(['taxonId']);
+    expect(res.errors.map((i) => `${i.rule} ${i.id} ${i.path}`)).toEqual(['X01 budgie careProfileId']);
   });
 
-  it('실시드(디스크): 새 타입 3은 PLANNED → X01·X02 대상 아님(ERROR 0)', () => {
+  it('실시드(디스크): 새 타입 3은 PLANNED → X01 대상 아님(ERROR 0)', () => {
     const res = validateSeed(fresh(), { now: NOW_W1 });
     expect(res.errors).toEqual([]);
     for (const id of ['budgie', 'cockatiel', 'hamster-robo']) expect([id, row(fresh(), 'animalTypes', id).status]).toEqual([id, 'PLANNED']);

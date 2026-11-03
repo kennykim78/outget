@@ -51,7 +51,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   if (!out.issues.some((i) => i.severity === 'ERROR')) checkCompatOwnedProbe(ctx, raw);
   // R07e(작업 219) — 최소·권장 키 혼합 `&&`·`||`. 엔진 키 판별로만, 구조·참조가 온전할 때만.
   if (!out.issues.some((i) => i.severity === 'ERROR')) checkCompatMinRecMix(ctx, raw);
-  // X01·X02(공개 게이트) — 구조·참조가 온전할 때만 엔진 노출 판정으로.
+  // X01(공개 게이트, X02 법 게이트는 280 에서 제거) — 구조·참조가 온전할 때만 엔진 노출 판정으로.
   if (structurallySound) checkPublishGates(ctx, raw);
 
   return {
