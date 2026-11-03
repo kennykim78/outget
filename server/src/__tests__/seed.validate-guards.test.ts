@@ -673,16 +673,16 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     });
   }
 
-  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + X01 집합 없는 cp-parrot-budgie → X01 careProfileId 만(fail-closed) · Taxon 미검수여도 X02 0', () => {
-    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-budgie')).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-cockatiel')).toBe(false);
+  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + X01 집합 없는 cp-parrot-small → X01 careProfileId 만(fail-closed) · Taxon 미검수여도 X02 0', () => {
+    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-small')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-medium')).toBe(false);
     const s = active('budgie');
     const src = structuredClone(row(s, 'animalTypes', 'hamster-golden').source);
     // 형식만 채우는 합성값(V07·V04 통과용) — 앵무 사실이 아니다. 디스크 시드는 그대로.
     const at = row(s, 'animalTypes', 'budgie');
     verify(at, 'EXPERIENCED_KEEPER');
     at.source = structuredClone(src);
-    const cp = row(s, 'careProfiles', 'cp-parrot-budgie');
+    const cp = row(s, 'careProfiles', 'cp-parrot-small');
     verify(cp, 'EXPERIENCED_KEEPER');
     Object.assign(cp, { facts: structuredClone(row(s, 'careProfiles', 'cp-hamster-dwarf').facts), careNotes: ['합성 시험 문장이다.'], source: structuredClone(src) });
     const item = row(s, 'supplyItems', 'bird-cage');
@@ -691,7 +691,7 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     const req = structuredClone(row(s, 'supplyRequirements', 'req-dwarf-cage'));
     Object.assign(req, {
       id: 'req-synth-bird-cage',
-      careProfileId: 'cp-parrot-budgie',
+      careProfileId: 'cp-parrot-small',
       supplyItemId: 'bird-cage',
       priority: 'REQUIRED',
       notNowReason: null,

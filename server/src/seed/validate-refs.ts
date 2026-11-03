@@ -131,7 +131,9 @@ function checkProfilesAndItems(ctx: Ctx): void {
   }
   for (const { rec, id } of ctx.rows.careProfiles) {
     const ids = strArr(rec.taxonIds);
-    if (ids.length === 0) out.error('R04', 'careProfiles', id, 'taxonIds', '비어 있지 않은 Taxon id 배열');
+    // 283(K-47c): 대형 앵무처럼 종이 아직 없는 「빈 묶음 프로필」은 DRAFT 이고 어느 AnimalType 도 쓰지 않을 때만 빈 taxonIds 를 허용한다.
+    const unusedDraftShell = rec.reviewStatus === 'DRAFT' && !ctx.rows.animalTypes.some((a) => a.rec.careProfileId === id);
+    if (ids.length === 0 && !unusedDraftShell) out.error('R04', 'careProfiles', id, 'taxonIds', '비어 있지 않은 Taxon id 배열(DRAFT·미참조 빈 묶음 프로필만 예외)');
     ids.forEach((t, i) => {
       if (!ctx.byId.taxa.has(t)) out.error('R04', 'careProfiles', id, `taxonIds[${i}]`, `Taxon "${t}" 없음`);
     });

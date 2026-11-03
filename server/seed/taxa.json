@@ -333,5 +333,43 @@
         "accessedAt": "2026-11-02"
       }
     ]
+  },
+  {
+    "id": "agapornis-roseicollis",
+    "scientificName": "Agapornis roseicollis",
+    "koreanName": "벚꽃모란앵무",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "LEGAL",
+    "source": []
+  },
+  {
+    "id": "aratinga-solstitialis",
+    "scientificName": "Aratinga solstitialis",
+    "koreanName": "썬코뉴어",
+    "legal": {
+      "animalProtectionAct6": null,
+      "cites": null,
+      "designatedWildlifeWhitelist": null,
+      "note": null
+    },
+    "revisionOf": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "LEGAL",
+    "source": []
   }
 ]

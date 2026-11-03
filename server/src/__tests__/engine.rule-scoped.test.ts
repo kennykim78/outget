@@ -129,7 +129,7 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
     });
   }
 
-  it('스키마 자체엔 ruleScoped 9필드가 있다(S8 playpen.floorType +1, 154 food.coversThisAnimal +1, 271 bird-food.forSpecies +1)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
+  it('스키마 자체엔 ruleScoped 9필드가 있다(S8 playpen.floorType +1, 154 food.coversThisAnimal +1, 271 bird-food.forSize +1)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
     const scoped = realSeed().supplyItems.flatMap((i) => i.specSchema.fields.filter((f) => f.ruleScoped === true).map((f) => [`${i.id}.${f.key}`, hasCompleteOptionLabels(f), f.optional === true]));
     expect(scoped).toEqual([
       ['cage.floorType', true, true],
@@ -140,7 +140,7 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
       ['food.vitaminC', true, true],
       ['hideout.entrances', true, true],
       ['playpen.floorType', true, true],
-      ['bird-food.forSpecies', true, true],
+      ['bird-food.forSize', true, true],
     ]);
   });
 
@@ -243,12 +243,12 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
   const scopedWarns = (raw: ReturnType<typeof fresh>) =>
     validateSeed(raw, { now: NOW }).warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`);
 
-  it('실시드: S9 요구사항 착지 후 playpen.floorType + 271 bird-food.forSpecies(앵무 요구사항 행 0) 2필드만 WARN(ERROR 아님)', () => {
+  it('실시드: S9 요구사항 착지 후 playpen.floorType + 271 bird-food.forSize(앵무 요구사항 행 0) 2필드만 WARN(ERROR 아님)', () => {
     const res = validateSeed(fresh(), { now: NOW });
     expect(res.errors).toEqual([]);
-    expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType', 'bird-food.specSchema.forSpecies']);
+    expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType', 'bird-food.specSchema.forSize']);
   });
-  it('기니피그·저빌 요구사항을 빼면 9필드 전부 WARN(S9 가 6필드 경고를 해소한 출처, 154 food.coversThisAnimal +1, 271 bird-food.forSpecies +1)', () => {
+  it('기니피그·저빌 요구사항을 빼면 9필드 전부 WARN(S9 가 6필드 경고를 해소한 출처, 154 food.coversThisAnimal +1, 271 bird-food.forSize +1)', () => {
     expect(scopedWarns(withoutGp())).toHaveLength(9);
   });
 
@@ -257,7 +257,7 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     const req = find(raw.supplyRequirements, 'req-syrian-cage') as { recommendedSpec: RuleSet };
     req.recommendedSpec = { rules: [...req.recommendedSpec.rules, { key: 'heightCm', op: 'gte', value: 30, reason: '픽스처', when: [{ key: 'floorType', op: 'eq', value: 'MESH' }] }] };
     expect(scopedWarns(raw)).not.toContain('cage.specSchema.floorType');
-    expect(scopedWarns(raw)).toHaveLength(8); // playpen.floorType·bird-food.forSpecies(271) 는 별도 SupplyItem 이라 남는다(154 food.coversThisAnimal 포함)
+    expect(scopedWarns(raw)).toHaveLength(8); // playpen.floorType·bird-food.forSize(271) 는 별도 SupplyItem 이라 남는다(154 food.coversThisAnimal 포함)
   });
 
   it('AnimalType.careOverrides 의 규칙만 참조해도 해소(해석 후 규칙 기준)', () => {

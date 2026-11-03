@@ -16,7 +16,7 @@ import {
 import { realSeed } from './fixtures/prerender-seed.js';
 
 const BIRD = 'budgie';
-const CP = 'cp-parrot-budgie';
+const CP = 'cp-parrot-small';
 
 /** 엔진 경로 시험용 합성 규칙(임의값 — 사실 아님). heightCm gte · barGapMm lte · barOrientation in. */
 const SYNTH_MIN: RuleSet = {
@@ -63,7 +63,7 @@ describe('bird-cage 디스크 구조(사실값 0)', () => {
     expect(keys.includes('floorWcm') || keys.includes('floorDcm')).toBe(false);
   });
   it('실시드엔 앵무 요구사항 행 0 → specCheck 는 판정하지 않는다(EngineLookupError)', () => {
-    expect(seed.supplyRequirements.filter((r) => r.careProfileId === CP || r.careProfileId === 'cp-parrot-cockatiel')).toEqual([]);
+    expect(seed.supplyRequirements.filter((r) => r.careProfileId.startsWith('cp-parrot-'))).toEqual([]);
     const cat = createCatalog(seed);
     expect(() => specCheck(cat, BIRD, 'bird-cage', { heightCm: 50 })).toThrow(EngineLookupError);
   });

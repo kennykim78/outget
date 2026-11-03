@@ -27,7 +27,7 @@ const errorRules = (r: ValidateResult): string[] => r.errors.map((i) => i.rule);
 const NEW_RULES = ['SL00', 'SL01', 'SL02', 'SL03', 'SL04', 'SL05', 'VC03', 'P05', 'T03'];
 
 describe('R3 C1 — 실제 시드 slug', () => {
-  it('7행 slug 라벨(결정 로그 값, 271 로보 hamster/robo — 결정 ⑤)', () => {
+  it('9행 slug 라벨(결정 로그 값, 271 로보 hamster/robo — 결정 ⑤)', () => {
     const slugs = Object.fromEntries((BASE.animalTypes as Rec[]).map((r) => [r.id, r.slug]));
     expect(slugs).toEqual({
       'hamster-golden': 'hamster/golden',
@@ -36,6 +36,8 @@ describe('R3 C1 — 실제 시드 slug', () => {
       'guinea-pig': 'guinea-pig',
       budgie: 'parrot/budgie',
       cockatiel: 'parrot/cockatiel',
+      'lovebird-peach': 'parrot/lovebird-peach',
+      'sun-conure': 'parrot/sun-conure',
       'hamster-robo': 'hamster/robo',
     });
   });

@@ -212,7 +212,7 @@
       "버지"
     ],
     "taxonId": "melopsittacus-undulatus",
-    "careProfileId": "cp-parrot-budgie",
+    "careProfileId": "cp-parrot-small",
     "careOverrides": {},
     "mascot": "budgie",
     "reviewStatus": "DRAFT",
@@ -233,9 +233,51 @@
       "코카티엘"
     ],
     "taxonId": "nymphicus-hollandicus",
-    "careProfileId": "cp-parrot-cockatiel",
+    "careProfileId": "cp-parrot-small",
     "careOverrides": {},
     "mascot": "cockatiel",
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "lovebird-peach",
+    "slug": "parrot/lovebird-peach",
+    "group": "PARROT",
+    "displayName": "벚꽃모란앵무",
+    "status": "PLANNED",
+    "aliases": [
+      "피치페이스드러브버드"
+    ],
+    "taxonId": "agapornis-roseicollis",
+    "careProfileId": "cp-parrot-small",
+    "careOverrides": {},
+    "mascot": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "sun-conure",
+    "slug": "parrot/sun-conure",
+    "group": "PARROT",
+    "displayName": "썬코뉴어",
+    "status": "PLANNED",
+    "aliases": [
+      "선코뉴어"
+    ],
+    "taxonId": "aratinga-solstitialis",
+    "careProfileId": "cp-parrot-medium",
+    "careOverrides": {},
+    "mascot": null,
     "reviewStatus": "DRAFT",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,

@@ -94,7 +94,7 @@ describe('seed:validate — 실제 시드 baseline', () => {
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
     //   271: 앵무 bird-food.forSpecies(ruleScoped) 는 요구사항 행이 없어(사실값 대기) 참조 0 → +1.
     expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
-      'bird-food.specSchema.forSpecies',
+      'bird-food.specSchema.forSize',
       'playpen.specSchema.floorType',
     ]);
     // S9: req-guineapig-cage caution = Kenny 확정 2문장(2026-10-27) → L03 1건(경고, 문장 그대로).
@@ -221,6 +221,7 @@ const CASES: Case[] = [
     },
   },
   { name: 'R04 taxonIds 없음', rule: 'R04', inject: (s) => { row(s, 'careProfiles', 'cp-hamster-syrian').taxonIds = ['x']; } },
+  { name: 'R04 참조되는 프로필의 taxonIds 가 빔(미참조 DRAFT 빈 묶음만 예외, 283)', rule: 'R04', inject: (s) => { row(s, 'careProfiles', 'cp-hamster-syrian').taxonIds = []; } },
   { name: 'R05 대안이 자기 자신', rule: 'R05', inject: (s) => { row(s, 'supplyItems', 'wheel').compatibleAlternativeIds = ['wheel']; } },
   {
     name: 'R06 (profile,item) 쌍 중복',

@@ -1246,19 +1246,21 @@
           }
         },
         {
-          "key": "forSpecies",
-          "label": "대상 새",
+          "key": "forSize",
+          "label": "대상 새 크기",
           "type": "enum",
           "options": [
-            "BUDGIE",
-            "COCKATIEL",
+            "SMALL",
+            "MEDIUM",
+            "LARGE",
             "MULTI"
           ],
           "optional": true,
           "ruleScoped": true,
           "optionLabels": {
-            "BUDGIE": "사랑앵무용",
-            "COCKATIEL": "왕관앵무용",
+            "SMALL": "소형 앵무용",
+            "MEDIUM": "중형 앵무용",
+            "LARGE": "대형 앵무용",
             "MULTI": "여러 새용"
           }
         }

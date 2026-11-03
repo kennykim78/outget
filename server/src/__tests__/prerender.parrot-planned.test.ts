@@ -15,25 +15,25 @@ const build = (): SiteBuild =>
   buildSite(realSeed(), { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), indexable: true, asOf: AS_OF });
 const allText = (b: SiteBuild): string => [...b.pages.map((p) => p.html), ...[...b.files.values()].map((v) => (typeof v === 'string' ? v : ''))].join('\n');
 
-const NEW_TYPES = ['budgie', 'cockatiel', 'hamster-robo'] as const;
-const NEW_PATHS = ['/parrot/budgie', '/parrot/cockatiel', '/hamster/robo'] as const;
+const NEW_TYPES = ['budgie', 'cockatiel', 'lovebird-peach', 'sun-conure', 'hamster-robo'] as const;
+const NEW_PATHS = ['/parrot/budgie', '/parrot/cockatiel', '/parrot/lovebird-peach', '/parrot/sun-conure', '/hamster/robo'] as const;
 const PARROT_ITEMS = ['bird-cage', 'perch', 'bird-food', 'mineral', 'bird-bath', 'foraging-toy', 'cage-cover'] as const;
 
 describe('디스크 골격 상태(사실값 0 · 공개 0 전제)', () => {
   const s = realSeed();
-  it('새 타입 3 = PLANNED · DRAFT · AI_DRAFT · verifiedBy null', () => {
+  it('새 타입 5 = PLANNED · DRAFT · AI_DRAFT · verifiedBy null', () => {
     for (const id of NEW_TYPES) {
       const t = s.animalTypes.find((x) => x.id === id);
       expect([id, t?.status, t?.reviewStatus, t?.reviewerType, t?.verifiedBy]).toEqual([id, 'PLANNED', 'DRAFT', 'AI_DRAFT', null]);
     }
   });
-  it('새 Taxon 3·CareProfile 2·용품 7 = DRAFT · AI_DRAFT, 사육 프로필 facts·careNotes 비어 있음', () => {
+  it('새 Taxon 5·CareProfile 3·용품 7 = DRAFT · AI_DRAFT, 사육 프로필 facts·careNotes 비어 있음', () => {
     const rows = [
-      ...s.taxa.filter((x) => ['phodopus-roborovskii', 'melopsittacus-undulatus', 'nymphicus-hollandicus'].includes(x.id)),
+      ...s.taxa.filter((x) => ['phodopus-roborovskii', 'melopsittacus-undulatus', 'nymphicus-hollandicus', 'agapornis-roseicollis', 'aratinga-solstitialis'].includes(x.id)),
       ...s.careProfiles.filter((x) => x.id.startsWith('cp-parrot-')),
       ...s.supplyItems.filter((x) => (PARROT_ITEMS as readonly string[]).includes(x.id)),
     ];
-    expect(rows).toHaveLength(12);
+    expect(rows).toHaveLength(15);
     for (const r of rows) expect([r.id, r.reviewStatus, r.reviewerType, r.verifiedBy]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null]);
     for (const cp of s.careProfiles.filter((x) => x.id.startsWith('cp-parrot-'))) {
       expect([cp.id, cp.facts, cp.careNotes]).toEqual([cp.id, {}, []]);
@@ -60,6 +60,7 @@ describe('실시드 프리렌더 — 새 종 노출 0', () => {
     const banned = [
       'Melopsittacus', 'Nymphicus', 'roborovskii', 'Roborovskii',
       'melopsittacus-undulatus', 'nymphicus-hollandicus', 'phodopus-roborovskii',
+      'agapornis-roseicollis', 'aratinga-solstitialis', 'Agapornis', 'Aratinga', '벚꽃모란앵무', '썬코뉴어', 'parrot/lovebird-peach', 'parrot/sun-conure',
       'cp-parrot-', 'hamster-robo', 'hamster/robo', 'parrot/budgie', 'parrot/cockatiel',
       '사랑앵무', '왕관앵무', '로보로브스키',
       'bird-cage', 'bird-food', 'bird-bath', 'foraging-toy', 'cage-cover', '"perch"', '"mineral"',

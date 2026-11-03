@@ -372,10 +372,12 @@
     ]
   },
   {
-    "id": "cp-parrot-budgie",
-    "name": "사랑앵무 기본",
+    "id": "cp-parrot-small",
+    "name": "소형 앵무 기본",
     "taxonIds": [
-      "melopsittacus-undulatus"
+      "melopsittacus-undulatus",
+      "nymphicus-hollandicus",
+      "agapornis-roseicollis"
     ],
     "facts": {},
     "careNotes": [],
@@ -388,11 +390,25 @@
     "source": []
   },
   {
-    "id": "cp-parrot-cockatiel",
-    "name": "왕관앵무 기본",
+    "id": "cp-parrot-medium",
+    "name": "중형 앵무 기본",
     "taxonIds": [
-      "nymphicus-hollandicus"
+      "aratinga-solstitialis"
     ],
+    "facts": {},
+    "careNotes": [],
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "cp-parrot-large",
+    "name": "대형 앵무 기본",
+    "taxonIds": [],
     "facts": {},
     "careNotes": [],
     "reviewStatus": "DRAFT",
