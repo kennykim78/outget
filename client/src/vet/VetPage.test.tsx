@@ -1,4 +1,4 @@
-// F3-1 /vet React — 지도 키 없음 폴백, 필터, vet_clicked, 제보됨 배지 0, visitNote 상시, 제보 폼(202·429·400).
+// F3-1 /vet React — 지도 키 없음 폴백, 필터, vet_clicked, 제보됨 배지 0, visitNote 상시, 제보 폼(202·429·429 하루 한도·400).
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY } from '@ws/copy';
 import { naverMapSearchUrl, type PublicAnimalType, type PublicVet } from '@ws/engine';
@@ -430,6 +430,18 @@ describe('제보 폼(POST /api/vets/reports)', () => {
     expect(screen.getByLabelText(COPY.vet.reportName)).toHaveValue('새 동물병원');
   });
 
+  it('278: 429 REPORT_DAILY_LIMIT(daily) → "오늘 제보가 많아요, 내일 다시 보내 주세요", 입력 유지(rate 안내와 다름)', async () => {
+    vi.spyOn(vetReportApi, 'send').mockResolvedValue('daily');
+    render(<VetPage page={vetPage()} capturedMain={null} />);
+    fill();
+    submit();
+    await waitFor(() => expect(reportStatus()).not.toBeEmptyDOMElement());
+    expect(COPY.vet.reportDaily).toBe('오늘 제보가 많아요, 내일 다시 보내 주세요');
+    expect(reportStatus().textContent).toBe(COPY.vet.reportDaily);
+    expect(reportStatus().textContent).not.toContain(COPY.vet.reportError);
+    expect(screen.getByLabelText(COPY.vet.reportName)).toHaveValue('새 동물병원');
+  });
+
   it('서버 400 → 안내 문구, 입력 유지', async () => {
     vi.spyOn(vetReportApi, 'send').mockResolvedValue('invalid');
     render(<VetPage page={vetPage()} capturedMain={null} />);
@@ -465,6 +477,22 @@ describe('vetReportApi.send 상태 매핑', () => {
     await expect(vetReportApi.send({ name: 'n', address: 'a', phone: '0212345678', treats: [] })).resolves.toBe(want);
     expect(f.mock.calls[0][0]).toBe('/api/vets/reports');
     expect(f.mock.calls[0][1]).toMatchObject({ method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    [{ error: 'REPORT_DAILY_LIMIT' }, 'daily'],
+    [{ error: 'rate_limited' }, 'rate'],
+    [null, 'rate'],
+  ])('278: 429 본문 %j → %s(하루 한도와 시간당 리미터를 본문 코드로 구분)', async (body, want) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 429, json: () => Promise.resolve(body) }));
+    await expect(vetReportApi.send({ name: 'n', address: 'a', phone: '0212345678', treats: [] })).resolves.toBe(want);
+    vi.unstubAllGlobals();
+  });
+
+  it('278: 429 본문이 JSON 이 아니면 rate', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 429, json: () => Promise.reject(new SyntaxError('x')) }));
+    await expect(vetReportApi.send({ name: 'n', address: 'a', phone: '0212345678', treats: [] })).resolves.toBe('rate');
     vi.unstubAllGlobals();
   });
 

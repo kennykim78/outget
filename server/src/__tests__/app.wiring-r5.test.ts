@@ -68,10 +68,11 @@ describe('병원 제보 /api/vets/reports (createApp 경유)', () => {
     ).toBe(415);
   });
 
-  it('시간당 6번째 → 429', async () => {
+  it('시간당 6번째 → 429 rate_limited(하루 한도 코드 REPORT_DAILY_LIMIT 과 본문으로 구분 — 278)', async () => {
     const app = createApp(makeInMemoryRepos(), { rateLimits: true });
     for (let i = 0; i < 5; i++) expect((await request(app).post('/api/vets/reports').send(REPORT)).status).toBe(202);
-    expect((await request(app).post('/api/vets/reports').send(REPORT)).status).toBe(429);
+    const r = await request(app).post('/api/vets/reports').send(REPORT);
+    expect([r.status, r.body]).toEqual([429, { error: 'rate_limited' }]);
   });
 
   it('2KB 초과 본문 → 413(전역 파서 우회 없음)', async () => {

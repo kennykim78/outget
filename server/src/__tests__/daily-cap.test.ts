@@ -1,4 +1,4 @@
-// 264(Kenny ORDERS §41, security 257 3c MED·3d): 일일 전역 저장 상한 — 이벤트 204·제보 202 그대로 조용히 버림,
+// 264(Kenny ORDERS §41, security 257 3c MED·3d): 일일 전역 저장 상한 — 이벤트 204 그대로 조용히 버림 · 제보는 429 REPORT_DAILY_LIMIT(278 Kenny §46-3),
 //   서울 날짜가 바뀌면 리셋, 재기동(새 앱) 시 저장소에서 그날 수를 한 번 복원, 매 요청 COUNT 없음.
 import express from 'express';
 import request from 'supertest';
@@ -211,7 +211,7 @@ describe('POST /api/events — 일일 상한', () => {
 });
 
 describe('POST /api/vets/reports — 일일 상한·접수 시각', () => {
-  it('createdAt = 접수 시각 ISO, 상한 넘으면 202 {} 그대로·미저장, 다음 날 리셋', async () => {
+  it('createdAt = 접수 시각 ISO, 상한 넘으면 429 REPORT_DAILY_LIMIT·미저장, 다음 날 리셋', async () => {
     const clock = { now: D1_LATE };
     const repo = new InMemoryVetClinicRepository();
     const app = express();
@@ -219,10 +219,11 @@ describe('POST /api/vets/reports — 일일 상한·접수 시각', () => {
     const a = await request(app).post('/api/vets/reports').send(REPORT);
     expect([a.status, a.body]).toEqual([202, {}]);
     const b = await request(app).post('/api/vets/reports').send({ ...REPORT, name: '둘째 병원' });
-    expect([b.status, b.body]).toEqual([202, {}]);
+    expect([b.status, b.body]).toEqual([429, { error: 'REPORT_DAILY_LIMIT' }]);
     expect(repo.dump().map((r) => [r.name, r.createdAt])).toEqual([['하늘 동물병원', D1_LATE.toISOString()]]);
     clock.now = D2_START;
-    await request(app).post('/api/vets/reports').send({ ...REPORT, name: '셋째 병원' });
+    const c = await request(app).post('/api/vets/reports').send({ ...REPORT, name: '셋째 병원' });
+    expect([c.status, c.body]).toEqual([202, {}]);
     expect(repo.dump()).toHaveLength(2);
   });
 
@@ -232,7 +233,7 @@ describe('POST /api/vets/reports — 일일 상한·접수 시각', () => {
     await repos.vet.createReport({ id: 'vr-old', region: '', ...REPORT, createdAt: today.toISOString() });
     const app = createApp(repos, { dailyCaps: { vetReports: 1 } });
     const r = await request(app).post('/api/vets/reports').send(REPORT);
-    expect([r.status, r.body]).toEqual([202, {}]);
+    expect([r.status, r.body]).toEqual([429, { error: 'REPORT_DAILY_LIMIT' }]);
     expect((repos.vet as InMemoryVetClinicRepository).dump()).toHaveLength(1);
   });
 
@@ -305,18 +306,18 @@ describe('POST /api/vets/reports — 일일 상한·접수 시각', () => {
     expect(capHitLogger('x', (l) => lines.push(l))).toBeTypeOf('function');
   });
 
-  it('security ④b: IP별 하루 한도(기본 10) — 넘치면 같은 202 {}, 전역 상한은 쓰지 않음, 다른 IP·다음 날은 받음', async () => {
+  it('security ④b: IP별 하루 한도(기본 10) — 넘치면 같은 429 REPORT_DAILY_LIMIT·미저장, 전역 상한은 쓰지 않음, 다른 IP·다음 날은 받음', async () => {
     expect(DEFAULT_VET_REPORT_PER_IP_DAILY).toBe(10);
     const repos = makeInMemoryRepos();
     const clock = { now: D1_LATE };
     const app = createApp(repos, { trustProxy: 1, dailyCaps: { vetReports: 5, vetReportsPerIp: 2, now: () => clock.now } });
     const from = (ip: string, name: string) => request(app).post('/api/vets/reports').set('X-Forwarded-For', ip).send({ ...REPORT, name });
     const rs = [await from('198.51.100.1', 'a1'), await from('198.51.100.1', 'a2'), await from('198.51.100.1', 'a3'), await from('198.51.100.1', 'a4')];
-    expect(rs.map((r) => [r.status, r.body])).toEqual([[202, {}], [202, {}], [202, {}], [202, {}]]);
+    const DAILY = [429, { error: 'REPORT_DAILY_LIMIT' }];
+    expect(rs.map((r) => [r.status, r.body])).toEqual([[202, {}], [202, {}], DAILY, DAILY]);
     // 전역 5 중 2만 썼다 → 다른 IP 3건 모두 저장
-    await from('198.51.100.2', 'b1');
-    await from('198.51.100.2', 'b2');
-    await from('2001:db8:1:200::5', 'c1');
+    const others = [await from('198.51.100.2', 'b1'), await from('198.51.100.2', 'b2'), await from('2001:db8:1:200::5', 'c1')];
+    expect(others.map((r) => r.status)).toEqual([202, 202, 202]);
     const dump = () => (repos.vet as InMemoryVetClinicRepository).dump().map((r) => r.name);
     expect(dump()).toEqual(['a1', 'a2', 'b1', 'b2', 'c1']);
     clock.now = D2_START;

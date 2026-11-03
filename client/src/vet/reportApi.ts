@@ -7,7 +7,8 @@ export interface VetReportBody {
   treats: string[];
 }
 
-export type VetReportResult = 'ok' | 'invalid' | 'rate' | 'error';
+// daily = 429 본문 REPORT_DAILY_LIMIT(하루 한도 — "내일 다시") · rate = 그 밖의 429(시간당 리미터).
+export type VetReportResult = 'ok' | 'invalid' | 'rate' | 'daily' | 'error';
 
 export const VET_REPORT_ENDPOINT = '/api/vets/reports';
 export const VET_REPORT_LIMITS = { name: 60, address: 120, treats: 6 } as const;
@@ -39,7 +40,7 @@ export function validateVetReport(input: VetReportBody): { body: VetReportBody; 
   return { body: { name, address, phone, treats }, invalid: [] };
 }
 
-/** 테스트는 send 를 바꿔 끼운다. 네트워크 실패·5xx = 'error', 429 = 'rate', 400·415 = 'invalid'. */
+/** 테스트는 send 를 바꿔 끼운다. 네트워크 실패·5xx = 'error', 429 + REPORT_DAILY_LIMIT = 'daily', 그 밖 429 = 'rate', 400·415 = 'invalid'. */
 export const vetReportApi = {
   async send(body: VetReportBody): Promise<VetReportResult> {
     if (typeof fetch !== 'function') return 'error';
@@ -51,7 +52,15 @@ export const vetReportApi = {
         body: JSON.stringify(body),
       });
       if (res.status === 202 || res.status === 200) return 'ok';
-      if (res.status === 429) return 'rate';
+      if (res.status === 429) {
+        let code: unknown;
+        try {
+          code = ((await res.json()) as { error?: unknown } | null)?.error;
+        } catch {
+          code = undefined; // 본문 없음·JSON 아님(리미터 문구) → rate
+        }
+        return code === 'REPORT_DAILY_LIMIT' ? 'daily' : 'rate';
+      }
       if (res.status === 400 || res.status === 415) return 'invalid';
       return 'error';
     } catch {

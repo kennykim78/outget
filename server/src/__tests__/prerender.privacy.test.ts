@@ -135,6 +135,9 @@ describe('/privacy 본문(P8·P10)', () => {
     );
     expect(text).toContain('접속한 IP 주소가 담긴 웹 접속 기록은 남기지 않아요.');
     expect(text).toContain('일이 지나면 자동으로 지워요.');
+    // 278(Kenny ORDERS §46-2): 남용 방지 IP 는 하루 동안 메모리에서만 센다(IP 하루 한도와 같은 창). 「짧은 시간」 표현 0.
+    expect(text).toContain('저장하지 않아요. 하루 동안 서버 메모리에서만(원문 IP 저장 없이) 세요.');
+    expect(text).not.toContain('짧은 시간 동안만 세요');
   });
 
   it('보유 기간 표: 운영자 접속 기록 1년 행(security 150 MED-B) — 다른 행과 같은 2칸, 웹 접속 기록·서버 오류 기록 행 유지', () => {

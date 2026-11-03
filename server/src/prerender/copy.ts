@@ -397,6 +397,8 @@ export const COPY = deepFreeze({
     reportSubmit: '제보 보내기',
     reportThanks: sent('제보해 주셔서 고마워요. 확인한 뒤에 보여 드릴게요'),
     reportError: sent('지금은 보낼 수 없어요. 잠시 뒤 다시 시도해 주세요'),
+    /** 278(Kenny ORDERS §46-3): 하루 한도 초과(429 REPORT_DAILY_LIMIT) 정직한 안내. */
+    reportDaily: sent('오늘 제보가 많아요, 내일 다시 보내 주세요'),
     reportInvalid: sent('입력한 내용을 다시 확인해 주세요'),
   },
   supplies: {

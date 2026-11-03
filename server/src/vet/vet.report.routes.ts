@@ -1,8 +1,10 @@
 // 병원 제보(PRD US-013, 계약 C-R5-4, 결정 D15) — 마운트는 BE1(app.ts, '/api/vets/reports', IP 5/시간 리미터).
-//   POST / {name≤60, address≤120, phone(숫자·하이픈 9~13), treats: typeId[]≤6} → 202 {}(접수 안내만).
+//   POST / {name≤60, address≤120, phone(숫자·하이픈 9~13), treats: typeId[]≤6} → 202 {}(접수 안내만) · 하루 한도 초과 429 REPORT_DAILY_LIMIT.
 //   저장: VetClinic status REPORTED · source USER_REPORT · 좌표 null → 목록·상세·프리렌더 비노출(운영자 전화 확인 전).
 //   제보자 식별 정보(IP·UA·이메일·세션) 0 — 본문의 병원 정보만 저장한다. 진료 가능 여부 판단 없음(불변식 ⑤).
-//   264(Kenny ORDERS §41): 접수 시각 createdAt 저장 → REPORTED 는 180일 뒤 정리(privacy/retention.ts). 일일 전역 상한(cap) 초과는 202 {} 로 조용히 버림.
+//   264(Kenny ORDERS §41): 접수 시각 createdAt 저장 → REPORTED 는 180일 뒤 정리(privacy/retention.ts). 일일 전역 상한(cap) 초과는 저장 없이 버림.
+//   278(Kenny ORDERS §46-3): 일일 상한·IP 하루 한도 초과는 429 { error: 'REPORT_DAILY_LIMIT' }(정직한 안내 "내일 다시") —
+//   시간당 리미터 429 와 본문 코드로 구분한다. 두 한도 모두 같은 응답(어느 한도인지 드러내지 않음).
 //   빈 treats:[] 는 받는다(security 257 3d 검토, 264 판단): 제보 폼은 진료 동물 칸을 고르지 않아도 보낼 수 있고(VetReportForm —
 //   칸 문구나 노출 동물이 없으면 칸 자체가 없다), 진료 동물은 운영자 전화 확인 기준으로만 적는다(US-013 "추정 금지").
 //   빈 값을 거부하면 제보자가 모르는 동물을 고르게 만든다. 남용은 IP 5/시간 + 일일 상한 + 180일 보존으로 묶는다.
@@ -13,6 +15,8 @@ import type { DailyCap, DailyCapTake, PerKeyDailyLimit } from '../middleware/dai
 import { ipKey } from '../middleware/rate-limit.js';
 
 export const REPORT_LIMITS = { name: 60, address: 120, treats: 6 } as const;
+/** 하루 한도(전역 상한·IP 하루 한도) 초과 본문 코드 — 클라이언트가 "내일 다시" 안내로 바꾼다(278). */
+export const REPORT_DAILY_LIMIT = 'REPORT_DAILY_LIMIT' as const;
 const PHONE_RE = /^(?=(?:.*\d){9})[0-9-]{9,13}$/;
 const PHONE_SHAPE_RE = /^\d[0-9-]*\d$/;
 const TYPE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -28,9 +32,9 @@ export interface VetReportRouterOptions {
   knownTypeIds?: ReadonlySet<string>;
   /** 접수 시각(보존 180일 기준). 기본 new Date(). */
   now?: () => Date;
-  /** 일일 전역 저장 상한(264). 넘치면 저장하지 않고 응답은 그대로 202 {}. 미지정 = 상한 없음(단위 시험용 — app.ts 는 늘 넘긴다). */
+  /** 일일 전역 저장 상한(264). 넘치면 저장하지 않고 429 REPORT_DAILY_LIMIT(278). 미지정 = 상한 없음(단위 시험용 — app.ts 는 늘 넘긴다). */
   cap?: DailyCap;
-  /** IP별 하루 한도(security 264 ④b). 넘치면 전역 상한을 쓰지 않고 같은 202 {}. IP 는 메모리 키로만(HMAC, 날짜마다 버림). */
+  /** IP별 하루 한도(security 264 ④b). 넘치면 전역 상한을 쓰지 않고 같은 429 REPORT_DAILY_LIMIT. IP 는 메모리 키로만(HMAC, 날짜마다 버림). */
   perIp?: PerKeyDailyLimit;
 }
 
@@ -80,14 +84,14 @@ export function createVetReportRouter(repo: VetReportRepository, opts: VetReport
     const at = now();
     let taken: DailyCapTake | undefined;
     if (opts.perIp && !opts.perIp.hit(ipKey(req.ip), at)) {
-      res.status(202).json({}); // IP 하루 한도 — 조용히 버림(접수 안내 그대로, 전역 상한 소모 0)
+      res.status(429).json({ error: REPORT_DAILY_LIMIT }); // IP 하루 한도 — 미저장, 전역 상한 소모 0
       return;
     }
     try {
       if (opts.cap) {
         taken = await opts.cap.take(1, at);
         if (taken.allowed === 0) {
-          res.status(202).json({}); // 일일 상한 — 조용히 버림(접수 안내 그대로)
+          res.status(429).json({ error: REPORT_DAILY_LIMIT }); // 일일 전역 상한 — 미저장
           return;
         }
       }

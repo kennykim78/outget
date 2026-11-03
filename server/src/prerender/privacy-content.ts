@@ -171,7 +171,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
               ['동물병원 제보(병원 이름·주소·전화번호)', '받은 날부터 {policy:VET_REPORT_RETENTION_DAYS}일 동안 보관해요. 전화로 확인해 병원 목록에 올린 병원은 목록 정보로 남아요.'],
               ['서버 백업', '{policy:BACKUP_RETENTION_DAYS}일이 지난 백업 파일은 정기 정리 때 지워요.'],
               ['삭제 기록', '지운 뒤 {policy:TOMBSTONE_RETENTION_DAYS}일 보관하고, 백업에서 복원한 계정을 다시 지운 경우에는 그날부터 같은 기간을 다시 보관해요. 지운 이메일 주소가 백업에서 되살아나지 않게, 원래 주소를 그대로 남기지 않는 값(해시)으로만 남겨요.'],
-              ['남용 방지용 IP 주소', '저장하지 않아요. 서버 메모리에서 짧은 시간 동안만 세요.'],
+              ['남용 방지용 IP 주소', '저장하지 않아요. 하루 동안 서버 메모리에서만(원문 IP 저장 없이) 세요.'],
               ['웹 접속 기록', '남기지 않아요.'],
               ['서버 오류 기록', '{policy:SERVER_LOG_RETENTION_DAYS}일이 지나면 자동으로 지워요.'],
               // security 150 MED-B: deploy/bootstrap.sh ADMIN_LOG_DAYS=366(logrotate daily·rotate·maxage) 와 같아야 한다(deploy-config.test.mjs 패리티).

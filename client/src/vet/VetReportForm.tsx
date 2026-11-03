@@ -14,7 +14,8 @@ export interface VetReportFormProps {
 }
 
 // invalid = 사전 검사 위반(필드 표시) · rejected = 서버 400(어느 필드인지 모름 — 안내 문구만).
-type Phase = 'idle' | 'sending' | 'sent' | 'error' | 'invalid' | 'rejected';
+// daily = 서버 429 REPORT_DAILY_LIMIT(하루 한도 — "내일 다시" 안내).
+type Phase = 'idle' | 'sending' | 'sent' | 'error' | 'invalid' | 'rejected' | 'daily';
 
 export const VET_REPORT_SECTION_ID = 'ws-vet-report';
 
@@ -55,6 +56,8 @@ export default function VetReportForm({ types, open, onToggle }: VetReportFormPr
       setPhase('sent');
     } else if (r === 'invalid') {
       setPhase('rejected');
+    } else if (r === 'daily') {
+      setPhase('daily'); // 하루 한도 — 입력 유지.
     } else {
       setPhase('error'); // 429·네트워크·5xx — 입력 유지.
     }
@@ -131,9 +134,11 @@ export default function VetReportForm({ types, open, onToggle }: VetReportFormPr
             ? copyAt('vet.reportThanks')
             : phase === 'error'
               ? copyAt('vet.reportError')
-              : phase === 'rejected'
-                ? (invalidNote ?? copyAt('vet.reportError'))
-                : null}
+              : phase === 'daily'
+                ? (copyAt('vet.reportDaily') ?? copyAt('vet.reportError'))
+                : phase === 'rejected'
+                  ? (invalidNote ?? copyAt('vet.reportError'))
+                  : null}
         </p>
       </form>
     </details>
