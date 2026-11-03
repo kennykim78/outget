@@ -222,6 +222,18 @@ const CASES: Case[] = [
   },
   { name: 'R04 taxonIds 없음', rule: 'R04', inject: (s) => { row(s, 'careProfiles', 'cp-hamster-syrian').taxonIds = ['x']; } },
   { name: 'R04 참조되는 프로필의 taxonIds 가 빔(미참조 DRAFT 빈 묶음만 예외, 283)', rule: 'R04', inject: (s) => { row(s, 'careProfiles', 'cp-hamster-syrian').taxonIds = []; } },
+  { name: 'R04 DRAFT 빈 묶음을 AnimalType 이 참조(283)', rule: 'R04', inject: (s) => { row(s, 'animalTypes', 'budgie').careProfileId = 'cp-parrot-large'; } },
+  { name: 'R04 미참조인데 DRAFT 아닌 빈 묶음(283)', rule: 'R04', inject: (s) => { row(s, 'careProfiles', 'cp-parrot-large').reviewStatus = 'NEEDS_REVIEW'; } },
+  {
+    name: 'R04 DRAFT·미참조 빈 묶음을 SupplyRequirement 가 참조(283)',
+    rule: 'R04',
+    inject: (s) => {
+      const c = structuredClone(row(s, 'supplyRequirements', 'req-syrian-cage'));
+      c.id = 'req-parrot-large-cage';
+      c.careProfileId = 'cp-parrot-large';
+      s.supplyRequirements.push(c);
+    },
+  },
   { name: 'R05 대안이 자기 자신', rule: 'R05', inject: (s) => { row(s, 'supplyItems', 'wheel').compatibleAlternativeIds = ['wheel']; } },
   {
     name: 'R06 (profile,item) 쌍 중복',
