@@ -671,10 +671,44 @@ export function getSaveSync(): SaveSync {
 }
 
 let booted: Promise<void> | null = null;
+let hideDetach: (() => void) | null = null;
+
+type HideTarget = Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
+
+/**
+ * 탭이 숨겨지거나(visibilitychange hidden) 닫힐 때(pagehide) 대기 중인 디바운스 PUT 을 바로 보낸다 — 2초 안에 탭을 닫아도 유실 0.
+ * 기존 flush 경로만 쓴다(새 전송 방식 0). 실패는 조용히. 반환 = 해제 함수.
+ */
+export function flushOnHide(
+  sync: Pick<SaveSync, 'flush'>,
+  doc: HideTarget & { visibilityState?: string },
+  win: HideTarget,
+): () => void {
+  const run = (): void => {
+    void Promise.resolve()
+      .then(() => sync.flush())
+      .catch(() => undefined);
+  };
+  const onVis = (): void => {
+    if (doc.visibilityState === 'hidden') run();
+  };
+  doc.addEventListener('visibilitychange', onVis);
+  win.addEventListener('pagehide', run);
+  return () => {
+    doc.removeEventListener('visibilitychange', onVis);
+    win.removeEventListener('pagehide', run);
+  };
+}
 
 /** 부팅 1회(F3-3 SaveDot): GET /auth/session 1회 → 연결돼 있으면 서버본과 병합하고 자동 저장을 켠다. 재호출은 같은 Promise. */
 export function bootSaveSync(): Promise<void> {
-  if (!booted) booted = getSaveSync().boot().catch(() => undefined);
+  if (!booted) {
+    const sync = getSaveSync();
+    if (!hideDetach && typeof document !== 'undefined' && typeof window !== 'undefined') {
+      hideDetach = flushOnHide(sync, document, window);
+    }
+    booted = sync.boot().catch(() => undefined);
+  }
   return booted;
 }
 
@@ -683,4 +717,6 @@ export function resetSaveSyncForTest(): void {
   singleton?.stop();
   singleton = null;
   booted = null;
+  hideDetach?.();
+  hideDetach = null;
 }

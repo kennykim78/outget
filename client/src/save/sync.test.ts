@@ -8,7 +8,7 @@ import type { Saveable, SaveReactions, SaveV1, SetupV3 } from './contract';
 import { emptyReactions } from './merge';
 import { defaultSlices, type SaveSlices } from './saveables';
 import { SAVE_STATE_KEY, clearSaveState, readSaveState, writeSaveState } from './saveStateStore';
-import { SAVE_RETRY_BASE_MS, SAVE_RETRY_MAX_ATTEMPTS, createSaveSync, type LinkOutcome, type SaveSync, type SaveSyncDeps } from './sync';
+import { SAVE_RETRY_BASE_MS, SAVE_RETRY_MAX_ATTEMPTS, createSaveSync, flushOnHide, type LinkOutcome, type SaveSync, type SaveSyncDeps } from './sync';
 
 const T1 = '2026-10-01T00:00:00.000Z';
 const T2 = '2026-10-02T00:00:00.000Z';
@@ -354,6 +354,59 @@ describe('연결 후 자동 저장', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(puts.length).toBeGreaterThan(0);
     expect(puts.at(-1)?.cages).toEqual({});
+  });
+
+  it('케이지 삭제 뒤 첫 PUT 이 409 → 재병합(putWithBase)도 tombstone 을 써서 재시도 PUT 본문에 옛 서버 케이지가 없다', async () => {
+    vi.useFakeTimers();
+    const { api, puts, bases, setServer } = fakeApi();
+    const cageRec = { v: 1 as const, type: 'LIVING_BOX' as const, floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: T1 };
+    setServer({ v: 1, animalTypeId: null, setups: {}, cages: { 'hamster-golden': cageRec }, reactions: emptyReactions() });
+    const slices = fakeSlices();
+    const cages = slices.cages as typeof slices.cages & { tombstones: () => Record<string, string> };
+    const sync = createSaveSync(deps(api, slices));
+    await linkC(sync, TOKEN);
+    cages.tombstones = () => ({ 'hamster-golden': T2 }); // 연결 뒤 케이지 삭제
+    slices.cages.value = {};
+    // 다른 기기가 서버 행을 바꿈(기준 시각이 달라져 첫 PUT 은 409) — 서버본에도 옛 케이지(삭제 시각 T2 이전)가 있다.
+    setServer({ v: 1, animalTypeId: null, setups: {}, cages: { 'hamster-golden': { ...cageRec, heightCm: 50 } }, reactions: emptyReactions() });
+    slices.setups.value = { mine: setup(T2) };
+    slices.setups.fire();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(bases.length).toBeGreaterThanOrEqual(2); // 409 한 번 + 재시도
+    expect(puts.length).toBeGreaterThan(0);
+    expect(puts.at(-1)?.cages).toEqual({});
+    expect(puts.at(-1)?.setups.mine).toBeDefined();
+  });
+
+  it('flushOnHide: pagehide · visibilitychange(hidden) 에서만 flush, visible 은 0, 해제 뒤 0, flush 실패는 조용히', async () => {
+    const mk = () => {
+      const m = new Map<string, Array<() => void>>();
+      return {
+        visibilityState: 'visible' as string,
+        addEventListener: (t: string, f: () => void) => void m.set(t, [...(m.get(t) ?? []), f]),
+        removeEventListener: (t: string, f: () => void) => void m.set(t, (m.get(t) ?? []).filter((x) => x !== f)),
+        emit: (t: string) => (m.get(t) ?? []).forEach((f) => f()),
+      };
+    };
+    const doc = mk();
+    const win = mk();
+    const flush = vi.fn(async () => {
+      throw new Error('net');
+    });
+    const off = flushOnHide({ flush }, doc as never, win as never);
+    doc.emit('visibilitychange'); // visible → 0
+    await Promise.resolve();
+    expect(flush).toHaveBeenCalledTimes(0);
+    doc.visibilityState = 'hidden';
+    doc.emit('visibilitychange');
+    win.emit('pagehide');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(flush).toHaveBeenCalledTimes(2);
+    off();
+    win.emit('pagehide');
+    await Promise.resolve();
+    expect(flush).toHaveBeenCalledTimes(2);
   });
 
   it('디바운스 PUT 은 서버에만 있는 레코드(다른 기기분)를 지우지 않는다', async () => {

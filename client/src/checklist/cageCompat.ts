@@ -9,6 +9,9 @@ import type { DeriveOptions } from './derive';
 
 type CompatMap = NonNullable<DeriveOptions['compat']>;
 
+/** 카탈로그 로드 실패 뒤 자동 재요청까지의 대기(1회). */
+export const COMPAT_RETRY_MS = 4000;
+
 const TO_STATE: Partial<Record<CompatVerdict, CompatMap[string]>> = { OK: 'OK', CHECK: 'CHECK', BELOW_MIN: 'FAIL' };
 
 /** 요구사항마다 requirementCompat → {itemId: OK|CHECK|FAIL}. 컨텍스트 없음 → {}. NONE·조회 실패·케이지 자신은 생략. */
@@ -59,14 +62,22 @@ export function useCageCompatState(
   useEffect(() => {
     if (!need) return;
     let live = true;
-    loadSpecCatalog(catalogUrl).then(
-      (x) => {
-        if (live) setEngine(x.engine);
-      },
-      () => undefined,
-    );
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // 실패하면 일정 시간 뒤 1회만 자동 재요청(문구 없음) — 새로고침 전까지 pending 으로 굳지 않게.
+    const attempt = (retry: boolean): void => {
+      loadSpecCatalog(catalogUrl).then(
+        (x) => {
+          if (live) setEngine(x.engine);
+        },
+        () => {
+          if (live && retry) timer = setTimeout(() => attempt(false), COMPAT_RETRY_MS);
+        },
+      );
+    };
+    attempt(true);
     return () => {
       live = false;
+      if (timer !== null) clearTimeout(timer);
     };
   }, [need, catalogUrl]);
   return useMemo(() => {
