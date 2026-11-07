@@ -202,6 +202,54 @@ describe('link', () => {
     expect(sync.isRunning()).toBe(true);
   });
 
+  it('confirmSave: PUT 실패(500·네트워크·413)면 saved 가 아니라 failed — 연결은 유지, 다시 누르면 재시도해 성공 때만 saved', async () => {
+    for (const bad of [{ status: 500 }, { status: 0 }, { status: 413 }]) {
+      const f = fakeApi();
+      let fail = true;
+      const real = f.api.putSave;
+      f.api.putSave = vi.fn(async (s: SaveV1, b: string | null) => (fail ? bad : real(s, b)));
+      const slices = fakeSlices();
+      slices.animalType.value = 'hamster-golden';
+      slices.setups.value = { 'hamster-golden': setup(T2, ['cage']) };
+      const sync = createSaveSync(deps(f.api, slices));
+      expect((await sync.link(TOKEN)).kind).toBe('linked');
+      expect(await sync.confirmSave()).toBe('failed');
+      expect(readSaveState(store).lastSyncAt).toBeNull();
+      fail = false;
+      expect(await sync.confirmSave()).toBe('saved');
+      expect(f.puts).toHaveLength(1);
+      sync.stop();
+      store.remove(SAVE_STATE_KEY);
+    }
+  });
+
+  it('confirmSave: 성공 saved · 보류 아님+미연결 expired', async () => {
+    const f = fakeApi();
+    const slices = fakeSlices();
+    slices.animalType.value = 'hamster-golden';
+    slices.setups.value = { 'hamster-golden': setup(T2, ['cage']) };
+    const sync = createSaveSync(deps(f.api, slices));
+    expect(await sync.confirmSave()).toBe('expired');
+    await sync.link(TOKEN);
+    expect(await sync.confirmSave()).toBe('saved');
+  });
+
+  it('로컬에서 지운 케이지(tombstone)는 서버 병합으로 부활하지 않고 PUT 본문에서 빠진다', async () => {
+    const f = fakeApi();
+    const cageRec = { v: 1 as const, type: 'LIVING_BOX' as const, floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: T1 };
+    f.setServer({ v: 1, animalTypeId: 'hamster-golden', setups: {}, cages: { 'hamster-golden': cageRec }, reactions: emptyReactions() });
+    const slices = fakeSlices();
+    slices.animalType.value = 'hamster-golden';
+    const cages = slices.cages as typeof slices.cages & { tombstones: () => Record<string, string> };
+    cages.tombstones = () => ({ 'hamster-golden': T2 });
+    const sync = createSaveSync(deps(f.api, slices));
+    await sync.link(TOKEN);
+    expect(slices.cages.imported).toHaveLength(0);
+    expect(await sync.confirmSave()).toBe('saved');
+    expect(f.puts).toHaveLength(1);
+    expect(f.puts[0].cages).toEqual({});
+  });
+
   it('보류 중이 아니면 confirm 은 네트워크 0(지금 연결 상태만)', async () => {
     const { api, order } = fakeApi();
     const sync = createSaveSync(deps(api, fakeSlices()));
@@ -288,6 +336,24 @@ describe('연결 후 자동 저장', () => {
     expect(puts).toHaveLength(1);
     expect(puts[0].setups.a.checks.cage).toBeDefined();
     expect(puts[0].cages.a.barGapMm).toBe(9);
+  });
+
+  it('디바운스 PUT(requestPush)도 케이지 tombstone 을 병합에 써서 서버의 옛 케이지가 PUT 본문에 없다', async () => {
+    vi.useFakeTimers();
+    const { api, puts, setServer } = fakeApi();
+    const cageRec = { v: 1 as const, type: 'LIVING_BOX' as const, floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: T1 };
+    setServer({ v: 1, animalTypeId: null, setups: {}, cages: { 'hamster-golden': cageRec }, reactions: emptyReactions() });
+    const slices = fakeSlices();
+    const cages = slices.cages as typeof slices.cages & { tombstones: () => Record<string, string> };
+    const sync = createSaveSync(deps(api, slices));
+    await linkC(sync, TOKEN);
+    cages.tombstones = () => ({ 'hamster-golden': T2 }); // 연결 뒤 케이지 삭제
+    slices.cages.value = {}; // removeCage 는 로컬 레코드도 지운다(연결 시 가져온 케이지 제거)
+    slices.setups.value = { mine: setup(T2) };
+    slices.setups.fire();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(puts.length).toBeGreaterThan(0);
+    expect(puts.at(-1)?.cages).toEqual({});
   });
 
   it('디바운스 PUT 은 서버에만 있는 레코드(다른 기기분)를 지우지 않는다', async () => {

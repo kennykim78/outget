@@ -459,6 +459,23 @@ describe('/save#t= 매직링크 복귀', () => {
     expect(await screen.findByRole('dialog', { name: COPY.save.confirmedTitle })).toBeInTheDocument();
   });
 
+  it('저장 PUT 실패(500) → "저장했어요" 아님: 확인 화면에 재시도 오류, 다시 누르면 성공 때만 저장했어요', async () => {
+    window.localStorage.setItem('ws.animalType', golden.id);
+    routes['PUT /api/save'] = { status: 500 };
+    window.history.replaceState(null, '', `/save#t=${TOKEN}`);
+    mount(pageOf('SAVE', {}, { path: '/save' }));
+    act(() => layerStore.initDeepLink('L8', {}, '/'));
+    fireEvent.click(await screen.findByRole('button', { name: COPY.save.connectCta }, { timeout: 15000 }));
+    await confirmSave();
+    const alert = await screen.findByRole('alert', undefined, { timeout: 15000 });
+    expect(alert).toHaveTextContent(COPY.save.errorNetwork);
+    expect(screen.queryByRole('dialog', { name: COPY.save.confirmedTitle })).toBeNull();
+    expect(screen.getByRole('dialog', { name: COPY.save.confirmTitle })).toBeInTheDocument();
+    routes['PUT /api/save'] = { status: 204 };
+    fireEvent.click(screen.getByRole('button', { name: COPY.save.confirmCta }));
+    expect(await screen.findByRole('dialog', { name: COPY.save.confirmedTitle }, { timeout: 15000 })).toBeInTheDocument();
+  });
+
   it('만료·사용됨(401) → "링크를 쓸 수 없어요" → [인증 메일 다시 보내기] → 입력', async () => {
     routes['POST /auth/magic/verify'] = { status: 401 };
     window.history.replaceState(null, '', `/save#t=${TOKEN}`);

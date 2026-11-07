@@ -4,7 +4,7 @@
 //     양쪽 v2·v3 레코드는 읽을 때 v3 로 승격(migrateSetup — 무효 레코드는 없는 것으로 본다).
 //   - cages·reactions: 레코드마다 updatedAt 큰 쪽, 동률(또는 둘 다 시각 없음) = 로컬(불변).
 //   - animalTypeId = 로컬 우선(로컬이 없을 때만 서버 값).
-//   - 한쪽에만 있는 레코드는 그쪽이 이긴다(레코드 삭제 tombstone 없음 — D23 알려진 한계).
+//   - 한쪽에만 있는 레코드는 그쪽이 이긴다. 예외: 케이지는 로컬 삭제 tombstone(opts.cageTombstones)이 서버 레코드보다 새것이면 삭제가 이긴다.
 //   winner: 병합 결과가 로컬과 다름 = 서버 기여, 서버와 다름 = 로컬 기여. 로컬 기여만 → 'local', 서버만 → 'server',
 //     둘 다(항목 병합으로 양쪽 모두와 달라진 레코드 포함) → 'mixed', 0 → 'none'.
 //   pushNeeded = 로컬 기여가 하나라도 있음(서버 스냅샷을 바꿔야 함). toLocal = 로컬과 달라진 레코드(병합본).
@@ -132,7 +132,12 @@ export function mergeSetup(l: SetupV3, s: SetupV3): SetupV3 {
   });
 }
 
-export function mergeSnapshots(local: SaveV1, server: SaveV1 | null): MergeResult {
+export interface MergeOptions {
+  /** 이 기기에서 지운 케이지(typeId → 삭제 시각). 삭제 시각 ≥ 서버 레코드 updatedAt 이면 서버본으로 되살리지 않는다. */
+  cageTombstones?: Record<string, string>;
+}
+
+export function mergeSnapshots(local: SaveV1, server: SaveV1 | null, opts: MergeOptions = {}): MergeResult {
   let localWins = 0;
   let serverWins = 0;
   const toLocal: MergeResult['toLocal'] = { setups: {}, cages: {}, reactions: null, animalTypeId: null };
@@ -141,12 +146,18 @@ export function mergeSnapshots(local: SaveV1, server: SaveV1 | null): MergeResul
     l: Record<string, T>,
     s: Record<string, T>,
     sink: Record<string, T>,
+    tombs?: Record<string, string>,
   ): Record<string, T> {
     const out: Record<string, T> = {};
     const ids = [...new Set([...Object.keys(l), ...Object.keys(s)])].sort();
     for (const id of ids) {
       const lv = has(l, id) ? l[id] : undefined;
       const sv = has(s, id) ? s[id] : undefined;
+      const del = tombs && has(tombs, id) ? tombs[id] : undefined;
+      if (lv === undefined && sv !== undefined && del !== undefined && time(sv.updatedAt) <= time(del)) {
+        localWins++; // 로컬 삭제가 이긴다 — 레코드를 뺀 본문을 PUT
+        continue;
+      }
       const p = pick(lv, sv);
       if (p === 'server' && sv !== undefined) {
         serverWins++;
@@ -186,7 +197,7 @@ export function mergeSnapshots(local: SaveV1, server: SaveV1 | null): MergeResul
   }
 
   const setups = mergeSetups(local.setups ?? {}, server?.setups ?? {});
-  const cages = mergeRecords(local.cages ?? {}, server?.cages ?? {}, toLocal.cages);
+  const cages = mergeRecords(local.cages ?? {}, server?.cages ?? {}, toLocal.cages, opts.cageTombstones);
 
   const lr = hasReactions(local.reactions) ? local.reactions : undefined;
   const sr = hasReactions(server?.reactions) ? server?.reactions : undefined;

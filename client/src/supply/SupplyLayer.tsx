@@ -7,7 +7,7 @@ import { useId, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { COPY } from '@ws/copy';
 import { SPEC_WORDS, chipSpecText, ruleText, specLine, type PublicRequirement, type SpecSchema, type SpecRule } from '@ws/engine';
 import { useLayerPage } from '../app/layerPage';
-import { useCageCompat as useChecklistCompat } from '../checklist/cageCompat';
+import { toDeriveOptions, useCageCompatState as useChecklistCompat } from '../checklist/cageCompat';
 import { deriveChecklist, type ItemState } from '../checklist/derive';
 import { useSetup } from '../checklist/setupStore';
 import { CAGE_ITEM_ID, toUserContext, useCage } from '../context/cageStore';
@@ -178,8 +178,11 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
   const checklistCompat = useChecklistCompat(typeId, reqs, page.catalogUrl, cage);
   const state = useMemo<ItemState | null>(() => {
     if (!requirement || !setup?.answeredAt) return null;
-    const row = deriveChecklist([requirement], setup, checklistCompat ? { compat: checklistCompat } : undefined).groups.flatMap((g) => g.rows)[0];
-    return row ? row.state : null;
+    const row = deriveChecklist([requirement], setup, toDeriveOptions(checklistCompat)).groups.flatMap((g) => g.rows)[0];
+    if (!row) return null;
+    // 케이지는 있는데 호환 미판정(로드 중·실패) — READY(✓)를 확정하지 않는다(칩 보류).
+    if (checklistCompat.pending && row.state === 'READY') return null;
+    return row.state;
   }, [requirement, setup, checklistCompat]);
 
   if (!requirement || !type) return null;

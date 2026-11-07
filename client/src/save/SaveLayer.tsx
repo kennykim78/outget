@@ -13,7 +13,7 @@ import { BACKUP_RETENTION_DAYS, COPY, formatCopy } from '@ws/copy';
 import type { PublicAnimalType, PublicRequirement } from '@ws/engine';
 import { useAnimalSelection } from '../animal/selection';
 import { useLayerPage } from '../app/layerPage';
-import { useCageCompat } from '../checklist/cageCompat';
+import { toDeriveOptions, useCageCompatState } from '../checklist/cageCompat';
 import { deriveChecklist } from '../checklist/derive';
 import { useSetup } from '../checklist/setupStore';
 import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
@@ -90,8 +90,8 @@ function SaveSummary({ type, reqs, catalogUrl }: { type: PublicAnimalType; reqs:
   // P1 MAJOR-2: 홈 B·L2 와 같은 경로 — 케이지 스키마로 읽고, 케이지가 있을 때만 카탈로그를 불러 △(compat)를 넘긴다(개수 일치).
   const cageSchema = useMemo(() => reqs.find((r) => r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null, [reqs]);
   const { cage } = useCage(type.id, { schema: cageSchema });
-  const compat = useCageCompat(type.id, reqs, catalogUrl, cage);
-  const view = useMemo(() => deriveChecklist(reqs, setup, compat ? { compat } : undefined), [reqs, setup, compat]);
+  const compatState = useCageCompatState(type.id, reqs, catalogUrl, cage);
+  const view = useMemo(() => deriveChecklist(reqs, setup, toDeriveOptions(compatState)), [reqs, setup, compatState]);
   const answered = Boolean(setup?.answeredAt);
   const parts: string[] = [type.displayName];
   if (answered) {
@@ -123,6 +123,8 @@ export default function SaveLayer({ close }: LayerContentProps) {
   const [winner, setWinner] = useState<SaveMergeWinner | null>(null);
   /** P1 MAJOR-1: 연결은 됐지만 로컬·서버 모두 저장할 준비가 없음(PUT 0) — "저장했어요" 대신 connectedEmpty. */
   const [linkedEmpty, setLinkedEmpty] = useState(false);
+  /** 첫 저장(PUT) 실패 — 확인 화면에서 다시 시도(재시도 가능 오류). */
+  const [saveFailed, setSaveFailed] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const entryRef = useRef<PromptEntry>(promptEntry());
   // 89 스펙 지우기 스텝 상태 — 메모리만(저장·이벤트 0).
@@ -259,12 +261,15 @@ export default function SaveLayer({ close }: LayerContentProps) {
   const onConfirmSave = () => {
     if (view !== 'confirmSave') return;
     setView('saving');
+    setSaveFailed(false);
     void saveLayerDeps
       .sync()
-      .confirm()
-      .then((ok) => {
+      .confirmSave()
+      .then((r) => {
         if (!alive.current) return;
-        setView((v) => (v === 'saving' ? (ok ? 'confirmed' : 'expired') : v));
+        // 연결 여부 ≠ 저장 결과 — PUT 성공(saved)일 때만 "저장했어요". 실패는 확인 화면에서 다시 시도.
+        if (r === 'failed') setSaveFailed(true);
+        setView((v) => (v === 'saving' ? (r === 'saved' ? 'confirmed' : r === 'failed' ? 'confirmSave' : 'expired') : v));
       });
   };
 
@@ -710,6 +715,11 @@ export default function SaveLayer({ close }: LayerContentProps) {
             {maskedEmail ? (
               <p className="ws-t-body" data-ws-save="confirm-masked">
                 {formatCopy(COPY.save.confirmMasked, { name: maskedEmail })}
+              </p>
+            ) : null}
+            {saveFailed && !busy ? (
+              <p className="ws-t-meta ws-save-muted" role="alert" data-ws-error="save-failed">
+                {COPY.save.errorNetwork}
               </p>
             ) : null}
             {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}

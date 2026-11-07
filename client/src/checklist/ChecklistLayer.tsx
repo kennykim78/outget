@@ -17,7 +17,7 @@ import { LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import { layerStore, useLayer, type LayerProps } from '../ui/layer/useLayer';
 import CageStep from '../context/CageStep';
 import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
-import { useCageCompat } from './cageCompat';
+import { toDeriveOptions, useCageCompatState } from './cageCompat';
 import ChecklistRowView from './ChecklistRow';
 import { deriveChecklist, type ChecklistRow, type ChecklistView } from './derive';
 import SetupQuestions from './SetupQuestions';
@@ -25,7 +25,12 @@ import { useSetup } from './setupStore';
 import './checklist.css';
 
 function SummaryBand({ view, titleId }: { view: ChecklistView; titleId: string }) {
-  const title = view.allRequiredReady ? COPY.checklist.requiredDone : copyFmt('checklist.requiredLeft', { n: view.remainingRequired });
+  // 케이지 호환 미판정 중에는 완료·남은 개수를 확정하지 않는다(기존 중립 문구).
+  const title = view.compatPending
+    ? COPY.homeB.nowBeforeSetup
+    : view.allRequiredReady
+      ? COPY.checklist.requiredDone
+      : copyFmt('checklist.requiredLeft', { n: view.remainingRequired });
   const note = view.allRequiredReady ? copyAt('checklist.recommendedNote') : null;
   return (
     <div className="ws-check-band">
@@ -79,8 +84,8 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   // 내 케이지(L6 스텝) + 호환 △(F2-3): 케이지가 있을 때만 엔진 requirementCompat, 없으면 영향 0.
   const cageSchema = useMemo(() => reqs.find((r) => r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null, [reqs]);
   const { cage } = useCage(type?.id ?? '', { schema: cageSchema });
-  const compat = useCageCompat(type?.id ?? '', reqs, page.catalogUrl, cage);
-  const view = useMemo(() => deriveChecklist(reqs, setup, compat ? { compat } : undefined), [reqs, setup, compat]);
+  const compatState = useCageCompatState(type?.id ?? '', reqs, page.catalogUrl, cage);
+  const view = useMemo(() => deriveChecklist(reqs, setup, toDeriveOptions(compatState)), [reqs, setup, compatState]);
   const answered = setup !== null && setup.answeredAt !== null;
   const [editing, setEditing] = useState(false);
   const cageStep = props.step === 'L6' && answered && cageSchema !== null;

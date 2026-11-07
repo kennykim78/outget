@@ -31,13 +31,17 @@ export interface ChecklistView {
   /** REQUIRED 중 ✓ 가 아닌 것(△ 포함). */
   remainingRequired: number;
   requiredTotal: number;
-  /** REQUIRED ≥ 1 이고 전부 ✓. */
+  /** REQUIRED ≥ 1 이고 전부 ✓ — 케이지 호환 미판정(compatPending) 중에는 항상 false(완료 확정 보류). */
   allRequiredReady: boolean;
+  /** 케이지는 있는데 호환 판정이 아직 없다(로드 중·실패) — 완료·100%·남은 개수를 확정하지 않는다. */
+  compatPending: boolean;
 }
 
 export interface DeriveOptions {
   /** 케이지 호환 판정(R5). CHECK/FAIL 이면 체크 여부와 무관하게 △. */
   compat?: Record<string, 'OK' | 'CHECK' | 'FAIL'>;
+  /** 케이지가 있는데 compat 가 아직 없음(로드 중·실패) — "문제 없음"과 구분해 완료 확정을 보류한다. */
+  compatPending?: boolean;
 }
 
 const hintRank = (h: string): number => {
@@ -86,11 +90,14 @@ export function deriveChecklist(
   const required = rows.filter((r) => r.requirement.priority === 'REQUIRED');
   const ready = required.filter((r) => r.state === 'READY').length;
   const requiredTotal = required.length;
+  const compatPending = opts?.compatPending === true;
+  const percent = requiredTotal === 0 ? 0 : Math.floor((ready * 100) / requiredTotal);
   return {
     groups,
-    readyPercent: requiredTotal === 0 ? 0 : Math.floor((ready * 100) / requiredTotal),
+    readyPercent: compatPending ? Math.min(percent, 99) : percent,
     remainingRequired: requiredTotal - ready,
     requiredTotal,
-    allRequiredReady: requiredTotal > 0 && ready === requiredTotal,
+    allRequiredReady: !compatPending && requiredTotal > 0 && ready === requiredTotal,
+    compatPending,
   };
 }

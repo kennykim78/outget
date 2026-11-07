@@ -3,7 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { SpecSchema } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { wsStorage } from '../lib/storage';
+import { COPY } from '@ws/copy';
+import { createStorage, wsStorage } from '../lib/storage';
 
 vi.mock('../ui/layer/Layer', () => ({
   useLayerChrome: () => ({ setTitle: () => {}, setBack: () => {} }),
@@ -80,5 +81,37 @@ describe('CageStep type 옵션', () => {
     expect(screen.queryByDisplayValue('GLASS_TANK')).toBeNull();
     expect(screen.queryByDisplayValue('GRID_PANEL')).toBeNull();
     expect(wsStorage.get(cageKey(TYPE_ID))).toBeNull();
+  });
+});
+
+describe('CageStep 저장소 쓰기 실패(#7)', () => {
+  it('localStorage 쓰기 실패 → "이 기기에만 저장돼요" 대신 저장 불가 안내, 이전 화면으로 돌아가지 않는다', () => {
+    const failing = createStorage(
+      () =>
+        ({
+          length: 0,
+          key: () => null,
+          getItem: () => null,
+          setItem: () => {
+            throw new Error('quota');
+          },
+          removeItem: () => {
+            throw new Error('quota');
+          },
+          clear: () => {},
+        }) as unknown as Storage,
+    );
+    const onBack = vi.fn();
+    render(<CageStep typeId={TYPE_ID} schema={SCHEMA} backLabel="뒤로" onBack={onBack} storage={failing} />);
+    expect(screen.getByText(COPY.cage.deviceOnly)).toBeInTheDocument();
+    const fill = (name: RegExp, v: string) => fireEvent.change(screen.getByLabelText(name), { target: { value: v } });
+    fireEvent.click(screen.getByDisplayValue('LIVING_BOX'));
+    fill(/바닥 가로/, '80');
+    fill(/바닥 세로/, '50');
+    fill(/높이/, '40');
+    fireEvent.click(screen.getAllByRole('button').find((b) => !(b as HTMLButtonElement).disabled && /저장/.test(b.textContent ?? '')) as HTMLElement);
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.getByText(COPY.checklist.storageUnavailable)).toBeInTheDocument();
+    expect(screen.queryByText(COPY.cage.deviceOnly)).toBeNull();
   });
 });

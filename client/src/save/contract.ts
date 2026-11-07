@@ -130,6 +130,8 @@ export interface Saveable<P> {
   export(): P;
   import(p: P): void;
   subscribe(fn: () => void): () => void;
+  /** 레코드 삭제 tombstone(typeId → 삭제 시각 ISO) — 서버에는 보내지 않고 병합에서만 쓴다(cages 만 구현). */
+  tombstones?(): Record<string, string>;
 }
 
 /** 조각별 페이로드 타입. */

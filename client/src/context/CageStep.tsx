@@ -2,9 +2,10 @@
 //   필드 = cage specSchema(형태 라디오 2×2 → 바닥 가로·세로·높이 3열 → 철망 간격(WIRE 만, D7) 1열). URL·이미지 입력 없음.
 //   저장 = ws.context.{typeId}.cage 스키마 키만(cageStore.validateCage — 범위 밖이면 [저장] 비활성). "이 기기에만 저장돼요".
 //   저장·지우기 후 onDone(이전 스텝). 마스코트 0.
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { COPY } from '@ws/copy';
 import type { SpecSchema } from '@ws/engine';
+import { wsStorage, type WsStorage } from '../lib/storage';
 import { useSaveLinked } from '../save/useSaveLinked';
 import SpecForm from '../speccheck/SpecForm';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
@@ -19,6 +20,8 @@ export interface CageStepProps {
   backLabel: string;
   /** 이전 스텝으로(뒤로·저장·지우기 후). */
   onBack(): void;
+  /** 테스트 주입(기본 = 앱 전역 wsStorage). */
+  storage?: WsStorage;
 }
 
 const NUMBER_KEYS = ['floorWcm', 'floorDcm', 'heightCm'] as const;
@@ -82,12 +85,15 @@ function pickSchema(schema: SpecSchema, keys: readonly string[]): SpecSchema {
   };
 }
 
-export default function CageStep({ typeId, schema, backLabel, onBack }: CageStepProps) {
+export default function CageStep({ typeId, schema, backLabel, onBack, storage = wsStorage }: CageStepProps) {
   const chrome = useLayerChrome();
-  const { cage, save, remove } = useCage(typeId, { schema });
+  const { cage, save, remove } = useCage(typeId, { schema, storage });
   const [raw, setRaw] = useState<Record<string, string>>(() => toRaw(cage));
   // 이메일로 저장 중이면 "이 기기에만 저장돼요"는 사실이 아니므로 숨긴다(F2-3).
   const linked = useSaveLinked();
+  // 저장소 쓰기 실패(메모리 대체) — "이 기기에만 저장돼요"가 아니라 저장 불가 안내, 저장·지우기 뒤 이전 화면으로 돌아가지 않고 안내를 보인다.
+  const [unavailable, setUnavailable] = useState(() => storage.isMemoryOnly());
+  useEffect(() => storage.onUnavailable(() => setUnavailable(true)), [storage]);
 
   useLayoutEffect(() => {
     chrome.setTitle(COPY.cage.title);
@@ -111,11 +117,14 @@ export default function CageStep({ typeId, schema, backLabel, onBack }: CageStep
   const onChange = (key: string, value: string) => setRaw((r) => ({ ...r, [key]: value }));
 
   const onSave = () => {
-    if (parsed !== null && save(parsed)) onBack();
+    if (parsed === null || !save(parsed)) return;
+    if (storage.isMemoryOnly()) setUnavailable(true);
+    else onBack();
   };
   const onDelete = () => {
     remove();
-    onBack();
+    if (storage.isMemoryOnly()) setUnavailable(true);
+    else onBack();
   };
 
   return (
@@ -149,7 +158,11 @@ export default function CageStep({ typeId, schema, backLabel, onBack }: CageStep
               {COPY.cage.delete}
             </button>
           ) : null}
-          {linked ? null : (
+          {unavailable ? (
+            <p className="ws-t-meta ws-spec-muted" role="status" data-ws-note="storage-unavailable">
+              {COPY.checklist.storageUnavailable}
+            </p>
+          ) : linked ? null : (
             <p className="ws-t-meta ws-spec-muted" data-ws-note="device-only">
               {COPY.cage.deviceOnly}
             </p>

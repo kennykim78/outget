@@ -21,10 +21,16 @@ export type CageInput = Omit<CageV1, 'v' | 'updatedAt'>;
 const CAGE_VERSION = 1;
 const PREFIX = 'ws.context.';
 const SUFFIX = '.cage';
+/** 삭제 tombstone 키(ws.context.{typeId}.cagedel) — 삭제 시각 ISO 하나. 서버로 보내지 않고 병합에서만 쓴다. */
+const DEL_SUFFIX = '.cagedel';
 
 export function cageKey(typeId: string): string {
   if (!isWsId(typeId)) throw new Error(`cageStore: 잘못된 typeId: ${String(typeId)}`);
   return `${PREFIX}${typeId}${SUFFIX}`;
+}
+
+function delKey(typeId: string): string {
+  return `${PREFIX}${typeId}${DEL_SUFFIX}`;
 }
 
 function typeIdOfKey(key: string): string | null {
@@ -126,14 +132,30 @@ export function writeCage(
   if (!c) return null;
   const rec: CageV1 = { v: 1, ...c, updatedAt: now };
   storage.set(key, JSON.stringify(rec));
+  storage.remove(delKey(typeId));
   emit(key);
   return rec;
 }
 
-export function removeCage(storage: WsStorage, typeId: string): void {
+/** 삭제 = 키 삭제 + (있던 케이지면) 삭제 시각 tombstone — 서버 병합이 옛 서버 케이지로 되살리지 않게. */
+export function removeCage(storage: WsStorage, typeId: string, now: string = new Date().toISOString()): void {
   const key = cageKey(typeId);
+  const had = storage.get(key) !== null;
   storage.remove(key);
+  if (had) storage.set(delKey(typeId), now);
   emit(key);
+}
+
+/** typeId → 삭제 시각(ISO). 형식이 틀린 값은 버린다. */
+function readTombstones(storage: WsStorage): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of storage.keys(PREFIX)) {
+    if (!k.endsWith(DEL_SUFFIX)) continue;
+    const id = k.slice(PREFIX.length, k.length - DEL_SUFFIX.length);
+    const v = storage.get(k);
+    if (isWsId(id) && isIso(v)) out[id] = v;
+  }
+  return out;
 }
 
 /** 엔진 입력(C-R5-1): {ownedItems:{cage:{type,floorWcm,floorDcm,heightCm,barGapMm?}}}. 케이지 없으면 undefined. */
@@ -256,10 +278,17 @@ export function createCageSaveable(
         const c = normalizeStored(rec, schema);
         if (!c) continue;
         const key = cageKey(id);
+        // 이 기기에서 지운 뒤(삭제 시각 ≥ 레코드 시각)의 옛 레코드는 받지 않는다. 더 새 레코드면 tombstone 해제.
+        const del = storage.get(delKey(id));
+        if (isIso(del)) {
+          if (Date.parse(c.updatedAt) <= Date.parse(del)) continue;
+          storage.remove(delKey(id));
+        }
         storage.set(key, JSON.stringify(c));
         emit(key);
       }
     },
+    tombstones: () => readTombstones(storage),
     subscribe(fn) {
       anyListeners.add(fn);
       const onStorage = (e: StorageEvent): void => {

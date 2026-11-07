@@ -136,3 +136,31 @@ describe('mergeSnapshots — 병합 표 5케이스', () => {
     expect(m.toLocal.setups.b).toBeDefined();
   });
 });
+
+describe('케이지 삭제 tombstone', () => {
+  it('로컬에서 지운 케이지(삭제 시각 ≥ 서버 updatedAt)는 서버본으로 부활하지 않고 PUT 대상(pushNeeded)', () => {
+    const m = mergeSnapshots(snap(), snap({ cages: { a: cage(T1) } }), { cageTombstones: { a: T2 } });
+    expect(m.merged.cages).toEqual({});
+    expect(m.toLocal.cages).toEqual({});
+    expect(m.pushNeeded).toBe(true);
+    expect(m.winner).toBe('local');
+  });
+
+  it('경계: 삭제 시각 == 서버 updatedAt(동시각)이면 삭제 승', () => {
+    const m = mergeSnapshots(snap(), snap({ cages: { a: cage(T2) } }), { cageTombstones: { a: T2 } });
+    expect(m.merged.cages).toEqual({});
+    expect(m.toLocal.cages).toEqual({});
+    expect(m.pushNeeded).toBe(true);
+  });
+
+  it('삭제 뒤에 다른 기기가 새로 쓴 서버 케이지(updatedAt > 삭제 시각)는 서버 승', () => {
+    const m = mergeSnapshots(snap(), snap({ cages: { a: cage(T3) } }), { cageTombstones: { a: T2 } });
+    expect(m.merged.cages.a.updatedAt).toBe(T3);
+    expect(m.toLocal.cages.a).toBeDefined();
+  });
+
+  it('tombstone 없으면 기존 규칙(서버 전용 레코드는 서버 승)', () => {
+    const m = mergeSnapshots(snap(), snap({ cages: { a: cage(T1) } }));
+    expect(m.merged.cages.a).toBeDefined();
+  });
+});

@@ -285,3 +285,33 @@ describe('Saveable(cages)', () => {
     expect(fn).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('케이지 삭제 tombstone(서버 병합 부활 방지)', () => {
+  it('removeCage(있던 케이지) → 삭제 시각 기록, 다시 저장하면 지운다, 없던 케이지 삭제는 기록 0', () => {
+    const sv = createCageSaveable(store, () => SCHEMA);
+    removeCage(store, HG);
+    expect(sv.tombstones?.()).toEqual({});
+    writeCage(store, HG, BOX, SCHEMA, T0);
+    removeCage(store, HG);
+    const t = sv.tombstones?.() ?? {};
+    expect(Object.keys(t)).toEqual([HG]);
+    expect(Number.isFinite(Date.parse(t[HG]))).toBe(true);
+    expect(sv.export()).toEqual({});
+    writeCage(store, HG, BOX, SCHEMA, T1);
+    expect(sv.tombstones?.()).toEqual({});
+  });
+
+  it('import: 삭제 뒤보다 새 서버 케이지는 받고(tombstone 해제), 삭제 시각 이하의 옛 케이지는 받지 않는다', () => {
+    const sv = createCageSaveable(store, () => SCHEMA);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-05T00:00:00.000Z'));
+    writeCage(store, HG, BOX, SCHEMA, T0);
+    removeCage(store, HG);
+    vi.useRealTimers();
+    sv.import({ [HG]: { v: 1, ...BOX, updatedAt: T1 } });
+    expect(sv.export()).toEqual({});
+    sv.import({ [HG]: { v: 1, ...BOX, updatedAt: '2026-10-06T00:00:00.000Z' } });
+    expect(Object.keys(sv.export())).toEqual([HG]);
+    expect(sv.tombstones?.()).toEqual({});
+  });
+});

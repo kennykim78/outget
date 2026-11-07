@@ -34,13 +34,26 @@ export function cageCompatMap(
   return out;
 }
 
-/** 케이지가 있을 때만 카탈로그를 불러(동일 출처) 맵을 만든다. 케이지 없음·로드 전·실패 → undefined(영향 0). */
-export function useCageCompat(
+export interface CageCompatState {
+  /** 판정 맵. 케이지 없음·미판정 → undefined. */
+  compat: CompatMap | undefined;
+  /** 케이지는 있는데 판정이 아직 없다(카탈로그 로드 중·실패) — "문제 없음"이 아니다. */
+  pending: boolean;
+}
+
+/** deriveChecklist 옵션으로(미판정이면 compatPending). */
+export function toDeriveOptions(s: CageCompatState): DeriveOptions | undefined {
+  if (s.compat) return { compat: s.compat };
+  return s.pending ? { compatPending: true } : undefined;
+}
+
+/** 케이지가 있을 때만 카탈로그를 불러(동일 출처) 맵을 만든다. 케이지 없음 → 영향 0, 있는데 로드 전·실패 → pending(완료 확정 보류). */
+export function useCageCompatState(
   typeId: string,
   reqs: readonly PublicRequirement[],
   catalogUrl: string,
   cage: CageV1 | null,
-): CompatMap | undefined {
+): CageCompatState {
   const [engine, setEngine] = useState<Engine | null>(null);
   const need = cage !== null;
   useEffect(() => {
@@ -57,7 +70,18 @@ export function useCageCompat(
     };
   }, [need, catalogUrl]);
   return useMemo(() => {
-    if (!cage || !engine) return undefined;
-    return cageCompatMap(engine, typeId, reqs, toUserContext(cage));
+    if (!cage) return { compat: undefined, pending: false };
+    if (!engine) return { compat: undefined, pending: true };
+    return { compat: cageCompatMap(engine, typeId, reqs, toUserContext(cage)), pending: false };
   }, [cage, engine, typeId, reqs]);
+}
+
+/** 기존 호출용 — 맵만(미판정 구분이 필요하면 useCageCompatState). */
+export function useCageCompat(
+  typeId: string,
+  reqs: readonly PublicRequirement[],
+  catalogUrl: string,
+  cage: CageV1 | null,
+): CompatMap | undefined {
+  return useCageCompatState(typeId, reqs, catalogUrl, cage).compat;
 }

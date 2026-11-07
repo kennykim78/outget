@@ -132,4 +132,17 @@ describe('deriveChecklist', () => {
     expect(v.groups.flatMap((g) => g.rows)).toHaveLength(REQS.length);
     expect(v.readyPercent).toBe(0);
   });
+  it('호환 미판정(compatPending) — 전부 ✓ 여도 완료·100% 확정 보류(allRequiredReady false, ≤99%), 판정되면 완료', () => {
+    const reqs = [req('cage', 'REQUIRED'), req('wheel', 'REQUIRED')];
+    const st = setup({ cage: 'OWNED', wheel: 'OWNED' });
+    const pending = deriveChecklist(reqs, st, { compatPending: true });
+    expect(pending.compatPending).toBe(true);
+    expect(pending.allRequiredReady).toBe(false);
+    expect(pending.readyPercent).toBeLessThanOrEqual(99);
+    const done = deriveChecklist(reqs, st, { compat: { wheel: 'OK' } });
+    expect(done.compatPending).toBe(false);
+    expect(done.allRequiredReady).toBe(true);
+    expect(done.readyPercent).toBe(100);
+    expect(deriveChecklist(reqs, st).allRequiredReady).toBe(true);
+  });
 });

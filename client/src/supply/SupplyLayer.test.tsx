@@ -235,6 +235,17 @@ describe('L4 상태 칩 — 케이지 △ (홈B·L2 와 일치)', () => {
     await waitFor(() => expect(d.querySelector('.ws-state-chip')).toHaveTextContent(COPY.glyphLabel.check));
   });
 
+  it('케이지 있음 + 카탈로그 로드 중: 거짓 ✓ 확정 없음(칩 보류)', async () => {
+    localStorage.setItem(setupKey(golden.id), READY_SETUP);
+    localStorage.setItem(`ws.context.${golden.id}.cage`, CAGE);
+    loadSpecCatalogMock.mockReturnValue(new Promise(() => undefined));
+    const cageReq = req('cage', 'REQUIRED', '케이지');
+    cageReq.item = { ...cageReq.item, specSchema: CAGE_SCHEMA };
+    const d = openL4(pageWith([wheel(), cageReq]));
+    await waitFor(() => expect(loadSpecCatalogMock).toHaveBeenCalled());
+    expect(d.querySelector('.ws-state-chip')).toBeNull();
+  });
+
   it('케이지 없음: 기존 ✓ 준비완료, 체크리스트용 카탈로그 요청 0', () => {
     localStorage.setItem(setupKey(golden.id), READY_SETUP);
     loadSpecCatalogMock.mockClear();

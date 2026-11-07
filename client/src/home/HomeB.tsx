@@ -8,7 +8,7 @@ import { COPY, formatCopy } from '@ws/copy';
 import { useAnimalSelection } from '../animal/selection';
 import { productSpecLines } from '../app/staticText';
 import { deriveChecklist, type ItemState } from '../checklist/derive';
-import { useCageCompat } from '../checklist/cageCompat';
+import { toDeriveOptions, useCageCompatState } from '../checklist/cageCompat';
 import { useSetup } from '../checklist/setupStore';
 import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
 import { track } from '../events/track';
@@ -55,8 +55,8 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, on
   // △(F2-3 · DR #38): 내 케이지가 있을 때만 엔진 requirementCompat(카탈로그 로드도 그때만) — ChecklistLayer 와 같은 경로.
   const cageSchema = useMemo(() => reqs.find((r) => r.supplyItemId === CAGE_ITEM_ID)?.item.specSchema ?? null, [reqs]);
   const { cage } = useCage(type.id, { schema: cageSchema });
-  const compat = useCageCompat(type.id, reqs, page.catalogUrl, cage);
-  const view = useMemo(() => deriveChecklist(reqs, setup, compat ? { compat } : undefined), [reqs, setup, compat]);
+  const compatState = useCageCompatState(type.id, reqs, page.catalogUrl, cage);
+  const view = useMemo(() => deriveChecklist(reqs, setup, toDeriveOptions(compatState)), [reqs, setup, compatState]);
   const requiredRows = view.groups.find((g) => g.priority === 'REQUIRED')?.rows ?? [];
 
   const chips = requiredRows
@@ -67,8 +67,9 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, on
   // '필수 준비 끝'·완료 블록은 REQUIRED ≥ 1 이고 전부 ✓ 일 때만(△ 는 미완료) — REQUIRED 0 인 시드가 거짓 완료를 띄우지 않게(K1).
   const allDone = view.requiredTotal >= 1 && view.allRequiredReady;
   // 숫자 문구는 L3 응답 후에만(answeredAt — 건너뛰기 포함). REQUIRED 0 이면 숫자 줄 없음.
-  const countLine = answered && view.requiredTotal >= 1 ? (allDone ? copyAt('homeB.nowDone') : copyFmt('homeB.nowRemaining', { n: remaining })) : null;
-  const nowSub = answered ? countLine : COPY.homeB.nowBeforeSetup;
+  // 케이지 호환 미판정(로드 중·실패)이면 숫자·완료를 확정하지 않는다.
+  const countLine = answered && view.requiredTotal >= 1 && !view.compatPending ? (allDone ? copyAt('homeB.nowDone') : copyFmt('homeB.nowRemaining', { n: remaining })) : null;
+  const nowSub = answered && !view.compatPending ? countLine : COPY.homeB.nowBeforeSetup;
   const situation = setup && setup.firstTime !== null ? COPY.situation[setup.firstTime ? 'FIRST_TIME' : 'ALREADY'] : null;
   const statusTail = countLine;
   const statusLine = answered ? (statusTail ? [situation, statusTail].filter(Boolean).join(' · ') : null) : type.oneLiner;
