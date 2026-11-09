@@ -145,9 +145,9 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
 
     await gotoHydrated(page, TYPE.home);
     await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
-    // L3 응답 후: 숫자 줄. 케이지 ✓, 쳇바퀴는 케이지 등록으로 △.
+    // L3 응답 후: 숫자 줄. 케이지는 등록값 60×40×35 가 골든햄스터 최소(100×50×50)에 못 미쳐 △(arch-23 ③ — 보유 케이지 규격 미달 연결), 쳇바퀴도 케이지 등록으로 △.
     await expect(page.locator('section[data-ws-section="now"]')).toHaveAttribute('data-ws-answered', '1');
-    await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'ready');
+    await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
     await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
     await assertScreen(page, '홈 B(L3 후)');
 
@@ -252,10 +252,10 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     expect(cage).toMatchObject({ type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35 });
     expect(await p2.evaluate(() => localStorage.getItem('ws.animalType'))).toBe(TYPE.id);
 
-    // 화면 복원: 홈 B 칩(케이지 ✓ · 쳇바퀴 △) · L5 케이지 줄.
+    // 화면 복원: 홈 B 칩(케이지 △ — 등록값이 최소 미달 · 쳇바퀴 △) · L5 케이지 줄.
     await gotoHydrated(p2, TYPE.home);
     await expect(p2.locator('h1#ws-context-title')).toHaveText(TYPE.name);
-    await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'ready');
+    await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
     await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
     await assertScreen(p2, '다른 기기 홈 B');
     await gotoHydrated(p2, `${TYPE.home}/check/wheel`);
