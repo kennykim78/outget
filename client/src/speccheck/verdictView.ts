@@ -7,6 +7,7 @@ import {
   isFieldOptionalForDisplay,
   optionLabel,
   splitLabel,
+  isNoCriteria,
   worstVerdict,
   type CompatVerdict,
   type EngineCatalog,
@@ -22,7 +23,8 @@ import {
 import type { CageV1 } from '../context/cageStore';
 import { CAGE_ITEM_ID } from '../context/cageStore';
 
-export type Tone = 'ready' | 'check' | 'fail';
+/** 'none' = 종별 규격 기준 없음(arch-23) — 기존 ink-muted·bg-100 토큰만, 새 색 없음. */
+export type Tone = 'ready' | 'check' | 'fail' | 'none';
 
 export interface VerdictMark {
   glyph: string;
@@ -30,8 +32,14 @@ export interface VerdictMark {
   label: string;
 }
 
-/** 제품 규격 단(§3): OK ✓ · BELOW_RECOMMENDED △ · BELOW_MIN ✕ · CHECK ?(D-42). */
-export function productMark(v: Verdict): VerdictMark {
+/** 제품 단이 「종별 규격 기준 없음」인가 — 판별은 엔진 isNoCriteria 하나(클라이언트 재계산 없음). */
+export function isProductNoCriteria(product: SpecCheckResult['product']): boolean {
+  return isNoCriteria(product);
+}
+
+/** 제품 규격 단(§3): OK ✓ · BELOW_RECOMMENDED △ · BELOW_MIN ✕ · CHECK ?(D-42). 기준 없음 CHECK 는 ○ + 별도 라벨(arch-23). */
+export function productMark(v: Verdict, noCriteria = false): VerdictMark {
+  if (v === 'CHECK' && noCriteria) return { glyph: GLYPH.later, tone: 'none', label: COPY.verdict.productNoCriteria };
   switch (v) {
     case 'OK':
       return { glyph: GLYPH.ready, tone: 'ready', label: COPY.verdict.productOk };
@@ -66,7 +74,7 @@ export function overallMark(result: SpecCheckResult): VerdictMark {
   if (result.verdict === 'CHECK' && result.product.verdict !== 'CHECK') {
     return compatMark('CHECK') as VerdictMark;
   }
-  return productMark(result.verdict);
+  return productMark(result.verdict, result.verdict === 'CHECK' && isProductNoCriteria(result.product));
 }
 
 /** 호환 단 표시 여부: 제품이 최소 미달이면 숨긴다(제품 미달이 우선 — 사용 가능해 보이는 오독 방지). */

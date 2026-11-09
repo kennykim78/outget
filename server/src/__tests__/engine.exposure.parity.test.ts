@@ -292,6 +292,22 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
     });
   });
 
+  // M-1(QA): 최소·권장 해석 규칙이 둘 다 빈 요구사항(무규격)을 가리키는 상품은 meetsMinSpec:true·ACTIVE·VERIFIED 여도 양쪽 모두 비노출.
+  it('무규격 요구사항 + ACTIVE + meetsMinSpec:true + VERIFIED 상품 → 엔진·mjs 모두 노출 false', () => {
+    const s = promoted();
+    const before = engineIds(s, FIXTURE_AS_OF);
+    expect(before.curatedProducts).toContain('cp-001');
+    expect(mjsIds(s, FIXTURE_AS_OF).curatedProducts).toContain('cp-001');
+    patch(s, 'supplyRequirements', 'req-syrian-wheel', { minSpec: { rules: [] }, recommendedSpec: { rules: [] } });
+    patch(s, 'animalTypes', 'hamster-golden', { careOverrides: {} });
+    const prod = s.curatedProducts.find((p) => p.id === 'cp-001');
+    expect(prod?.status).toBe('ACTIVE');
+    expect(prod?.meetsMinSpec).toBe(true);
+    expect(engineIds(s, FIXTURE_AS_OF).curatedProducts).not.toContain('cp-001');
+    expect(mjsIds(s, FIXTURE_AS_OF).curatedProducts).not.toContain('cp-001');
+    expect(engineIds(s, FIXTURE_AS_OF)).toEqual(mjsIds(s, FIXTURE_AS_OF));
+  });
+
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {
     for (const v of [null, '2026-11-04', 'bad']) { // FIXTURE_AS_OF(2026-11-03) 다음 날 = 미래
       const s = promoted();

@@ -11,6 +11,8 @@ import { bundle, golden, pageOf, product, req } from '../test/fixtures';
 import { wsStorage } from '../lib/storage';
 import { writeSaveState } from '../save/saveStateStore';
 import { layerStore } from '../ui/layer/useLayer';
+import { vetHrefFor } from './HomeB';
+import { parseVetFilter } from '../vet/filters';
 import { sortVets } from '../vet/order';
 import VetPage from '../vet/VetPage';
 
@@ -170,7 +172,7 @@ describe('홈 B', () => {
     expect(b).toHaveTextContent('참고 범위예요. 실제 가격은 판매처마다 달라요');
     expect(b.querySelector('a[href="/hamster/golden/setup"]')).not.toBeNull();
     expect(b.textContent).not.toContain('세트');
-    expect(document.querySelector('[data-ws-section="vet"] a')).toHaveAttribute('href', '/vet');
+    expect(document.querySelector('[data-ws-section="vet"] a')).toHaveAttribute('href', `/vet?treats=${golden.id}`);
   });
 
   it('URL 동물이 저장값과 다르면 ws.animalType 에 저장(via url), [친구 바꾸기] → L1', () => {
@@ -204,12 +206,18 @@ describe('홈 B', () => {
     expect(listIds).toEqual(railIds);
   });
 
+  it('④ 병원 링크 href 에 동물 필터 쿼리(?treats=), VetPage 가 그 쿼리를 그대로 읽는다', () => {
+    expect(vetHrefFor(golden.id)).toBe(`/vet?treats=${golden.id}`);
+    const q = vetHrefFor(golden.id).split('?')[1];
+    expect(parseVetFilter(`?${q}`, [golden.id]).treats).toBe(golden.id);
+  });
+
   it('F1-4 ④ vets 0: 레일 없이 /vet 링크만(섹션 순서 불변)', () => {
     render(<App page={typePage()} captured={NO_CAPTURE} />);
     const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
     expect(v.querySelectorAll('li.ws-vet')).toHaveLength(0);
     expect(v.querySelector('ul')).toBeNull();
-    expect(Array.from(v.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual(['/vet']);
+    expect(Array.from(v.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual([`/vet?treats=${golden.id}`]);
     expect(sections()).toEqual(['context', 'now', 'bundles', 'products', 'vet', 'save']);
   });
 
@@ -223,7 +231,7 @@ describe('홈 B', () => {
     // R6 G1: 순서 = vet/order.ts sortVets(지역 → 이름 → id, /vet·프리렌더와 같은 규칙) 후 ≤20.
     expect(ids).toEqual(sortVets(vets).slice(0, 20).map((x) => `vetClinics#${x.id}`));
     expect(ids.slice(0, 3)).toEqual(['vetClinics#v0', 'vetClinics#v1', 'vetClinics#v10']); // 코드 포인트 비교
-    expect(v.querySelector('a[href="/vet"]')).not.toBeNull();
+    expect(v.querySelector(`a[href="/vet?treats=${golden.id}"]`)).not.toBeNull();
     expect(v.textContent).toContain(golden.displayName);
     expect(v.textContent).not.toContain(golden.id);
     expect(v.querySelector('.ws-vet-name')).toBeNull(); // onSelect 없음 — 지도 선택 버튼 0

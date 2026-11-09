@@ -13,7 +13,7 @@ export interface ChecklistRow {
   /** 체크 출처(이벤트 readySource 용, UI 비노출). 미체크 null. */
   source: ReadySource | null;
   /** 케이지 호환이 △ 를 만들었으면 그 판정(CHECK·FAIL), 아니면 null — 행 아래 이유 meta(DR n-5). */
-  compat: 'CHECK' | 'FAIL' | null;
+  compat: 'CHECK' | 'FAIL' | 'SPEC_FAIL' | null;
 }
 
 export interface ChecklistGroup {
@@ -39,7 +39,7 @@ export interface ChecklistView {
 
 export interface DeriveOptions {
   /** 케이지 호환 판정(R5). CHECK/FAIL 이면 체크 여부와 무관하게 △. */
-  compat?: Record<string, 'OK' | 'CHECK' | 'FAIL'>;
+  compat?: Record<string, 'OK' | 'CHECK' | 'FAIL' | 'SPEC_FAIL'>;
   /** 케이지가 있는데 compat 가 아직 없음(로드 중·실패) — "문제 없음"과 구분해 완료 확정을 보류한다. */
   compatPending?: boolean;
 }
@@ -49,9 +49,9 @@ const hintRank = (h: string): number => {
   return i < 0 ? ORDER_HINTS.length : i;
 };
 
-function compatOf(r: PublicRequirement, compat: DeriveOptions['compat']): 'CHECK' | 'FAIL' | null {
+function compatOf(r: PublicRequirement, compat: DeriveOptions['compat']): 'CHECK' | 'FAIL' | 'SPEC_FAIL' | null {
   const c = compat && Object.prototype.hasOwnProperty.call(compat, r.supplyItemId) ? compat[r.supplyItemId] : undefined;
-  return c === 'CHECK' || c === 'FAIL' ? c : null;
+  return c === 'CHECK' || c === 'FAIL' || c === 'SPEC_FAIL' ? c : null;
 }
 
 function stateFor(r: PublicRequirement, checked: boolean, compat: DeriveOptions['compat']): ItemState {

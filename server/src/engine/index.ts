@@ -12,6 +12,7 @@ export {
   findField,
   hasCompleteOptionLabels,
   isFieldOptionalForDisplay,
+  isNoCriteria,
   optionLabel,
   readSpecValue,
   referencedSpecKeys,

@@ -129,6 +129,46 @@ describe('cageCompatMap → deriveChecklist(△)', () => {
     }
   });
 
+  it('등록 케이지 자기 규격(arch-23 ③): 최소 미달(높이 29 < 30)만 SPEC_FAIL, 충족은 cage 키 없음', () => {
+    expect(cageCompatMap(engine, golden.id, REQS, toUserContext(cage(29))).cage).toBe('SPEC_FAIL');
+    expect('cage' in cageCompatMap(engine, golden.id, REQS, toUserContext(cage(30)))).toBe(false);
+    const v = deriveChecklist(REQS, setup(['cage']), { compat: cageCompatMap(engine, golden.id, REQS, toUserContext(cage(29))) });
+    expect(stateOf(v, 'cage')).toBe('CHECK');
+    expect(v.groups.flatMap((g) => g.rows).find((r) => r.requirement.supplyItemId === 'cage')?.compat).toBe('SPEC_FAIL');
+    expect(v.allRequiredReady).toBe(false);
+  });
+
+  it('케이지 판정은 사용자 컨텍스트 없이 호출(userContext 미전달), 컨텍스트 없음 → {}', () => {
+    const calls: unknown[][] = [];
+    const spy = {
+      requirementCompat: engine.requirementCompat,
+      specCheck: (...a: unknown[]) => {
+        calls.push(a);
+        return { product: { verdict: 'BELOW_MIN' } } as never;
+      },
+    };
+    const map = cageCompatMap(spy, golden.id, [req('cage', 'REQUIRED')], toUserContext(cage(40)));
+    expect(map.cage).toBe('SPEC_FAIL');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toHaveLength(3); // (typeId, 'cage', ownedItems.cage) — 4번째 인자 없음
+    expect(calls[0]![1]).toBe('cage');
+    expect(cageCompatMap(spy, golden.id, REQS, undefined)).toEqual({});
+  });
+
+  it('권장 미만·값 누락(CHECK)·기준 없음·판정 throw → 케이지 행 영향 0', () => {
+    for (const verdict of ['BELOW_RECOMMENDED', 'CHECK', 'OK']) {
+      const e = { requirementCompat: engine.requirementCompat, specCheck: () => ({ product: { verdict } }) as never };
+      expect('cage' in cageCompatMap(e, golden.id, [req('cage', 'REQUIRED')], toUserContext(cage(29)))).toBe(false);
+    }
+    const boom = {
+      requirementCompat: engine.requirementCompat,
+      specCheck: () => {
+        throw new Error('x');
+      },
+    };
+    expect(cageCompatMap(boom, golden.id, [req('cage', 'REQUIRED')], toUserContext(cage(29)))).toEqual({});
+  });
+
   it('카탈로그에 없는 요구사항은 건너뛴다(throw 0)', () => {
     const map = cageCompatMap(engine, golden.id, [...REQS, req('ghost', 'REQUIRED')], toUserContext(cage(30)));
     expect(map.ghost).toBeUndefined();

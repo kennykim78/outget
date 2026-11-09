@@ -1,10 +1,12 @@
 // specCheck(+호환 판정)·checkProfileMinSpec·checkAnimalMinSpec·createEngine (제품기획 §7.2, PRD US-009/011, 부록 A).
 //   제품 단계: resolveRequirement 결과(override 반영)의 min/recommended 규칙.
 //   호환 단계: userContext.ownedItems 와 CompatibilityRule 양방향(A-10). UNKNOWN → CHECK(onFail 무관).
-//   종합 verdict = worst(product, compat≠NONE). 대안은 verdict≠OK 일 때만.
+//   종합 verdict = worst(product, compat≠NONE). 대안은 verdict≠OK 일 때만 — 단 제품 단계 「기준 없음」(isNoCriteria)이고
+//   호환이 NONE·OK 면 대안 없음(arch-23 D-3: 기준 없음에 "이것 대신"을 붙이지 않는다). 호환 BELOW_MIN·CHECK 면 대안 유지.
+//   기준 없음은 제품 단계 CHECK 라 minSpecResult meets=false → checkProfileMinSpec(P01)·checkAnimalMinSpec(노출) 모두 제외.
 import type { Verdict } from './domain.js';
 import { ExprSyntaxError, evalExpr, parseExpr } from './expr.js';
-import { evaluateProductStage, sanitizeSpecValues, worstVerdict } from './rules.js';
+import { evaluateProductStage, isNoCriteria, sanitizeSpecValues, worstVerdict } from './rules.js';
 import { listResolvedRequirements, resolveRequirement } from './resolve.js';
 import { buildSearchKeyword } from './search-keyword.js';
 import type {
@@ -168,12 +170,14 @@ export function specCheck(
   const product = evaluateProductStage(r.item.specSchema, r.minSpec, r.recommendedSpec, input ?? {});
   const compat = evaluateCompat(cat, r.careProfileId, supplyItemId, input ?? {}, userContext);
   const verdict = worstVerdict(compat.verdict === 'NONE' ? [product.verdict] : [product.verdict, compat.verdict]);
+  // D-3: 기준 없음 + 호환 NONE·OK → 대안 비움. 호환이 BELOW_MIN·CHECK 면 그 사유로 대안을 보인다.
+  const noCriteriaOnly = isNoCriteria(product) && (compat.verdict === 'NONE' || compat.verdict === 'OK');
   return {
     verdict,
     product,
     compat,
     reasons: [...product.reasons, ...compat.reasons],
-    alternatives: verdict === 'OK' ? [] : alternativesFor(cat, r),
+    alternatives: verdict === 'OK' || noCriteriaOnly ? [] : alternativesFor(cat, r),
   };
 }
 
@@ -308,6 +312,7 @@ function minSpecResult({ verdict, reasons }: { verdict: Verdict; reasons: Reason
 /**
  * CuratedProduct.meetsMinSpec 의 단일 계산 지점(불변식 3, A-12). 프로필 기본 요구사항만(override 없음),
  * 제품 단계만. meets = verdict ∈ {OK, BELOW_RECOMMENDED}. 기준을 찾지 못하면 throw 대신 CHECK/false(fail-closed).
+ * 최소·권장 규칙이 모두 빈 품목(「기준 없음」, arch-23)도 CHECK/false.
  */
 export function checkProfileMinSpec(
   cat: EngineCatalog,
@@ -326,6 +331,7 @@ export function checkProfileMinSpec(
 /**
  * 동물별 최소 규격(M3) — resolveRequirement 결과(careOverrides 반영)의 제품 단계만. 노출 판정(isProductExposable)의
  * 규격 기준. meets = verdict ∈ {OK, BELOW_RECOMMENDED}. 기준을 찾지 못하면 throw 대신 CHECK/false(fail-closed).
+ * 최소·권장 규칙이 모두 빈 품목(「기준 없음」, arch-23)도 CHECK/false → 추천 영역 제외(불변식 ③).
  */
 export function checkAnimalMinSpec(
   cat: EngineCatalog,

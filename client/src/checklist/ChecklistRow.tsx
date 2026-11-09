@@ -39,7 +39,15 @@ export default function ChecklistRow({ row, href, onToggle, onOpen, children }: 
   const notNow = r.priority === 'NOT_NOW';
   const spec = notNow ? null : rowSpecText(r);
   // DR n-5: 호환이 만든 △ 의 이유(CHECK "내 케이지 공간 조건 재확인" · FAIL "현재 케이지 조건에서 최소 요구 미충족").
-  const compatReason = row.compat === 'CHECK' ? COPY.product.reasonCageCheck : row.compat === 'FAIL' ? COPY.verdict.compatBelowMin : null;
+  //   SPEC_FAIL(arch-23 D-5): 등록 케이지 자체가 최소 규격 미달 — 기존 키 조합 "내 케이지 · 최소 규격 미달".
+  const compatReason =
+    row.compat === 'CHECK'
+      ? COPY.product.reasonCageCheck
+      : row.compat === 'FAIL'
+        ? COPY.verdict.compatBelowMin
+        : row.compat === 'SPEC_FAIL'
+          ? `${COPY.cage.title} · ${COPY.verdict.productBelowMin}`
+          : null;
   const onMore = (e: MouseEvent<HTMLAnchorElement>) => {
     if (!onOpen || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();

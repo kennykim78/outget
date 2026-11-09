@@ -229,10 +229,10 @@ describe('S6 bedding · hideout · sand-bath · water · food-bowl · chew · ha
     expect(by['sand-bath-box'].why).toBe('모래를 담아 둘 통이에요. 큰 유리나 도자기 그릇을 쓰기도 해요.');
     expect(by.cage.avoid).toBe('철망으로만 된 케이지 · 철망 선반 · 표준 수조 뚜껑');
   });
-  it('규칙 없는 행(sand-bath-box·carrier·thermo) → 규격 기준 없음 OK', () => {
-    expect(at('sand-bath-box', { shortSideCm: 10 })).toEqual([true, 'OK']);
-    expect(at('carrier', { ventilated: true })).toEqual([true, 'OK']);
-    expect(at('thermo', { digital: true })).toEqual([true, 'OK']);
+  it('규칙 없는 행(sand-bath-box·carrier·thermo) → 규격 기준 없음 CHECK(충족 아님 · arch-23 결정 ②)', () => {
+    expect(at('sand-bath-box', { shortSideCm: 10 })).toEqual([false, 'CHECK']);
+    expect(at('carrier', { ventilated: true })).toEqual([false, 'CHECK']);
+    expect(at('thermo', { digital: true })).toEqual([false, 'CHECK']);
   });
 });
 
@@ -273,15 +273,17 @@ describe('S6 호환 cr-gerbil-wheel-cage-bedding — 지름 + 베딩 20cm ≤ �
 
 describe('기존 상품 27쌍 판정 변화 0(불변식 ③ — 저빌 라운드 전 시드 스냅숏)', () => {
   // 2026-10-27 저빌 시드 반영 직전(HEAD 0e9bab3) 실시드로 계산한 값. 상품 × careProfileIds 마다 checkProfileMinSpec.
+  //   arch-23 결정 ②(2026-11-10, 의도된 변경 4행): 최소·권장 규칙이 모두 빈 품목 = 「기준 없음」 → CHECK·meets false(추천 제외).
+  //   cp-007(syrian water) · cp-008(syrian food) · cp-dw-016 · cp-dw-017(dwarf water) 만 true|OK → false|CHECK. 나머지 23행 불변.
   const BEFORE = [
     'cp-001|cp-hamster-syrian|true|OK', 'cp-002|cp-hamster-syrian|true|BELOW_RECOMMENDED', 'cp-003|cp-hamster-syrian|true|OK',
     'cp-004|cp-hamster-syrian|true|BELOW_RECOMMENDED', 'cp-005|cp-hamster-syrian|true|OK', 'cp-006|cp-hamster-syrian|true|BELOW_RECOMMENDED',
-    'cp-007|cp-hamster-syrian|true|OK', 'cp-008|cp-hamster-syrian|true|OK', 'cp-009|cp-hamster-syrian|true|OK', 'cp-010|cp-hamster-syrian|true|OK',
+    'cp-007|cp-hamster-syrian|false|CHECK', 'cp-008|cp-hamster-syrian|false|CHECK', 'cp-009|cp-hamster-syrian|true|OK', 'cp-010|cp-hamster-syrian|true|OK',
     'cp-dw-001|cp-hamster-dwarf|true|OK', 'cp-dw-002|cp-hamster-dwarf|true|OK', 'cp-dw-003|cp-hamster-dwarf|true|OK', 'cp-dw-004|cp-hamster-dwarf|true|OK',
     'cp-dw-005|cp-hamster-dwarf|true|BELOW_RECOMMENDED', 'cp-dw-006|cp-hamster-dwarf|true|OK', 'cp-dw-007|cp-hamster-dwarf|true|OK',
     'cp-dw-008|cp-hamster-dwarf|true|OK', 'cp-dw-009|cp-hamster-dwarf|false|CHECK', 'cp-dw-010|cp-hamster-dwarf|true|OK',
     'cp-dw-011|cp-hamster-dwarf|true|OK', 'cp-dw-012|cp-hamster-dwarf|true|OK', 'cp-dw-013|cp-hamster-dwarf|true|OK',
-    'cp-dw-014|cp-hamster-dwarf|true|OK', 'cp-dw-015|cp-hamster-dwarf|true|OK', 'cp-dw-016|cp-hamster-dwarf|true|OK', 'cp-dw-017|cp-hamster-dwarf|true|OK',
+    'cp-dw-014|cp-hamster-dwarf|true|OK', 'cp-dw-015|cp-hamster-dwarf|true|OK', 'cp-dw-016|cp-hamster-dwarf|false|CHECK', 'cp-dw-017|cp-hamster-dwarf|false|CHECK',
   ];
   it('27쌍 그대로 · 저빌 프로필 대상 상품 0', () => {
     const now = seed.curatedProducts.flatMap((p) =>

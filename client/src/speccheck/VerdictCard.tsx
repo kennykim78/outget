@@ -6,7 +6,7 @@ import { useState, type MouseEvent } from 'react';
 import { COPY, formatCopy } from '@ws/copy';
 import type { SearchLink, SpecCheckResult, SpecSchema } from '@ws/engine';
 import SpecSearch from './SpecSearch';
-import { overallMark, productHeadline, productMark, reasonMessages, visibleCompatMark, type VerdictMark } from './verdictView';
+import { isProductNoCriteria, overallMark, productHeadline, productMark, reasonMessages, visibleCompatMark, type VerdictMark } from './verdictView';
 
 export interface VerdictAlternative {
   supplyItemId: string;
@@ -93,13 +93,13 @@ function TierLine({
 
 /** 스크린리더 낭독 문구 "{제품}. {호환}" — 라이브 영역은 SpecCheckLayer 가 항상 마운트해 갱신한다(WCAG 4.1.3). */
 export function verdictLiveText(result: SpecCheckResult): string {
-  const product = productMark(result.product.verdict);
+  const product = productMark(result.product.verdict, isProductNoCriteria(result.product));
   const compat = visibleCompatMark(result);
   return compat ? `${product.label}. ${compat.label}` : product.label;
 }
 
 export default function VerdictCard(p: VerdictCardProps) {
-  const product = productMark(p.result.product.verdict);
+  const product = productMark(p.result.product.verdict, isProductNoCriteria(p.result.product));
   const compat = visibleCompatMark(p.result);
   const overall = overallMark(p.result);
   const basis = `${p.animalName} ${COPY.verdict.basisSuffix}`;

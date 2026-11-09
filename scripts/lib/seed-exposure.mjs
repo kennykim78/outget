@@ -226,14 +226,14 @@ function rulesOf(set) {
   return isObj(set) && Array.isArray(set.rules) ? set.rules : [];
 }
 
-/** base minSpec ⊕ AnimalType.careOverrides.requirements[item].minSpec — (key, op) 같으면 교체. */
-export function resolvedMinRules(req, type, itemId) {
-  const rules = [...rulesOf(req.minSpec)];
+/** base <key> ⊕ AnimalType.careOverrides.requirements[item].<key> — (key, op) 같으면 교체. key = minSpec | recommendedSpec. */
+function resolvedRules(req, type, itemId, specKey) {
+  const rules = [...rulesOf(req[specKey])];
   const ov = isObj(type.careOverrides) && isObj(type.careOverrides.requirements) ? type.careOverrides.requirements[itemId] : undefined;
   if (ov !== undefined && !isObj(ov)) return null;
-  if (isObj(ov) && ov.minSpec !== undefined) {
-    if (!isObj(ov.minSpec)) return null;
-    for (const r of rulesOf(ov.minSpec)) {
+  if (isObj(ov) && ov[specKey] !== undefined) {
+    if (!isObj(ov[specKey])) return null;
+    for (const r of rulesOf(ov[specKey])) {
       if (!isObj(r)) return null;
       const i = rules.findIndex((x) => isObj(x) && x.key === r.key && x.op === r.op);
       if (i >= 0) rules[i] = r;
@@ -241,6 +241,14 @@ export function resolvedMinRules(req, type, itemId) {
     }
   }
   return rules;
+}
+
+export function resolvedMinRules(req, type, itemId) {
+  return resolvedRules(req, type, itemId, 'minSpec');
+}
+
+export function resolvedRecommendedRules(req, type, itemId) {
+  return resolvedRules(req, type, itemId, 'recommendedSpec');
 }
 
 export function meetsMinRules(rules, specValues) {
@@ -340,6 +348,9 @@ export function computeExposure(seed, asOf) {
       const req = pairReq.get(`${tid}|${p.supplyItemId}`);
       if (!req) continue;
       const rules = resolvedMinRules(req, t, p.supplyItemId);
+      const rec = resolvedRecommendedRules(req, t, p.supplyItemId);
+      // M-1(QA): 최소·권장 해석 규칙이 둘 다 비면 무규격 — 엔진 evaluateProductStage 와 같게 CHECK(노출 불가, 불변식 ③ fail-closed).
+      if (!rec || (rules && rules.length === 0 && rec.length === 0)) continue;
       if (rules && meetsMinRules(rules, p.specValues)) {
         productTypes.add(`${tid}|${p.id}`);
         any = true;

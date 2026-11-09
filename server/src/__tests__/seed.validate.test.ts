@@ -368,6 +368,8 @@ const CASES: Case[] = [
     },
   },
   { name: 'P01 비SLOT meetsMinSpec null', rule: 'P01', inject: (s) => { Object.assign(row(s, 'curatedProducts', 'cp-005'), { status: 'REVIEW', title: '상품 C' }); } },
+  // arch-23 결정 ②: 최소·권장 규칙이 모두 빈 품목(드워프 water)은 「기준 없음」 = 재계산 false. true 로 되돌리면 P01.
+  { name: 'P01 무규격 품목(cp-dw-016 water) meetsMinSpec=true 인데 재계산 false (arch-23)', rule: 'P01', inject: (s) => { row(s, 'curatedProducts', 'cp-dw-016').meetsMinSpec = true; } },
   { name: 'P03 NONE 인데 imageAsset', rule: 'P03', inject: (s) => { row(s, 'curatedProducts', 'cp-001').imageAsset = '/assets/products/cp-001.jpg'; } },
   { name: 'P04 SLOT + VERIFIED', rule: 'P04', inject: (s) => { const p = row(s, 'curatedProducts', 'cp-001'); verify(p); p.source = [SRC]; } },
   { name: 'T01 APPROVED 인데 verifiedUsage false', rule: 'T01', inject: (s) => { const t = row(s, 'testimonials', 't-001'); t.status = 'APPROVED'; t.quote = '처음 준비할 때 도움이 됐어요'; t.consentAt = '2026-09-30'; } },
@@ -517,6 +519,16 @@ describe('seed:validate — 규칙별 주입', () => {
     const res = validateSeed(s, { now: NOW });
     expect(errorRules(res)).toEqual(['P01']);
     expect(res.errors[0].id).toBe('cp-003');
+  });
+
+  it('P01 무규격 품목(arch-23): 시드 false = 재계산 false → 0건, true 로 바꾸면 그 행만 P01', () => {
+    expect(validateSeed(fresh(), { now: NOW }).errors.filter((i) => i.rule === 'P01')).toEqual([]);
+    for (const id of ['cp-dw-016', 'cp-dw-017']) expect(row(fresh(), 'curatedProducts', id).meetsMinSpec).toBe(false);
+    const s = fresh();
+    row(s, 'curatedProducts', 'cp-dw-017').meetsMinSpec = true;
+    const p01 = validateSeed(s, { now: NOW }).errors.filter((i) => i.rule === 'P01');
+    expect(p01.map((i) => i.id)).toEqual(['cp-dw-017']);
+    expect(p01[0].message).toContain('재계산 false');
   });
 
   /** golden 체인(요구사항·용품·프로필[·동물]) VERIFIED + cp-004(철망 100×50×50, 간격 9mm — BE92 목표 규격) ACTIVE·VERIFIED 승격. 메모리 복사본만. */

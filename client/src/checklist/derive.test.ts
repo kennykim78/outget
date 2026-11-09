@@ -145,4 +145,12 @@ describe('deriveChecklist', () => {
     expect(done.readyPercent).toBe(100);
     expect(deriveChecklist(reqs, st).allRequiredReady).toBe(true);
   });
+  it('arch-23 ③: 케이지 SPEC_FAIL → 체크돼 있어도 △(CHECK), 준비율 0·완료 아님', () => {
+    const v = deriveChecklist([req('cage', 'REQUIRED')], setup({ cage: 'OWNED' }), { compat: { cage: 'SPEC_FAIL' } });
+    const row = v.groups.flatMap((g) => g.rows)[0]!;
+    expect(row.state).toBe('CHECK');
+    expect(row.compat).toBe('SPEC_FAIL');
+    expect(v.readyPercent).toBe(0);
+    expect(v.allRequiredReady).toBe(false);
+  });
 });

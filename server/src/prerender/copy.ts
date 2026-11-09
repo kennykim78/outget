@@ -201,6 +201,8 @@ export const COPY = deepFreeze({
     productBelowRecommended: '최소 기준 충족 · 권장 미만',
     productBelowMin: '최소 규격 미달',
     productCheck: '판정할 정보가 더 필요해요',
+    /** arch-23 A6 — 종별 규격 기준 없음(엔진 isNoCriteria). 사유 문장은 엔진 Reason.message 를 그대로 쓴다. */
+    productNoCriteria: '종별 규격 기준 없음',
     compatOk: '현재 케이지에서 사용 가능한 조건',
     compatCheck: '공간 조건 재확인',
     compatBelowMin: '현재 케이지 조건에서 최소 요구 미충족',

@@ -154,12 +154,12 @@ describe('F8 meetsMinSpec recompute over curated specValues', () => {
       'cp-004': true,
       'cp-005': true,
       'cp-006': true,
-      'cp-007': true,
-      'cp-008': true,
+      'cp-007': false, // 무규격 SLOT → CHECK(meets=false)
+      'cp-008': false, // 무규격 SLOT → CHECK(meets=false)
       'cp-009': true,
       'cp-010': true,
       // R7-B: 드워프 상품 17행(v0.3 5장) — 엔진 재계산 전부 충족(패킷 기대값과 일치)
-      ...Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`cp-dw-${String(i + 1).padStart(3, '0')}`, i !== 8])), // cp-dw-009: 무향 근거 소멸로 scented 제거 → CHECK(false)
+      ...Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`cp-dw-${String(i + 1).padStart(3, '0')}`, ![8, 15, 16].includes(i)])), // cp-dw-009: 무향 근거 소멸로 scented 제거 → CHECK(false) · cp-dw-016·017: 무규격 → CHECK(false)
     });
   });
 });

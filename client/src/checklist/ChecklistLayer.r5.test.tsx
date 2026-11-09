@@ -219,6 +219,31 @@ describe('L2 통합(F2-3)', () => {
     expect(d.querySelector('[data-ws-id="supplyRequirements#cage"] [data-ws-compat]')).toBeNull();
   });
 
+  it('arch-23 ③: 등록 케이지가 최소 규격 미달(가로 50 < 60) → 케이지 행 △ + "내 케이지 · 최소 규격 미달", 충족하는 값으로 고치면 ✓ 복귀', async () => {
+    writeSetup(wsStorage, golden.id, answered({ cage: 'OWNED' }));
+    const d = openL2();
+    expect(rowState(d, 'cage')).toBe('READY');
+    act(() => {
+      writeCage(wsStorage, golden.id, { type: 'LIVING_BOX', floorWcm: 50, floorDcm: 40, heightCm: 60 }, CAGE_SCHEMA, '2026-10-13T00:00:00.000Z');
+    });
+    await waitFor(() => expect(rowState(d, 'cage')).toBe('CHECK'));
+    const row = d.querySelector('[data-ws-id="supplyRequirements#cage"]') as HTMLElement;
+    expect(within(row).getByText(`${COPY.cage.title} · ${COPY.verdict.productBelowMin}`)).toHaveAttribute('data-ws-compat', 'SPEC_FAIL');
+    act(() => {
+      writeCage(wsStorage, golden.id, { type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 60 }, CAGE_SCHEMA, '2026-10-13T00:00:00.000Z');
+    });
+    await waitFor(() => expect(rowState(d, 'cage')).toBe('READY'));
+    expect(row.querySelector('[data-ws-compat]')).toBeNull();
+  });
+
+  it('arch-23 ③ 미연결: 케이지 미등록이면 L5 에서 미달 값을 넣어도 케이지 행은 READY 그대로(저장소 무변경)', async () => {
+    writeSetup(wsStorage, golden.id, answered({ cage: 'OWNED' }));
+    const d = openL2();
+    await waitFor(() => expect(rowState(d, 'cage')).toBe('READY'));
+    expect(window.localStorage.getItem(cageKey(golden.id))).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled(); // 케이지 없음 → 판정 경로 자체가 없다
+  });
+
   it('DR m-3: 보유 아님 + 케이지 저장됨 → "내 케이지 수정 ›" 표시, 저장이 행을 보유로 바꾸지 않음', async () => {
     writeSetup(wsStorage, golden.id, answered({}));
     const d = openL2();

@@ -18,6 +18,7 @@ import { PICK_PATH, pickLinkClick } from '../shell/pickLink';
 import { copyAt, copyFmt } from '../ui/copyText';
 import RailSection from '../ui/RailSection';
 import BundleCard from './BundleCard';
+import { NO_FILTER, vetFilterSearch } from '../vet/filters';
 import NeedChip, { needChipSpec, type NeedState } from './NeedChip';
 import ProductCard from './ProductCard';
 import VetCard from '../vet/VetCard';
@@ -38,8 +39,14 @@ export interface HomeBProps {
   onOpenL8(): void;
 }
 
+/** 동물 컨텍스트가 있으면 /vet 에 그 동물 필터(VetPage 가 읽는 ?treats=)를 싣는다 — 최초 진입 시에만 적용, 이후는 병원 페이지가 소유. */
+export function vetHrefFor(typeId: string): string {
+  return `/vet${vetFilterSearch({ ...NO_FILTER, treats: typeId })}`;
+}
+
 export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, onOpenL8 }: HomeBProps) {
   const { setup } = useSetup(type.id);
+  const vetHref = vetHrefFor(type.id);
   const selection = useAnimalSelection(page.data.types);
   const answered = setup !== null && setup.answeredAt !== null;
 
@@ -217,7 +224,7 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, on
           id="vet"
           kind="vet"
           title={COPY.homeB.vetTitle}
-          more={{ label: COPY.homeB.vetLink, href: '/vet' }}
+          more={{ label: COPY.homeB.vetLink, href: vetHref }}
           prevLabel={prev}
           nextLabel={next}
         >
@@ -231,7 +238,7 @@ export default function HomeB({ page, type, capturedMain, onOpenL1, onOpenL2, on
             {COPY.homeB.vetTitle}
           </h2>
           <p>
-            <a className="ws-rail-more ws-t-meta" href="/vet">
+            <a className="ws-rail-more ws-t-meta" href={vetHref}>
               {COPY.homeB.vetLink}
               <span aria-hidden="true"> ›</span>
             </a>

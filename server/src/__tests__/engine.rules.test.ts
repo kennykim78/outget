@@ -4,6 +4,7 @@ import {
   VERDICT_SEVERITY,
   evaluateProductStage,
   evaluateRuleSet,
+  isNoCriteria,
   worstVerdict,
 } from '../engine/rules.js';
 import type { RuleSet, SpecRule } from '../engine/types.js';
@@ -192,22 +193,62 @@ describe('E5 precedence BELOW_MIN > CHECK > BELOW_RECOMMENDED > OK', () => {
   });
 });
 
-describe('E6 empty rule-set → OK + NO_CRITERIA', () => {
-  it('evaluateRuleSet', () => {
+// arch-23 결정 ②·D-1: 단일 집합이 비면 OK + NO_CRITERIA(다른 쪽으로 판정, D-2). 제품 단계에서 둘 다 비면 「기준 없음」 =
+//   CHECK + NO_CRITERIA(verdict CHECK) 1건 — OK 가 아니다(meets=false → 추천 제외).
+describe('E6 empty rule-set — 단일 집합 OK + NO_CRITERIA, 제품 단계 둘 다 빔 → CHECK + NO_CRITERIA', () => {
+  it('evaluateRuleSet(빈 집합 하나)은 그대로 OK + NO_CRITERIA(verdict OK)', () => {
     const out = evaluateRuleSet(BOX_SCHEMA, set(), {}, 'MIN');
     expect(out.verdict).toBe('OK');
     expect(out.reasons).toHaveLength(1);
     expect(out.reasons[0]).toMatchObject({ kind: 'NO_CRITERIA', verdict: 'OK', stage: 'PRODUCT' });
   });
 
-  it('product stage with both empty → single NO_CRITERIA', () => {
+  it('product stage with both empty → CHECK + single NO_CRITERIA(verdict CHECK)', () => {
     const out = evaluateProductStage(BOX_SCHEMA, set(), set(), {});
-    expect(out.verdict).toBe('OK');
-    expect(out.reasons.map((x) => x.kind)).toEqual(['NO_CRITERIA']);
+    expect(out).toEqual({
+      verdict: 'CHECK',
+      reasons: [{ stage: 'PRODUCT', kind: 'NO_CRITERIA', verdict: 'CHECK', message: '등록된 규격 기준이 없는 용품이에요.' }],
+    });
+    expect(isNoCriteria(out)).toBe(true);
+  });
+
+  it('both empty: 입력 값과 무관하게 같은 결과(예·아니오·빈 값·범위 밖)', () => {
+    const empty = evaluateProductStage(BOX_SCHEMA, set(), set(), {});
+    for (const input of [{ lid: true }, { lid: false }, { widthCm: 9999, type: 'NOPE' }]) {
+      expect(evaluateProductStage(BOX_SCHEMA, set(), set(), input)).toEqual(empty);
+    }
   });
 
   it('product stage with only REC rules → no NO_CRITERIA', () => {
     const out = evaluateProductStage(BOX_SCHEMA, set(), set(r('widthCm', 'gte', 80)), { widthCm: 90 });
     expect(out).toEqual({ verdict: 'OK', reasons: [] });
+    expect(isNoCriteria(out)).toBe(false);
+  });
+
+  it('product stage with only MIN rules → MIN 으로 판정, NO_CRITERIA 0', () => {
+    const out = evaluateProductStage(BOX_SCHEMA, set(r('widthCm', 'gte', 50)), set(), { widthCm: 40 });
+    expect(out.verdict).toBe('BELOW_MIN');
+    expect(out.reasons.map((x) => x.kind)).toEqual(['MIN']);
+  });
+
+  it('규칙 집합이 깨지면(rules 없음) 기존 RULE CHECK 그대로 — 기준 없음 아님(회귀 0)', () => {
+    const out = evaluateProductStage(BOX_SCHEMA, {} as RuleSet, set(), {});
+    expect(out.verdict).toBe('CHECK');
+    expect(out.reasons.map((x) => x.kind)).toEqual(['RULE']);
+    expect(isNoCriteria(out)).toBe(false);
+  });
+});
+
+describe('isNoCriteria — 「기준 없음」 단일 판별(arch-23 D-1)', () => {
+  it('정보 부족 CHECK(INPUT·RULE)·OK·BELOW_* 는 false', () => {
+    expect(isNoCriteria(evaluateProductStage(BOX_SCHEMA, set(r('widthCm', 'gte', 50)), set(), {}))).toBe(false); // INPUT CHECK
+    expect(isNoCriteria(evaluateProductStage(BOX_SCHEMA, set(r('nope', 'gte', 1)), set(), {}))).toBe(false); // RULE CHECK
+    expect(isNoCriteria(evaluateProductStage(BOX_SCHEMA, set(r('widthCm', 'gte', 50)), set(), { widthCm: 60 }))).toBe(false); // OK
+    expect(isNoCriteria(evaluateRuleSet(BOX_SCHEMA, set(), {}, 'MIN'))).toBe(false); // 단일 집합 OK + NO_CRITERIA(OK)
+  });
+  it('null·undefined·빈 사유 → false', () => {
+    expect(isNoCriteria(null)).toBe(false);
+    expect(isNoCriteria(undefined)).toBe(false);
+    expect(isNoCriteria({ verdict: 'CHECK', reasons: [] })).toBe(false);
   });
 });

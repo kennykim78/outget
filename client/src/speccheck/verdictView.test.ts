@@ -6,6 +6,7 @@ import {
   cageSummary,
   compatMark,
   formFields,
+  isProductNoCriteria,
   overallMark,
   perRuleVerdicts,
   productHeadline,
@@ -58,6 +59,28 @@ describe('verdictView', () => {
     // 값 누락(제품 CHECK) → ?
     const d = mk('CHECK', 'CHECK', 'NONE');
     expect(overallMark(d)).toMatchObject({ glyph: GLYPH.unknown, label: COPY.verdict.productCheck });
+  });
+
+  it('arch-23 기준 없음: CHECK+NO_CRITERIA → 「종별 규격 기준 없음」 ○ none, 「충족」 문구 없음 · 정보 부족 CHECK 는 그대로 ?', () => {
+    const noCrit = {
+      verdict: 'CHECK',
+      reasons: [{ stage: 'PRODUCT', kind: 'NO_CRITERIA', verdict: 'CHECK', message: '등록된 규격 기준이 없는 용품이에요.' }],
+    } as unknown as SpecCheckResult['product'];
+    const missing = {
+      verdict: 'CHECK',
+      reasons: [{ stage: 'PRODUCT', kind: 'INPUT', verdict: 'CHECK', key: 'diameterCm', message: '값이 필요해요' }],
+    } as unknown as SpecCheckResult['product'];
+    expect(isProductNoCriteria(noCrit)).toBe(true);
+    expect(isProductNoCriteria(missing)).toBe(false);
+    const m = productMark('CHECK', true);
+    expect(m).toEqual({ glyph: GLYPH.later, tone: 'none', label: COPY.verdict.productNoCriteria });
+    expect(m.label).toBe('종별 규격 기준 없음');
+    expect(m.label).not.toMatch(/충족|문제 없음|사용 가능/);
+    expect(productMark('CHECK', false)).toMatchObject({ glyph: GLYPH.unknown, label: COPY.verdict.productCheck });
+    const res = { verdict: 'CHECK', product: noCrit, compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] } } as unknown as SpecCheckResult;
+    expect(overallMark(res)).toMatchObject({ glyph: GLYPH.later, label: COPY.verdict.productNoCriteria });
+    const miss = { verdict: 'CHECK', product: missing, compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] } } as unknown as SpecCheckResult;
+    expect(overallMark(miss)).toMatchObject({ glyph: GLYPH.unknown, label: COPY.verdict.productCheck });
   });
 
   it('헤드라인: 숫자 Reason 만, 같은 등급 첫 번째', () => {

@@ -354,6 +354,20 @@ describe('빈 상태·visitNote', () => {
     expect(screen.getByText(COPY.vet.visitNote)).toBeInTheDocument();
   });
 
+  it('지역 칩 링크는 현재 필터 쿼리를 이어 간다(필터 없으면 href 그대로)', () => {
+    const html =
+      '<main class="ws-page"><ul class="ws-region-chips"><li><a href="/vet">전체</a></li>' +
+      '<li><a href="/vet/x" aria-current="page">서울 마포구</a></li></ul></main>';
+    window.history.replaceState(null, '', '/vet/x?treats=budgie&night=1');
+    const { unmount } = render(<VetPage page={vetPage(VETS, 'VET_REGION', '서울 마포구')} capturedMain={html} />);
+    const nav = screen.getByRole('list', { name: COPY.vet.regionsTitle });
+    expect(within(nav).getByRole('link', { name: '서울 마포구' })).toHaveAttribute('href', '/vet/x?treats=budgie&night=1');
+    unmount();
+    window.history.replaceState(null, '', '/vet/x');
+    render(<VetPage page={vetPage(VETS, 'VET_REGION', '서울 마포구')} capturedMain={html} />);
+    expect(within(screen.getByRole('list', { name: COPY.vet.regionsTitle })).getByRole('link', { name: '전체' })).toHaveAttribute('href', '/vet');
+  });
+
   it('N2: 현재 칩 가운데 정렬은 scrollIntoView 없이 ul.scrollLeft 직접 설정(포커스 시작점 보존)', () => {
     const html =
       '<main class="ws-page"><ul class="ws-region-chips"><li><a href="/vet">전체</a></li>' +

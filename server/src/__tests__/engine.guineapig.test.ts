@@ -207,8 +207,8 @@ describe('S10 bedding · hideout · tubes · chew · food-bowl · nail-clipper',
     for (const type of ['SMALL_ANIMAL', 'HUMAN']) expect(at('nail-clipper', { type })).toEqual([true, 'OK']);
     expect(at('nail-clipper', { type: 'OTHER' })).toEqual([true, 'BELOW_RECOMMENDED']);
   });
-  it('규칙 없는 행(water·carrier·thermo·scale·brush) → 규격 기준 없음 OK', () => {
-    expect(at('water', { kind: 'BOTTLE', mount: 'HANG' })).toEqual([true, 'OK']);
-    expect(at('brush', { type: 'SOFT_BRUSH' })).toEqual([true, 'OK']);
+  it('규칙 없는 행(water·carrier·thermo·scale·brush) → 규격 기준 없음 CHECK(충족 아님 · arch-23 결정 ②)', () => {
+    expect(at('water', { kind: 'BOTTLE', mount: 'HANG' })).toEqual([false, 'CHECK']);
+    expect(at('brush', { type: 'SOFT_BRUSH' })).toEqual([false, 'CHECK']);
   });
 });

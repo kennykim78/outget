@@ -27,7 +27,7 @@ const ruleIds = (rs: Reason[]) => rs.map((r) => r.ruleId);
 const REQ_ORDER = ['cage', 'wheel', 'bedding', 'water', 'food', 'hideout', 'sand-bath', 'sand-bath-box', 'food-bowl', 'thermo', 'chew', 'carrier', 'tubes', 'saucer'];
 const ITEMS_SEED_ORDER = ['cage', 'wheel', 'saucer', 'bedding', 'water', 'food-bowl', 'food', 'hideout', 'sand-bath', 'sand-bath-box', 'chew', 'carrier', 'thermo', 'tubes'];
 /** 상품 L7 순서 = 요구사항 순 → verdict OK 먼저(cp-dw-005 BELOW_RECOMMENDED 뒤) → 시드 순. */
-const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '010', '011', '016', '017', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
+const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '010', '011', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
 
 describe('디스크 시드 — 드워프 PLANNED 라 실노출 0', () => {
   it('projectSite(실시드) 타입 0', () => {
@@ -43,7 +43,7 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
     expect(b.model.types.map((t) => t.id)).toEqual([D]);
   });
 
-  it('경로 집합(홈 A · /hamster · /hamster/dwarf · setup · L4/L5 × 14 · L7 × 16 · /supplies × 14 × 2 · 고정 6)', () => {
+  it('경로 집합(홈 A · /hamster · /hamster/dwarf · setup · L4/L5 × 14 · L7 × 14 · /supplies × 14 × 2 · 고정 6)', () => {
     expect(b.routes.map((r) => r.path)).toEqual([
       '/',
       '/hamster',
@@ -78,7 +78,7 @@ describe('드워프 미리보기 — 경로 스냅샷', () => {
     expect(hrefs).toEqual(['/hamster/dwarf']);
   });
 
-  it('/hamster/dwarf(L2 체크리스트 입력): 요구사항 14 순서·우선순위, 번들 3(사료 포함), 상품 16', () => {
+  it('/hamster/dwarf(L2 체크리스트 입력): 요구사항 14 순서·우선순위, 번들 3(사료 포함), 상품 14', () => {
     const d = pageAt(b, '/hamster/dwarf').data.data;
     expect(d.requirements.map((r) => r.supplyItemId)).toEqual(REQ_ORDER);
     expect(d.requirements.filter((r) => r.priority === 'REQUIRED').map((r) => r.supplyItemId)).toEqual(['cage', 'wheel', 'bedding', 'water', 'food', 'hideout', 'sand-bath', 'sand-bath-box']);

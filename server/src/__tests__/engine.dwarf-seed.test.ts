@@ -88,12 +88,14 @@ describe('B5 상품 17행 — 엔진 재계산 = 시드 meetsMinSpec = v0.3 5장
   );
   EXPECTED['cp-dw-005'] = 'BELOW_RECOMMENDED'; // W5 TRIXIE 23cm < 권장 25
   EXPECTED['cp-dw-009'] = 'CHECK'; // carefresh: 무향 근거 소멸(scented 제거) → meetsMinSpec=false, 추천 영역 제외
+  EXPECTED['cp-dw-016'] = 'CHECK'; // 무규격 → meetsMinSpec=false, 추천 영역 제외
+  EXPECTED['cp-dw-017'] = 'CHECK'; // 무규격 → meetsMinSpec=false, 추천 영역 제외
   const rows = dwarfRows(seed.curatedProducts, 'cp-dw-');
   it('17행, 판정·meetsMinSpec 일치', () => {
     expect(rows.map((p) => p.id)).toEqual(Object.keys(EXPECTED));
     for (const p of rows) {
       const r = checkAnimalMinSpec(cat, D, p.supplyItemId, p.specValues);
-      expect([p.id, r.meets, r.verdict]).toEqual([p.id, p.id !== 'cp-dw-009', EXPECTED[p.id]]);
+      expect([p.id, r.meets, r.verdict]).toEqual([p.id, !['cp-dw-009', 'cp-dw-016', 'cp-dw-017'].includes(p.id), EXPECTED[p.id]]);
       expect(p.meetsMinSpec).toBe(r.meets);
     }
   });

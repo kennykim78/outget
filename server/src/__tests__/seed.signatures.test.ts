@@ -301,7 +301,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(equivMjs.compareDirs(SEED_DIR, seed).filter((x) => !x.startsWith(SIGNATURE_FILE))).toEqual([]); // 사실 필드 0 변경(매니페스트는 달라야 정상)
     const prods = JSON.parse(readFileSync(join(seed, 'curated-products.json'), 'utf8')) as Row[];
     const dw = prods.filter((p) => String(p.id).startsWith('cp-dw-'));
-    expect(dw.every((p) => p.status === (p.id === 'cp-dw-009' ? 'REVIEW' : 'ACTIVE') && p.specVerifiedBy === 'kenny' && p.specVerifiedAt === NOW && p.reviewBasis === 'ROW_CHECKED')).toBe(true); // cp-dw-009: meetsMinSpec=false(무향 근거 소멸) → 서명돼도 REVIEW 유지
+    expect(dw.every((p) => p.status === (['cp-dw-009', 'cp-dw-016', 'cp-dw-017'].includes(String(p.id)) ? 'REVIEW' : 'ACTIVE') && p.specVerifiedBy === 'kenny' && p.specVerifiedAt === NOW && p.reviewBasis === 'ROW_CHECKED')).toBe(true); // cp-dw-009: meetsMinSpec=false(무향 근거 소멸) → 서명돼도 REVIEW 유지
     // 사료(확인표 D1): 행 reviewerType VET_PUBLISHED_SOURCE + ROW_CHECKED, 나머지는 패킷 기본 EXPERIENCED_KEEPER. V03·V04·V08 은 위 validate 0 으로 통과.
     const reqs = JSON.parse(readFileSync(join(seed, 'supply-requirements.json'), 'utf8')) as Row[];
     expect(reqs.find((r) => r.id === 'req-dwarf-food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', verifiedBy: 'kenny', verifiedAt: NOW, reviewBasis: 'ROW_CHECKED', contentKind: 'FOOD' });

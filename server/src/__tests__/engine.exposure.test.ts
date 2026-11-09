@@ -15,6 +15,7 @@ import {
   parseCcLicenseUrl,
   orderExposableProducts,
   createCatalog,
+  isNoCriteria,
   isProductExposable,
   isRequirementExposable,
   isTaxonExposable,
@@ -291,6 +292,17 @@ describe('isProductExposable(cat, animalTypeId, p, AS_OF) — 규격 → 검수 
     mutate(b);
     const cat = createCatalog(b);
     expect(isProductExposable(cat, 'critter', product('p1'), AS_OF)).toBe(false);
+  });
+
+  // arch-23 결정 ②: 최소·권장 규칙이 모두 빈 품목(합성 gadget) = 「기준 없음」 → 시드가 meetsMinSpec true·ACTIVE·VERIFIED 라도 추천 영역 제외.
+  it('기준 없음 품목 상품 → isProductExposable false · orderExposableProducts 에서 빠짐(불변식 ③ fail-closed)', () => {
+    const pg = product('pg', { supplyItemId: 'gadget', specValues: {} });
+    expect(isRequirementExposable(cat, resolveRequirement(cat, 'critter', 'gadget')!, AS_OF)).toBe(true); // 요구사항은 노출(원인은 규격)
+    const spec = checkAnimalMinSpec(cat, 'critter', 'gadget', {});
+    expect([spec.meets, spec.verdict, isNoCriteria(spec)]).toEqual([false, 'CHECK', true]);
+    expect(checkProfileMinSpec(cat, 'pf-test', 'gadget', {})).toMatchObject({ meets: false, verdict: 'CHECK' });
+    expect(isProductExposable(cat, 'critter', pg, AS_OF)).toBe(false);
+    expect(orderExposableProducts(cat, 'critter', [pg, product('p1')], AS_OF).map((x) => x.product.id)).toEqual(['p1']);
   });
 
   it('unknown type, item without requirement, missing spec key → false', () => {

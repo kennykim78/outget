@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EngineLookupError,
   createCatalog,
+  isNoCriteria,
   sanitizeSpecValues,
   specCheck,
   type RuleSet,
@@ -103,11 +104,15 @@ describe('specCheck × bird-cage 스키마(합성 규칙, 메모리)', () => {
   });
 });
 
-describe('규칙 없음 → 판정 없음', () => {
-  it('합성 요구사항이 있어도 minSpec·recommendedSpec 이 비면 NO_CRITERIA 1건 · 호환 NONE', () => {
+describe('규칙 없음 → 판정 없음(「기준 없음」, arch-23 결정 ②)', () => {
+  it('합성 요구사항이 있어도 minSpec·recommendedSpec 이 비면 CHECK + NO_CRITERIA 1건 · 호환 NONE · 대안 0', () => {
     const cat = createCatalog(withSynthRequirement(realSeed(), { rules: [] }));
     const r = specCheck(cat, BIRD, 'bird-cage', { heightCm: 20 });
     expect(r.product.reasons.map((x) => x.kind)).toEqual(['NO_CRITERIA']);
+    expect(r.product.verdict).toBe('CHECK');
+    expect(isNoCriteria(r.product)).toBe(true);
+    expect(r.verdict).toBe('CHECK');
+    expect(r.alternatives).toEqual([]); // D-3: 기준 없음 + 호환 NONE → 대안 없음
     expect(r.compat).toEqual({ verdict: 'NONE', reasons: [], checkedRuleIds: [] });
   });
 });

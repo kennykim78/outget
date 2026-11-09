@@ -1,6 +1,8 @@
 // 규칙 집합 판정(PRD 부록 A minSpec/recommendedSpec, R2 계획 A-9).
 //   MIN 실패 → BELOW_MIN, RECOMMENDED 실패 → BELOW_RECOMMENDED, 입력 누락·형식/범위 밖·해석 불가 규칙 → CHECK.
-//   빈 규칙 집합 → OK + NO_CRITERIA. 우선순위 BELOW_MIN > CHECK > BELOW_RECOMMENDED > OK.
+//   빈 규칙 집합 하나(evaluateRuleSet) → OK + NO_CRITERIA(다른 쪽 집합으로 판정, arch-23 D-2).
+//   제품 단계에서 최소·권장이 모두 비면 → CHECK + NO_CRITERIA 1건(「기준 없음」 — OK 아님, 추천 제외, arch-23 D-1·결정 ②).
+//   판별은 isNoCriteria(stage) 하나로. 우선순위 BELOW_MIN > CHECK > BELOW_RECOMMENDED > OK.
 import type { Verdict } from './domain.js';
 import { isSpecOp } from './domain.js';
 import type { Reason, RuleCond, RuleSet, SpecField, SpecRule, SpecSchema, SpecValue, SpecValues } from './types.js';
@@ -250,8 +252,23 @@ function evaluateRule(schema: SpecSchema, rule: SpecRule, input: SpecValues, kin
   ];
 }
 
-export function noCriteriaReason(): Reason {
-  return { stage: 'PRODUCT', kind: 'NO_CRITERIA', verdict: 'OK', message: '등록된 규격 기준이 없는 용품이에요.' };
+/**
+ * 규칙 0 사유. 기본 verdict CHECK — 제품 단계 「기준 없음」(arch-23 D-1). 단일 집합 평가(evaluateRuleSet)만 'OK' 로 만든다(D-2,
+ *   evaluateProductStage 는 그 사유를 버리고 둘 다 비었을 때만 CHECK 사유 1건을 새로 낸다).
+ */
+export function noCriteriaReason(verdict: Verdict = 'CHECK'): Reason {
+  return { stage: 'PRODUCT', kind: 'NO_CRITERIA', verdict, message: '등록된 규격 기준이 없는 용품이에요.' };
+}
+
+/**
+ * 제품 단계 결과가 「기준 없음」(최소·권장 규칙이 모두 빈 품목)인가 — 화면·시험·노출 설명의 단일 판별(arch-23 D-1).
+ *   verdict CHECK ∧ 사유가 정확히 NO_CRITERIA 1건일 때만 true. 정보 부족 CHECK(INPUT·RULE)는 false.
+ *   판정을 다시 계산하지 않는다 — evaluateProductStage(또는 specCheck().product) 결과를 읽기만 한다(불변식 ⑥).
+ */
+export function isNoCriteria(stage: { verdict: Verdict; reasons: readonly Reason[] } | null | undefined): boolean {
+  if (!stage || stage.verdict !== 'CHECK' || !Array.isArray(stage.reasons) || stage.reasons.length !== 1) return false;
+  const r: Reason | undefined = stage.reasons[0];
+  return !!r && r.kind === 'NO_CRITERIA' && r.verdict === 'CHECK';
 }
 
 /** 규칙 집합 하나를 판정한다. kind=MIN 실패 → BELOW_MIN, RECOMMENDED 실패 → BELOW_RECOMMENDED. */
@@ -268,12 +285,16 @@ export function evaluateRuleSet(
       reasons: [{ stage: 'PRODUCT', kind: 'RULE', verdict: 'CHECK', message: '규격 기준을 해석할 수 없어 확인이 필요해요.' }],
     };
   }
-  if (rules.length === 0) return { verdict: 'OK', reasons: [noCriteriaReason()] };
+  if (rules.length === 0) return { verdict: 'OK', reasons: [noCriteriaReason('OK')] };
   const reasons = rules.flatMap((rule) => evaluateRule(schema, rule, input, kind));
   return { verdict: worstVerdict(reasons.map((x) => x.verdict)), reasons };
 }
 
-/** 제품 단계(최소 + 권장) 판정. NO_CRITERIA 는 둘 다 비었을 때만 1건, 같은 키 INPUT 사유는 1건으로. */
+/**
+ * 제품 단계(최소 + 권장) 판정. 같은 키 INPUT 사유는 1건으로.
+ *   둘 다 비면 CHECK + NO_CRITERIA(verdict CHECK) 1건(arch-23 D-1) → minSpecResult meets=false → P01·노출에서 제외(불변식 ③ fail-closed).
+ *   한쪽만 비면 NO_CRITERIA 는 버리고 다른 쪽으로 판정(D-2).
+ */
 export function evaluateProductStage(
   schema: SpecSchema,
   minSpec: RuleSet,
@@ -283,7 +304,7 @@ export function evaluateProductStage(
   const min = evaluateRuleSet(schema, minSpec, input, 'MIN');
   const rec = evaluateRuleSet(schema, recommendedSpec, input, 'RECOMMENDED');
   const isEmpty = (r: { reasons: Reason[] }) => r.reasons.length === 1 && r.reasons[0].kind === 'NO_CRITERIA';
-  if (isEmpty(min) && isEmpty(rec)) return { verdict: 'OK', reasons: [noCriteriaReason()] };
+  if (isEmpty(min) && isEmpty(rec)) return { verdict: 'CHECK', reasons: [noCriteriaReason('CHECK')] };
   const all = [...min.reasons, ...rec.reasons];
   const seenInput = new Set<string>();
   const reasons: Reason[] = [];

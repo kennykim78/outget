@@ -1,5 +1,6 @@
 // 체크리스트 △(케이지 호환, 계획 F2-3 · 스펙33 G-2 · K-4 가정): 내 케이지가 있을 때만 엔진 requirementCompat(최소 규격 제품 기준)으로
 //   항목별 호환을 구해 deriveChecklist 의 compat 옵션으로 넘긴다. BELOW_MIN·CHECK → △, OK·NONE → 영향 0, 케이지 없음 → 맵 없음.
+//   케이지 자신은 등록값을 engine.specCheck(제품 단계)로 판정해 BELOW_MIN 일 때만 SPEC_FAIL △(arch-23 ③).
 //   판정은 @ws/engine 한 곳(불변식 ⑥), 결과는 표시만 — 노출·정렬 영향 0(불변식 ③).
 import { useEffect, useMemo, useState } from 'react';
 import type { CompatVerdict, Engine, PublicRequirement, UserContext } from '@ws/engine';
@@ -16,7 +17,7 @@ const TO_STATE: Partial<Record<CompatVerdict, CompatMap[string]>> = { OK: 'OK', 
 
 /** 요구사항마다 requirementCompat → {itemId: OK|CHECK|FAIL}. 컨텍스트 없음 → {}. NONE·조회 실패·케이지 자신은 생략. */
 export function cageCompatMap(
-  engine: Pick<Engine, 'requirementCompat'>,
+  engine: Pick<Engine, 'requirementCompat'> & Partial<Pick<Engine, 'specCheck'>>,
   typeId: string,
   reqs: readonly PublicRequirement[],
   ctx: UserContext | undefined,
@@ -24,7 +25,18 @@ export function cageCompatMap(
   const out: CompatMap = {};
   if (!ctx) return out;
   for (const r of reqs) {
-    if (r.supplyItemId === CAGE_ITEM_ID) continue;
+    if (r.supplyItemId === CAGE_ITEM_ID) {
+      // arch-23 ③(D-4): 등록한 케이지(보유품) 자기 규격만 — 사용자 컨텍스트 없이 제품 단계 판정, 최소 미달(BELOW_MIN)만 △.
+      //   권장 미만·값 누락·기준 없음은 영향 0. L5 임의 시험 입력은 이 경로에 닿지 않는다(저장소 미연결).
+      const owned = ctx.ownedItems[CAGE_ITEM_ID];
+      if (!owned || !engine.specCheck) continue;
+      try {
+        if (engine.specCheck(typeId, CAGE_ITEM_ID, owned).product.verdict === 'BELOW_MIN') out[CAGE_ITEM_ID] = 'SPEC_FAIL';
+      } catch {
+        // 판정 실패 — 생략
+      }
+      continue;
+    }
     let v: CompatVerdict;
     try {
       v = engine.requirementCompat(typeId, r.supplyItemId, ctx).verdict;

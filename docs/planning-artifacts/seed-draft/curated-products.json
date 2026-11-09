@@ -826,7 +826,7 @@
       "capacityMl": 120
     },
     "targetSpecLabel": null,
-    "meetsMinSpec": true,
+    "meetsMinSpec": false,
     "specVerifiedBy": null,
     "specVerifiedAt": null,
     "status": "REVIEW",
@@ -860,7 +860,7 @@
       "capacityMl": 50
     },
     "targetSpecLabel": null,
-    "meetsMinSpec": true,
+    "meetsMinSpec": false,
     "specVerifiedBy": null,
     "specVerifiedAt": null,
     "status": "REVIEW",

@@ -200,7 +200,7 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
           <ul ref={chipsRef} className="ws-region-chips" aria-labelledby="ws-vet-regions-label" onScroll={updateMoreHint}>
             {chips.map((c) => (
               <li key={c.href}>
-                <a href={c.href} aria-current={(c.region ?? null) === (region ?? null) ? 'page' : undefined}>
+                <a href={`${c.href}${vetFilterSearch(filter)}`} aria-current={(c.region ?? null) === (region ?? null) ? 'page' : undefined}>
                   {c.label}
                 </a>
               </li>
