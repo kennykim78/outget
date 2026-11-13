@@ -26,6 +26,15 @@ describe('app.css static pages', () => {
     expect(mobile).toBeGreaterThan(base);
   });
 
+  it('토큰 v2.0: 앱 CSS 는 색 리터럴 0(hex·rgb·hsl) — 색은 tokens.css 변수로만', () => {
+    const sheets = import.meta.glob(['../**/*.css', '!./tokens.css', '!./fonts-*.css'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    expect(Object.keys(sheets).length).toBeGreaterThanOrEqual(8);
+    for (const [file, css] of Object.entries(sheets)) {
+      const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(noComments.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g), file).toBeNull();
+    }
+  });
+
   it('QA118: L4 조건표 규격 숫자는 단위 안에서 끊지 않는다 — 조건표 2칸은 flex-wrap(쌓임), 숫자 토큰 overflow-wrap:break-word', () => {
     expect(appCss).toMatch(/body\s*\{[^}]*overflow-wrap:\s*anywhere/); // 전역은 그대로 — 아래 규칙이 조건표만 덮는다.
     expect(layersCss).toMatch(/\.ws-cond-cell dd \.ws-t-spec-lg\s*\{\s*overflow-wrap:\s*break-word;\s*\}/);
