@@ -14,7 +14,7 @@ export interface HeroProps {
 }
 
 /** 선택 바 화살표(장식) — 서버 misc.ts PICK_BAR_ARROW 와 같은 SVG. */
-function PickBarArrow() {
+export function PickBarArrow() {
   return (
     <svg
       viewBox="0 0 24 24"

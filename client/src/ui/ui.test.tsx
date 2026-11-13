@@ -59,6 +59,21 @@ describe('RailSection', () => {
     expect(screen.getByRole('link', { name: /전체/ })).toHaveAttribute('href', '/x');
     // jsdom 은 레이아웃이 없어 넘침 0 → 화살표 없음.
     expect(screen.queryByRole('button', { name: '다음 보기' })).toBeNull();
+    // layout 생략 = 기존 레일(홈 B 무변경) — 변형 클래스 없음.
+    expect(section.className).toBe('ws-rail-section ws-rail-section--product');
+  });
+
+  it('286 U3b: layout=grid3 + kind=starter → section 에 변형 클래스만 추가, ul.ws-starters(나머지 구조 동일)', () => {
+    render(
+      <RailSection id="starters" kind="starter" layout="grid3" title="처음 준비" prevLabel={null} nextLabel={null}>
+        <li>a</li>
+      </RailSection>,
+    );
+    const section = document.querySelector('section[data-ws-section="starters"]') as HTMLElement;
+    expect(section.className).toBe('ws-rail-section ws-rail-section--starter ws-rail-section--grid3');
+    expect(screen.getByRole('list')).toHaveClass('ws-rail', 'ws-starters');
+    expect(screen.getByRole('list')).toHaveAttribute('tabindex', '0');
+    expect(section.querySelector('.ws-rail-tools')?.childElementCount).toBe(0);
   });
 });
 

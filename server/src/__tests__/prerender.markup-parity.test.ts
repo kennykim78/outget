@@ -38,10 +38,10 @@ describe('홈 A 마크업 = React Hero·StartBand(R3 시안 v1b, 286 U3a)', () =
     expect(page).toContain('<main id="main" ');
   });
 
-  it('main.ws-page.ws-home-a + 섹션 순서 [hero, start] — 후기·소개 섹션 0(D6)', () => {
+  it('main.ws-page.ws-home-a + 섹션 순서 [hero, starters, start] — 후기·소개 섹션 0(D6)', () => {
     expect(main).toMatch(/^<main id="main" class="ws-page ws-home-a" data-ws-route="HOME">/);
     const sections = [...main.matchAll(/<section\b[^>]*data-ws-section="([^"]+)"/g)].map((m) => m[1]);
-    expect(sections).toEqual(['hero', 'start']);
+    expect(sections).toEqual(['hero', 'starters', 'start']);
     for (const gone of ['ws-reviews', 'ws-review', 'ws-intro', 'ws-feature-chips', 'ws-split-title', 'testimonials#']) expect(main).not.toContain(gone);
   });
 
@@ -54,6 +54,27 @@ describe('홈 A 마크업 = React Hero·StartBand(R3 시안 v1b, 286 U3a)', () =
     );
     expect(main).not.toMatch(/<(input|textarea)\b/);
     expect(main).not.toContain('ws-avatar');
+  });
+
+  it('시작 카드(286 U3b) = RailSection starter·grid3 + li > a.ws-starter[data-ws-action=start-card][href=/pick](빈 사진 자리 + 제목·화살표 + 한 줄)', () => {
+    expect(main).toContain(
+      `<section class="ws-rail-section ws-rail-section--starter ws-rail-section--grid3" data-ws-section="starters" aria-labelledby="ws-sec-starters-title">`,
+    );
+    expect(main).toContain(`<h2 id="ws-sec-starters-title" class="ws-t-section">${COPY.homeA.startersTitle}</h2>`);
+    expect(main).toContain('<ul class="ws-rail ws-starters" role="list" tabindex="0" aria-labelledby="ws-sec-starters-title">');
+    const cards = [...main.matchAll(/<a class="ws-starter" data-ws-action="start-card" data-ws-intent="([A-Z_]+)" href="([^"]+)">/g)];
+    expect(cards.map((m) => m[1])).toEqual(['CHECKLIST', 'SPEC_CHECK', 'SETUP']);
+    for (const m of cards) expect(m[2]).toBe(PICK_PATH);
+    for (const x of ['CHECKLIST', 'SPEC_CHECK', 'SETUP'] as const) {
+      const c = COPY.homeA.starters[x];
+      expect(main).toContain(
+        `<a class="ws-starter" data-ws-action="start-card" data-ws-intent="${x}" href="${PICK_PATH}"><span class="ws-photo ws-starter-photo" aria-hidden="true"></span><span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${c.title}</span><span class="ws-starter-go"><svg `,
+      );
+      expect(main).toContain(`<span class="ws-t-meta ws-muted ws-starter-sub">${c.sub}</span></a></li>`);
+    }
+    // 사진 = 빈 자리표시(① 사용권 사진 없음), 추적용 슬롯 id 비노출.
+    const sec = main.slice(main.indexOf('data-ws-section="starters"'), main.indexOf('data-ws-section="start"'));
+    expect(sec).not.toMatch(/<img\b|data-ws-photo|ws-btn--fill|ws-chip/);
   });
 
   it('하단 CTA = section.ws-start > div.ws-start-text(h2 + 한 줄) + 채운 버튼 1', () => {

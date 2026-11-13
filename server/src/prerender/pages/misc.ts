@@ -1,5 +1,5 @@
 // 홈 A(미선택 — 히어로·하단 CTA) · /{family} · /supplies · /supplies/{item}[/{type}] · /vet[/{region}] · /credits · 404.
-import { ANIMAL_GROUPS, PICK_PATH, SUPPLY_CATEGORIES, type WsPageData } from '../../engine/index.js';
+import { ANIMAL_GROUPS, PICK_PATH, SUPPLY_CATEGORIES, type LinkedAction, type WsPageData } from '../../engine/index.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { SiteModel, TypeModel } from '../project.js';
@@ -14,6 +14,7 @@ import {
   mainOpen,
   mascotAvatar,
   navCurrent,
+  railSection,
   renderFooter,
   renderHead,
   renderHeader,
@@ -88,8 +89,47 @@ function homeVets(m: SiteModel): SiteModel['vets'] {
 function homeTypes(m: SiteModel): WsPageData['data']['types'] {
   return m.types.map((t) => {
     const r = t.requirements.find((x) => x.item.specSchema.fields.length > 0);
-    return r ? { ...t.pub, specCheckItemId: r.item.id } : t.pub;
+    // 286 U3b: /{slug}/setup 이 있는 타입(routes.ts 와 같은 조건 — 노출 구성안 1개 이상)만 setupAvailable.
+    return { ...t.pub, ...(r ? { specCheckItemId: r.item.id } : {}), ...(t.bundles.length > 0 ? { setupAvailable: true as const } : {}) };
   });
+}
+
+/** 시작 카드 순서(286 U3b, R3 시안 v1b) — client home/StartCards.tsx STARTER_ACTIONS 와 같은 값. */
+export const STARTER_ACTIONS = ['CHECKLIST', 'SPEC_CHECK', 'SETUP'] as const satisfies readonly LinkedAction[];
+export type StarterAction = (typeof STARTER_ACTIONS)[number];
+
+/**
+ * 시작 카드 노출 판정(fail-closed, 286 D12 ①) — 노출 타입이 0이면 전부 숨김. CHECKLIST = 노출 타입 1↑,
+ *   SPEC_CHECK = specCheckItemId 가 있는 타입 1↑, SETUP = setupAvailable 타입 1↑. 대상이 없는 카드는 자리표시 없이 빠진다.
+ *   client home/StartCards.tsx starterActions 와 같은 규칙(같은 ws-data types 입력).
+ */
+export function starterActions(types: WsPageData['data']['types']): StarterAction[] {
+  if (types.length === 0) return [];
+  return STARTER_ACTIONS.filter((x) =>
+    x === 'SPEC_CHECK' ? types.some((t) => typeof t.specCheckItemId === 'string' && t.specCheckItemId !== '') : x === 'SETUP' ? types.some((t) => t.setupAvailable === true) : true,
+  );
+}
+
+/**
+ * 「처음 준비, 여기서 시작해요」(286 U3b) — client home/StartCards.tsx 와 같은 마크업. RailSection kind=starter layout=grid3.
+ *   카드 = li > a.ws-starter(사진 자리 + 제목·화살표 + 한 줄). 정적 href = /pick(무JS: L1 → 타입 홈), 하이드레이션 후 의도 보존(intent.ts).
+ *   카드 안 카드·상태 칩·수치 없음. 카드 0개면 섹션 자체가 없다.
+ */
+function homeStarters(types: WsPageData['data']['types']): string[] {
+  const acts = starterActions(types);
+  if (acts.length === 0) return [];
+  const items = acts.map((x) => {
+    const c = COPY.homeA.starters[x];
+    return [
+      `<li class="ws-starter-item"><a class="ws-starter" data-ws-action="start-card" data-ws-intent="${x}" href="${PICK_PATH}">`,
+      // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용 슬롯 id)는 싣지 않는다.
+      '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+      `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(c.title)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
+      `<span class="ws-t-meta ws-muted ws-starter-sub">${h(c.sub)}</span>`,
+      '</a></li>',
+    ].join('');
+  });
+  return [railSection({ id: 'starters', kind: 'starter', layout: 'grid3', titleHtml: h(COPY.homeA.startersTitle), items })];
 }
 
 /** 홈 A — 히어로 · (U3b~e 섹션) · 하단 CTA. */
@@ -137,6 +177,7 @@ export const PICK_BAR_ARROW =
  */
 function homeParts(m: SiteModel): { main: string[]; mainClass: string; data: WsPageData['data'] } {
   const vets = homeVets(m);
+  const types = homeTypes(m);
   return {
     main: [
       '<section class="ws-hero" data-ws-section="hero" aria-labelledby="ws-hero-title">',
@@ -144,13 +185,14 @@ function homeParts(m: SiteModel): { main: string[]; mainClass: string; data: WsP
       `<p class="ws-t-body ws-muted ws-hero-sub">${h(COPY.homeA.heroSub)}</p>`,
       `<a class="ws-pick-bar" data-ws-action="pick-animal" href="${PICK_PATH}"><span class="ws-pick-bar-label">${h(COPY.homeA.heroBar)}</span><span class="ws-pick-bar-go">${PICK_BAR_ARROW}</span></a>`,
       '</section>',
+      ...homeStarters(types),
       '<section class="ws-start" data-ws-section="start" aria-labelledby="ws-start-title">',
       `<div class="ws-start-text"><h2 id="ws-start-title" class="ws-t-display ws-start-title">${h(COPY.homeA.startTitle)}</h2><p class="ws-t-body ws-muted">${h(COPY.homeA.startBody)}</p></div>`,
       pickCta(COPY.homeA.startCta),
       '</section>',
     ],
     mainClass: 'ws-home-a',
-    data: { ...emptyData(), types: homeTypes(m), vets },
+    data: { ...emptyData(), types, vets },
   };
 }
 

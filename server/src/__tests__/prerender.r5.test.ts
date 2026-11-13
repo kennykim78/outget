@@ -290,3 +290,37 @@ describe('홈 ws-data types[].specCheckItemId(R6 G3b)', () => {
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('specCheckItemId');
   });
 });
+
+describe('홈 ws-data types[].setupAvailable(286 U3b — 시작 카드 「구성안」)', () => {
+  const HOME_PATHS = ['/', '/pick', '/save'];
+  it('승격 픽스처: 노출 구성안이 있는 타입 = true, 그 타입의 /setup 라우트 실재 · 홈 외 페이지 types 에는 키 없음', () => {
+    const b = build(promoted());
+    for (const p of HOME_PATHS) {
+      const d = data(b, p).data;
+      for (const t of d.types) {
+        const hasRoute = b.pages.some((x) => x.route.path === `/${t.slug}/setup`);
+        expect(t.setupAvailable === true, `${p} ${t.id}`).toBe(hasRoute);
+      }
+      expect(d.types.some((t) => t.setupAvailable === true), p).toBe(true);
+      expect(d.bundles, p).toEqual([]);
+    }
+    for (const p of b.pages.filter((x) => !HOME_PATHS.includes(x.route.path))) {
+      for (const t of p.data.data.types) expect('setupAvailable' in t, p.route.path).toBe(false);
+    }
+  });
+  it('구성안 0 → 키 없음 · /setup 없음 · 홈 「구성안」 카드 없음(fail-closed)', () => {
+    const s = promoted();
+    s.setupBundles.length = 0;
+    const b = build(s);
+    for (const p of HOME_PATHS) for (const t of data(b, p).data.types) expect('setupAvailable' in t, p).toBe(false);
+    expect(b.pages.some((x) => x.route.kind === 'SETUP')).toBe(false);
+    const home = b.pages.find((x) => x.route.path === '/')!.html;
+    expect(home).toContain('data-ws-intent="CHECKLIST"');
+    expect(home).not.toContain('data-ws-intent="SETUP"');
+  });
+  it('DRAFT 실시드: 노출 타입 0 → 키 없음 · 홈에 시작 카드 섹션 없음(D12 ①)', () => {
+    const b = build(realSeed());
+    expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('setupAvailable');
+    for (const p of HOME_PATHS) expect(b.pages.find((x) => x.route.path === p)!.html, p).not.toContain('data-ws-section="starters"');
+  });
+});

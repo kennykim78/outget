@@ -64,6 +64,11 @@ export interface PublicAnimalType {
    *   후기 행동 SPEC_CHECK → /{slug}/check/{id}. 해당 항목이 없거나 홈이 아닌 페이지면 키 자체가 없다.
    */
   specCheckItemId?: string;
+  /**
+   * 286 U3b — 홈(HOME·PICK·SAVE) ws-data 에서만: 이 타입에 /{slug}/setup(구성안) 페이지가 있으면 true
+   *   (routes.ts 와 같은 조건 = 노출 구성안 1개 이상). 시작 카드 「구성안」 대상·노출 판정. 없거나 홈이 아닌 페이지면 키 자체가 없다.
+   */
+  setupAvailable?: true;
 }
 
 export interface PublicRequirement {

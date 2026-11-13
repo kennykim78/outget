@@ -54,6 +54,16 @@ export const COPY = deepFreeze({
     startTitle: sent('어떤 친구와 함께하나요?'),
     startBody: sent('작은 친구와의 첫날, 필요한 것부터 함께 골라요.'),
     startCta: '친구 선택하기',
+    /**
+     * 286 U3b 「처음 준비, 여기서 시작해요」 시작 카드 3 — 고정 UI 문구(수치·품목명 없음, 종 공통).
+     *   대상: CHECKLIST → /{slug}(L2) · SPEC_CHECK → /{slug}/check/{item}(L5) · SETUP → /{slug}/setup. 미선택이면 L1 경유(intent.ts).
+     */
+    startersTitle: '처음 준비, 여기서 시작해요',
+    starters: {
+      CHECKLIST: { title: '꼭 필요한 것 먼저', sub: '우리 친구에게 필요한 준비물' },
+      SPEC_CHECK: { title: '크기 확인', sub: '준비물 크기를 숫자로' },
+      SETUP: { title: '구성안', sub: '한눈에 보는 첫 준비' },
+    },
     popularTitle: '요즘 많이 찾는 준비',
     /** R4 C1 — 클라이언트 전용(프리렌더 미사용). */
     continueLink: '이어서: {animal}',

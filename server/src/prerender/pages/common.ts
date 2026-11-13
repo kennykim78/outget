@@ -295,8 +295,15 @@ export function sortVets<T extends Pick<PublicVet, 'region' | 'name' | 'id'>>(vs
   return [...vs].sort((p, q) => cmp(p.region, q.region) || cmp(p.name, q.name) || cmp(p.id, q.id));
 }
 
-export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review';
-const RAIL_LIST_CLASS: Record<RailKind, string> = { need: 'ws-chips', bundle: 'ws-bundles', product: 'ws-products', vet: 'ws-vets', review: 'ws-reviews' };
+export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter';
+const RAIL_LIST_CLASS: Record<RailKind, string> = {
+  need: 'ws-chips',
+  bundle: 'ws-bundles',
+  product: 'ws-products',
+  vet: 'ws-vets',
+  review: 'ws-reviews',
+  starter: 'ws-starters',
+};
 
 /**
  * client ui/RailSection.tsx 와 같은 마크업(51 레인 A): section.ws-rail-section.ws-rail-section--{kind}[data-ws-section aria-labelledby]
@@ -311,6 +318,8 @@ export function railSection(o: {
   sub?: string | null;
   more?: { label: string; href: string } | null;
   attrs?: Readonly<Record<string, string>>;
+  /** 286 U3b — 'grid3' = ≥768 3열 그리드 / ≤767 가로 레일 peek(홈 A 시작 카드 전용). 생략 = 기존 레일(홈 B 무변경). */
+  layout?: 'grid3';
   items: readonly string[];
 }): string {
   const titleId = `ws-sec-${o.id}-title`;
@@ -319,7 +328,7 @@ export function railSection(o: {
     .join('');
   const more = o.more ? `<a class="ws-rail-more ws-t-meta" href="${a(o.more.href)}">${h(o.more.label)}<span aria-hidden="true"> ›</span></a>` : '';
   return [
-    `<section class="ws-rail-section ws-rail-section--${o.kind}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
+    `<section class="ws-rail-section ws-rail-section--${o.kind}${o.layout ? ` ws-rail-section--${o.layout}` : ''}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
     '<div class="ws-rail-head">',
     `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
     `<div class="ws-rail-tools">${more}</div>`,

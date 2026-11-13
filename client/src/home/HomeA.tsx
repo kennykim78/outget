@@ -1,20 +1,57 @@
-// 홈 A(동물 미선택, R3 시안 v1b · 286 U3a): 히어로 → (U3b~e 섹션 자리) → 하단 CTA.
+// 홈 A(동물 미선택, R3 시안 v1b · 286 U3a/U3b): 히어로 → 「처음 준비, 여기서 시작해요」 시작 카드 3 → (U3c~e 섹션 자리) → 하단 CTA.
 //   후기(Reviews)는 홈에서 비노출(D6, 컴포넌트는 보존) · 소개 슬라이드 삭제. 저장(/save) 유도 0. 데이터는 ws-data 만.
+//   시작 카드 의도 보존: 미선택에서 카드를 누르면 L1 을 열고, 동물을 고르면 그 카드의 대상(intent.ts)으로 이동한다.
+import { useEffect, useRef, useState } from 'react';
 import type { PublicAnimalType, WsPageData } from '@ws/engine';
+import { nav } from '../animal/navigate';
+import { setPickHandler } from '../animal/pickHandler';
+import { useOpenLayer } from '../ui/layer/useLayer';
 import Hero from './Hero';
+import { intentHref } from './intent';
 import StartBand from './StartBand';
+import StartCards, { type StarterAction } from './StartCards';
 
 export interface HomeAProps {
   page: WsPageData;
-  /** 저장된 동물(data.types 안) — "이어서" 링크. */
+  /** 저장된 동물(data.types 안) — "이어서" 링크 · 시작 카드 직행 대상. */
   continueType: PublicAnimalType | null;
   onPick(): void;
 }
 
 export default function HomeA({ page, continueType, onPick }: HomeAProps) {
+  const openLayer = useOpenLayer();
+  // 미선택 상태에서 눌린 시작 카드 의도 — L1 에서 동물을 고르면 그 대상으로 이동한다.
+  const [pending, setPending] = useState<StarterAction | null>(null);
+  const l1Seen = useRef(false);
+
+  const onIntent = (a: StarterAction) => {
+    l1Seen.current = false;
+    setPending(a);
+    onPick();
+  };
+
+  // 의도가 있을 때만 L1 선택 핸들러 등록 — AnimalPicker 기본 이동 대신 의도 대상으로 한 번만 이동(이중 이동 방지). 없으면 기본 이동 유지.
+  useEffect(() => {
+    if (pending === null) return;
+    const off = setPickHandler((type) => {
+      setPending(null);
+      nav.assign(intentHref(pending, type, page));
+      return true;
+    });
+    return off;
+  }, [pending, page]);
+
+  // L1 이 열렸다가 선택 없이 닫히면 의도를 버린다.
+  useEffect(() => {
+    if (pending === null) return;
+    if (openLayer?.kind === 'L1') l1Seen.current = true;
+    else if (l1Seen.current) setPending(null);
+  }, [pending, openLayer]);
+
   return (
     <main id="main" className="ws-page ws-home-a" data-ws-route={page.route.kind}>
       <Hero continueType={continueType} onPick={onPick} />
+      <StartCards page={page} selected={continueType} onIntent={onIntent} />
       <StartBand onPick={onPick} />
     </main>
   );

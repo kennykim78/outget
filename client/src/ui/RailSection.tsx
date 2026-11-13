@@ -3,7 +3,7 @@
 //   화살표 라벨·"전체" 문구는 호출부가 @ws/copy 에서 넘긴다(카피 단일 소스 D3).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review';
+export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter';
 
 // 프리렌더 클래스와 같은 이름(ul.ws-chips|ws-bundles|ws-products) — CSS 가 정적 ul 도 레일로 그린다.
 const LIST_CLASS: Record<RailKind, string> = {
@@ -12,7 +12,11 @@ const LIST_CLASS: Record<RailKind, string> = {
   product: 'ws-products',
   vet: 'ws-vets',
   review: 'ws-reviews',
+  starter: 'ws-starters',
 };
+
+/** 286 U3b — 'grid3' = ≥768 3열 그리드 / ≤767 가로 레일 peek(홈 A 시작 카드 전용, CSS). 생략 = 기존 레일(홈 B 무변경). */
+export type RailLayout = 'grid3';
 
 export interface RailMore {
   label: string;
@@ -32,6 +36,8 @@ export interface RailSectionProps {
   nextLabel: string | null;
   /** section 의 data-* 추가 속성(예: data-ws-ladder). */
   sectionData?: Record<`data-${string}`, string>;
+  /** 배치 변형(서버 railSection layout 과 같은 값) — section 에 ws-rail-section--{layout} 클래스만 더한다. */
+  layout?: RailLayout;
   /** li 요소들. */
   children: ReactNode;
 }
@@ -40,7 +46,7 @@ function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export default function RailSection({ id, kind, title, subtitle, more, prevLabel, nextLabel, sectionData, children }: RailSectionProps) {
+export default function RailSection({ id, kind, title, subtitle, more, prevLabel, nextLabel, sectionData, layout, children }: RailSectionProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
   const titleId = `ws-sec-${id}-title`;
@@ -72,7 +78,12 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
   };
 
   return (
-    <section className={`ws-rail-section ws-rail-section--${kind}`} data-ws-section={id} aria-labelledby={titleId} {...sectionData}>
+    <section
+      className={`ws-rail-section ws-rail-section--${kind}${layout ? ` ws-rail-section--${layout}` : ''}`}
+      data-ws-section={id}
+      aria-labelledby={titleId}
+      {...sectionData}
+    >
       <div className="ws-rail-head">
         <div className="ws-rail-heading">
           <h2 id={titleId} className="ws-t-section">
