@@ -41,4 +41,13 @@ describe('app.css static pages', () => {
     expect(layersCss).toMatch(/\.ws-cond-table--2\s*\{\s*display:\s*flex;\s*flex-wrap:\s*wrap;/);
     expect(layersCss).not.toMatch(/\.ws-cond-table--2\s*\{[^}]*grid-template-columns/);
   });
+
+  it('U1(R3): 드로어 폐기 — 레이어 CSS 에 drawer 0, 모달·정적 aside 는 위 48·가로 가운데, 안쪽 여백 layer-pad 16/40', () => {
+    const noComments = (appCss + layersCss).replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(noComments).not.toMatch(/drawer/);
+    expect(appCss).toMatch(/\.ws-layer-panel--modal\s*\{[^}]*top:\s*var\(--ws-space-12\);[^}]*transform:\s*translateX\(-50%\);/);
+    expect(appCss).toMatch(/\.ws-layer-body\s*\{[^}]*padding:\s*var\(--ws-layer-pad-mobile\);/);
+    expect(appCss).toMatch(/@media \(min-width: 768px\)\s*\{[^@]*\.ws-layer-body\s*\{\s*padding:\s*var\(--ws-layer-pad\);/);
+    expect(appCss).not.toMatch(/aside\.ws-layer\[data-ws-layer=/); // L4·L7 별도 위치 규칙 없음
+  });
 });

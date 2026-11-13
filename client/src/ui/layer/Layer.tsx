@@ -1,4 +1,4 @@
-// 레이어 껍데기(스펙22 §2.9). 변형: ≤767 바텀시트 · 768–1023 모달 600 · ≥1024 모달 720(L4·L7 은 우측 드로어 480).
+// 레이어 껍데기(스펙22 §2.9). 변형: ≤767 바텀시트 · 768–1023 모달 600 · ≥1024 모달 720 — L1~L8 전부 같은 모달(R3 U1, 드로어 폐기).
 //   접근성: role=dialog aria-modal aria-labelledby, 열 때 제목 포커스, Tab 순환(포커스 트랩), ESC·✕·스크림 닫힘,
 //   배경(body 의 다른 자식) inert, 닫히면 연 요소로 포커스 복귀, html overflow hidden(스크롤 위치 유지).
 //   내용은 children — 스텝 제목·뒤로·L2 요약 밴드는 useLayerChrome() 로 바꾼다.
@@ -20,35 +20,35 @@ import { COPY } from '@ws/copy';
 import type { LayerKind } from './useLayer';
 
 export type LayerShellKind = LayerKind;
-export type LayerVariant = 'sheet' | 'modal' | 'drawer';
+export type LayerVariant = 'sheet' | 'modal';
 
 const MQ_SHEET = '(max-width: 767px)';
-const MQ_DESKTOP = '(min-width: 1024px)';
 
 function matches(q: string): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(q).matches;
 }
 
-/** 현재 뷰포트에서의 변형(순수 — 테스트 가능). matchMedia 가 없으면 모바일 우선 sheet. */
-export function layerVariantFor(kind: LayerShellKind): LayerVariant {
+/**
+ * 현재 뷰포트에서의 변형(순수 — 테스트 가능). matchMedia 가 없으면 모바일 우선 sheet.
+ * 종류(kind)와 무관 — 모달 폭 600/720 은 CSS 미디어 쿼리가 정한다.
+ */
+export function layerVariantFor(_kind?: LayerShellKind): LayerVariant {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'sheet';
-  if (matches(MQ_SHEET)) return 'sheet';
-  if ((kind === 'L4' || kind === 'L7') && matches(MQ_DESKTOP)) return 'drawer';
-  return 'modal';
+  return matches(MQ_SHEET) ? 'sheet' : 'modal';
 }
 
-function useLayerVariant(kind: LayerShellKind): LayerVariant {
-  const [v, setV] = useState<LayerVariant>(() => layerVariantFor(kind));
+function useLayerVariant(): LayerVariant {
+  const [v, setV] = useState<LayerVariant>(() => layerVariantFor());
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
-    const update = () => setV(layerVariantFor(kind));
-    const mqs = [window.matchMedia(MQ_SHEET), window.matchMedia(MQ_DESKTOP)];
-    for (const m of mqs) m.addEventListener?.('change', update);
+    const update = () => setV(layerVariantFor());
+    const mq = window.matchMedia(MQ_SHEET);
+    mq.addEventListener?.('change', update);
     update();
     return () => {
-      for (const m of mqs) m.removeEventListener?.('change', update);
+      mq.removeEventListener?.('change', update);
     };
-  }, [kind]);
+  }, []);
   return v;
 }
 
@@ -143,7 +143,7 @@ export function removePrerenderedLayer(doc: Document): void {
 }
 
 export function Layer({ kind, title: initialTitle, wsId, onClose, stepKey, children }: LayerProps) {
-  const variant = useLayerVariant(kind);
+  const variant = useLayerVariant();
   const titleId = `ws-layer-title-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const [title, setTitle] = useState(initialTitle);
   const [back, setBack] = useState<LayerBack | null>(null);

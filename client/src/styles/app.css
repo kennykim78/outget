@@ -641,12 +641,13 @@ aside.ws-layer {
   box-shadow: var(--ws-shadow-sheet);
 }
 
-/* 모달(768–1023: 600, ≥1024: 720) — 그림자 없음. */
+/* 모달(768–1023: 600, ≥1024: 720) — L1~L8 전부(R3 U1, 드로어 폐기). 위에서 48(시안 y48)·가로 가운데(1280 → x280),
+   높이는 내용만큼·최대 화면 높이 − 위아래 48. 그림자 없음. */
 .ws-layer-panel--modal {
   overflow: hidden;
-  top: 50%;
+  top: var(--ws-space-12);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: min(var(--ws-modal-w-tablet), calc(100% - 2 * var(--ws-gutter-wide)));
   max-height: calc(100dvh - 2 * var(--ws-space-12));
   border: 1px solid var(--ws-line);
@@ -659,22 +660,12 @@ aside.ws-layer {
   }
 }
 
-/* 우측 드로어(≥1024 L4·L7) — 그림자·라운드 없음. */
-.ws-layer-panel--drawer {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--ws-drawer-w);
-  max-width: 100%;
-  border-left: 1px solid var(--ws-line);
-}
-
 /* 프리렌더 딥링크 aside.ws-layer(하이드레이션 전) — 같은 변형을 미디어 쿼리로. */
 aside.ws-layer {
   inset: auto 0 calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px)) 0;
   max-height: calc(100dvh - var(--ws-header-h) - var(--ws-tabbar-h) - env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
-  padding: var(--ws-space-4);
+  padding: var(--ws-layer-pad-mobile);
   border-radius: var(--ws-radius-lg) var(--ws-radius-lg) 0 0;
   box-shadow: var(--ws-shadow-sheet);
 }
@@ -682,12 +673,12 @@ aside.ws-layer {
 @media (min-width: 768px) {
   aside.ws-layer {
     inset: auto;
-    top: 50%;
+    top: var(--ws-space-12);
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     width: min(var(--ws-modal-w-tablet), calc(100% - 2 * var(--ws-gutter-wide)));
     max-height: calc(100dvh - 2 * var(--ws-space-12));
-    padding: var(--ws-space-6);
+    padding: var(--ws-layer-pad);
     border: 1px solid var(--ws-line);
     border-radius: var(--ws-radius-lg);
     box-shadow: none;
@@ -697,19 +688,6 @@ aside.ws-layer {
 @media (min-width: 1024px) {
   aside.ws-layer {
     width: min(var(--ws-modal-w), calc(100% - 2 * var(--ws-gutter-wide)));
-  }
-  aside.ws-layer[data-ws-layer='L4'],
-  aside.ws-layer[data-ws-layer='L7'] {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: auto;
-    transform: none;
-    width: var(--ws-drawer-w);
-    max-height: none;
-    border: 0;
-    border-left: 1px solid var(--ws-line);
-    border-radius: 0;
   }
 }
 
@@ -729,16 +707,19 @@ aside.ws-layer {
   display: flex;
   align-items: center;
   gap: var(--ws-space-2);
-  padding: var(--ws-space-3) var(--ws-space-2) var(--ws-space-3) var(--ws-space-4);
 }
 
+/* 고정 머리: 제목 + ✕ + 아래 구분선(본문 폭 안쪽 — 시안 R3). 좌우는 레이어 안쪽 여백 16 / ≥768 40. */
 .ws-layer-head {
   flex-wrap: wrap;
+  margin-inline: var(--ws-layer-pad-mobile);
+  padding-block: var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-line);
 }
 
 .ws-layer-band {
   align-items: flex-start;
-  padding: var(--ws-space-4);
+  padding: var(--ws-space-4) var(--ws-layer-pad-mobile);
   background: var(--ws-bg-100);
 }
 
@@ -790,26 +771,43 @@ aside.ws-layer {
   overscroll-behavior: contain;
 }
 
+/* 본문: 머리·발 사이에서만 스크롤(max-height 안). 안쪽 여백 16 / ≥768 40(720 → 내용 640). */
 .ws-layer-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--ws-space-4);
+  padding: var(--ws-layer-pad-mobile);
 }
 
+/* 고정 발: 위 구분선(본문 폭 안쪽) + 주 버튼 슬롯. */
 .ws-layer-foot {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--ws-space-3);
-  padding: var(--ws-space-3) var(--ws-space-4) calc(var(--ws-space-3) + env(safe-area-inset-bottom, 0px));
+  margin-inline: var(--ws-layer-pad-mobile);
+  padding: var(--ws-space-3) 0 calc(var(--ws-space-3) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--ws-line);
 }
 
 @media (min-width: 768px) {
+  .ws-layer-head {
+    margin-inline: var(--ws-layer-pad);
+    padding-block: var(--ws-space-4);
+  }
+
+  .ws-layer-band {
+    padding-inline: var(--ws-layer-pad);
+  }
+
   .ws-layer-body {
-    padding: var(--ws-space-6);
+    padding: var(--ws-layer-pad);
+  }
+
+  .ws-layer-foot {
+    margin-inline: var(--ws-layer-pad);
+    padding-block: var(--ws-space-4) var(--ws-space-6);
   }
 }
 
@@ -841,13 +839,7 @@ aside.ws-layer {
 
 /* ── 디자인 검수 R4 보정(26_design_r4_review F1·F14·F15) ── */
 
-/* F14 ≥768 레이어 머리·밴드 좌우 = 본문(space-6)과 정렬 */
-@media (min-width: 768px) {
-  .ws-layer-head,
-  .ws-layer-band {
-    padding-inline: var(--ws-space-6);
-  }
-}
+/* F14 레이어 머리·밴드 좌우 = 본문과 정렬 → U1(R3)에서 위 레이어 블록(layer-pad 16/40)으로 옮김. */
 
 /* F15 푸터 위 선은 내부 열(거터 안쪽)에만 */
 .ws-footer {
