@@ -454,7 +454,7 @@ export const COPY = deepFreeze({
   notFound: {
     title: sent('페이지를 찾을 수 없어요'),
     body: sent('주소가 바뀌었거나 아직 준비 중인 페이지예요'),
-    cta: '어떤 친구인가요?',
+    cta: PICK_QUESTION,
     groupSmall: '소동물',
     groupParrot: '앵무새',
     home: '홈으로',
