@@ -131,6 +131,7 @@ describe('홈 A 섹션', () => {
     fireEvent.click(document.querySelector('[data-ws-section="hero"] a.ws-pick-bar') as Element);
     const d = screen.getByRole('dialog');
     fireEvent.click(d.querySelector(`[data-ws-group="${golden.group}"]`) as Element);
+    fireEvent.click(d.querySelector('[data-ws-action="pick-group"]') as Element);
     fireEvent.click(screen.getByRole('dialog').querySelector(`[data-ws-type="${golden.id}"]`) as Element);
     expect(assign).toHaveBeenCalledTimes(1);
     expect(assign).toHaveBeenCalledWith('/hamster/golden');
@@ -162,6 +163,7 @@ describe('홈 A 시작 카드(286 U3b)', () => {
   function pickGolden(): void {
     const d = screen.getByRole('dialog');
     fireEvent.click(d.querySelector(`[data-ws-group="${golden.group}"]`) as Element);
+    fireEvent.click(d.querySelector('[data-ws-action="pick-group"]') as Element);
     fireEvent.click(screen.getByRole('dialog').querySelector(`[data-ws-type="${golden.id}"]`) as Element);
   }
 

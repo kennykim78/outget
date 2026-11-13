@@ -46,7 +46,7 @@ export function layerLoaded(kind: LayerKind): boolean {
 }
 
 export const layerRegistry: Readonly<Record<LayerKind, LayerEntry>> = {
-  L1: { title: COPY.homeA.heroCta, Component: chunks.L1.Component },
+  L1: { title: COPY.picker.title, Component: chunks.L1.Component },
   L2: { title: COPY.homeB.nowTitle, Component: chunks.L2.Component },
   // L4·L7 제목은 내용이 용품명·상품명으로 바꾼다(useLayerChrome().setTitle). 기본은 빈 제목 — 대상 없으면 내용이 닫는다.
   L4: { title: '', Component: chunks.L4.Component },

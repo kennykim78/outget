@@ -21,7 +21,7 @@ function host(page = pageOf('HOME', { types: [] })) {
 describe('layerRegistry', () => {
   it('L1·L2·L4·L5·L7·L8, 고정 제목 = copy', () => {
     expect(Object.keys(layerRegistry).sort()).toEqual(['L1', 'L2', 'L4', 'L5', 'L7', 'L8']);
-    expect(layerRegistry.L1.title).toBe(COPY.homeA.heroCta);
+    expect(layerRegistry.L1.title).toBe(COPY.picker.title);
     expect(layerRegistry.L2.title).toBe(COPY.homeB.nowTitle);
     expect(layerRegistry.L5.title).toBe(COPY.checkLayer.title);
     expect(layerRegistry.L8.title).toBe(COPY.save.title);

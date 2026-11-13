@@ -203,7 +203,7 @@ describe('R5 딥링크 레이어(ws-data → React)', () => {
       `<main class="ws-page" data-ws-route="${kind}"></main>`,
       '<aside class="ws-layer" data-ws-layer="L1"><h2>친구</h2><a href="/">닫기</a></aside>',
     );
-    const d = screen.getByRole('dialog', { name: COPY.homeA.heroCta });
+    const d = screen.getByRole('dialog', { name: COPY.picker.title });
     expect(d).toHaveAttribute('data-ws-layer', 'L1');
     expect(document.querySelectorAll('aside.ws-layer')).toHaveLength(0);
     expect(document.querySelector('div.ws-scrim:not([data-ws-scrim])')).toBeNull();

@@ -20,6 +20,9 @@ function deepFreeze<T>(o: T): DeepReadonly<T> {
   return o as DeepReadonly<T>;
 }
 
+/** 친구 선택 질문 — 홈 선택 바와 L1 제목이 같은 문장을 쓴다(286 U4: L1 제목 「어떤 친구인가요?」 대체). */
+const PICK_QUESTION = '어떤 친구와 함께하나요?';
+
 export const COPY = deepFreeze({
   site: {
     name: 'WithSmall',
@@ -45,10 +48,8 @@ export const COPY = deepFreeze({
   homeA: {
     heroTitle: '작은 친구와의 시작, 꼭 필요한 것부터',
     heroSub: sent('준비물부터 크기까지, 함께 골라요.'),
-    /** 히어로 선택 바(입력 아님 — /pick 링크, 하이드레이션 후 L1). */
-    heroBar: '어떤 친구와 함께하나요?',
-    /** L1(친구 선택) 레이어 제목 — /pick 정적 aside·layerRegistry 공용(U4 전까지 유지). */
-    heroCta: '어떤 친구인가요?',
+    /** 히어로 선택 바(입력 아님 — /pick 링크, 하이드레이션 후 L1). L1 제목(picker.title)과 같은 문장(286 U4 통일). */
+    heroBar: PICK_QUESTION,
     reviewsTitle: '실제 이용 후기 — 이용이 확인된 분들만',
     reviewVerifiedChip: '이용 확인',
     startTitle: sent('어떤 친구와 함께하나요?'),
@@ -106,6 +107,12 @@ export const COPY = deepFreeze({
   },
   /** R4 C1 — L1 친구 선택(스펙22 §7.3). 후보 안내일 뿐 종을 확정하지 않는다(브리프 고정 문구). */
   picker: {
+    /** L1 레이어 제목 — /pick 정적 aside·layerRegistry 공용. 홈 선택 바(homeA.heroBar)와 한 문장(286 U4). */
+    title: PICK_QUESTION,
+    /** 그룹 단계 부제·다음 안내·주 버튼(R3 L1 시안 + R4 fix). {name} = 그룹 표시명(groups.*). */
+    groupsLead: sent('함께할 친구에게 맞춰 준비해요.'),
+    groupsNext: sent('다음 단계에서 세부 종을 골라요.'),
+    groupCta: '{name} 친구 고르기',
     unsure: '잘 모르겠어요',
     searchHint: sent('이름이나 별명으로 찾아 드려요'),
     candidateNote: sent('후보 안내일 뿐, 종을 확정하지 않아요'),

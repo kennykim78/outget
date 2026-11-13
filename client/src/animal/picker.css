@@ -24,6 +24,100 @@
   }
 }
 
+/* 286 U4 그룹 단계(R3 L1 시안 + R4 fix): 사진 자리 + 이름 줄(선택 = ✓ + 브랜드 글자색 + aria-pressed). 모바일 1열 · ≥768 2열.
+   카드 테두리·배경 없음(카드 속 카드 금지) — 사진 자리만 면, 선택은 사진 자리 테두리. */
+.ws-picker-grid--groups {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ws-space-4);
+}
+
+@media (min-width: 768px) {
+  .ws-picker-grid--groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ws-space-6);
+  }
+}
+
+.ws-picker-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ws-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ws-picker-group-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 12 / 5;
+  background: var(--ws-bg-100);
+  border: 2px solid transparent;
+  border-radius: var(--ws-radius-photo-mobile);
+}
+
+@media (min-width: 768px) {
+  .ws-picker-group-media {
+    aspect-ratio: 4 / 3;
+    border-radius: var(--ws-radius-photo);
+  }
+}
+
+.ws-picker-group--selected .ws-picker-group-media {
+  border-color: var(--ws-brand);
+}
+
+.ws-picker-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: var(--ws-touch);
+}
+
+.ws-picker-group--selected .ws-picker-group-label {
+  color: var(--ws-brand-text);
+}
+
+.ws-picker-group:active .ws-picker-group-media {
+  filter: var(--ws-pressed-brightness);
+}
+
+@media (hover: hover) {
+  .ws-picker-group:not(.ws-picker-group--selected):hover .ws-picker-group-media {
+    border-color: var(--ws-line-strong);
+  }
+}
+
+/* 고정 발: 주 버튼 전체 폭 + 그 아래 「잘 모르겠어요」 글자 링크(가운데). */
+.ws-picker-foot {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ws-space-1);
+}
+
+.ws-picker-foot > .ws-btn {
+  width: 100%;
+}
+
+.ws-picker-unsure-link {
+  align-self: center;
+  min-height: var(--ws-touch);
+  padding: 0 var(--ws-space-3);
+  background: none;
+  border: 0;
+  color: var(--ws-brand-text);
+  cursor: pointer;
+}
+
 .ws-type-card {
   width: 100%;
   min-height: 150px;

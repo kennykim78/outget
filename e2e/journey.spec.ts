@@ -41,9 +41,10 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await page.locator('section[data-ws-section="hero"] a[data-ws-action="pick-animal"]').click();
     const L1 = layer(page, 'L1');
     await expect(L1).toBeVisible();
-    await expect(L1.locator('h2')).toHaveText('어떤 친구인가요?');
+    await expect(L1.locator('h2')).toHaveText('어떤 친구와 함께하나요?');
     await assertScreen(page, 'L1 그룹');
     await L1.locator('[data-ws-group="SMALL_MAMMAL"]').click();
+    await L1.locator('[data-ws-action="pick-group"]').click(); // 286 U4: 그룹 선택 → 주 버튼
     await expect(L1.locator('[data-ws-step="types"]')).toBeVisible();
     await assertScreen(page, 'L1 타입');
     await Promise.all([page.waitForURL(`**${TYPE.home}`), L1.locator(`[data-ws-type="${TYPE.id}"]`).click()]);

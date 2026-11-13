@@ -206,6 +206,8 @@ function typeCard(ctx: PageContext, t: TypeModel): string {
  * /pick(K1, 51 레인 A ④) — 부모 = 홈 A + L1(친구 선택) 정적 본문. noindex·sitemap 제외·canonical /. ws-data = 홈과 같은 값, route.kind PICK, layer null
  *   (/save 의 L8 딥링크와 같은 방식 — 클라이언트가 route.kind/경로로 L1 을 연다). 타입 카드는 /{slug} 문서 링크(JS 없이 선택 = 이동).
  *   "잘 모르겠어요"(검색)는 JS 필요 — 정적으로는 별명 목록을 같은 링크로 보여 준다(후보 안내 문구 포함, 종 확정 아님).
+ *   286 U4: 제목 = picker.title(홈 선택 바와 같은 문장) + 그룹 부제. 클라이언트 L1 의 그룹 「선택 → 주 버튼」은 JS 상호작용이라
+ *   정적 본문은 그룹별 노출 타입 링크를 그대로 펼친다(하이드레이션 때 걷힘 — removePrerenderedLayer).
  */
 export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
   const card = (t: TypeModel): string => typeCard(ctx, t);
@@ -231,9 +233,10 @@ export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
     : '';
   const aside = [
     '<aside class="ws-layer" id="ws-layer" data-ws-layer="L1" role="dialog" aria-labelledby="ws-layer-title">',
-    `<h2 id="ws-layer-title">${h(COPY.homeA.heroCta)}</h2>`,
+    `<h2 id="ws-layer-title">${h(COPY.picker.title)}</h2>`,
     layerClose('/'),
     '<div class="ws-layer-body ws-picker" data-ws-step="groups">',
+    `<p class="ws-t-body ws-picker-muted">${h(COPY.picker.groupsLead)}</p>`,
     ...(groups.length ? groups : [`<p class="ws-t-body ws-picker-muted" data-ws-empty="types">${h(COPY.planned.title)}</p>`]),
     unsure,
     '</div>',
@@ -242,9 +245,9 @@ export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
     .filter((x) => x !== '')
     .join('\n');
   return page(ctx, {
-    title: `${COPY.homeA.heroCta}${COPY.site.titleSuffix}`,
+    title: `${COPY.picker.title}${COPY.site.titleSuffix}`,
     description: COPY.site.description,
-    crumbs: [HOME, { name: COPY.homeA.heroCta, path: PICK_PATH }],
+    crumbs: [HOME, { name: COPY.picker.title, path: PICK_PATH }],
     ...homeParts(m),
     aside,
   });

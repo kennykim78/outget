@@ -239,7 +239,9 @@ describe('/pick(K1)', () => {
     expect(mainOf(page)).toContain('<section class="ws-hero" data-ws-section="hero"');
     expect(page).toMatch(/<div class="ws-scrim" aria-hidden="true"><\/div>\n<aside class="ws-layer" id="ws-layer" data-ws-layer="L1"/);
     const aside = asideOf(page);
-    expect(aside).toContain(`<h2 id="ws-layer-title">${COPY.homeA.heroCta}</h2>`);
+    expect(aside).toContain(`<h2 id="ws-layer-title">${COPY.picker.title}</h2>`);
+    expect(COPY.picker.title).toBe(COPY.homeA.heroBar); // 286 U4: L1 제목 = 홈 선택 바 문장
+    expect(aside).toContain(`<p class="ws-t-body ws-picker-muted">${COPY.picker.groupsLead}</p>`);
     expect(aside).toContain(`<h3 class="ws-t-section">${COPY.groups.SMALL_MAMMAL}</h3>`);
     expect(aside).toMatch(/<a class="ws-type-card" href="\/hamster\/golden" data-ws-id="animalTypes#hamster-golden"><span class="ws-avatar ws-avatar--type ws-avatar--brand-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="56" height="56"/);
     const types = [...aside.matchAll(/class="ws-type-card" href="([^"]+)"/g)].map((m) => m[1]);
