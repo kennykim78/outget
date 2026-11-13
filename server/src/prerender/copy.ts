@@ -133,7 +133,12 @@ export const COPY = deepFreeze({
   },
   /** R4 C1 — L2 체크리스트(PRD US-005). 권장 안내·저장 불가 안내는 PRD 원문이 없어 작성. */
   checklist: {
-    requiredLeft: '필수 {n}개 미완료',
+    /** 286 U6(R3 체크리스트 시안) — L2 스텝 레이어 제목·머리 제목·부제·남은 개수·주 버튼. 클라이언트 전용(프리렌더 미사용). */
+    layerTitle: '준비 체크리스트',
+    lead: '꼭 필요한 것 먼저',
+    leadSub: sent('{animal}의 첫 준비예요.'),
+    requiredLeft: sent('꼭 필요한 것 {n}개 남았어요'),
+    nextCta: '남은 준비물 살펴보기',
     summaryTitle: '오늘 바로 데려와도 되는 준비',
     requiredDone: '필수 준비 끝',
     recommendedNote: sent('권장 항목도 살펴보세요'),

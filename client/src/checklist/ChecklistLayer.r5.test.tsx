@@ -2,7 +2,7 @@
 //   케이지 "보유" 행 → "내 케이지 등록 ›" → L6 스텝(뒤로 = 지금 필요한 것) → 저장 → L2 △(엔진 requirementCompat) ·
 //   케이지 없으면 카탈로그 요청 0·상태 영향 0. 합성 fixture·카탈로그(테스트 전용).
 import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { COPY } from '@ws/copy';
+import { COPY, GLYPH } from '@ws/copy';
 import type { PublicRequirement, SpecSchema } from '@ws/engine';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
@@ -216,6 +216,9 @@ describe('L2 통합(F2-3)', () => {
     // DR n-5: 호환이 만든 △ 의 이유 meta
     const wheelRow = d.querySelector('[data-ws-id="supplyRequirements#wheel"]') as HTMLElement;
     expect(within(wheelRow).getByText(COPY.product.reasonCageCheck)).toHaveAttribute('data-ws-compat', 'CHECK');
+    // 286 U6: 상태칩 없이 △ 글리프 + 상태 문구(시각 숨김) + 이유 한 줄 — 색만으로 말하지 않는다.
+    expect(wheelRow.querySelector('[data-ws-glyph="check"]')).toHaveTextContent(GLYPH.check);
+    expect(within(wheelRow).getByRole('checkbox')).toHaveAccessibleName(new RegExp(COPY.glyphLabel.check));
     expect(d.querySelector('[data-ws-id="supplyRequirements#cage"] [data-ws-compat]')).toBeNull();
   });
 

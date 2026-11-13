@@ -1,4 +1,4 @@
-// checklist/derive — PRD US-005 표 테스트: ✓ ! △ ○, 4그룹(NOT_NOW 접힘), 정렬 orderHint → priority, 준비율(REQUIRED ✓ 만, △ 제외).
+// checklist/derive — PRD US-005 표 테스트: ✓ ! △ ○, 4그룹(접힘 없음 — K6 전부 펼침), 정렬 orderHint → priority, 준비율(REQUIRED ✓ 만, △ 제외).
 import type { OrderHint, Priority, PublicRequirement } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
 import { deriveChecklist } from './derive';
@@ -85,10 +85,10 @@ describe('deriveChecklist', () => {
     expect(v.allRequiredReady).toBe(false);
   });
 
-  it('4그룹 고정 순서, NOT_NOW 만 접힘, 이유 그대로', () => {
+  it('4그룹 고정 순서, 접힘 필드 없음(K6 전부 펼침), 이유 그대로', () => {
     const v = deriveChecklist(REQS, null);
     expect(v.groups.map((g) => g.priority)).toEqual(['REQUIRED', 'RECOMMENDED', 'OPTIONAL', 'NOT_NOW']);
-    expect(v.groups.map((g) => g.collapsed)).toEqual([false, false, false, true]);
+    expect(v.groups.map((g) => Object.keys(g).sort())).toEqual(Array(4).fill(['priority', 'rows']));
     expect(v.groups[3].rows[0].requirement.notNowReason).toBe('지금은 필요 없어요');
   });
 

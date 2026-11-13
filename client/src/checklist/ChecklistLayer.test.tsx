@@ -1,7 +1,7 @@
 // F7 L2 + L3: ① 재마운트 유지, 100% 1회(해제·재도달 재발화 없음), 질문 2 ③ 저장·이벤트에 이메일·좌표 0
 //   + 결정 a(건너뛰기 = 답함) · b(완료 = REQUIRED 전부 ✓) · c(기기 저장 문구) · d(L3 전 숫자 0). 합성 fixture.
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { COPY } from '@ws/copy';
+import { COPY, GLYPH } from '@ws/copy';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry } from '../app/layerRegistry';
@@ -12,9 +12,11 @@ import { layerStore } from '../ui/layer/useLayer';
 import { setupKey } from './setupStore';
 
 const NOTNOW = { ...req('ball', 'NOT_NOW', '합성공'), notNowReason: '합성 이유 문장' };
+// 이유 한 줄(D9 ①): 시드 why 첫 문장만 — 둘째 문장은 화면에 없다.
+const WHEEL = { ...req('wheel', 'REQUIRED', '합성바퀴'), why: '합성 첫 문장이에요. 합성 둘째 문장이에요.' };
 const PAGE = pageOf(
   'TYPE',
-  { requirements: [req('cage', 'REQUIRED', '합성케이지'), req('wheel', 'REQUIRED', '합성바퀴'), req('toy', 'OPTIONAL', '합성장난감'), NOTNOW] },
+  { requirements: [req('cage', 'REQUIRED', '합성케이지'), WHEEL, req('toy', 'OPTIONAL', '합성장난감'), NOTNOW] },
   { typeId: golden.id, path: '/hamster/golden' },
 );
 
@@ -45,6 +47,7 @@ function closeL2(): void {
 const names = () => calls.map(([n]) => n);
 const row = (d: HTMLElement, name: string) => within(d).getByRole('checkbox', { name: new RegExp(name) });
 const requiredLeft = (n: number) => COPY.checklist.requiredLeft.replace('{n}', String(n));
+const status = (d: HTMLElement) => d.querySelector('.ws-check-status');
 
 function answerAlready(d: HTMLElement, owned: string[] = []) {
   fireEvent.click(within(d).getByLabelText(COPY.setupQ.already));
@@ -76,30 +79,49 @@ describe('L2 + L3', () => {
     expect(d.querySelector('.ws-check-more')).toBeNull();
   });
 
-  it('[다음]: setup_started 1회(firstTime·ownedCount) → L2 요약 밴드 "필수 N개 미완료", 보유 = ✓', () => {
+  it('[다음]: setup_started 1회(firstTime·ownedCount) → L2 머리(제목·부제·남은 개수), 보유 = ✓', () => {
     const d = openL2();
     answerAlready(d, ['합성케이지']);
     expect(calls).toEqual([['setup_started', { animalTypeId: golden.id, firstTime: false, ownedCount: 1 }]]);
-    expect(within(d).getByRole('heading', { name: requiredLeft(1) })).toBeInTheDocument();
-    expect(within(d).getByText(COPY.checklist.summaryTitle)).toBeInTheDocument();
-    expect(within(d).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+    // 286 U6 머리: 흰 제목 행 「준비 체크리스트」 + 본문 머리 3줄. 진행 막대·요약 눈썹 없음.
+    expect(d).toHaveAccessibleName(COPY.checklist.layerTitle);
+    expect(within(d).getByRole('heading', { name: COPY.checklist.lead })).toBeInTheDocument();
+    expect(within(d).getByText(COPY.checklist.leadSub.replace('{animal}', golden.displayName))).toBeInTheDocument();
+    expect(status(d)).toHaveTextContent(requiredLeft(1));
+    expect(status(d)).toHaveAttribute('aria-live', 'polite');
+    expect(within(d).queryByRole('progressbar')).toBeNull();
+    expect(within(d).queryByText(COPY.checklist.summaryTitle)).toBeNull();
+    expect(d.querySelector('.ws-layer-band')).toBeNull();
     expect(row(d, '합성케이지')).toHaveAttribute('aria-checked', 'true');
     expect(row(d, '합성바퀴')).toHaveAttribute('aria-checked', 'false');
-    // 상태 = 글리프 + 문구(glyphLabel) — 색만으로 말하지 않는다
+    // 상태 = 표시 + 문구(glyphLabel) — 색만으로 말하지 않는다. ✓ 는 글리프, 미체크는 빈 원(글리프 아님).
     expect(row(d, '합성케이지')).toHaveAccessibleName(new RegExp(COPY.glyphLabel.ready));
     expect(row(d, '합성바퀴')).toHaveAccessibleName(new RegExp(COPY.glyphLabel.first));
     expect(row(d, '합성장난감')).toHaveAccessibleName(new RegExp(COPY.glyphLabel.later));
-    // 그룹 헤더 = copy priority, NOT_NOW 접힘
+    expect(row(d, '합성케이지').querySelector('[data-ws-glyph="ready"]')).toHaveTextContent(GLYPH.ready);
+    expect(row(d, '합성바퀴').querySelector('[data-ws-glyph]')).toBeNull();
+    expect(row(d, '합성바퀴').querySelector('[data-ws-mark="off"]')).not.toBeNull();
+    // 별도 상태칩·보유 알약·오른쪽 상자 없음
+    expect(d.querySelector('.ws-check-owned, .ws-check-box, .ws-state-chip')).toBeNull();
+    // 이유 한 줄 = 시드 why 첫 문장(기계적 절단)
+    expect(row(d, '합성바퀴')).toHaveTextContent('합성 첫 문장이에요.');
+    expect(row(d, '합성바퀴')).not.toHaveTextContent('합성 둘째 문장이에요.');
+    // 그룹 헤더: 필수는 머리 제목이 대신(별도 머리 없음), 나머지 = copy priority. 전부 펼침(K6) — 접힘 버튼 없음.
     const heads = Array.from(d.querySelectorAll('.ws-check-group-head')).map((h) => h.textContent);
-    expect(heads).toEqual([COPY.priority.REQUIRED, COPY.priority.OPTIONAL, `${COPY.priority.NOT_NOW} (1) ▸`]);
-    expect(within(d).queryByText('합성 이유 문장')).toBeNull();
-    fireEvent.click(within(d).getByRole('button', { name: new RegExp(COPY.priority.NOT_NOW) }));
+    expect(heads).toEqual([COPY.priority.OPTIONAL, COPY.priority.NOT_NOW]);
+    expect(d.querySelector('[data-ws-group="REQUIRED"]')).toHaveAttribute('aria-labelledby', 'ws-check-lead');
     expect(within(d).getByText('합성 이유 문장')).toBeInTheDocument();
-    expect(within(d).getByRole('button', { name: new RegExp(COPY.priority.NOT_NOW) })).toHaveAttribute('aria-expanded', 'true');
+    expect(d.querySelector('[aria-expanded]')).toBeNull();
+    // D8 ①: 권장·선택 그룹은 숨기지 않는다(현 노출 규칙 유지)
+    expect(row(d, '합성장난감')).toBeInTheDocument();
     // › = L4 문서 이동
     const more = within(d).getByRole('link', { name: COPY.checklist.itemDetailAria.replace('{name}', '합성케이지') });
     expect(more).toHaveAttribute('href', '/hamster/golden/supplies/cage');
-    // 꼬리: 다시 설정 · 기기 저장 문구 · /save 링크
+    // 꼬리: 주 버튼(채움 1개) = 첫 미완료 필수(D15 ①) · 다시 설정 · 기기 저장 문구 · /save 링크
+    const next = within(d).getByRole('link', { name: COPY.checklist.nextCta });
+    expect(next).toHaveAttribute('href', '/hamster/golden/supplies/wheel');
+    expect(next).toHaveAttribute('data-ws-next', 'wheel');
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
     expect(within(d).getByRole('button', { name: COPY.checklist.resetSetup })).toBeInTheDocument();
     expect(d.querySelector('[data-ws-note="device-only"]')).not.toBeNull();
     expect(within(d).getByRole('link', { name: new RegExp(COPY.checklist.saveAsk) })).toHaveAttribute('href', '/save');
@@ -112,7 +134,7 @@ describe('L2 + L3', () => {
     expect(s).toMatchObject({ firstTime: null, owned: [] });
     expect(s.answeredAt).toEqual(expect.any(String));
     expect(calls).toEqual([]);
-    expect(within(d).getByRole('heading', { name: requiredLeft(2) })).toBeInTheDocument();
+    expect(status(d)).toHaveTextContent(requiredLeft(2));
   });
 
   it('토글: item_checked{UNKNOWN} / item_unchecked{보유면 OWNED}, 즉시 저장, 재마운트 후 유지', () => {
@@ -137,11 +159,13 @@ describe('L2 + L3', () => {
     answerAlready(d);
     calls = [];
     fireEvent.click(row(d, '합성장난감')); // 선택 항목만으로는 완료 아님
-    expect(within(d).getByRole('heading', { name: requiredLeft(2) })).toBeInTheDocument();
+    expect(status(d)).toHaveTextContent(requiredLeft(2));
     fireEvent.click(row(d, '합성케이지'));
+    expect(within(d).getByRole('link', { name: COPY.checklist.nextCta })).toHaveAttribute('data-ws-next', 'wheel');
     fireEvent.click(row(d, '합성바퀴'));
-    expect(within(d).getByRole('heading', { name: COPY.checklist.requiredDone })).toBeInTheDocument();
-    expect(within(d).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(status(d)).toHaveTextContent(COPY.checklist.requiredDone);
+    // 남은 필수 0 → 주 버튼 없음
+    expect(within(d).queryByRole('link', { name: COPY.checklist.nextCta })).toBeNull();
     fireEvent.click(row(d, '합성바퀴'));
     fireEvent.click(row(d, '합성바퀴'));
     const reached = calls.filter(([n]) => n === 'setup_100_reached');

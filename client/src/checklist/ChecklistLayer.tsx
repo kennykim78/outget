@@ -3,6 +3,9 @@
 //   - 건너뛰기 = 답한 것으로 기록(firstTime null, owned []), 이후 숫자 표시(a). setup_started 는 [다음]으로 처음 답할 때 1회.
 //   - 완료 = REQUIRED ≥ 1 이고 전부 ✓(△ 는 완료 아님)(b). 100% 도달 순간 setup_100_reached 1회(reached100At — 해제·재도달 재발화 없음).
 //   - 저장 불가면 "이 기기에만 저장돼요" 대신 저장 불가 안내 1회(c — 둘은 동시에 나오지 않는다).
+//   - 286 U6(R3 시안·K6): 흰 제목 행 「준비 체크리스트」 + 본문 머리(꼭 필요한 것 먼저 · {동물}의 첫 준비예요 · N개 남았어요).
+//     진행 막대·요약 눈썹·접힘 없음 — 모든 그룹 항상 펼침. 권장·선택 그룹은 현 노출 규칙 유지(D8 ①, US-005 범위 불변).
+//     꼬리 = 주 버튼 「남은 준비물 살펴보기」(D15 ① 첫 미완료 필수 항목의 L4) + 보조 텍스트(다시 설정 · 기기 안내 · 저장 링크).
 //   - 데이터는 ws-data PublicRequirement 그대로(재판정 없음, 불변식 ⑥). 저장·이벤트에 좌표·이메일 0(⑧).
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import type { PublicRequirement } from '@ws/engine';
@@ -24,46 +27,28 @@ import SetupQuestions from './SetupQuestions';
 import { useSetup } from './setupStore';
 import './checklist.css';
 
-function SummaryBand({ view, titleId }: { view: ChecklistView; titleId: string }) {
+const LEAD_ID = 'ws-check-lead';
+
+/** 본문 머리(R3 시안): 제목 · {동물}의 첫 준비예요 · 남은 개수(바뀌면 낭독, aria-live). */
+function ChecklistLead({ view, animal }: { view: ChecklistView; animal: string }) {
   // 케이지 호환 미판정 중에는 완료·남은 개수를 확정하지 않는다(기존 중립 문구).
-  const title = view.compatPending
+  const status = view.compatPending
     ? COPY.homeB.nowBeforeSetup
     : view.allRequiredReady
       ? COPY.checklist.requiredDone
       : copyFmt('checklist.requiredLeft', { n: view.remainingRequired });
   const note = view.allRequiredReady ? copyAt('checklist.recommendedNote') : null;
+  const sub = copyFmt('checklist.leadSub', { animal });
+  const tone = view.compatPending ? 'pending' : view.allRequiredReady ? 'done' : 'left';
   return (
-    <div className="ws-check-band">
-      <p className="ws-t-meta ws-check-muted">{COPY.checklist.summaryTitle}</p>
-      <h2 id={titleId} className="ws-t-title" tabIndex={-1}>
-        {title}
-      </h2>
-      <div
-        className="ws-check-progress"
-        role="progressbar"
-        aria-labelledby={titleId}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={view.readyPercent}
-      >
-        <span className="ws-check-progress-fill" style={{ width: `${view.readyPercent}%` }} />
-      </div>
+    <div className="ws-check-lead">
+      <h3 id={LEAD_ID} className="ws-t-display ws-check-lead-title">{COPY.checklist.lead}</h3>
+      {sub ? <p className="ws-t-body ws-check-lead-sub">{sub}</p> : null}
+      <p className="ws-t-section ws-check-status" data-ws-status={tone} aria-live="polite">
+        {status}
+      </p>
       {note ? <p className="ws-t-meta ws-check-muted">{note}</p> : null}
     </div>
-  );
-}
-
-function NotNowGroup({ rows, render }: { rows: ChecklistRow[]; render(r: ChecklistRow): JSX.Element }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="ws-check-group" data-ws-group="NOT_NOW">
-      <h3 className="ws-t-section ws-check-group-head">
-        <button type="button" className="ws-check-fold" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          {`${COPY.priority.NOT_NOW} (${rows.length}) ${open ? '▾' : '▸'}`}
-        </button>
-      </h3>
-      {open ? <ul className="ws-check-list">{rows.map(render)}</ul> : null}
-    </section>
   );
 }
 
@@ -95,20 +80,13 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   const [notice, setNotice] = useState(false);
   useEffect(() => wsStorage.onUnavailable(() => setNotice(true)), []);
 
-  // 머리: L2 = 요약 밴드(제목 id=titleId), L3 = 흰 제목 행.
+  // 머리: 흰 제목 행만(밴드 없음, 286 U6). L2 = 「준비 체크리스트」, L3·빈 상태 = 「지금 필요한 것」, L6 = CageStep 이 정한다.
   useEffect(() => {
-    if (step === 'L6') {
-      chrome.setBand(null); // 제목·뒤로는 CageStep 이 정한다
-      return;
-    }
+    chrome.setBand(null);
+    if (step === 'L6') return;
     chrome.setBack(null);
-    if (step === 'L2' && type && reqs.length > 0) chrome.setBand(<SummaryBand view={view} titleId={chrome.titleId} />);
-    else {
-      chrome.setBand(null);
-      chrome.setTitle(COPY.homeB.nowTitle);
-    }
-  }, [chrome, step, view, type, reqs.length]);
-  useEffect(() => () => chrome.setBand(null), [chrome]);
+    chrome.setTitle(step === 'L2' && type && reqs.length > 0 ? COPY.checklist.layerTitle : COPY.homeB.nowTitle);
+  }, [chrome, step, type, reqs.length]);
 
   // 100% 도달 1회.
   useEffect(() => {
@@ -176,7 +154,7 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   //   케이지 저장이 행을 보유로 바꾸지는 않는다(체크는 사용자 몫).
   const cageExtra = (row: ChecklistRow) =>
     row.requirement.supplyItemId === CAGE_ITEM_ID && (row.source === 'OWNED' || cage !== null) && cageSchema !== null ? (
-      <button type="button" className="ws-check-cage ws-check-fold ws-t-meta" onClick={openCage}>
+      <button type="button" className="ws-check-cage ws-check-link ws-t-meta" onClick={openCage}>
         {cage ? COPY.supplyLayer.cageEntryEdit : COPY.supplyLayer.cageEntryRegister}
       </button>
     ) : null;
@@ -194,15 +172,26 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   };
   const memoryOnly = wsStorage.isMemoryOnly();
   const deviceLine = notice ? COPY.checklist.storageUnavailable : memoryOnly || linked ? null : COPY.homeB.deviceOnly;
+  // D15 ①: 주 버튼 = 화면 순서상 첫 미완료 필수 항목(△ 포함)의 L4. 남은 필수가 없으면 주 버튼 없음.
+  const next = view.groups.find((g) => g.priority === 'REQUIRED')?.rows.find((row) => row.state !== 'READY') ?? null;
+  const onNext = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!next || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    onOpen(next);
+  };
 
   return (
     <>
       <div className="ws-layer-body ws-check" data-ws-step="L2">
+        <ChecklistLead view={view} animal={type.displayName} />
         {view.groups
           .filter((g) => g.rows.length > 0)
           .map((g) =>
-            g.collapsed ? (
-              <NotNowGroup key={g.priority} rows={g.rows} render={renderRow} />
+            g.priority === 'REQUIRED' ? (
+              // 필수 그룹의 제목 = 머리 제목(꼭 필요한 것 먼저) — 별도 「필수」 머리 없음(R3 시안).
+              <section key={g.priority} className="ws-check-group" data-ws-group={g.priority} aria-labelledby={LEAD_ID}>
+                <ul className="ws-check-list">{g.rows.map(renderRow)}</ul>
+              </section>
             ) : (
               <section key={g.priority} className="ws-check-group" data-ws-group={g.priority}>
                 <h3 className="ws-t-section ws-check-group-head">{COPY.priority[g.priority]}</h3>
@@ -213,10 +202,20 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
       </div>
       <LayerFoot>
         <div className="ws-check-foot">
-          <button type="button" className="ws-btn ws-btn--outline" onClick={() => setEditing(true)}>
-            {COPY.checklist.resetSetup}
-          </button>
-          <p className="ws-t-meta ws-check-muted">
+          {next ? (
+            <a
+              className="ws-btn ws-btn--fill ws-check-next"
+              href={href(next.requirement)}
+              data-ws-next={next.requirement.supplyItemId}
+              onClick={onNext}
+            >
+              {COPY.checklist.nextCta}
+            </a>
+          ) : null}
+          <p className="ws-t-meta ws-check-muted ws-check-aux">
+            <button type="button" className="ws-check-link" onClick={() => setEditing(true)}>
+              {COPY.checklist.resetSetup}
+            </button>
             {deviceLine ? <span data-ws-note={notice ? 'storage-unavailable' : 'device-only'}>{`${deviceLine} · `}</span> : null}
             <a className="ws-check-save" href="/save" onClick={onSave}>{linked ? COPY.checklist.saveLinked : `${COPY.checklist.saveAsk} ›`}</a>
           </p>

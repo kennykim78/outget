@@ -19,12 +19,10 @@ export interface ChecklistRow {
 export interface ChecklistGroup {
   priority: PublicRequirement['priority'];
   rows: ChecklistRow[];
-  /** NOT_NOW 그룹은 기본 접힘. */
-  collapsed: boolean;
 }
 
 export interface ChecklistView {
-  /** 항상 4개, PRIORITIES 순서(필수·권장·선택·지금 필요 없음). 빈 그룹 표시 여부는 화면이 정한다. */
+  /** 항상 4개, PRIORITIES 순서(필수·권장·선택·지금 필요 없음). 빈 그룹 표시 여부는 화면이 정한다. 접힘 없음(K6 전부 펼침, 286 U6). */
   groups: ChecklistGroup[];
   /** 0~100 정수(내림 — 전부 ✓ 일 때만 100). REQUIRED 0개면 0. */
   readyPercent: number;
@@ -84,7 +82,6 @@ export function deriveChecklist(
     rows: rows
       .filter((r) => r.requirement.priority === priority)
       .sort((a, b) => hintRank(a.requirement.orderHint) - hintRank(b.requirement.orderHint)),
-    collapsed: priority === 'NOT_NOW',
   }));
 
   const required = rows.filter((r) => r.requirement.priority === 'REQUIRED');
