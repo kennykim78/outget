@@ -83,31 +83,7 @@ test('최소 규격 미달 상품 — 상품 페이지·용품 페이지·사이
   }
 });
 
-test("후기 '규격 확인해보기' → 동물 선택 → /hamster/golden/check/cage(L5)", async ({ page }) => {
-  // 마퀴 정지(prefers-reduced-motion) — 움직이는 카드는 클릭 안정성 대기를 통과하지 못한다.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await gotoHydrated(page, '/');
-  // G3b: 홈 ws-data 의 타입별 specCheckItemId(데모: 골든 = cage).
-  const types = await page.evaluate(() => (JSON.parse(document.getElementById('ws-data')?.textContent ?? '{}') as { data?: { types?: Array<{ id: string; specCheckItemId?: string }> } }).data?.types ?? []);
-  expect(types.find((t) => t.id === TYPE.id)?.specCheckItemId).toBe('cage');
-  const action = page.locator('section[data-ws-section="reviews"] button.ws-review-action:not([tabindex="-1"])', { hasText: '규격 확인해보기' }).first();
-  await expect(action).toBeVisible();
-  await tap(page, action);
-  const L1 = page.locator('[data-ws-layer="L1"][role="dialog"]');
-  await expect(L1).toBeVisible();
-  await tap(page, L1.locator('[data-ws-group="SMALL_MAMMAL"]'));
-  await Promise.all([page.waitForURL(`**${TYPE.home}/check/cage`), tap(page, L1.locator(`[data-ws-type="${TYPE.id}"]`))]);
-  const L5 = page.locator('[data-ws-layer="L5"][role="dialog"]');
-  await expect(L5).toBeVisible();
-  await expect(L5.locator('h2')).toContainText('케이지');
-  await assertScreen(page, '후기 → L5 케이지');
-
-  // 이미 선택된 동물이 있으면 L1 없이 바로 같은 대상.
-  await gotoHydrated(page, '/');
-  const again = page.locator('section[data-ws-section="reviews"] button.ws-review-action:not([tabindex="-1"])', { hasText: '규격 확인해보기' }).first();
-  await Promise.all([page.waitForURL(`**${TYPE.home}/check/cage`), tap(page, again)]);
-  await expect(L5).toBeVisible();
-});
+// 286 U3a(D6): 홈 후기 섹션 비노출로 「후기 '규격 확인해보기' → L1 → L5」 시나리오 삭제. 의도 보존 경로(intent.ts)는 U3b 3카드에서 다시 덮는다.
 
 // 96 S3 — /privacy 390: 가로 스크롤 래퍼 없이 표가 부모 폭 안, 문서 가로 넘침 0(모든 프로젝트에서 390 으로 맞춰 본다).
 test('/privacy 390 — 표 폭 ≤ 부모 폭 · 문서 가로 넘침 0', async ({ page }) => {

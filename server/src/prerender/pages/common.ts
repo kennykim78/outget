@@ -295,13 +295,6 @@ export function sortVets<T extends Pick<PublicVet, 'region' | 'name' | 'id'>>(vs
   return [...vs].sort((p, q) => cmp(p.region, q.region) || cmp(p.name, q.name) || cmp(p.id, q.id));
 }
 
-/** client home/SplitTitle.tsx 와 같은 마크업 — " — " 기준 제목/부제(구분 기호는 시각적으로 숨김). */
-export function splitTitle(text: string): string {
-  const i = text.indexOf(' — ');
-  if (i < 0) return `<span class="ws-split-title">${h(text)}</span>`;
-  return `<span class="ws-split-title">${h(text.slice(0, i))}</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">${h(text.slice(i + 3))}</span>`;
-}
-
 export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review';
 const RAIL_LIST_CLASS: Record<RailKind, string> = { need: 'ws-chips', bundle: 'ws-bundles', product: 'ws-products', vet: 'ws-vets', review: 'ws-reviews' };
 

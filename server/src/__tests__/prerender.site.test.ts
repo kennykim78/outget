@@ -125,12 +125,12 @@ describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
     for (const p of ['/supplies', '/vet', '/404']) expect(page(p)).toContain('<meta name="robots" content="noindex">');
   });
 
-  it('홈 A: 후기 0 → ② 섹션 없음, 고정 섹션 제목 포함, 마커 0, title 1개', () => {
+  it('홈 A: 후기·소개 섹션 없음, 히어로·하단 CTA 고정 문구 포함, 마커 0, title 1개', () => {
     const html = b.pages[0].html;
     expect(html).not.toContain('data-ws-section="reviews"');
-    expect(html).toContain('작은 친구를 처음부터 제대로 준비해요');
-    // 51 레인 A: 소개 제목은 client SplitTitle 마크업(" — " 를 visually-hidden span 으로 분리).
-    expect(html).toContain('<span class="ws-split-title">WithSmall 소개</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">작은 친구의 첫 준비를 이렇게 도와요</span>');
+    expect(html).not.toContain('data-ws-section="intro"');
+    expect(html).toContain(COPY.homeA.heroTitle);
+    expect(html).toContain(COPY.homeA.startTitle);
     expect(html).not.toMatch(/ws:head|ws:body/);
     expect(html.match(/<title>/g)).toHaveLength(1);
     expect(html).toContain('<div id="root" data-ws-prerendered="1">');
@@ -286,8 +286,8 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(all).not.toContain('운영자가 실제 상품명'); // curated note
   });
 
-  it('후기 1개 → 홈 ② 섹션, /credits 와 모든 페이지 푸터 링크', () => {
-    expect(page('/')).toContain('data-ws-section="reviews"');
+  it('후기 1개여도 홈 후기 섹션 없음(D6, 286 U3a), /credits 와 모든 페이지 푸터 링크', () => {
+    expect(page('/')).not.toContain('data-ws-section="reviews"');
     for (const p of b.pages) expect(p.html).toContain('href="/credits"');
     expect(page('/credits')).toContain('Fixture Author');
   });
@@ -496,9 +496,8 @@ describe('R4 A2 프리렌더 보강', () => {
     }
     expect(pageOf(b, '/hamster/golden')).not.toContain('ws-scrim');
     // 51 레인 A(O-1): 인라인 SVG(D-2) → client AnimalAvatar 와 같은 img(/mascots/{asset}.svg). 정제 SVG 는 빌드 시 자산 검증용으로만.
-    const hero = /<section class="ws-hero"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/'));
-    expect(hero?.[1]).toContain('ws-avatar--brand-soft');
-    expect(hero?.[1]).toContain('<img src="/mascots/group-small-mammal.svg" width="96" height="96" alt=""');
+    //   286 U3a: 홈 A 히어로는 마스코트 없음(R3 시안) — 아래 홈 B 컨텍스트 헤더로 확인.
+    expect(/<section class="ws-hero"[^>]*>\n<span class="ws-avatar/.test(pageOf(b, '/'))).toBe(false);
     const ctx = /<section class="ws-context"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/hamster/golden'));
     expect(ctx?.[1]).toContain('ws-avatar--peach-soft');
     expect(ctx?.[1]).toContain('src="/mascots/hamster-golden.svg"');
@@ -549,16 +548,17 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(svgs[2]).toContain('<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>');
   });
 
-  it('F5: 비노출 동물(hamster-dwarf·guinea-pig)의 승인 후기는 어떤 산출물에도 없다, 노출 타입 후기는 홈에', () => {
+  it('F5: 비노출 동물(hamster-dwarf·guinea-pig)의 승인 후기는 어떤 산출물에도 없다, 노출 타입 후기도 홈엔 없음(D6)', () => {
     const s = promoted();
     patch(s, 'testimonials', 't-007', { status: 'APPROVED', verifiedUsage: true, quote: '드워프 후기 누출 표식이에요', consentAt: '2026-09-26' });
     patch(s, 'testimonials', 't-008', { status: 'APPROVED', verifiedUsage: true, quote: '기니피그 후기 누출 표식이에요', consentAt: '2026-09-26' });
     const b = buildM(s);
     const all = [...b.files.values()].join('\n');
     for (const leak of ['t-007', 't-008', '드워프 후기 누출 표식', '기니피그 후기 누출 표식']) expect(all, leak).not.toContain(leak);
+    // 286 U3a(D6): 홈은 후기를 그리지도 싣지도 않는다 — 노출 가능 후기(t-001)도 홈 산출물 0.
     const home = wsDataOf(pageOf(b, '/')) as { data: { testimonials: Row[] } };
-    expect(home.data.testimonials.map((t) => t.id)).toEqual(['t-001']);
-    expect(pageOf(b, '/')).toContain('data-ws-id="testimonials#t-001"');
+    expect(home.data.testimonials).toEqual([]);
+    expect(pageOf(b, '/')).not.toContain('testimonials#');
     expect(leaks(b, s)).toEqual([]);
     // 독립 구현(compliance)도 같은 판정 — 비노출 타입 후기는 노출 집합 밖.
     const ex = exposureMod.computeExposure(rawOf(s), FIXTURE_AS_OF);

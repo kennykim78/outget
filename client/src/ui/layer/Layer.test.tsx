@@ -78,7 +78,7 @@ describe('Layer 2변형(R3 U1: 드로어 폐기, PC 는 전부 모달)', () => {
       [1280, 'modal'],
     ] as const) {
       mockViewport(width);
-      for (const k of KINDS) expect([width, k, layerVariantFor(k)]).toEqual([width, k, expected]);
+      for (const k of KINDS) expect([width, k, layerVariantFor()]).toEqual([width, k, expected]);
     }
   });
 

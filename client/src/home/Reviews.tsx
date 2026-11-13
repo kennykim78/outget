@@ -1,4 +1,4 @@
-// 홈 A ② 실제 이용 후기(스펙22 §2.13). ws-data testimonials(APPROVED ∧ verifiedUsage 만 — 서버 투영) 그대로, 순서 유지.
+// 실제 이용 후기(스펙22 §2.13) — 홈 A 에서는 비노출(D6, 286 U3a), 컴포넌트·사다리 로직은 보존. ws-data testimonials(APPROVED ∧ verifiedUsage 만 — 서버 투영) 그대로, 순서 유지.
 //   사다리: 0 → 섹션 없음 · 1–2 → 정지(모바일 세로, ≥768 한 줄) · 3–5 → 정지 레일 · ≥6 → 마퀴 2줄(위 앞 절반 ←, 아래 나머지 →).
 //   마퀴: hover·focus-within·터치 정지, 복제 묶음 aria-hidden+inert, 페이드 없음, "멈추기/다시 흐르게 하기" 토글(D-18, WCAG 2.2.2).
 //   reduced-motion 이거나 토글 문구가 아직 없으면 마퀴 대신 한 줄 수동 레일(정지 상태가 기본).
@@ -9,7 +9,19 @@ import { COPY } from '@ws/copy';
 import { copyAt } from '../ui/copyText';
 import RailSection from '../ui/RailSection';
 import { MQ_REDUCED_MOTION, useMediaQuery } from '../ui/useMediaQuery';
-import SplitTitle from './SplitTitle';
+
+/** " — " 기준 제목/부제(구분 기호는 시각적으로 숨김) — 홈 소개 섹션 삭제(286 U3a)로 후기 전용이 되어 여기로 옮김. */
+function SplitTitle({ text }: { text: string }) {
+  const i = text.indexOf(' — ');
+  if (i < 0) return <span className="ws-split-title">{text}</span>;
+  return (
+    <>
+      <span className="ws-split-title">{text.slice(0, i)}</span>
+      <span className="ws-visually-hidden"> — </span>
+      <span className="ws-split-sub">{text.slice(i + 3)}</span>
+    </>
+  );
+}
 
 const SAME_ORIGIN_ASSET = /^\/assets\/[A-Za-z0-9._/-]+$/;
 

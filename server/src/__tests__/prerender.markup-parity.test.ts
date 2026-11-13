@@ -1,5 +1,5 @@
 // 51 레인 A — 프리렌더 마크업 ↔ React 정렬(K1 /pick 포함). 근거: _workspace/51_architect_persona_fix.md, P4 _workspace/screens/p4/.
-//   홈 A(Hero·Reviews·IntroSlides stack·StartBand) · 홈 B(HomeB 빈 저장소) 클래스 · CTA a[href=/pick] · 마스코트 img(O-1)
+//   홈 A(Hero·StartBand — 286 U3a) · 홈 B(HomeB 빈 저장소) 클래스 · CTA a[href=/pick] · 마스코트 img(O-1)
 //   · 정적 레이어 id/닫기 링크 · 404 복귀 링크 · /pick(noindex·L1 aside·sitemap 제외·canonical /) · 상품 표면 표식(불변식 ③) 고정.
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -26,7 +26,7 @@ const asideOf = (page: string): string => page.slice(page.indexOf('<aside'), pag
 const tagsWithClass = (s: string, c: string): string[] =>
   [...s.matchAll(/<[a-z0-9]+\b[^>]*>/g)].map((m) => m[0]).filter((t) => (/\bclass="([^"]*)"/.exec(t)?.[1] ?? '').split(/\s+/).includes(c));
 
-describe('홈 A 마크업 = React Hero·Reviews·IntroSlides(stack)·StartBand', () => {
+describe('홈 A 마크업 = React Hero·StartBand(R3 시안 v1b, 286 U3a)', () => {
   const b = build(promoted());
   const main = mainOf(html(b, '/'));
 
@@ -38,66 +38,58 @@ describe('홈 A 마크업 = React Hero·Reviews·IntroSlides(stack)·StartBand',
     expect(page).toContain('<main id="main" ');
   });
 
-  it('main.ws-page.ws-home-a + 섹션 클래스(ws-hero·ws-intro·ws-band--start)와 aria-labelledby id', () => {
+  it('main.ws-page.ws-home-a + 섹션 순서 [hero, start] — 후기·소개 섹션 0(D6)', () => {
     expect(main).toMatch(/^<main id="main" class="ws-page ws-home-a" data-ws-route="HOME">/);
-    expect(main).toContain('<section class="ws-hero" data-ws-section="hero" aria-labelledby="ws-hero-title">');
-    expect(main).toContain(`<h1 id="ws-hero-title" class="ws-t-display">${COPY.homeA.heroTitle}</h1>`);
-    expect(main).toContain('<section class="ws-intro" data-ws-section="intro" data-ws-intro="stack" aria-labelledby="ws-sec-intro-title">');
-    expect(main).toContain('<section class="ws-band ws-band--start" data-ws-section="start" aria-labelledby="ws-start-title">');
-    expect(main).toContain(`<h2 id="ws-start-title" class="ws-t-title">${COPY.homeA.startTitle}</h2>`);
+    const sections = [...main.matchAll(/<section\b[^>]*data-ws-section="([^"]+)"/g)].map((m) => m[1]);
+    expect(sections).toEqual(['hero', 'start']);
+    for (const gone of ['ws-reviews', 'ws-review', 'ws-intro', 'ws-feature-chips', 'ws-split-title', 'testimonials#']) expect(main).not.toContain(gone);
   });
 
-  it('CTA 2곳 = a.ws-btn.ws-btn--fill[data-ws-action=pick-animal][href=/pick], href 없는 pick-animal 0, button 0', () => {
-    const ctas = tagsWithClass(main, 'ws-btn--fill');
-    expect(ctas).toHaveLength(2);
-    for (const t of ctas) expect(t).toBe(`<a class="ws-btn ws-btn--fill" data-ws-action="pick-animal" href="${PICK_PATH}">`);
+  it('히어로 = h1 + 부제 + 선택 바(a.ws-pick-bar[href=/pick], 입력 아님) — 마스코트·기능 칩 0', () => {
+    expect(main).toContain('<section class="ws-hero" data-ws-section="hero" aria-labelledby="ws-hero-title">');
+    expect(main).toContain(`<h1 id="ws-hero-title" class="ws-t-display ws-hero-title">${COPY.homeA.heroTitle}</h1>`);
+    expect(main).toContain(`<p class="ws-t-body ws-muted ws-hero-sub">${COPY.homeA.heroSub}</p>`);
+    expect(main).toContain(
+      `<a class="ws-pick-bar" data-ws-action="pick-animal" href="${PICK_PATH}"><span class="ws-pick-bar-label">${COPY.homeA.heroBar}</span><span class="ws-pick-bar-go"><svg `,
+    );
+    expect(main).not.toMatch(/<(input|textarea)\b/);
+    expect(main).not.toContain('ws-avatar');
+  });
+
+  it('하단 CTA = section.ws-start > div.ws-start-text(h2 + 한 줄) + 채운 버튼 1', () => {
+    expect(main).toContain('<section class="ws-start" data-ws-section="start" aria-labelledby="ws-start-title">');
+    expect(main).toContain(
+      `<div class="ws-start-text"><h2 id="ws-start-title" class="ws-t-display ws-start-title">${COPY.homeA.startTitle}</h2><p class="ws-t-body ws-muted">${COPY.homeA.startBody}</p></div>`,
+    );
+  });
+
+  it('채운 CTA 1(하단) + 선택 바 1 = a[data-ws-action=pick-animal][href=/pick] 2곳, button 0', () => {
+    const fills = tagsWithClass(main, 'ws-btn--fill');
+    expect(fills).toEqual([`<a class="ws-btn ws-btn--fill" data-ws-action="pick-animal" href="${PICK_PATH}">`]);
     const picks = [...main.matchAll(/<[a-z]+\b[^>]*data-ws-action="pick-animal"[^>]*>/g)].map((m) => m[0]);
     expect(picks).toHaveLength(2);
     for (const t of picks) expect(t).toMatch(/^<a\b[^>]*\shref="\/pick"/);
     expect(main).not.toContain('<button');
   });
 
-  it('소개 = article#ws-intro-{i}.ws-intro-slide > 사진 자리 · 눈썹(featureChips) · h3(introSlides 제목) · 본문 (D1b)', () => {
-    const arts = [...main.matchAll(/<article id="ws-intro-(\d)" class="ws-intro-slide">([\s\S]*?)<\/article>/g)];
-    expect(arts).toHaveLength(COPY.homeA.introSlides.length);
-    arts.forEach((m, i) => {
-      expect(m[1]).toBe(String(i + 1));
-      const body = m[2];
-      expect(body).toMatch(/^<span class="ws-photo ws-intro-photo" aria-hidden="true"><\/span>/);
-      expect(body).toContain(`<p class="ws-t-label ws-eyebrow">${COPY.homeA.featureChips[i]}</p>`);
-      expect(body).toContain(`<h3 class="ws-t-title">${COPY.homeA.introSlides[i].title}</h3>`);
-      expect(body).toContain(`<p class="ws-t-body ws-muted">${COPY.homeA.introSlides[i].body}</p>`);
-    });
-    const h3s = [...main.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map((m) => m[1]);
-    expect(h3s).toEqual(COPY.homeA.introSlides.map((s) => s.title));
-    for (const chip of COPY.homeA.featureChips) expect(h3s).not.toContain(chip);
+  it('D6: 승인 후기가 있어도 홈 HTML·ws-data 에 후기 0(노출 경로 0 일치)', () => {
+    expect(b.model.testimonials.map((t) => t.id)).toEqual(['t-001']); // 픽스처에 노출 가능 후기가 있다(공허한 통과 방지)
+    const home = b.pages.find((x) => x.route.path === '/')!;
+    expect(home.data.data.testimonials).toEqual([]);
+    expect(home.html).not.toContain('testimonials#');
   });
 
-  it('소개 제목 SplitTitle(" — " 분리, 구분 기호 숨김)', () => {
-    const [t, sub] = COPY.homeA.introTitle.split(' — ');
-    expect(main).toContain(
-      `<h2 id="ws-sec-intro-title" class="ws-t-title ws-center-title"><span class="ws-split-title">${t}</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">${sub}</span></h2>`,
-    );
-  });
-
-  it('후기 1건 = single 사다리: section.ws-reviews-section > ul.ws-reviews-static > li.ws-review(따옴표·이용 확인 칩)', () => {
-    expect(main).toContain('<section class="ws-reviews-section" data-ws-section="reviews" data-ws-ladder="single" aria-labelledby="ws-sec-reviews-title">');
-    expect(main).toContain('<ul class="ws-reviews-static" role="list">');
-    expect(main).toMatch(/<li class="ws-review" data-ws-id="testimonials#t-001"><blockquote class="ws-review-quote">“[^<]+”<\/blockquote>/);
-    expect(main).toContain(`<span class="ws-pill-chip ws-pill-chip--brand">${COPY.homeA.reviewVerifiedChip}</span>`);
-  });
-
-  it('마스코트 = React AnimalAvatar 와 같은 img(/mascots/{asset}.svg, 96, alt="") — 인라인 SVG 0(O-1)', () => {
-    expect(main).toContain(
-      '<span class="ws-avatar ws-avatar--lg ws-avatar--brand-soft" aria-hidden="true"><img src="/mascots/group-small-mammal.svg" width="96" height="96" alt="" decoding="async"></span>',
-    );
-    expect(main).not.toContain('ws-mascot-svg');
+  it('마스코트 = React AnimalAvatar 와 같은 img(/mascots/{asset}.svg, alt="") — 인라인 SVG 0(O-1) · /pick L1 타입 카드', () => {
+    const aside = asideOf(html(b, PICK_PATH));
+    expect(aside).toContain('<span class="ws-avatar ws-avatar--type ws-avatar--brand-soft" aria-hidden="true"><img src="/mascots/hamster-golden.svg" width="56" height="56" alt=""');
+    expect(html(b, PICK_PATH)).not.toContain('ws-mascot-svg');
   });
 
   it('리포에 없는 마스코트 자산이면 img 0(빈 디스크) — 불변식 ①', () => {
     const b0 = buildSite(promoted(), { template: TEMPLATE, origin: ORIGIN, seedDigest: 'a'.repeat(64), asOf: FIXTURE_AS_OF });
-    expect(mainOf(html(b0, '/'))).toContain('<span class="ws-avatar ws-avatar--lg ws-avatar--brand-soft" aria-hidden="true"></span>');
+    expect(asideOf(html(b0, PICK_PATH))).toContain('<span class="ws-avatar ws-avatar--type ws-avatar--brand-soft" aria-hidden="true"></span>');
     expect(html(b0, '/')).not.toContain('/mascots/');
+    expect(html(b0, PICK_PATH)).not.toContain('/mascots/');
   });
 
   it('헤더 칩 = a[data-ws-chip][href=/pick] (홈·타입 모두)', () => {

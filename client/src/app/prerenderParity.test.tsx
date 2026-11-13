@@ -212,11 +212,6 @@ interface Allowed {
 }
 const ALLOWED: readonly Allowed[] = [
   {
-    kinds: ['HOME', 'PICK'],
-    re: /^main>section\.ws-reviews-section\[\d+\]>ul\.ws-reviews-static\[\d+\]>li\.ws-review\[\d+\]>a\.ws-review-action\.ws-t-meta\[\d+\] \.tag: static="a" react="button"$/,
-    why: '비-VET 후기 행동: 정적 a(해당 페이지 링크) → React button(레이어 열기)',
-  },
-  {
     kinds: ['TYPE'],
     re: /^main>section\.ws-rail-section\.ws-rail-section--need\[\d+\] \.id: static="ws-now" react=undefined$/,
     why: '홈B ① 정적 앵커 id=ws-now(⑤ 저장 CTA #ws-now 이동 대상) — React 는 CTA 가 L2 를 열어 앵커 불필요',

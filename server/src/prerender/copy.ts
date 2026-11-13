@@ -41,36 +41,19 @@ export const COPY = deepFreeze({
     seeAll: '전체',
     skipToMain: '본문으로 건너뛰기',
   },
-  /** UX §3.1 A — 동물 미선택(콜드스타트) 4섹션. */
+  /** 홈 A(동물 미선택) — R3 승인 시안 v1b(286 U3a): 히어로(큰 한 문장 + 부제 + 선택 바) … 하단 CTA. 후기·소개 섹션 없음(D6). */
   homeA: {
-    heroTitle: sent('작은 친구를 처음부터 제대로 준비해요'),
+    heroTitle: '작은 친구와의 시작, 꼭 필요한 것부터',
+    heroSub: sent('준비물부터 크기까지, 함께 골라요.'),
+    /** 히어로 선택 바(입력 아님 — /pick 링크, 하이드레이션 후 L1). */
+    heroBar: '어떤 친구와 함께하나요?',
+    /** L1(친구 선택) 레이어 제목 — /pick 정적 aside·layerRegistry 공용(U4 전까지 유지). */
     heroCta: '어떤 친구인가요?',
-    featureChips: ['지금 필요한 것', '규격 판정', '구성안', '동네 병원'],
     reviewsTitle: '실제 이용 후기 — 이용이 확인된 분들만',
     reviewVerifiedChip: '이용 확인',
-    introTitle: 'WithSmall 소개 — 작은 친구의 첫 준비를 이렇게 도와요',
-    /** 소개 슬라이드 4(K1, R4 클라이언트용). 순서 = featureChips. 프리렌더는 칩 라벨을 제목으로만 쓴다. */
-    introSlides: [
-      {
-        title: sent('지금 필요한 것부터 알려 드려요'),
-        body: sent('친구마다 먼저 준비할 것과 나중에 해도 되는 것이 달라요. 지금은 필요 없는 것도 이유와 함께 보여 드려요.'),
-      },
-      {
-        title: sent('막연한 말 대신 숫자로 말해요'),
-        body: sent('제품 치수를 넣으면 기준에 맞는지, 쓰던 환경과 맞는지 나눠서 알려 드려요. 이유와 검수 날짜도 함께 보여요.'),
-      },
-      {
-        title: sent('처음 준비하는 구성을 보여 드려요'),
-        body: sent('실속, 균형, 기존 물품 활용처럼 왜 이 조합인지가 먼저 나오는 구성안이에요. 가격은 참고 범위로만 보여요.'),
-      },
-      {
-        title: sent('가까운 병원을 찾아볼 수 있어요'),
-        body: sent('진료 동물을 확인한 병원을 보여 드려요. 방문 전에는 전화로 한 번 더 확인해 주세요.'),
-      },
-    ],
-    startTitle: sent('어떤 친구와 함께하시나요?'),
-    startCta: '어떤 친구인가요?',
-    startNote: sent('가입 없이 바로 시작해요'),
+    startTitle: sent('어떤 친구와 함께하나요?'),
+    startBody: sent('작은 친구와의 첫날, 필요한 것부터 함께 골라요.'),
+    startCta: '친구 선택하기',
     popularTitle: '요즘 많이 찾는 준비',
     /** R4 C1 — 클라이언트 전용(프리렌더 미사용). */
     continueLink: '이어서: {animal}',
@@ -82,7 +65,6 @@ export const COPY = deepFreeze({
       SETUP: '처음 준비 구성안 보기',
       VET: '동네 병원 보기',
     },
-    introTry: '지금 해보기',
   },
   /** R4 C1 — 가로 레일 이전/다음 버튼. */
   rail: { prev: '이전 보기', next: '다음 보기' },

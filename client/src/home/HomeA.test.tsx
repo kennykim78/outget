@@ -1,14 +1,13 @@
-// 홈 A(F4): ① 섹션 순서 [hero, reviews?, intro, start] + 후기 사다리 0/2/4/8 + reduced-motion ② /save 링크 0 ③ 금지어 0.
+// 홈 A(R3 시안 v1b, 286 U3a): ① 섹션 순서 [hero, start] — 후기·소개 섹션 없음(후기가 ws-data 에 있어도 비노출, D6)
+//   ② 히어로 = h1 + 부제 + 선택 바(a → /pick, 하이드레이션 후 L1) · 기능 칩 0 ③ 하단 CTA = 채운 버튼 1 ④ /save 링크 0 · 금지어 0.
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { COPY } from '@ws/copy';
 import App from '../App';
 import { nav } from '../animal/navigate';
-import { runPickHandler } from '../animal/pickHandler';
 import { NO_CAPTURE } from '../app/staticCapture';
-import { golden, pageOf, req, testimonial } from '../test/fixtures';
+import { golden, pageOf, testimonial } from '../test/fixtures';
 import { layerStore } from '../ui/layer/useLayer';
-import { reviewLadder } from './Reviews';
 
 const BANNED = ['괜찮다', '안전하다', '최저가', '판매순', '베스트', '정확도', '회원가입', '구매', '세트'];
 
@@ -21,9 +20,7 @@ function mockMedia(matching: string[]): void {
   }));
 }
 
-function homeWith(n: number) {
-  return pageOf('HOME', { testimonials: Array.from({ length: n }, (_, i) => testimonial(i + 1)) });
-}
+const home = (over: Parameters<typeof pageOf>[1] = {}) => pageOf('HOME', over);
 
 function sectionsOf(): string[] {
   const main = screen.getByRole('main');
@@ -44,66 +41,71 @@ afterEach(() => {
 });
 
 describe('홈 A 섹션', () => {
-  it('reviewLadder 경계: 0 none · 1–2 single · 3–5 rail · ≥6 marquee', () => {
-    expect([0, 1, 2, 3, 5, 6, 8].map(reviewLadder)).toEqual(['none', 'single', 'single', 'rail', 'rail', 'marquee', 'marquee']);
-  });
-
-  it('후기 0: [hero, intro, start] — 후기 섹션 DOM 없음', () => {
-    render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
-    expect(sectionsOf()).toEqual(['hero', 'intro', 'start']);
-    expect(document.querySelector('[data-ws-section="reviews"]')).toBeNull();
-  });
-
-  it('후기 2: 정지 단일 / 4: 정지 레일 — 순서 [hero, reviews, intro, start], 별점 없음', () => {
-    for (const [n, ladder] of [
-      [2, 'single'],
-      [4, 'rail'],
-    ] as const) {
-      const { unmount } = render(<App page={homeWith(n)} captured={NO_CAPTURE} />);
-      expect(sectionsOf()).toEqual(['hero', 'reviews', 'intro', 'start']);
-      const s = document.querySelector('[data-ws-section="reviews"]');
-      expect(s).toHaveAttribute('data-ws-ladder', ladder);
-      expect(s?.querySelectorAll('li[data-ws-id^="testimonials#"]')).toHaveLength(n);
-      expect(s?.textContent ?? '').not.toMatch(/[★☆]|\d\/5/);
+  it('[hero, start] — 후기·소개 섹션 DOM 없음(PC 폭에서도)', () => {
+    for (const media of [[], ['min-width: 1024px']]) {
+      mockMedia(media);
+      const { unmount } = render(<App page={home()} captured={NO_CAPTURE} />);
+      expect(sectionsOf()).toEqual(['hero', 'start']);
+      expect(document.querySelector('[data-ws-section="reviews"]')).toBeNull();
+      expect(document.querySelector('[data-ws-section="intro"]')).toBeNull();
       unmount();
     }
   });
 
-  it('후기 8: 마퀴 문구(copy)가 없거나 reduced-motion 이면 한 줄 수동 레일(정지가 기본)', () => {
-    render(<App page={homeWith(8)} captured={NO_CAPTURE} />);
-    const s = document.querySelector('[data-ws-section="reviews"]');
-    expect(s?.getAttribute('data-ws-ladder')).toMatch(/^marquee/);
-    expect(s?.querySelectorAll('li[data-ws-id^="testimonials#"]')).toHaveLength(8);
-    // 원본 카드는 정확히 8장(복제 세트는 data-ws-id 없음).
+  it('D6: ws-data 에 후기가 실려 와도 홈에 그리지 않는다(후기 문구·data-ws-id 0)', () => {
+    const list = Array.from({ length: 8 }, (_, i) => testimonial(i + 1));
+    const { container } = render(<App page={home({ testimonials: list })} captured={NO_CAPTURE} />);
+    expect(sectionsOf()).toEqual(['hero', 'start']);
+    expect(container.querySelector('[data-ws-id^="testimonials#"]')).toBeNull();
+    for (const t of list) expect(container.textContent ?? '').not.toContain(t.quote);
   });
 
-  it('reduced-motion: 애니메이션 트랙 없이 정지 레일', () => {
-    mockMedia(['prefers-reduced-motion']);
-    render(<App page={homeWith(8)} captured={NO_CAPTURE} />);
-    const s = document.querySelector('[data-ws-section="reviews"]');
-    expect(s).toHaveAttribute('data-ws-ladder', 'marquee-static');
-    expect(s?.querySelector('.ws-marquee-track')).toBeNull();
-  });
-
-  it('히어로: h1·채운 CTA 1개(→ L1)·기능 칩 4(→ #ws-intro-i), 저장 타입 없으면 "이어서" 없음', () => {
-    render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
+  it('히어로: h1 + 부제 + 선택 바(a[href=/pick], 입력 아님) — 기능 칩·채운 버튼 0, 저장 타입 없으면 "이어서" 없음', () => {
+    render(<App page={home()} captured={NO_CAPTURE} />);
     const hero = document.querySelector('[data-ws-section="hero"]') as HTMLElement;
-    expect(hero.querySelector('h1')).toHaveTextContent('작은 친구를 처음부터 제대로 준비해요');
-    expect(hero.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
-    const chips = Array.from(hero.querySelectorAll('.ws-feature-chips a')).map((a) => a.getAttribute('href'));
-    expect(chips).toEqual(['#ws-intro-1', '#ws-intro-2', '#ws-intro-3', '#ws-intro-4']);
+    expect(hero.querySelector('h1')).toHaveTextContent(COPY.homeA.heroTitle);
+    expect(hero.querySelector('.ws-hero-sub')).toHaveTextContent(COPY.homeA.heroSub);
+    expect(hero.querySelectorAll('input, textarea, [role="searchbox"], [role="combobox"]')).toHaveLength(0);
+    expect(hero.querySelector('.ws-feature-chips')).toBeNull();
+    expect(hero.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
+    const bar = hero.querySelector('a.ws-pick-bar') as HTMLAnchorElement;
+    expect(bar).toHaveAttribute('href', '/pick');
+    expect(bar).toHaveAttribute('data-ws-action', 'pick-animal');
+    expect(bar).toHaveAccessibleName(COPY.homeA.heroBar);
     expect(hero.querySelector('.ws-continue')).toBeNull();
-    fireEvent.click(hero.querySelector('.ws-btn--fill') as Element);
+    fireEvent.click(bar);
     expect(layerStore.get()?.kind).toBe('L1');
   });
 
-  it('K1: 친구 선택 CTA 2개 = a[data-ws-action=pick-animal][href="/pick"] — 일반 클릭 L1(defaultPrevented), 수정 키·중클릭은 기본 동작', () => {
-    render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
+  it('히어로 "이어서": 저장 타입이 있으면 타입 홈 링크(자동 이동 없음)', () => {
+    const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+    render(<App page={home()} captured={NO_CAPTURE} storedTypeId={golden.id} />);
+    const cont = document.querySelector('[data-ws-section="hero"] a.ws-continue');
+    expect(cont).toHaveAttribute('href', '/hamster/golden');
+    expect(cont).toHaveTextContent(golden.displayName);
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  it('하단 CTA: 제목 + 한 줄 + 채운 버튼 1(친구 선택하기 → L1) — 화면 전체 채운 CTA 정확히 1개', () => {
+    render(<App page={home()} captured={NO_CAPTURE} />);
+    const start = document.querySelector('[data-ws-section="start"]') as HTMLElement;
+    expect(start.querySelector('h2#ws-start-title')).toHaveTextContent(COPY.homeA.startTitle);
+    expect(start).toHaveTextContent(COPY.homeA.startBody);
+    expect(document.querySelectorAll('main .ws-btn--fill')).toHaveLength(1);
+    const btn = start.querySelector('a.ws-btn--fill') as HTMLAnchorElement;
+    expect(btn).toHaveTextContent(COPY.homeA.startCta);
+    fireEvent.click(btn);
+    expect(layerStore.get()?.kind).toBe('L1');
+  });
+
+  it('K1: 친구 선택 링크 2개 = a[data-ws-action=pick-animal][href="/pick"] — 일반 클릭 L1(defaultPrevented), 수정 키·중클릭은 기본 동작', () => {
+    render(<App page={home()} captured={NO_CAPTURE} />);
     const ctas = Array.from(document.querySelectorAll('main a[data-ws-action="pick-animal"][href="/pick"]'));
     expect(ctas).toHaveLength(2);
     expect(document.querySelectorAll('main button[data-ws-action="pick-animal"]')).toHaveLength(0);
     // 접근 이름 유지(링크 역할).
-    expect(screen.getAllByRole('link', { name: COPY.homeA.heroCta })).toEqual(ctas);
+    expect(ctas.map((a) => screen.getByRole('link', { name: a === ctas[0] ? COPY.homeA.heroBar : COPY.homeA.startCta }))).toEqual(ctas);
     for (const a of ctas) {
       for (const mod of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
         expect(fireEvent.click(a, mod)).toBe(true); // defaultPrevented=false
@@ -121,117 +123,22 @@ describe('홈 A 섹션', () => {
     }
   });
 
-  it('소개: 모바일 세로 4장 article#ws-intro-1..4(제목·본문), ≥1024 sticky 목록 aria-expanded 하나', () => {
-    const { unmount } = render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
-    const ids = Array.from(document.querySelectorAll('[data-ws-section="intro"] article')).map((a) => a.id);
-    expect(ids).toEqual(['ws-intro-1', 'ws-intro-2', 'ws-intro-3', 'ws-intro-4']);
-    unmount();
-    mockMedia(['min-width: 1024px']);
-    render(<App page={homeWith(0)} captured={NO_CAPTURE} />);
-    const intro = document.querySelector('[data-ws-section="intro"]') as HTMLElement;
-    expect(intro).toHaveAttribute('data-ws-intro', 'sticky');
-    const heads = Array.from(intro.querySelectorAll('button[aria-expanded]'));
-    expect(heads).toHaveLength(4);
-    expect(heads.filter((b) => b.getAttribute('aria-expanded') === 'true')).toHaveLength(1);
-    fireEvent.click(heads[2]);
-    expect(heads[2]).toHaveAttribute('aria-expanded', 'true');
-    expect(heads[0]).toHaveAttribute('aria-expanded', 'false');
+  it('L1 에서 선택(히어로 선택 바) → 기본 이동(typeHome) 정확히 1회', () => {
+    const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
+    render(<App page={home()} captured={NO_CAPTURE} />);
+    fireEvent.click(document.querySelector('[data-ws-section="hero"] a.ws-pick-bar') as Element);
+    const d = screen.getByRole('dialog');
+    fireEvent.click(d.querySelector(`[data-ws-group="${golden.group}"]`) as Element);
+    fireEvent.click(screen.getByRole('dialog').querySelector(`[data-ws-type="${golden.id}"]`) as Element);
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith('/hamster/golden');
+    assign.mockRestore();
   });
 
-  describe('후기 행동 의도 보존', () => {
-    // R6 G3b: 홈 ws-data 는 요구사항 없이 types[].specCheckItemId 만 싣는다(서버 homeTypes).
-    const page = () => pageOf('HOME', { testimonials: [1, 2, 4].map(testimonial), types: [{ ...golden, specCheckItemId: 'cage-1' }] });
-    // testimonial(1)=SPEC_CHECK · (2)=SETUP · (4)=CHECKLIST
-    const TARGETS: ReadonlyArray<[string, string]> = [
-      ['규격 확인해보기', '/hamster/golden/check/cage-1'],
-      ['처음 준비 구성안 보기', '/hamster/golden/setup'],
-      ['내 준비 확인해보기', '/hamster/golden'],
-    ];
-
-    function pickGolden(): void {
-      const d = screen.getByRole('dialog');
-      fireEvent.click(d.querySelector(`[data-ws-group="${golden.group}"]`) as Element);
-      fireEvent.click(screen.getByRole('dialog').querySelector(`[data-ws-type="${golden.id}"]`) as Element);
-    }
-
-    it.each(TARGETS)('동물 선택됨: "%s" → %s 로 바로 이동, L1 안 열림', (label, href) => {
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      render(<App page={page()} captured={NO_CAPTURE} storedTypeId={golden.id} />);
-      fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
-      expect(assign).toHaveBeenCalledWith(href);
-      expect(layerStore.get()).toBeNull();
-      assign.mockRestore();
-    });
-
-    it.each(TARGETS)('미선택: "%s" → L1 열림, 선택하면 %s 로 이동', (label, href) => {
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      render(<App page={page()} captured={NO_CAPTURE} />);
-      fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
-      expect(layerStore.get()?.kind).toBe('L1');
-      expect(assign).not.toHaveBeenCalled();
-      pickGolden();
-      expect(assign).toHaveBeenCalledTimes(1);
-      expect(assign).toHaveBeenCalledWith(href);
-      expect(assign).not.toHaveBeenCalledWith('/hamster/golden/');
-      assign.mockRestore();
-    });
-
-    it('SPEC_CHECK: specCheckItemId·요구사항 둘 다 없으면 /{slug} 폴백', () => {
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      render(<App page={pageOf('HOME', { testimonials: [testimonial(1)] })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
-      fireEvent.click(screen.getByRole('button', { name: /규격 확인해보기/ }));
-      expect(assign).toHaveBeenCalledWith('/hamster/golden');
-      assign.mockRestore();
-    });
-
-    it('SPEC_CHECK: 요구사항이 실린 문서는 규격 필드가 있는 첫 요구사항으로(타입 데이터 폴백)', () => {
-      const r = req('cage-2', 'REQUIRED');
-      const specReq = { ...r, item: { ...r.item, specSchema: { fields: [{ key: 'w' }] } } } as unknown as typeof r;
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      render(<App page={pageOf('HOME', { testimonials: [testimonial(1)], requirements: [specReq] })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
-      fireEvent.click(screen.getByRole('button', { name: /규격 확인해보기/ }));
-      expect(assign).toHaveBeenCalledWith('/hamster/golden/check/cage-2');
-      assign.mockRestore();
-    });
-
-    it('의도 없이 L1 에서 선택(히어로 CTA) → 기본 이동(typeHome) 정확히 1회', () => {
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      render(<App page={page()} captured={NO_CAPTURE} />);
-      fireEvent.click(document.querySelector('[data-ws-section="hero"] .ws-btn--fill') as Element);
-      expect(layerStore.get()?.kind).toBe('L1');
-      pickGolden();
-      expect(assign).toHaveBeenCalledTimes(1);
-      expect(assign).toHaveBeenCalledWith('/hamster/golden');
-      assign.mockRestore();
-    });
-
-    it('미선택: L1 을 선택 없이 닫으면 의도 폐기·핸들러 해제 — 이후 선택은 기본 이동(typeHome)', () => {
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      render(<App page={page()} captured={NO_CAPTURE} />);
-      fireEvent.click(screen.getByRole('button', { name: /구성안/ }));
-      expect(layerStore.get()?.kind).toBe('L1');
-      act(() => layerStore.resetForTest());
-      expect(assign).not.toHaveBeenCalled();
-      expect(runPickHandler(golden, 'picker')).toBe(false);
-      assign.mockRestore();
-    });
-
-    it('언마운트 시 핸들러 해제', () => {
-      const assign = vi.spyOn(nav, 'assign').mockImplementation(() => undefined);
-      const { unmount } = render(<App page={page()} captured={NO_CAPTURE} />);
-      fireEvent.click(screen.getByRole('button', { name: /구성안/ }));
-      unmount();
-      expect(runPickHandler(golden, 'picker')).toBe(false);
-      expect(assign).not.toHaveBeenCalled();
-      assign.mockRestore();
-    });
-  });
-
-  it('/save 링크 0 · 금지어 0 · 시작 배너 "가입 없이 바로 시작해요"', () => {
-    const { container } = render(<App page={homeWith(8)} captured={NO_CAPTURE} />);
+  it('/save 링크 0 · 금지어 0', () => {
+    const { container } = render(<App page={home({ testimonials: [testimonial(1)] })} captured={NO_CAPTURE} />);
     expect(container.querySelector('a[href="/save"]')).toBeNull();
     const text = container.textContent ?? '';
     for (const w of BANNED) expect(text).not.toContain(w);
-    expect(document.querySelector('[data-ws-section="start"]')).toHaveTextContent('가입 없이 바로 시작해요');
   });
 });

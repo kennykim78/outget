@@ -3,8 +3,6 @@
 import { test, expect, e2eEnv } from './support/fixtures';
 import { isInsideRepo, seedFilesDigest } from './support/repo';
 
-const mode = (): string => e2eEnv('E2E_SEED_MODE');
-
 test('홈 / 는 200 HTML', async ({ request }) => {
   const res = await request.get('/');
   expect(res.status()).toBe(200);
@@ -23,8 +21,8 @@ test('홈 A(미선택) 렌더 · 외부 요청 0', async ({ page, guard }) => {
 
   const sections = await page.locator('main [data-ws-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ws-section')));
   const top = sections.filter((s) => ['hero', 'reviews', 'intro', 'start'].includes(s ?? ''));
-  // 데모: 후기 8건 → 4섹션. 실시드: 후기 0건(전부 DRAFT) → 후기 섹션 숨김.
-  expect(top).toEqual(mode() === 'demo' ? ['hero', 'reviews', 'intro', 'start'] : ['hero', 'intro', 'start']);
+  // 286 U3a(D6): 홈 후기·소개 섹션 없음 — 데모(후기 8건)·실시드 모두 히어로 → 하단 CTA.
+  expect(top).toEqual(['hero', 'start']);
 
   expect(guard.external).toEqual([]);
   expect(guard.pageErrors).toEqual([]);

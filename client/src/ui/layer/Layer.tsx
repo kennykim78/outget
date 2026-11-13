@@ -32,7 +32,7 @@ function matches(q: string): boolean {
  * 현재 뷰포트에서의 변형(순수 — 테스트 가능). matchMedia 가 없으면 모바일 우선 sheet.
  * 종류(kind)와 무관 — 모달 폭 600/720 은 CSS 미디어 쿼리가 정한다.
  */
-export function layerVariantFor(_kind?: LayerShellKind): LayerVariant {
+export function layerVariantFor(): LayerVariant {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'sheet';
   return matches(MQ_SHEET) ? 'sheet' : 'modal';
 }
