@@ -138,6 +138,8 @@ export const COPY = deepFreeze({
     lead: '꼭 필요한 것 먼저',
     leadSub: sent('{animal}의 첫 준비예요.'),
     requiredLeft: sent('꼭 필요한 것 {n}개 남았어요'),
+    /** 필수 항목이 0개인 타입(ZERO) — 「0개 남았어요」 대신. */
+    requiredNone: sent('이 친구는 꼭 필요한 항목이 따로 없어요'),
     nextCta: '남은 준비물 살펴보기',
     summaryTitle: '오늘 바로 데려와도 되는 준비',
     requiredDone: '필수 준비 끝',
@@ -231,6 +233,11 @@ export const COPY = deepFreeze({
     titleSmall: sent('{name} 크기가 최소 기준보다 작아요'),
     titleBelowMin: sent('{name} 최소 기준에 맞지 않는 항목이 있어요'),
     titleNoCriteria: sent('{animal} 기준값이 없는 용품이에요'),
+    /** 제품 단은 충족인데 내 케이지 호환이 CHECK·BELOW_MIN 일 때의 제목(성공 문장 금지). 제품 미달 제목은 그대로. */
+    titleOkCompatCheck: sent('{name} 크기는 충족해요, 케이지와는 확인이 필요해요'),
+    titleOkCompatBelowMin: sent('{name} 크기는 충족해요, 케이지와는 맞지 않는 조건이 있어요'),
+    titleBelowRecommendedCompatCheck: sent('최소 기준은 충족해요, 케이지와는 확인이 필요해요'),
+    titleBelowRecommendedCompatBelowMin: sent('최소 기준은 충족해요, 케이지와는 맞지 않는 조건이 있어요'),
     /** 「최소 {필드명}」 — 숫자 규칙이 여럿이면 minSpecLabel. */
     minOf: '최소 {name}',
     minSpecLabel: '최소 규격',

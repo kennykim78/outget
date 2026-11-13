@@ -1,6 +1,6 @@
 // verdictView — 순수 표시 함수(스펙33 §3 표 · 286 U5b). 판정 계산은 엔진, 여기는 매핑·표시용 뺄셈만.
 import { COPY, VERDICT_GLYPH, formatCopy } from '@ws/copy';
-import type { RuleSet, SpecCheckResult, SpecSchema } from '@ws/engine';
+import type { Reason, RuleSet, SpecCheckResult, SpecSchema } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
 import {
   cageSummary,
@@ -77,6 +77,26 @@ describe('verdictView', () => {
     expect(verdictTitle(SCHEMA, missing, MIN27, NAMES)).toBe(COPY.verdict.productCheck);
   });
 
+  it('CHECK 표시 분리: INPUT 사유가 있을 때만 「입력 필요」(?), 기준·규칙 사유뿐이면 「확인 필요」(△)', () => {
+    const input = [{ stage: 'PRODUCT', kind: 'INPUT', verdict: 'CHECK', key: 'diameterCm', message: 'm' }] as unknown as Reason[];
+    const rule = [{ stage: 'PRODUCT', kind: 'RULE', verdict: 'CHECK', message: 'm' }] as unknown as Reason[];
+    expect(productMark('CHECK', false, false, input)).toMatchObject({ glyph: VERDICT_GLYPH.input, label: COPY.verdict.markInput });
+    expect(productMark('CHECK', false, false, rule)).toEqual({ glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck });
+    expect(productMark('CHECK', false, false, [...rule, ...input])).toMatchObject({ label: COPY.verdict.markInput });
+  });
+
+  it('제목: 제품 OK·권장 미만 + 호환 CHECK/BELOW_MIN 이면 성공 문장이 아니라 호환을 반영한 문장', () => {
+    const ok: SpecCheckResult['product'] = { verdict: 'OK', reasons: [] };
+    const rec: SpecCheckResult['product'] = { verdict: 'BELOW_RECOMMENDED', reasons: [] };
+    expect(verdictTitle(SCHEMA, ok, MIN27, NAMES, 'OK')).toBe('쳇바퀴 기준을 충족해요');
+    expect(verdictTitle(SCHEMA, ok, MIN27, NAMES, 'NONE')).toBe('쳇바퀴 기준을 충족해요');
+    expect(verdictTitle(SCHEMA, ok, MIN27, NAMES, 'CHECK')).toBe('쳇바퀴 크기는 충족해요, 케이지와는 확인이 필요해요');
+    expect(verdictTitle(SCHEMA, ok, MIN27, NAMES, 'BELOW_MIN')).toBe('쳇바퀴 크기는 충족해요, 케이지와는 맞지 않는 조건이 있어요');
+    expect(verdictTitle(SCHEMA, rec, MIN27, NAMES, 'CHECK')).toBe('최소 기준은 충족해요, 케이지와는 확인이 필요해요');
+    expect(verdictTitle(SCHEMA, rec, MIN27, NAMES, 'BELOW_MIN')).toBe('최소 기준은 충족해요, 케이지와는 맞지 않는 조건이 있어요');
+    expect(verdictTitle(SCHEMA, rec, MIN27, NAMES, 'OK')).toBe(COPY.verdict.titleBelowRecommended);
+  });
+
   describe('결과 숫자(U5b) — 값은 minSpec·Reason.expected/actual 에서만, 차이 = 뺄셈 표시', () => {
     const below = (actual: number): SpecCheckResult['product'] => ({
       verdict: 'BELOW_MIN',
@@ -91,6 +111,20 @@ describe('verdictView', () => {
       expect(formatCopy(COPY.verdict.shortBy, { name: '지름', n: 1, unit: 'cm' })).toBe('최소 지름보다 1cm 작아요');
       expect(isSmallOnly(SCHEMA, p, MIN27)).toBe(true);
       expect(verdictTitle(SCHEMA, p, MIN27, NAMES)).toBe('쳇바퀴 크기가 최소 기준보다 작아요');
+    });
+
+    it('BELOW_MIN 인데 gte 미달이 없으면(lte 미달 + 충족한 gte 규칙) 큰 숫자 영역 생략', () => {
+      const p: SpecCheckResult['product'] = {
+        verdict: 'BELOW_MIN',
+        reasons: [{ stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'diameterCm', expected: 40, actual: 45, message: 'm' }],
+      };
+      const min: RuleSet = {
+        rules: [
+          { key: 'diameterCm', op: 'gte', value: 27, reason: 'r' },
+          { key: 'diameterCm', op: 'lte', value: 40, reason: 'r' },
+        ],
+      };
+      expect(minFigure(SCHEMA, p, min)).toBeNull();
     });
 
     it('소수 차이는 부동소수 잔차 없이(26.7 → 0.3)', () => {

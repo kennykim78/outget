@@ -58,6 +58,7 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
   const [raw, setRaw] = useState<Record<string, string>>({});
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const seq = useRef(0);
+  const describedId = `${chrome.titleId}-desc`;
 
   useLayoutEffect(() => {
     if (!requirement || !type) {
@@ -67,8 +68,9 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
     if (step === 'L5') {
       chrome.setTitle(COPY.checkLayer.title); // 286 U5a: 제목행 「크기 확인」, 「{동물} · {용품}」은 본문 첫 줄
       chrome.setBack(null);
+      chrome.setDescribedBy(describedId); // 대화상자 이름은 「크기 확인」 그대로, 「{동물} · {용품}」 줄은 설명으로 연결
     }
-  }, [chrome, requirement, type, step, close]);
+  }, [chrome, requirement, type, step, close, describedId]);
 
   // 케이지가 바뀌면(L6 저장·지우기, 다른 탭) 결과가 있을 때만 같은 입력으로 다시 계산 — 이벤트 없음.
   const userContext = useMemo(() => toUserContext(cage), [cage]);
@@ -243,13 +245,14 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
               lastVerifiedYm={yearMonth(requirement.lastVerifiedAt)}
               sourceCount={requirement.source.length}
               seq={outcome.seq}
+              describedId={describedId}
               contextRow={cageRow}
               onOpenAlternative={openAlternative}
             />
           ) : (
             <>
               <div className="ws-spec-intro">
-                <p className="ws-t-meta ws-spec-muted">{`${type.displayName} · ${requirement.item.name}`}</p>
+                <p id={describedId} className="ws-t-meta ws-spec-muted">{`${type.displayName} · ${requirement.item.name}`}</p>
                 <h3 className="ws-t-title ws-spec-ask">{formatCopy(COPY.checkLayer.ask, { name: requirement.item.name })}</h3>
                 <p className="ws-t-meta ws-spec-muted">{headMeta}</p>
               </div>

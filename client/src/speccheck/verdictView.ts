@@ -42,7 +42,7 @@ export function isProductNoCriteria(product: SpecCheckResult['product']): boolea
  *   OK ○ 기준 충족 · BELOW_RECOMMENDED △ 확인 필요(보조줄 「최소 기준 충족 · 권장 미만」) · BELOW_MIN ✕(숫자 최소에 작을 때만 「조금 작아요」,
  *   그 밖의 미달은 「최소 규격 미달」) · CHECK+NO_CRITERIA — 기준 없음(○ 와 다른 글리프) · 값 누락 CHECK ? 입력 필요.
  */
-export function productMark(v: Verdict, noCriteria = false, small = false): VerdictMark {
+export function productMark(v: Verdict, noCriteria = false, small = false, reasons?: readonly Reason[]): VerdictMark {
   if (v === 'CHECK' && noCriteria) return { glyph: VERDICT_GLYPH.none, tone: 'none', label: COPY.verdict.markNone };
   switch (v) {
     case 'OK':
@@ -52,6 +52,10 @@ export function productMark(v: Verdict, noCriteria = false, small = false): Verd
     case 'BELOW_MIN':
       return { glyph: VERDICT_GLYPH.fail, tone: 'fail', label: small ? COPY.verdict.markSmall : COPY.verdict.productBelowMin };
     case 'CHECK':
+      // reasons 를 주면: INPUT(값 누락·잘못된 값) 사유가 있을 때만 「입력 필요」, 기준·규칙 쪽 사유뿐이면 「확인 필요」(△). 생략 시 기존 동작.
+      if (reasons !== undefined && !reasons.some((r) => r.kind === 'INPUT')) {
+        return { glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck };
+      }
       return { glyph: VERDICT_GLYPH.input, tone: 'check', label: COPY.verdict.markInput };
   }
 }
@@ -127,6 +131,8 @@ export function minFigure(schema: SpecSchema, product: SpecCheckResult['product'
       const { base, unit } = splitLabel(numberField(schema, r.key)?.label ?? '');
       return { label: formatCopy(COPY.verdict.minOf, { name: base }), value: String(r.expected), unit, suffix: COPY.spec.gte, keys: [r.key] };
     }
+    // gte 미달이 없는 BELOW_MIN(lte·enum 등) — 엉뚱한 gte 묶음을 보이지 않도록 큰 숫자 영역 생략.
+    return null;
   }
   const rules = Array.isArray(minSpec?.rules) ? minSpec.rules : [];
   const picked: Array<{ key: string; base: string; value: number; unit: string }> = [];
@@ -175,18 +181,23 @@ export function isSmallOnly(schema: SpecSchema, product: SpecCheckResult['produc
   return mins.length > 0 && shortfalls(schema, product, minSpec).length === mins.length;
 }
 
-/** 판정 제목 문장(제품 단 기준). 호환 단은 아래 2단 줄이 따로 말한다. */
+/** 판정 제목 문장(제품 단 기준). 제품 충족·권장 미만인데 호환(compatVerdict)이 CHECK·BELOW_MIN 이면 호환을 반영한 문장 — 성공 문장 금지. */
 export function verdictTitle(
   schema: SpecSchema,
   product: SpecCheckResult['product'],
   minSpec: RuleSet | null | undefined,
   names: { item: string; animal: string },
+  compatVerdict?: CompatVerdict,
 ): string {
   if (isProductNoCriteria(product)) return formatCopy(COPY.verdict.titleNoCriteria, { animal: names.animal });
   switch (product.verdict) {
     case 'OK':
+      if (compatVerdict === 'CHECK') return formatCopy(COPY.verdict.titleOkCompatCheck, { name: names.item });
+      if (compatVerdict === 'BELOW_MIN') return formatCopy(COPY.verdict.titleOkCompatBelowMin, { name: names.item });
       return formatCopy(COPY.verdict.titleOk, { name: names.item });
     case 'BELOW_RECOMMENDED':
+      if (compatVerdict === 'CHECK') return COPY.verdict.titleBelowRecommendedCompatCheck;
+      if (compatVerdict === 'BELOW_MIN') return COPY.verdict.titleBelowRecommendedCompatBelowMin;
       return COPY.verdict.titleBelowRecommended;
     case 'BELOW_MIN':
       return formatCopy(isSmallOnly(schema, product, minSpec) ? COPY.verdict.titleSmall : COPY.verdict.titleBelowMin, { name: names.item });

@@ -10,8 +10,9 @@ export function intentHref(action: LinkedAction, type: Pick<PublicAnimalType, 'i
   const home = typeHomeHref(type);
   switch (action) {
     case 'SETUP': {
+      // 구성안(PublicBundle)에는 타입 id 가 없다 — 타입 문서(route.typeId)의 구성안만 그 타입의 것이므로 고른 타입과 같을 때만 센다.
       // /{slug}/setup 은 노출 구성안이 있는 타입만 프리렌더된다(routes.ts) — 없으면 404 대신 타입 홈.
-      const has = page.data.types.find((t) => t.id === type.id)?.setupAvailable === true || page.data.bundles.length > 0;
+      const has = page.data.types.find((t) => t.id === type.id)?.setupAvailable === true || (page.route.typeId === type.id && page.data.bundles.length > 0);
       return has ? `${home}/setup` : home;
     }
     case 'SPEC_CHECK': {

@@ -61,7 +61,7 @@ describe('홈 A 마크업 = React Hero·StartBand(R3 시안 v1b, 286 U3a)', () =
       `<section class="ws-rail-section ws-rail-section--starter ws-rail-section--grid3" data-ws-section="starters" aria-labelledby="ws-sec-starters-title">`,
     );
     expect(main).toContain(`<h2 id="ws-sec-starters-title" class="ws-t-section">${COPY.homeA.startersTitle}</h2>`);
-    expect(main).toContain('<ul class="ws-rail ws-starters" role="list" tabindex="0" aria-labelledby="ws-sec-starters-title">');
+    expect(main).toContain('<ul class="ws-rail ws-starters" role="list" aria-labelledby="ws-sec-starters-title">');
     const cards = [...main.matchAll(/<a class="ws-starter" data-ws-action="start-card" data-ws-intent="([A-Z_]+)" href="([^"]+)">/g)];
     expect(cards.map((m) => m[1])).toEqual(['CHECKLIST', 'SPEC_CHECK', 'SETUP']);
     for (const m of cards) expect(m[2]).toBe(PICK_PATH);

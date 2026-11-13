@@ -388,6 +388,7 @@ describe('L5 판정 — 내 환경 호환 단', () => {
     const compat = r.querySelector('[data-ws-tier="compat"]') as HTMLElement;
     expect(within(compat).getByText(COPY.verdict.compatCheck)).toBeInTheDocument();
     expect(within(compat).getByText('합성 호환 베딩 문장')).toBeInTheDocument();
+    expect(within(r).getByRole('heading', { name: formatCopy(COPY.verdict.titleOkCompatCheck, { name: '합성 쳇바퀴' }) })).toBeInTheDocument();
     expect(within(r.querySelector('[data-ws-tier="product"]') as HTMLElement).getByText(COPY.verdict.markOk)).toBeInTheDocument();
     expect(compat.querySelector('.ws-verdict-glyph')?.textContent).toBe('△'); // X1 의미: 등록 케이지 60×40×35 → 호환 △
     expect(r.querySelector('[data-ws-cage-row="set"]')).not.toBeNull(); // 2단 입력(내 케이지) 줄이 결과 안에 남는다
@@ -408,6 +409,10 @@ describe('L5 판정 — 내 환경 호환 단', () => {
     await ready(d);
     const r = await checkWheel(d, '30');
     expect(r).toHaveAttribute('data-ws-verdict', 'BELOW_MIN');
+    // 제품 충족 + 호환 ✕ → 제목은 성공 문장(titleOk)이 아니라 호환을 반영한 문장, 포커스도 그 제목으로
+    const failTitle = within(r).getByRole('heading', { name: formatCopy(COPY.verdict.titleOkCompatBelowMin, { name: '합성 쳇바퀴' }) });
+    expect(within(r).queryByRole('heading', { name: formatCopy(COPY.verdict.titleOk, { name: '합성 쳇바퀴' }) })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(failTitle));
     const compat = r.querySelector('[data-ws-tier="compat"]') as HTMLElement;
     expect(compat).toHaveAttribute('data-ws-tone', 'fail');
     expect(within(compat).getByText(COPY.verdict.compatBelowMin)).toBeInTheDocument();
@@ -495,6 +500,7 @@ describe('L5 화면 규칙', () => {
     const d = await openL5('wheel');
     await ready(d);
     expect(d).toHaveAccessibleName(COPY.checkLayer.title);
+    expect(d).toHaveAccessibleDescription(`${golden.displayName} · 합성 쳇바퀴`); // 이름은 「크기 확인」 그대로, 동물·용품 줄은 설명
     expect(d.getAttribute('data-ws-layer')).toBe('L5');
     expect(within(d).getByText(`${golden.displayName} · 합성 쳇바퀴`)).toBeInTheDocument();
     expect(within(d).getByRole('heading', { name: formatCopy(COPY.checkLayer.ask, { name: '합성 쳇바퀴' }) })).toBeInTheDocument();

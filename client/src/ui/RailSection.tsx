@@ -133,7 +133,8 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
         ref={listRef}
         className={`ws-rail ${LIST_CLASS[kind]}`}
         role="list"
-        tabIndex={0}
+        // grid3(≥768 에서 스크롤 없음): 레일 자체 tabindex 를 빼도 카드 링크가 포커스를 받아 모바일 레일 키보드 이동은 유지된다.
+        tabIndex={layout === 'grid3' ? undefined : 0}
         aria-labelledby={titleId}
       >
         {children}

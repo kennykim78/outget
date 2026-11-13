@@ -9,6 +9,8 @@ import { setTrackerForTest, type Tracker } from '../events/track';
 import { golden, pageOf, req } from '../test/fixtures';
 import LayerHost from '../ui/layer/LayerHost';
 import { layerStore } from '../ui/layer/useLayer';
+import { ChecklistLead } from './ChecklistLayer';
+import type { ChecklistView } from './derive';
 import { setupKey } from './setupStore';
 
 const NOTNOW = { ...req('ball', 'NOT_NOW', '합성공'), notNowReason: '합성 이유 문장' };
@@ -204,5 +206,14 @@ describe('L2 + L3', () => {
     expect(json).not.toMatch(banned);
     expect(json).not.toMatch(/@/);
     expect(calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ChecklistLead — 필수 0개 타입(ZERO)', () => {
+  it('「꼭 필요한 것 0개 남았어요」 대신 별도 문구', () => {
+    const view: ChecklistView = { groups: [], readyPercent: 0, remainingRequired: 0, requiredTotal: 0, allRequiredReady: false, compatPending: false };
+    const { container } = render(<ChecklistLead view={view} animal="합성이" />);
+    expect(container.querySelector('.ws-check-status')).toHaveTextContent(COPY.checklist.requiredNone);
+    expect(container.textContent).not.toMatch(/0개/);
   });
 });

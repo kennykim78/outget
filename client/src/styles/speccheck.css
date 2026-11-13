@@ -376,7 +376,9 @@
 }
 
 .ws-verdict-reasons {
-  padding-left: var(--ws-space-4);
+  /* 이유 줄은 본문 정렬선(들여쓰기·글머리 없음)에 맞춘다. */
+  padding-left: 0;
+  list-style: none;
 }
 
 .ws-verdict-more {

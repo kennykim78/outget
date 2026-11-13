@@ -20,9 +20,9 @@ test('홈 A(미선택) 렌더 · 외부 요청 0', async ({ page, guard }) => {
   await page.waitForLoadState('networkidle');
 
   const sections = await page.locator('main [data-ws-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ws-section')));
-  const top = sections.filter((s) => ['hero', 'reviews', 'intro', 'start'].includes(s ?? ''));
-  // 286 U3a(D6): 홈 후기·소개 섹션 없음 — 데모(후기 8건)·실시드 모두 히어로 → 하단 CTA.
-  expect(top).toEqual(['hero', 'start']);
+  const top = sections.filter((s) => ['hero', 'starters', 'reviews', 'intro', 'start'].includes(s ?? ''));
+  // 286 U3a(D6): 홈 후기·소개 섹션 없음 — 데모(후기 8건)·실시드 모두 히어로 → 시작 카드(U3b) → 하단 CTA.
+  expect(top).toEqual(['hero', 'starters', 'start']);
 
   expect(guard.external).toEqual([]);
   expect(guard.pageErrors).toEqual([]);

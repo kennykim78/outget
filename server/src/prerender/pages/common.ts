@@ -333,7 +333,7 @@ export function railSection(o: {
     `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
     `<div class="ws-rail-tools">${more}</div>`,
     '</div>',
-    `<ul class="ws-rail ${RAIL_LIST_CLASS[o.kind]}" role="list" tabindex="0" aria-labelledby="${titleId}">`,
+    `<ul class="ws-rail ${RAIL_LIST_CLASS[o.kind]}" role="list"${o.layout === 'grid3' ? '' : ' tabindex="0"'} aria-labelledby="${titleId}">`,
     ...o.items,
     '</ul>',
     '</section>',

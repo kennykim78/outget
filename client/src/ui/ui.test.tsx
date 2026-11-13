@@ -72,7 +72,8 @@ describe('RailSection', () => {
     const section = document.querySelector('section[data-ws-section="starters"]') as HTMLElement;
     expect(section.className).toBe('ws-rail-section ws-rail-section--starter ws-rail-section--grid3');
     expect(screen.getByRole('list')).toHaveClass('ws-rail', 'ws-starters');
-    expect(screen.getByRole('list')).toHaveAttribute('tabindex', '0');
+    // ≥768 에서 스크롤이 없는 grid3 는 레일 tabindex 를 달지 않는다(카드 링크가 포커스를 받아 모바일 레일 이동은 유지). 기본 레일은 tabindex=0.
+    expect(screen.getByRole('list')).not.toHaveAttribute('tabindex');
     expect(section.querySelector('.ws-rail-tools')?.childElementCount).toBe(0);
   });
 });

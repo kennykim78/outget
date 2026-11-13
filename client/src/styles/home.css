@@ -256,7 +256,15 @@ ul.ws-starters > li {
   min-height: var(--ws-btn-h);
 }
 
+/* section[data-ws-section](app.css, 특이도 0,1,1)의 margin-top 24 가 .ws-start 의 간격을 덮어 앞 간격이 ~40 이었다 — 홈 A 안에서 시안 값(PC 120 / 모바일 72)으로 고정. */
+.ws-home-a .ws-start {
+  margin-block: var(--ws-section-gap-mobile);
+}
+
 @media (min-width: 768px) {
+  .ws-home-a .ws-start {
+    margin-block: var(--ws-section-gap);
+  }
   .ws-start {
     flex-direction: row;
     align-items: center;

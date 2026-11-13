@@ -48,6 +48,8 @@ export interface VerdictCardProps {
   sourceCount: number;
   /** 제출 회차. */
   seq: number;
+  /** 대화상자 aria-describedby 가 가리키는 「{동물} · {용품}」 줄의 id. */
+  describedId?: string;
   /** 호환 단 아래 케이지 줄(등록·수정 링크) — SpecCheckLayer 가 그린다. */
   contextRow?: ReactNode;
   onOpenAlternative(supplyItemId: string): void;
@@ -64,7 +66,7 @@ function Reasons({ messages }: { messages: string[] }) {
     <>
       <ul className="ws-verdict-reasons">
         {shown.map((m) => (
-          <li key={m} className="ws-t-meta">
+          <li key={m} className="ws-t-body">
             {m}
           </li>
         ))}
@@ -91,7 +93,7 @@ function Mark({ mark }: { mark: VerdictMark }) {
 
 /** 스크린리더 낭독 문구 "{제품}. {호환}" — 라이브 영역은 SpecCheckLayer 가 항상 마운트해 갱신한다(WCAG 4.1.3). */
 export function verdictLiveText(result: SpecCheckResult, schema: SpecSchema, minSpec: RuleSet): string {
-  const product = productMark(result.product.verdict, isProductNoCriteria(result.product), isSmallOnly(schema, result.product, minSpec));
+  const product = productMark(result.product.verdict, isProductNoCriteria(result.product), isSmallOnly(schema, result.product, minSpec), result.product.reasons);
   const compat = visibleCompatMark(result);
   return compat ? `${product.label}. ${compat.label}` : product.label;
 }
@@ -99,9 +101,9 @@ export function verdictLiveText(result: SpecCheckResult, schema: SpecSchema, min
 const VerdictCard = forwardRef<HTMLHeadingElement, VerdictCardProps>(function VerdictCard(p, titleRef) {
   const productStage = p.result.product;
   const small = isSmallOnly(p.schema, productStage, p.minSpec);
-  const product = productMark(productStage.verdict, isProductNoCriteria(productStage), small);
+  const product = productMark(productStage.verdict, isProductNoCriteria(productStage), small, productStage.reasons);
   const compat = visibleCompatMark(p.result);
-  const title = verdictTitle(p.schema, productStage, p.minSpec, { item: p.itemName, animal: p.animalName });
+  const title = verdictTitle(p.schema, productStage, p.minSpec, { item: p.itemName, animal: p.animalName }, compat ? p.result.compat.verdict : undefined);
   const figure = minFigure(p.schema, productStage, p.minSpec);
   const mine = mineValue(figure, p.input);
   const mineText = mine === null ? specLine(p.schema, p.input) : '';
@@ -125,7 +127,7 @@ const VerdictCard = forwardRef<HTMLHeadingElement, VerdictCardProps>(function Ve
   return (
     <section className="ws-verdict" role="region" aria-label={COPY.verdict.resultRegion} data-ws-verdict={p.result.verdict}>
       <div className="ws-verdict-top">
-        <p className="ws-t-meta ws-spec-muted">{`${p.animalName} · ${p.itemName}`}</p>
+        <p id={p.describedId} className="ws-t-meta ws-spec-muted">{`${p.animalName} · ${p.itemName}`}</p>
         <h3 ref={titleRef} className="ws-t-title ws-verdict-title" tabIndex={-1}>
           {title}
         </h3>

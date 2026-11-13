@@ -256,7 +256,9 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     // 286 U5a 입력 상태: 제목행 「크기 확인」 · 「{동물} · {용품}」 · 질문 문장 · 기준 보조줄(요구사항 chipSpecText — 하드코딩 수치 없음) · [확인하기]
     const l5aside = l5.slice(l5.indexOf('<aside'), l5.indexOf('</aside>'));
     expect(l5aside).toContain('<h2 id="ws-layer-title">크기 확인</h2>');
-    expect(l5aside).toMatch(/<p class="ws-meta">[^<·]+ · 케이지<\/p>\n<h3 class="ws-spec-ask">케이지 규격을 알려 주세요<\/h3>\n<p class="ws-meta">[^<]+ 기준 · 최소 [0-9×]+cm 이상/);
+    expect(l5aside).toContain('aria-labelledby="ws-layer-title" aria-describedby="ws-layer-desc"'); // 이름은 「크기 확인」, 「{동물} · {용품}」 줄은 설명
+    expect(l5aside).toContain('<p id="ws-layer-desc" class="ws-meta">'); 
+    expect(l5aside).toMatch(/<p id="ws-layer-desc" class="ws-meta">[^<·]+ · 케이지<\/p>\n<h3 class="ws-spec-ask">케이지 규격을 알려 주세요<\/h3>\n<p class="ws-meta">[^<]+ 기준 · 최소 [0-9×]+cm 이상/);
     expect(l5aside).toContain('<button type="submit">확인하기</button>');
     expect(l5aside).not.toMatch(/검수 대기|DRAFT/);
     const l7 = page('/hamster/golden/products/cp-001');

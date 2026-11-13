@@ -254,7 +254,11 @@ describe('홈 A 시작 카드(286 U3b)', () => {
     const { unmount } = render(<App page={pageOf('HOME', { types })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
     expect(card('SETUP')).toHaveAttribute('href', '/hamster/golden');
     unmount();
-    render(<App page={pageOf('HOME', { types, bundles: [bundle('b1', 'BUDGET', [])] })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
+    // 구성안이 실린 문서의 타입이 고른 타입과 다르면(다른 타입의 구성안) /setup 으로 보내지 않는다.
+    const second = render(<App page={pageOf('HOME', { types, bundles: [bundle('b1', 'BUDGET', [])] }, { typeId: 'other' })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
+    expect(card('SETUP')).toHaveAttribute('href', '/hamster/golden');
+    second.unmount();
+    render(<App page={pageOf('HOME', { types, bundles: [bundle('b1', 'BUDGET', [])] }, { typeId: golden.id })} captured={NO_CAPTURE} storedTypeId={golden.id} />);
     expect(card('SETUP')).toHaveAttribute('href', '/hamster/golden/setup');
   });
 

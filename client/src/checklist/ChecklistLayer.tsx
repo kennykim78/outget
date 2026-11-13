@@ -30,16 +30,18 @@ import './checklist.css';
 const LEAD_ID = 'ws-check-lead';
 
 /** 본문 머리(R3 시안): 제목 · {동물}의 첫 준비예요 · 남은 개수(바뀌면 낭독, aria-live). */
-function ChecklistLead({ view, animal }: { view: ChecklistView; animal: string }) {
+export function ChecklistLead({ view, animal }: { view: ChecklistView; animal: string }) {
   // 케이지 호환 미판정 중에는 완료·남은 개수를 확정하지 않는다(기존 중립 문구).
   const status = view.compatPending
     ? COPY.homeB.nowBeforeSetup
-    : view.allRequiredReady
-      ? COPY.checklist.requiredDone
-      : copyFmt('checklist.requiredLeft', { n: view.remainingRequired });
+    : view.requiredTotal === 0
+      ? COPY.checklist.requiredNone
+      : view.allRequiredReady
+        ? COPY.checklist.requiredDone
+        : copyFmt('checklist.requiredLeft', { n: view.remainingRequired });
   const note = view.allRequiredReady ? copyAt('checklist.recommendedNote') : null;
   const sub = copyFmt('checklist.leadSub', { animal });
-  const tone = view.compatPending ? 'pending' : view.allRequiredReady ? 'done' : 'left';
+  const tone = view.compatPending ? 'pending' : view.requiredTotal === 0 ? 'none' : view.allRequiredReady ? 'done' : 'left';
   return (
     <div className="ws-check-lead">
       <h3 id={LEAD_ID} className="ws-t-display ws-check-lead-title">{COPY.checklist.lead}</h3>

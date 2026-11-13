@@ -62,6 +62,8 @@ export interface LayerChrome {
   close(): void;
   setTitle(title: string): void;
   setBack(back: LayerBack | null): void;
+  /** 대화상자 aria-describedby 대상 요소 id(없으면 null) — 이름(제목)은 그대로 두고 보조 설명만 잇는다. */
+  setDescribedBy(id: string | null): void;
   /** L2 요약 밴드(bg-100). 있으면 흰 제목 행 대신 그린다 — 밴드 안 제목 요소에 id={titleId} 를 달 것. */
   setBand(band: ReactNode | null): void;
 }
@@ -148,6 +150,7 @@ export function Layer({ kind, title: initialTitle, wsId, onClose, stepKey, child
   const [title, setTitle] = useState(initialTitle);
   const [back, setBack] = useState<LayerBack | null>(null);
   const [band, setBand] = useState<ReactNode | null>(null);
+  const [describedBy, setDescribedBy] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const onCloseRef = useRef(onClose);
@@ -288,7 +291,7 @@ export function Layer({ kind, title: initialTitle, wsId, onClose, stepKey, child
   }, [titleId]);
 
   const chrome = useMemo<LayerChrome>(
-    () => ({ titleId, close: () => onCloseRef.current(), setTitle, setBack, setBand }),
+    () => ({ titleId, close: () => onCloseRef.current(), setTitle, setBack, setBand, setDescribedBy }),
     [titleId],
   );
 
@@ -306,6 +309,7 @@ export function Layer({ kind, title: initialTitle, wsId, onClose, stepKey, child
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={describedBy ?? undefined}
         tabIndex={-1}
         onKeyDown={onKeyDown}
       >

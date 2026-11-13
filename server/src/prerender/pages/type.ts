@@ -314,10 +314,10 @@ function layerL5(t: TypeModel, r: RequirementModel): string {
     .filter((x): x is string => x !== null)
     .join(' · ');
   return [
-    `<aside class="ws-layer" id="ws-layer" data-ws-layer="L5" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
+    `<aside class="ws-layer" id="ws-layer" data-ws-layer="L5" role="dialog" aria-labelledby="ws-layer-title" aria-describedby="ws-layer-desc" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
     `<h2 id="ws-layer-title">${h(COPY.checkLayer.title)}</h2>`,
     layerClose(base(t)),
-    `<p class="ws-meta">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
+    `<p id="ws-layer-desc" class="ws-meta">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
     `<h3 class="ws-spec-ask">${h(formatCopy(COPY.checkLayer.ask, { name: r.item.name }))}</h3>`,
     `<p class="ws-meta">${h(headMeta)}</p>`,
     '<form class="ws-check" data-ws-form="spec-check"><fieldset disabled>',

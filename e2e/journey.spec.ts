@@ -31,6 +31,20 @@ async function judgeWheel(L5: Locator, diameter: string): Promise<Locator> {
   return L5.locator('section.ws-verdict');
 }
 
+test('시작 카드 「크기 확인」(미선택) → L1 → 종 선택 → L5 딥링크 /hamster/golden/check/{item}', async ({ page }) => {
+  await gotoHydrated(page, '/');
+  const card = page.locator('section[data-ws-section="starters"] a[data-ws-intent="SPEC_CHECK"]');
+  await expect(card).toBeVisible();
+  await tap(page, card);
+  const L1 = layer(page, 'L1');
+  await expect(L1).toBeVisible();
+  await L1.locator('[data-ws-group="SMALL_MAMMAL"]').click();
+  await L1.locator('[data-ws-action="pick-group"]').click();
+  await expect(L1.locator('[data-ws-step="types"]')).toBeVisible();
+  await Promise.all([page.waitForURL(new RegExp(`${TYPE.home}/check/[^/]+$`)), L1.locator(`[data-ws-type="${TYPE.id}"]`).click()]);
+  await expect(layer(page, 'L5')).toBeVisible();
+});
+
 test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6 → setup → L7 → 병원 → L8 저장 → 다른 기기 복원', async ({ page, newContext, baseURL }, testInfo) => {
   test.setTimeout(150_000);
   const origin = new URL(baseURL as string).origin;
