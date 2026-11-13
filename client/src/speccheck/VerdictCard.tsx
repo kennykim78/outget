@@ -1,12 +1,25 @@
-// VerdictCard(스펙33 §3·§4) — 판정 = 정보, 추천 아님. 상품 카드·♥·상품명 0(D-43), 대안은 SupplyItem 만.
-//   순서: 머리 행(종합 글리프 + "{용품} · {동물} 기준") → 제품 규격 단 → 내 환경 호환 단(엔진 compat ≠ NONE 일 때만)
-//        → 대안 → 검색 블록 → 고정 meta → "{동물} 기준 · 마지막 검수 YYYY.MM · 출처 {n}".
+// VerdictCard(스펙33 §3·§4 · 286 U5b 결과 상태) — 판정 = 정보, 추천 아님. 상품 카드·♥·상품명 0(D-43), 대안은 SupplyItem 만.
+//   순서: 「{동물} · {용품}」 → 판정 제목 문장 → 「최소 {항목}」 큰 숫자(+ 권장 줄) → 제품 규격 단(「내 {용품}」 입력값 · 아이콘+색+단어 · 차이 줄)
+//        → 내 환경 호환 단(엔진 compat ≠ NONE 일 때만, 2단 구조 유지) → 케이지 줄 → 대안 → 검색 블록 → 고정 meta → 검수 meta.
+//   숫자는 계산하지 않는다(불변식 ⑥): 큰 숫자 = 해석된 minSpec 규칙 값·Reason.expected, 내 값 = 입력, 차이 = expected − actual(표시용 뺄셈).
 //   이유는 엔진 Reason.message 그대로(앞 3개 + "그 밖에 {n}개" 펼침). 낭독용 라이브 영역은 SpecCheckLayer(항상 마운트) — 여기엔 aria-live 없음.
-import { useState, type MouseEvent } from 'react';
+//   카드 속 카드 없음: 테두리 상자 대신 구분선으로 단을 나눈다.
+import { forwardRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { COPY, formatCopy } from '@ws/copy';
-import type { SearchLink, SpecCheckResult, SpecSchema } from '@ws/engine';
+import { specLine, type RuleSet, type SearchLink, type SpecCheckResult, type SpecSchema, type SpecValue } from '@ws/engine';
 import SpecSearch from './SpecSearch';
-import { isProductNoCriteria, overallMark, productHeadline, productMark, reasonMessages, visibleCompatMark, type VerdictMark } from './verdictView';
+import {
+  isProductNoCriteria,
+  isSmallOnly,
+  mineValue,
+  minFigure,
+  productMark,
+  reasonMessages,
+  shortfalls,
+  verdictTitle,
+  visibleCompatMark,
+  type VerdictMark,
+} from './verdictView';
 
 export interface VerdictAlternative {
   supplyItemId: string;
@@ -22,9 +35,12 @@ export interface VerdictCardProps {
   supplyItemId: string;
   result: SpecCheckResult;
   schema: SpecSchema;
-  /** OK 일 때 이유 자리 meta 조각(최소·권장 chipSpecText). */
-  minText: string | null;
+  /** 해석된 최소 규격(ws-data 요구사항 = 서버 resolveRequirement 결과). 큰 숫자의 유일한 출처. */
+  minSpec: RuleSet;
+  /** 권장 줄 조각(chipSpecText(recommendedSpec)). */
   recommendedText: string | null;
+  /** 이 결과를 만든 엔진 입력(「내 {용품}」 표시용). */
+  input: Readonly<Record<string, SpecValue>>;
   alternatives: readonly VerdictAlternative[];
   searchKeyword: string;
   searchLinks: readonly SearchLink[];
@@ -32,6 +48,8 @@ export interface VerdictCardProps {
   sourceCount: number;
   /** 제출 회차. */
   seq: number;
+  /** 호환 단 아래 케이지 줄(등록·수정 링크) — SpecCheckLayer 가 그린다. */
+  contextRow?: ReactNode;
   onOpenAlternative(supplyItemId: string): void;
 }
 
@@ -60,56 +78,36 @@ function Reasons({ messages }: { messages: string[] }) {
   );
 }
 
-function TierLine({
-  tier,
-  head,
-  mark,
-  headline,
-  meta,
-  messages,
-}: {
-  tier: 'product' | 'compat';
-  head: string;
-  mark: VerdictMark;
-  headline: string | null;
-  meta: string | null;
-  messages: string[];
-}) {
+function Mark({ mark }: { mark: VerdictMark }) {
   return (
-    <div className={`ws-verdict-line ws-verdict-line--${mark.tone}`} data-ws-tier={tier} data-ws-tone={mark.tone}>
-      <p className="ws-t-label ws-verdict-line-head">{head}</p>
-      <p className="ws-verdict-line-mark">
-        <span className="ws-verdict-glyph" aria-hidden="true">
-          {mark.glyph}
-        </span>
-        <span className="ws-t-cta">{mark.label}</span>
-      </p>
-      {headline ? <p className="ws-t-spec-lg ws-verdict-headline">{headline}</p> : null}
-      {meta ? <p className="ws-t-meta ws-spec-muted">{meta}</p> : null}
-      <Reasons messages={messages} />
-    </div>
+    <p className="ws-verdict-line-mark">
+      <span className="ws-verdict-glyph" aria-hidden="true">
+        {mark.glyph}
+      </span>
+      <span className="ws-t-cta">{mark.label}</span>
+    </p>
   );
 }
 
 /** 스크린리더 낭독 문구 "{제품}. {호환}" — 라이브 영역은 SpecCheckLayer 가 항상 마운트해 갱신한다(WCAG 4.1.3). */
-export function verdictLiveText(result: SpecCheckResult): string {
-  const product = productMark(result.product.verdict, isProductNoCriteria(result.product));
+export function verdictLiveText(result: SpecCheckResult, schema: SpecSchema, minSpec: RuleSet): string {
+  const product = productMark(result.product.verdict, isProductNoCriteria(result.product), isSmallOnly(schema, result.product, minSpec));
   const compat = visibleCompatMark(result);
   return compat ? `${product.label}. ${compat.label}` : product.label;
 }
 
-export default function VerdictCard(p: VerdictCardProps) {
-  const product = productMark(p.result.product.verdict, isProductNoCriteria(p.result.product));
+const VerdictCard = forwardRef<HTMLHeadingElement, VerdictCardProps>(function VerdictCard(p, titleRef) {
+  const productStage = p.result.product;
+  const small = isSmallOnly(p.schema, productStage, p.minSpec);
+  const product = productMark(productStage.verdict, isProductNoCriteria(productStage), small);
   const compat = visibleCompatMark(p.result);
-  const overall = overallMark(p.result);
+  const title = verdictTitle(p.schema, productStage, p.minSpec, { item: p.itemName, animal: p.animalName });
+  const figure = minFigure(p.schema, productStage, p.minSpec);
+  const mine = mineValue(figure, p.input);
+  const mineText = mine === null ? specLine(p.schema, p.input) : '';
+  const gaps = shortfalls(p.schema, productStage, p.minSpec);
+  const productMessages = productStage.verdict === 'OK' ? [] : reasonMessages(productStage.reasons);
   const basis = `${p.animalName} ${COPY.verdict.basisSuffix}`;
-  const okMeta =
-    p.result.product.verdict === 'OK'
-      ? [p.minText ? `${COPY.verdict.min} ${p.minText}` : null, p.recommendedText ? `${COPY.verdict.recommended} ${p.recommendedText}` : null]
-          .filter((x): x is string => x !== null)
-          .join(' · ') || null
-      : null;
-  const productMessages = p.result.product.verdict === 'OK' ? [] : reasonMessages(p.result.product.reasons);
   const footMeta = [
     basis,
     p.lastVerifiedYm ? `${COPY.supplyLayer.lastVerified} ${p.lastVerifiedYm}` : null,
@@ -117,7 +115,6 @@ export default function VerdictCard(p: VerdictCardProps) {
   ]
     .filter((x): x is string => x !== null)
     .join(' · ');
-  const headingId = `ws-verdict-h-${p.supplyItemId}`;
 
   const openAlt = (e: MouseEvent<HTMLAnchorElement>, id: string) => {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -126,35 +123,52 @@ export default function VerdictCard(p: VerdictCardProps) {
   };
 
   return (
-    <section className="ws-verdict" role="region" aria-labelledby={headingId} data-ws-verdict={p.result.verdict}>
-      <h3 id={headingId} className="ws-visually-hidden">
-        {COPY.verdict.resultRegion}
-      </h3>
-      <div className="ws-verdict-head">
-        <span className={`ws-verdict-overall ws-verdict-overall--${overall.tone}`} aria-hidden="true">
-          {overall.glyph}
-        </span>
-        <span className="ws-visually-hidden">{`${COPY.verdict.overall} ${overall.label}`}</span>
-        <span className="ws-t-meta ws-spec-muted">{`${p.itemName} · ${basis}`}</span>
+    <section className="ws-verdict" role="region" aria-label={COPY.verdict.resultRegion} data-ws-verdict={p.result.verdict}>
+      <div className="ws-verdict-top">
+        <p className="ws-t-meta ws-spec-muted">{`${p.animalName} · ${p.itemName}`}</p>
+        <h3 ref={titleRef} className="ws-t-title ws-verdict-title" tabIndex={-1}>
+          {title}
+        </h3>
+        {figure ? (
+          <div className="ws-verdict-figure" data-ws-part="min">
+            <p className="ws-t-label ws-verdict-figure-label">{figure.label}</p>
+            <p className="ws-verdict-num ws-verdict-num--min">
+              <span className="ws-verdict-num-value">{figure.value}</span>
+              <span className="ws-verdict-num-unit">{figure.unit ? `${figure.unit} ${figure.suffix}` : figure.suffix}</span>
+            </p>
+          </div>
+        ) : null}
+        {p.recommendedText ? <p className="ws-t-meta ws-spec-muted">{`${COPY.verdict.recommended} ${p.recommendedText}`}</p> : null}
       </div>
-      <TierLine
-        tier="product"
-        head={COPY.verdict.productLine}
-        mark={product}
-        headline={productHeadline(p.schema, p.result.product)}
-        meta={okMeta}
-        messages={productMessages}
-      />
+      <div className={`ws-verdict-line ws-verdict-line--${product.tone}`} data-ws-tier="product" data-ws-tone={product.tone}>
+        <p className="ws-t-label ws-verdict-line-head">{formatCopy(COPY.verdict.mine, { name: p.itemName })}</p>
+        <div className="ws-verdict-mine">
+          {mine !== null ? (
+            <p className="ws-verdict-num ws-verdict-num--mine">
+              <span className="ws-verdict-num-value">{mine}</span>
+              {figure?.unit ? <span className="ws-verdict-num-unit">{figure.unit}</span> : null}
+            </p>
+          ) : mineText ? (
+            <p className="ws-t-body">{mineText}</p>
+          ) : null}
+          <Mark mark={product} />
+        </div>
+        {productStage.verdict === 'BELOW_RECOMMENDED' ? <p className="ws-t-meta ws-spec-muted">{COPY.verdict.productBelowRecommended}</p> : null}
+        {gaps.map((g) => (
+          <p key={g.name} className="ws-t-body ws-verdict-gap">
+            {formatCopy(COPY.verdict.shortBy, { name: g.name, n: g.n, unit: g.unit })}
+          </p>
+        ))}
+        <Reasons messages={productMessages} />
+      </div>
       {compat ? (
-        <TierLine
-          tier="compat"
-          head={COPY.verdict.compatLine}
-          mark={compat}
-          headline={null}
-          meta={null}
-          messages={reasonMessages(p.result.compat.reasons)}
-        />
+        <div className={`ws-verdict-line ws-verdict-line--${compat.tone}`} data-ws-tier="compat" data-ws-tone={compat.tone}>
+          <p className="ws-t-label ws-verdict-line-head">{COPY.verdict.compatLine}</p>
+          <Mark mark={compat} />
+          <Reasons messages={reasonMessages(p.result.compat.reasons)} />
+        </div>
       ) : null}
+      {p.contextRow ?? null}
       {p.alternatives.length > 0 ? (
         <div className="ws-verdict-alts" data-ws-part="alternatives">
           <p className="ws-t-label ws-spec-muted">{COPY.supplyLayer.alternatives}</p>
@@ -178,4 +192,6 @@ export default function VerdictCard(p: VerdictCardProps) {
       <p className="ws-t-meta ws-spec-muted">{footMeta}</p>
     </section>
   );
-}
+});
+
+export default VerdictCard;

@@ -1,5 +1,5 @@
-// verdictView — 순수 표시 함수(스펙33 §3 표). 판정 계산은 엔진, 여기는 매핑만.
-import { COPY, GLYPH } from '@ws/copy';
+// verdictView — 순수 표시 함수(스펙33 §3 표 · 286 U5b). 판정 계산은 엔진, 여기는 매핑·표시용 뺄셈만.
+import { COPY, VERDICT_GLYPH, formatCopy } from '@ws/copy';
 import type { RuleSet, SpecCheckResult, SpecSchema } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
 import {
@@ -7,12 +7,15 @@ import {
   compatMark,
   formFields,
   isProductNoCriteria,
-  overallMark,
+  isSmallOnly,
+  mineValue,
+  minFigure,
   perRuleVerdicts,
-  productHeadline,
   productMark,
+  shortfalls,
   showOptionalMark,
   toSpecInput,
+  verdictTitle,
   visibleCompatMark,
   yearMonth,
 } from './verdictView';
@@ -25,43 +28,35 @@ const SCHEMA: SpecSchema = {
     { key: 'silent', label: '무소음', type: 'boolean', optional: true },
   ],
 };
+const MIN27: RuleSet = { rules: [{ key: 'diameterCm', op: 'gte', value: 27, reason: 'r' }] };
+const NAMES = { item: '쳇바퀴', animal: '골든햄스터' };
 
 describe('verdictView', () => {
-  it('제품 단 매핑: OK ✓ · 권장 미만 △ · 최소 미달 ✕ · CHECK ?(D-42)', () => {
-    expect(productMark('OK')).toEqual({ glyph: GLYPH.ready, tone: 'ready', label: COPY.verdict.productOk });
-    expect(productMark('BELOW_RECOMMENDED')).toMatchObject({ glyph: GLYPH.check, tone: 'check' });
-    expect(productMark('BELOW_MIN')).toMatchObject({ glyph: GLYPH.fail, tone: 'fail' });
-    expect(productMark('CHECK')).toMatchObject({ glyph: GLYPH.unknown, tone: 'check', label: COPY.verdict.productCheck });
+  it('제품 단 매핑(R4 fix 4상태): OK ○ 기준 충족 · 권장 미만 △ 확인 필요 · 최소 미달 ✕ · 값 누락 ? 입력 필요', () => {
+    expect(productMark('OK')).toEqual({ glyph: VERDICT_GLYPH.ok, tone: 'ready', label: COPY.verdict.markOk });
+    expect(productMark('BELOW_RECOMMENDED')).toEqual({ glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck });
+    expect(productMark('BELOW_MIN')).toEqual({ glyph: VERDICT_GLYPH.fail, tone: 'fail', label: COPY.verdict.productBelowMin });
+    expect(productMark('BELOW_MIN', false, true)).toEqual({ glyph: VERDICT_GLYPH.fail, tone: 'fail', label: COPY.verdict.markSmall });
+    expect(productMark('CHECK')).toEqual({ glyph: VERDICT_GLYPH.input, tone: 'check', label: COPY.verdict.markInput });
+    expect([VERDICT_GLYPH.ok, VERDICT_GLYPH.check, VERDICT_GLYPH.fail, VERDICT_GLYPH.none]).toEqual(['○', '△', '✕', '—']);
   });
 
-  it('호환 단 매핑: NONE → null(단 생략), US-011 원문', () => {
+  it('호환 단 매핑: NONE → null(단 생략), US-011 원문 판정어, 글리프 ○ △ ✕', () => {
     expect(compatMark('NONE')).toBeNull();
-    expect(compatMark('OK')?.label).toBe(COPY.verdict.compatOk);
-    expect(compatMark('CHECK')).toMatchObject({ glyph: GLYPH.check, label: COPY.verdict.compatCheck });
-    expect(compatMark('BELOW_MIN')).toMatchObject({ glyph: GLYPH.fail, label: COPY.verdict.compatBelowMin });
+    expect(compatMark('OK')).toMatchObject({ glyph: VERDICT_GLYPH.ok, label: COPY.verdict.compatOk });
+    expect(compatMark('CHECK')).toMatchObject({ glyph: VERDICT_GLYPH.check, label: COPY.verdict.compatCheck });
+    expect(compatMark('BELOW_MIN')).toMatchObject({ glyph: VERDICT_GLYPH.fail, label: COPY.verdict.compatBelowMin });
   });
 
-  it('종합 마크·호환 줄 가시성', () => {
+  it('호환 줄 가시성: 제품 최소 미달이면 숨김', () => {
     const mk = (verdict: string, product: string, compat: string) =>
       ({ verdict, product: { verdict: product, reasons: [] }, compat: { verdict: compat, reasons: [], checkedRuleIds: [] } }) as unknown as SpecCheckResult;
-    // 제품 OK + 호환 CHECK → 종합 △ + 호환 확인 문구(? 아님)
-    const a = mk('CHECK', 'OK', 'CHECK');
-    expect(overallMark(a)).toMatchObject({ glyph: GLYPH.check, label: COPY.verdict.compatCheck });
-    expect(visibleCompatMark(a)?.glyph).toBe(GLYPH.check);
-    // 제품 OK + 호환 OK → ✓
-    const b = mk('OK', 'OK', 'OK');
-    expect(overallMark(b).glyph).toBe(GLYPH.ready);
-    expect(visibleCompatMark(b)?.glyph).toBe(GLYPH.ready);
-    // 제품 미달 + 호환 OK → 종합 ✕, 호환 줄 없음
-    const c = mk('BELOW_MIN', 'BELOW_MIN', 'OK');
-    expect(overallMark(c).glyph).toBe(GLYPH.fail);
-    expect(visibleCompatMark(c)).toBeNull();
-    // 값 누락(제품 CHECK) → ?
-    const d = mk('CHECK', 'CHECK', 'NONE');
-    expect(overallMark(d)).toMatchObject({ glyph: GLYPH.unknown, label: COPY.verdict.productCheck });
+    expect(visibleCompatMark(mk('CHECK', 'OK', 'CHECK'))?.glyph).toBe(VERDICT_GLYPH.check);
+    expect(visibleCompatMark(mk('OK', 'OK', 'OK'))?.glyph).toBe(VERDICT_GLYPH.ok);
+    expect(visibleCompatMark(mk('BELOW_MIN', 'BELOW_MIN', 'OK'))).toBeNull();
   });
 
-  it('arch-23 기준 없음: CHECK+NO_CRITERIA → 「종별 규격 기준 없음」 ○ none, 「충족」 문구 없음 · 정보 부족 CHECK 는 그대로 ?', () => {
+  it('arch-23 기준 없음: CHECK+NO_CRITERIA → — 기준 없음(○ 아님, 「충족」 문구 없음) · 정보 부족 CHECK 는 ? 입력 필요', () => {
     const noCrit = {
       verdict: 'CHECK',
       reasons: [{ stage: 'PRODUCT', kind: 'NO_CRITERIA', verdict: 'CHECK', message: '등록된 규격 기준이 없는 용품이에요.' }],
@@ -73,26 +68,83 @@ describe('verdictView', () => {
     expect(isProductNoCriteria(noCrit)).toBe(true);
     expect(isProductNoCriteria(missing)).toBe(false);
     const m = productMark('CHECK', true);
-    expect(m).toEqual({ glyph: GLYPH.later, tone: 'none', label: COPY.verdict.productNoCriteria });
-    expect(m.label).toBe('종별 규격 기준 없음');
+    expect(m).toEqual({ glyph: VERDICT_GLYPH.none, tone: 'none', label: COPY.verdict.markNone });
+    expect(m.glyph).not.toBe(VERDICT_GLYPH.ok);
     expect(m.label).not.toMatch(/충족|문제 없음|사용 가능/);
-    expect(productMark('CHECK', false)).toMatchObject({ glyph: GLYPH.unknown, label: COPY.verdict.productCheck });
-    const res = { verdict: 'CHECK', product: noCrit, compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] } } as unknown as SpecCheckResult;
-    expect(overallMark(res)).toMatchObject({ glyph: GLYPH.later, label: COPY.verdict.productNoCriteria });
-    const miss = { verdict: 'CHECK', product: missing, compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] } } as unknown as SpecCheckResult;
-    expect(overallMark(miss)).toMatchObject({ glyph: GLYPH.unknown, label: COPY.verdict.productCheck });
+    expect(productMark('CHECK', false)).toMatchObject({ glyph: VERDICT_GLYPH.input, label: COPY.verdict.markInput });
+    expect(minFigure(SCHEMA, noCrit, { rules: [] })).toBeNull();
+    expect(verdictTitle(SCHEMA, noCrit, { rules: [] }, NAMES)).toBe('골든햄스터 기준값이 없는 용품이에요');
+    expect(verdictTitle(SCHEMA, missing, MIN27, NAMES)).toBe(COPY.verdict.productCheck);
   });
 
-  it('헤드라인: 숫자 Reason 만, 같은 등급 첫 번째', () => {
-    const product: SpecCheckResult['product'] = {
+  describe('결과 숫자(U5b) — 값은 minSpec·Reason.expected/actual 에서만, 차이 = 뺄셈 표시', () => {
+    const below = (actual: number): SpecCheckResult['product'] => ({
       verdict: 'BELOW_MIN',
-      reasons: [
-        { stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'surface', expected: 'SOLID', actual: 'MESH', message: 'm1' },
-        { stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'diameterCm', expected: 28, actual: 25, message: 'm2' },
-      ],
-    };
-    expect(productHeadline(SCHEMA, product)).toBe('최소 28cm · 입력 25cm');
-    expect(productHeadline(SCHEMA, { verdict: 'OK', reasons: [] })).toBeNull();
+      reasons: [{ stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'diameterCm', expected: 27, actual, message: 'm' }],
+    });
+
+    it('min 27 · 입력 26 → 「최소 지름 27 cm 이상」, 내 값 26, 차이 1cm, ✕ 「조금 작아요」, 제목 「쳇바퀴 크기가 최소 기준보다 작아요」', () => {
+      const p = below(26);
+      expect(minFigure(SCHEMA, p, MIN27)).toEqual({ label: '최소 지름', value: '27', unit: 'cm', suffix: '이상', keys: ['diameterCm'] });
+      expect(mineValue(minFigure(SCHEMA, p, MIN27), { diameterCm: 26 })).toBe('26');
+      expect(shortfalls(SCHEMA, p, MIN27)).toEqual([{ name: '지름', n: 1, unit: 'cm' }]);
+      expect(formatCopy(COPY.verdict.shortBy, { name: '지름', n: 1, unit: 'cm' })).toBe('최소 지름보다 1cm 작아요');
+      expect(isSmallOnly(SCHEMA, p, MIN27)).toBe(true);
+      expect(verdictTitle(SCHEMA, p, MIN27, NAMES)).toBe('쳇바퀴 크기가 최소 기준보다 작아요');
+    });
+
+    it('소수 차이는 부동소수 잔차 없이(26.7 → 0.3)', () => {
+      expect(shortfalls(SCHEMA, below(26.7), MIN27)).toEqual([{ name: '지름', n: 0.3, unit: 'cm' }]);
+    });
+
+    it('숫자 아닌 미달(enum)이 섞이면 단어 「최소 규격 미달」, 차이 줄은 숫자 항목만', () => {
+      const p: SpecCheckResult['product'] = {
+        verdict: 'BELOW_MIN',
+        reasons: [
+          { stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'surface', expected: 'SOLID', actual: 'MESH', message: 'm1' },
+          { stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'diameterCm', expected: 27, actual: 25, message: 'm2' },
+        ],
+      };
+      const min: RuleSet = { rules: [...MIN27.rules, { key: 'surface', op: 'eq', value: 'SOLID', reason: 'r' }] };
+      expect(isSmallOnly(SCHEMA, p, min)).toBe(false);
+      expect(shortfalls(SCHEMA, p, min)).toEqual([{ name: '지름', n: 2, unit: 'cm' }]);
+      expect(verdictTitle(SCHEMA, p, min, NAMES)).toBe('쳇바퀴 최소 기준에 맞지 않는 항목이 있어요');
+    });
+
+    it('lte 규칙 미달은 차이 줄 없음(「작아요」 아님), 큰 숫자는 gte 규칙에서만', () => {
+      const p: SpecCheckResult['product'] = {
+        verdict: 'BELOW_MIN',
+        reasons: [{ stage: 'PRODUCT', kind: 'MIN', verdict: 'BELOW_MIN', key: 'diameterCm', expected: 40, actual: 45, message: 'm' }],
+      };
+      const min: RuleSet = { rules: [{ key: 'diameterCm', op: 'lte', value: 40, reason: 'r' }] };
+      expect(shortfalls(SCHEMA, p, min)).toEqual([]);
+      expect(isSmallOnly(SCHEMA, p, min)).toBe(false);
+      expect(minFigure(SCHEMA, p, min)).toBeNull();
+    });
+
+    it('OK·권장 미만: 큰 숫자 = 해석된 minSpec gte 값(같은 단위 여러 값은 × · 「최소 규격」), 숫자 규칙 없으면 null', () => {
+      const ok: SpecCheckResult['product'] = { verdict: 'OK', reasons: [] };
+      expect(minFigure(SCHEMA, ok, MIN27)?.value).toBe('27');
+      expect(verdictTitle(SCHEMA, ok, MIN27, NAMES)).toBe('쳇바퀴 기준을 충족해요');
+      expect(verdictTitle(SCHEMA, { verdict: 'BELOW_RECOMMENDED', reasons: [] }, MIN27, NAMES)).toBe(COPY.verdict.titleBelowRecommended);
+      const CAGE: SpecSchema = {
+        fields: [
+          { key: 'w', label: '바닥 가로(cm)', type: 'number', min: 1, max: 300 },
+          { key: 'd', label: '바닥 세로(cm)', type: 'number', min: 1, max: 300 },
+        ],
+      };
+      const cageMin: RuleSet = {
+        rules: [
+          { key: 'w', op: 'gte', value: 100, reason: 'r' },
+          { key: 'd', op: 'gte', value: 50, reason: 'r' },
+        ],
+      };
+      const f = minFigure(CAGE, ok, cageMin);
+      expect(f).toEqual({ label: COPY.verdict.minSpecLabel, value: '100×50', unit: 'cm', suffix: '이상', keys: ['w', 'd'] });
+      expect(mineValue(f, { w: 100, d: 60 })).toBe('100×60');
+      expect(mineValue(f, { w: 100 })).toBeNull();
+      expect(minFigure(SCHEMA, ok, { rules: [] })).toBeNull();
+    });
   });
 
   it('perRuleVerdicts: 규칙마다 그 규칙 이유의 최악, 이유 없으면 OK', () => {

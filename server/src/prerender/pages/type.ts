@@ -1,6 +1,6 @@
 // 타입 홈 B(컨텍스트 헤더 + 5섹션, UX §3.1 B) · 구성안(/setup) · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
 //   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 칩. 병원은 /vet 링크만.
-import { PICK_PATH, chipSpecText, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, visibleSpecFields, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
+import { PICK_PATH, chipSpecText, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, splitLabel, visibleSpecFields, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { affiliateDisclosureOn, renderableSearchLinks } from '../affiliate.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
@@ -279,14 +279,21 @@ function numAttr(name: string, v: unknown): string {
  */
 function layerL5(t: TypeModel, r: RequirementModel): string {
   // 기니피그 S5: ruleScoped 필드는 이 요구사항(해석 후 min·rec)의 규칙이 참조할 때만(visibleSpecFields, client 와 같은 헬퍼).
-  const all = visibleSpecFields(r.item.specSchema, r.pub.minSpec, r.pub.recommendedSpec);
+  const schema = r.item.specSchema;
+  const all = visibleSpecFields(schema, r.pub.minSpec, r.pub.recommendedSpec);
   const fields = all.filter(hasCompleteOptionLabels).map((f) => {
     const id = `ws-f-${f.key}`;
     const opt = isFieldOptionalForDisplay(f, r.pub.minSpec) ? `<span class="ws-optional"> · ${h(COPY.checkLayer.optional)}</span>` : '';
-    const label = `<label for="${a(id)}">${h(f.label)}${opt}</label>`;
     if (f.type === 'number') {
-      return `${label}<input id="${a(id)}" name="${a(f.key)}" type="number"${numAttr('min', f.min)}${numAttr('max', f.max)} inputmode="decimal">`;
+      // 286 U5a(client SpecForm unitInside 와 같은 규칙): 라벨은 이름만, 단위는 칸 안(aria-describedby). 단위 없는 라벨은 그대로.
+      const { base, unit } = splitLabel(f.label);
+      const input = (described: string): string =>
+        `<input class="ws-spec-input" id="${a(id)}" name="${a(f.key)}" type="number"${numAttr('min', f.min)}${numAttr('max', f.max)} inputmode="decimal"${described}>`;
+      if (unit === '') return `<label for="${a(id)}">${h(f.label)}${opt}</label>${input('')}`;
+      const unitId = `${id}-unit`;
+      return `<label for="${a(id)}">${h(base)}${opt}</label><span class="ws-spec-inputwrap">${input(` aria-describedby="${a(unitId)}"`)}<span class="ws-spec-unit" id="${a(unitId)}">${h(unit)}</span></span>`;
     }
+    const label = `<label for="${a(id)}">${h(f.label)}${opt}</label>`;
     if (f.type === 'boolean') {
       // 스펙33 §4 SpecForm(G-6): 라디오 카드 "예"/"아니오" 2개, 기본값 없음.
       const radio = (v: 'true' | 'false', text: string): string =>
@@ -296,11 +303,23 @@ function layerL5(t: TypeModel, r: RequirementModel): string {
     const opts = f.options.map((o) => `<option value="${a(o)}">${h(optionLabel(f, o) as string)}</option>`).join('');
     return `${label}<select id="${a(id)}" name="${a(f.key)}"><option value=""></option>${opts}</select>`;
   });
+  // 286 U5a 입력 상태(client SpecCheckLayer 와 같은 조립): 「{동물} · {용품}」 → 질문 문장 → 기준 보조줄(chipSpecText 만, 수치 재계산 없음).
+  const minText = chipSpecText(schema, r.pub.minSpec);
+  const recText = chipSpecText(schema, r.pub.recommendedSpec);
+  const headMeta = [
+    `${t.pub.displayName} ${COPY.verdict.basisSuffix}`,
+    minText ? `${COPY.verdict.min} ${minText}` : null,
+    recText ? `${COPY.verdict.recommended} ${recText}` : null,
+  ]
+    .filter((x): x is string => x !== null)
+    .join(' · ');
   return [
     `<aside class="ws-layer" id="ws-layer" data-ws-layer="L5" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
-    `<h2 id="ws-layer-title">${h(COPY.checkLayer.title)} · ${h(r.item.name)}</h2>`,
+    `<h2 id="ws-layer-title">${h(COPY.checkLayer.title)}</h2>`,
     layerClose(base(t)),
-    `<p>${h(COPY.checkLayer.intro)}</p>`,
+    `<p class="ws-meta">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
+    `<h3 class="ws-spec-ask">${h(formatCopy(COPY.checkLayer.ask, { name: r.item.name }))}</h3>`,
+    `<p class="ws-meta">${h(headMeta)}</p>`,
     '<form class="ws-check" data-ws-form="spec-check"><fieldset disabled>',
     ...fields.map((x) => `<div class="ws-field">${x}</div>`),
     `<button type="submit">${h(COPY.checkLayer.submit)}</button>`,

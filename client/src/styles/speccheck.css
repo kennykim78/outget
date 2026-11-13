@@ -106,6 +106,52 @@
   margin: 0;
 }
 
+/* 286 U5a: L5 입력 상태 — 숫자 칸 72(--ws-input-h), 숫자는 크게, 단위는 칸 안 오른쪽. L6(케이지 3열)은 위 48 그대로. */
+.ws-spec-inputwrap {
+  position: relative;
+  display: block;
+}
+
+.ws-spec-layer .ws-spec-input[type="number"] {
+  height: var(--ws-input-h);
+  padding: 0 calc(var(--ws-space-4) + 3em) 0 var(--ws-space-4);
+  border-radius: var(--ws-radius-md);
+  font-size: var(--ws-type-spec-lg-size);
+  line-height: var(--ws-type-spec-lg-lh);
+  font-weight: var(--ws-type-spec-lg-weight);
+}
+
+.ws-spec-unit {
+  position: absolute;
+  top: 50%;
+  right: var(--ws-space-4);
+  transform: translateY(-50%);
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+  pointer-events: none;
+}
+
+.ws-spec-layer .ws-spec-label {
+  color: var(--ws-ink);
+}
+
+.ws-spec-intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-spec-ask,
+.ws-verdict-title {
+  margin: 0;
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+  letter-spacing: var(--ws-type-title-tracking);
+  color: var(--ws-ink);
+}
+
 /* m-2: 범위 밖 칸 — fail 테두리 + meta 안내 */
 .ws-spec-input--invalid {
   border-color: var(--ws-status-fail);
@@ -119,6 +165,10 @@
 .ws-spec-input:focus-visible {
   outline: var(--ws-focus-ring);
   outline-offset: var(--ws-focus-ring-offset);
+}
+
+.ws-spec-layer .ws-spec-input[type="number"]:focus {
+  border-color: var(--ws-brand-text);
 }
 
 .ws-spec-radios {
@@ -201,15 +251,13 @@
   cursor: pointer;
 }
 
-/* ── VerdictCard ──────────────────────────────────────── */
+/* ── VerdictCard(286 U5b 결과 상태) ───────────────────────
+   테두리 상자 없음(카드 속 카드 금지) — 단은 위 구분선으로 나눈다. 상태 = 글리프 + 색 + 단어(색만으로 구분하지 않음).
+   ○ 기준 충족 = brand-text · △ = status-check · ✕ = status-fail · — 기준 없음 = ink-muted(R4 fix 규칙표). */
 .ws-verdict {
   display: flex;
   flex-direction: column;
-  gap: var(--ws-space-3);
-  padding: var(--ws-space-4);
-  border: 1px solid var(--ws-line);
-  border-radius: var(--ws-radius-lg);
-  background: var(--ws-surface);
+  gap: var(--ws-space-4);
 }
 
 .ws-verdict p,
@@ -218,64 +266,81 @@
   margin: 0;
 }
 
-.ws-verdict-head {
+.ws-verdict-top {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--ws-space-2);
+  text-align: center;
 }
 
-.ws-verdict-overall {
-  font-size: 24px;
-  line-height: 1;
+.ws-verdict-title:focus {
+  outline: none;
 }
 
-.ws-verdict-overall--ready {
-  color: var(--ws-status-ready);
+.ws-verdict-title:focus-visible {
+  outline: var(--ws-focus-ring);
+  outline-offset: var(--ws-focus-ring-offset);
 }
 
-.ws-verdict-overall--check {
-  color: var(--ws-status-check);
+.ws-verdict-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ws-space-1);
+  margin-top: var(--ws-space-2);
 }
 
-.ws-verdict-overall--fail {
-  color: var(--ws-status-fail);
+.ws-verdict-figure-label {
+  color: var(--ws-ink);
+}
+
+/* 큰 숫자 + 단위: 숫자-단위 간격 8(--ws-num-unit-gap), 기준선 정렬. */
+.ws-verdict-num {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ws-num-unit-gap);
+  font-variant-numeric: tabular-nums;
+  color: var(--ws-ink);
+}
+
+.ws-verdict-num-value {
+  font-size: var(--ws-type-display-size);
+  line-height: var(--ws-type-display-lh);
+  font-weight: var(--ws-type-display-weight);
+  letter-spacing: var(--ws-type-display-tracking);
+}
+
+.ws-verdict-num--min .ws-verdict-num-value {
+  font-size: calc(var(--ws-type-display-size) * 2);
+  line-height: calc(var(--ws-type-display-lh) * 2);
+  color: var(--ws-brand-text);
+}
+
+.ws-verdict-num-unit {
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-section-weight);
 }
 
 .ws-verdict-line {
   display: flex;
   flex-direction: column;
-  gap: var(--ws-space-1);
-  padding: var(--ws-space-3);
-  border-radius: var(--ws-radius-sm);
-}
-
-.ws-verdict-line--ready {
-  background: var(--ws-status-ready-soft);
-}
-
-.ws-verdict-line--check {
-  background: var(--ws-status-check-soft);
-}
-
-.ws-verdict-line--fail {
-  background: var(--ws-status-fail-soft);
-}
-
-/* 종별 규격 기준 없음(arch-23) — 기존 토큰만(bg-100 · ink-muted). 새 색 없음. */
-.ws-verdict-overall--none {
-  color: var(--ws-ink-muted);
-}
-
-.ws-verdict-line--none {
-  background: var(--ws-bg-100);
-}
-
-.ws-verdict-line--none .ws-verdict-glyph {
-  color: var(--ws-ink-muted);
+  gap: var(--ws-space-2);
+  padding-top: var(--ws-space-4);
+  border-top: 1px solid var(--ws-line);
 }
 
 .ws-verdict-line-head {
   color: var(--ws-ink-muted);
+}
+
+.ws-verdict-mine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-2) var(--ws-space-4);
 }
 
 .ws-verdict-line-mark {
@@ -284,20 +349,30 @@
   gap: var(--ws-space-2);
 }
 
-.ws-verdict-line--ready .ws-verdict-glyph {
-  color: var(--ws-status-ready);
+.ws-verdict-glyph {
+  font-size: var(--ws-type-section-size);
+  line-height: 1;
 }
 
-.ws-verdict-line--check .ws-verdict-glyph {
+.ws-verdict-line--ready .ws-verdict-line-mark {
+  color: var(--ws-brand-text);
+}
+
+.ws-verdict-line--check .ws-verdict-line-mark {
   color: var(--ws-status-check);
 }
 
-.ws-verdict-line--fail .ws-verdict-glyph {
+.ws-verdict-line--fail .ws-verdict-line-mark {
   color: var(--ws-status-fail);
 }
 
-.ws-verdict-headline {
-  font-variant-numeric: tabular-nums;
+/* 종별 규격 기준 없음(arch-23) — 기존 토큰만(ink-muted). 새 색 없음. */
+.ws-verdict-line--none .ws-verdict-line-mark {
+  color: var(--ws-ink-muted);
+}
+
+.ws-verdict-gap {
+  color: var(--ws-ink-body);
 }
 
 .ws-verdict-reasons {
@@ -384,9 +459,27 @@
 }
 
 /* ── 꼬리 ─────────────────────────────────────────────── */
+/* 286 U5a/U5b: 주 버튼 높이 52(--ws-btn-h). 결과 상태는 주 버튼 + 아래 텍스트 링크(세로, 전체 폭). */
 .ws-spec-submit {
   flex: 1;
+  min-height: var(--ws-btn-h);
   cursor: pointer;
+}
+
+.ws-spec-foot {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ws-space-1);
+}
+
+.ws-spec-basis {
+  min-height: var(--ws-btn-h);
+}
+
+.ws-spec-reenter {
+  align-self: center;
 }
 
 .ws-spec-submit.ws-btn--fill,

@@ -691,6 +691,32 @@ aside.ws-layer {
   }
 }
 
+/* 286 U5a: 정적 L5(하이드레이션 전) — 숫자 칸 72·단위는 칸 안(speccheck.css 는 지연 청크라 여기서 같은 치수만).
+   클래스 ws-spec-* 는 L5 폼에만 있다(레이어별 위치 규칙 아님). */
+aside.ws-layer .ws-spec-inputwrap {
+  position: relative;
+  display: block;
+}
+
+aside.ws-layer input.ws-spec-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--ws-input-h);
+  padding: 0 calc(var(--ws-space-4) + 3em) 0 var(--ws-space-4);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-md);
+  font-size: var(--ws-type-spec-lg-size);
+  font-weight: var(--ws-type-spec-lg-weight);
+}
+
+aside.ws-layer .ws-spec-unit {
+  position: absolute;
+  top: 50%;
+  right: var(--ws-space-4);
+  transform: translateY(-50%);
+  color: var(--ws-ink-muted);
+}
+
 .ws-layer-grab {
   flex: none;
   align-self: center;

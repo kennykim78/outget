@@ -253,6 +253,12 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     const l5 = page('/hamster/golden/check/cage');
     expect(l5).toContain('data-ws-layer="L5"');
     expect(l5).toContain('<fieldset disabled>');
+    // 286 U5a 입력 상태: 제목행 「크기 확인」 · 「{동물} · {용품}」 · 질문 문장 · 기준 보조줄(요구사항 chipSpecText — 하드코딩 수치 없음) · [확인하기]
+    const l5aside = l5.slice(l5.indexOf('<aside'), l5.indexOf('</aside>'));
+    expect(l5aside).toContain('<h2 id="ws-layer-title">크기 확인</h2>');
+    expect(l5aside).toMatch(/<p class="ws-meta">[^<·]+ · 케이지<\/p>\n<h3 class="ws-spec-ask">케이지 규격을 알려 주세요<\/h3>\n<p class="ws-meta">[^<]+ 기준 · 최소 [0-9×]+cm 이상/);
+    expect(l5aside).toContain('<button type="submit">확인하기</button>');
+    expect(l5aside).not.toMatch(/검수 대기|DRAFT/);
     const l7 = page('/hamster/golden/products/cp-001');
     expect(l7).toContain('data-ws-layer="L7"');
     expect(l7).toContain('픽스처 쳇바퀴 A');
@@ -476,8 +482,10 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(l5).not.toMatch(/type="checkbox"|checked/);
     const l5cage = pageOf(b, '/hamster/golden/check/cage');
     // 114(결정 2026-10-27 be-gp-schema 113 행): optional 이라도 minSpec(when 포함)이 참조하면 '· 선택' 생략 — barGapMm 은 cage minSpec 참조.
-    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격(mm)</label>');
-    expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로(cm)</label>');
+    // 286 U5a: 숫자 칸 라벨은 이름만, 단위는 칸 안 span(aria-describedby) — client SpecForm unitInside 와 같은 규칙.
+    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격</label>');
+    expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로</label>');
+    expect(l5cage).toContain('aria-describedby="ws-f-floorWcm-unit"><span class="ws-spec-unit" id="ws-f-floorWcm-unit">cm</span></span>');
   });
 
   it('G4: color-scheme meta, 탭바(현재 aria-current), 레이어 딥링크 스크림, 히어로·컨텍스트 인라인 마스코트(정제)', () => {

@@ -212,6 +212,28 @@ export const COPY = deepFreeze({
     moreReasons: '그 밖에 {n}개',
     yes: '예',
     no: '아니오',
+    /**
+     * 286 U5b — L5 결과 상태(R4 fix 4상태 규칙표: ○ 기준 충족 · △ 확인 필요 · ✕ 조금 작아요 · — 기준 없음).
+     *   판정 계산은 엔진만. 숫자는 Reason.expected/actual·해석된 minSpec 값에서만(불변식 ⑥). 「기준 검수 대기」 문구 없음(⑦ VERIFIED만 노출).
+     */
+    markOk: '기준 충족',
+    markCheck: '확인 필요',
+    markSmall: '조금 작아요',
+    markNone: '기준 없음',
+    markInput: '입력 필요',
+    titleOk: sent('{name} 기준을 충족해요'),
+    titleBelowRecommended: sent('최소 기준은 충족하고 권장에는 못 미쳐요'),
+    titleSmall: sent('{name} 크기가 최소 기준보다 작아요'),
+    titleBelowMin: sent('{name} 최소 기준에 맞지 않는 항목이 있어요'),
+    titleNoCriteria: sent('{animal} 기준값이 없는 용품이에요'),
+    /** 「최소 {필드명}」 — 숫자 규칙이 여럿이면 minSpecLabel. */
+    minOf: '최소 {name}',
+    minSpecLabel: '최소 규격',
+    mine: '내 {name}',
+    /** 차이 줄 — {n} = Reason.expected − Reason.actual(표시용 뺄셈만), {unit} = specSchema 라벨 단위. */
+    shortBy: sent('최소 {name}보다 {n}{unit} 작아요'),
+    reenter: '다시 입력하기',
+    seeBasis: '{name} 기준 살펴보기',
   },
   /** R5 C1 — L6 내 케이지(PRD US-010). 필드 라벨은 cage specSchema(시드)가 정한다. */
   cage: {
@@ -225,7 +247,7 @@ export const COPY = deepFreeze({
     /** DR m-2 — L6 범위 밖 입력 안내. */
     outOfRange: sent('입력할 수 있는 범위를 벗어났어요'),
     backTo: '‹ {name}',
-    stepSpecCheck: '규격 확인',
+    stepSpecCheck: '크기 확인',
     stepNow: '지금 필요한 것',
   },
   /** R5 C1 — 반응(PRD US-015; 스펙33 §2.3). 숫자는 R5 미표시(키 없음). */
@@ -237,10 +259,12 @@ export const COPY = deepFreeze({
   },
   /** UX §4 L5 — 프리렌더는 정적 폼만(판정은 클라이언트). */
   checkLayer: {
-    title: '규격 확인',
-    intro: sent('제품 치수를 넣으면 제품 규격과 내 환경 호환을 나눠서 알려 드려요'),
+    /** 286 U5a — 제목행 「크기 확인」(R3 시안). 페이지 <title>·경로 표시는 「크기 확인 · {용품}」. */
+    title: '크기 확인',
+    /** 286 U5a — 입력 상태 큰 문장. {name} = 용품명(시드). */
+    ask: sent('{name} 규격을 알려 주세요'),
     noScript: sent('판정은 자바스크립트를 켜면 할 수 있어요'),
-    submit: '판정하기',
+    submit: '확인하기',
     /** 스펙22 §4-4 — specSchema optional 필드 라벨 뒤 " · 선택". */
     optional: '선택',
     unavailable: '지금은 판정할 수 없어요. 잠시 뒤 다시 열어 주세요',
@@ -526,6 +550,13 @@ export { BACKUP_RETENTION_DAYS } from '../privacy/policy.js';
  */
 export const GLYPH = deepFreeze({ ready: '✓', first: '!', check: '△', later: '○', fail: '✕', unknown: '?' });
 
+/**
+ * 286 U5b — L5 규격 판정 4상태 글리프(R4 fix status_glyph_rules): ○ 기준 충족 · △ 확인 필요 · ✕ 미달 · — 기준 없음(○ 와 다른 글리프).
+ *   값 누락 CHECK 는 ?(입력 필요). 아이콘 + 색 + 단어를 항상 함께 — 색만으로 구분하지 않는다.
+ *   L5 전용(체크리스트·칩의 GLYPH 전역 재정의는 R4-1 범위).
+ */
+export const VERDICT_GLYPH = deepFreeze({ ok: '○', check: '△', fail: '✕', none: '—', input: '?' });
+
 function collect(v: unknown, out: string[]): void {
   if (typeof v === 'string') out.push(v);
   else if (v && typeof v === 'object') for (const x of Object.values(v)) collect(x, out);
@@ -540,12 +571,12 @@ export function allCopyStrings(opts: { sentencesOnly?: boolean } = {}): string[]
 }
 
 const TOKEN_RE = /\{([a-zA-Z]+)\}/g;
-const ALLOWED_TOKENS = new Set(['animal', 'n', 'alias', 'name']);
+const ALLOWED_TOKENS = new Set(['animal', 'n', 'alias', 'name', 'unit']);
 
-/** `{animal}`·`{n}`(숫자)·`{alias}`·`{name}` 토큰을 채운다. 미지 토큰·값 누락은 throw. 결과는 호출부가 escapeHtml. */
+/** `{animal}`·`{n}`(숫자)·`{alias}`·`{name}`·`{unit}`(단위 — 빈 문자열 허용) 토큰을 채운다. 미지 토큰·값 누락은 throw. 결과는 호출부가 escapeHtml. */
 export function formatCopy(
   template: string,
-  vars: { animal?: string; n?: number; alias?: string; name?: string },
+  vars: { animal?: string; n?: number; alias?: string; name?: string; unit?: string },
 ): string {
   return template.replace(TOKEN_RE, (_m, name: string) => {
     if (!ALLOWED_TOKENS.has(name)) throw new Error(`copy: 알 수 없는 토큰 {${name}}`);

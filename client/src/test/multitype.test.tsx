@@ -178,7 +178,7 @@ async function failWheel(typeId: string, slug: string): Promise<HTMLElement> {
   mountLayers(L5_PAGE(typeId, `/${slug}`));
   act(() => layerStore.open('L5', { typeId, itemId: 'wheel' }, { url: `/${slug}/check/wheel` }));
   const d = await screen.findByRole('dialog');
-  await within(d).findByText(COPY.checkLayer.intro, {}, { timeout: 15000 });
+  await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 }); // 286 U5a 입력 상태 질문 문장
   const submit = within(d).getByRole('button', { name: COPY.checkLayer.submit });
   await waitFor(() => expect(submit).not.toBeDisabled());
   fireEvent.change(within(d).getByLabelText(/지름/), { target: { value: '27' } });

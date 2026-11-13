@@ -19,6 +19,9 @@ const layer = (page: Page, kind: string): Locator => page.locator(`[data-ws-laye
 /** L5 폼 채우고 판정. diameter '' = 값 누락. */
 async function judgeWheel(L5: Locator, diameter: string): Promise<Locator> {
   const page = L5.page();
+  // 286 U5b: 결과 상태는 입력 칸을 걷는다 — 「다시 입력하기」(값 유지)로 입력 상태로 돌아간 뒤 넣는다.
+  const reenter = L5.locator('button.ws-spec-reenter');
+  if (await reenter.count()) await tap(page, reenter);
   await L5.locator('input[name="diameterCm"]').fill(diameter);
   for (const radio of [L5.locator('[data-ws-field="surface"] input[value="SOLID"]'), L5.locator('[data-ws-field="mount"] input[value="STAND"]')]) {
     if (!(await radio.isChecked())) await tap(page, radio.locator('xpath=..'));
@@ -81,7 +84,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   });
 
   const L5 = layer(page, 'L5');
-  await test.step('L4 쳇바퀴 → L5 규격 판정(30 ✓ · 20 ✕ · 누락 ?)', async () => {
+  await test.step('L4 쳇바퀴 → L5 규격 판정(30 ○ · 20 ✕ · 누락 ?)', async () => {
     const L2 = layer(page, 'L2');
     await Promise.all([page.waitForURL(`**${TYPE.home}/supplies/wheel`), tap(page, L2.getByRole('link', { name: '쳇바퀴 자세히' }))]);
     const L4 = layer(page, 'L4');
@@ -97,7 +100,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
 
     const v30 = await judgeWheel(L5, '30');
     await expect(v30).toHaveAttribute('data-ws-verdict', 'OK');
-    await expect(v30.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('✓');
+    await expect(v30.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('○'); // 286 U5b R4 fix 4상태: ○ 기준 충족
     await expect(v30.locator('[data-ws-tier="compat"]')).toHaveCount(0);
     await assertScreen(page, 'L5 30cm');
 
@@ -131,7 +134,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
 
     const v = await judgeWheel(L5, '30');
     await expect(v).toHaveAttribute('data-ws-verdict', 'CHECK');
-    await expect(v.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('✓');
+    await expect(v.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('○');
     const compat = v.locator('[data-ws-tier="compat"]');
     await expect(compat.locator('.ws-verdict-glyph')).toHaveText('△');
     await expect(compat).toContainText('공간 조건 재확인');
