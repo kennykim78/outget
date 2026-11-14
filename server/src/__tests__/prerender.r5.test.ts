@@ -138,7 +138,8 @@ describe('/vet(G-4)', () => {
     const page = html(list, '/vet');
     expect(page).toContain(`<p class="ws-vet-row-label" id="ws-vet-filters-label">${COPY.vet.filtersTitle}</p>`);
     expect(page).toContain('<div class="ws-vet-filters" role="group" aria-labelledby="ws-vet-filters-label">');
-    expect(page).toContain('<button type="button" class="ws-filter-chip" aria-pressed="false">골든햄스터</button>');
+    // R4-6: 진료 동물 칩 = 「{동물} 진료」(시안 「✓ 골든햄스터 진료」 — ✓ 는 선택 시 CSS).
+    expect(page).toContain('<button type="button" class="ws-filter-chip" aria-pressed="false">골든햄스터 진료</button>');
     expect(page).toContain(`<button type="button" class="ws-filter-chip" aria-pressed="false">${COPY.vet.night}</button>`);
     expect(page).toContain(`<button type="button" class="ws-filter-chip" aria-pressed="false">${COPY.vet.emergency}</button>`);
   });
@@ -150,6 +151,28 @@ describe('/vet(G-4)', () => {
     expect(mapo).toContain(`href="/vet/${encodeURIComponent('서울-마포구')}" aria-current="page">서울 마포구</a>`);
     expect(mapo).toContain('<h1>서울 마포구 · 우리 동네 병원</h1>');
     expect(mapo).toContain(COPY.vet.visitNote);
+  });
+  it('R4-6: 제목 바로 다음 = 방문 안내 한 줄(시안 원문), 그다음 「지역 선택」 줄 — 병원 목록보다 앞', () => {
+    expect(COPY.vet.visitNote).toBe('방문 전 진료 여부를 병원에 문의해 주세요.');
+    expect(COPY.vet.regionsTitle).toBe('지역 선택');
+    const page = html(list, '/vet');
+    expect(page).toContain(`</h1>\n<p class="ws-vet-note">${COPY.vet.visitNote}</p>`);
+    expect(page.indexOf('ws-vet-note')).toBeLessThan(page.indexOf('ws-vet-row--regions'));
+    expect(page.indexOf('ws-vet-row--regions')).toBeLessThan(page.indexOf('<ul class="ws-vets">'));
+    expect(page.match(/class="ws-vet-note"/g)).toHaveLength(1);
+    expect(page).not.toContain('ws-state--empty');
+  });
+  it('R4-6: 병원 0 → 상태 머리 h2 「확인된 병원이 아직 없어요」 + emptyAll, 허구 병원·지도·필터·지역 0', () => {
+    const s0 = promoted();
+    s0.vetClinics = [];
+    const page = html(build(s0), '/vet');
+    const main = page.slice(page.indexOf('<main'), page.indexOf('</main>'));
+    expect(main).toContain(
+      `<div class="ws-state ws-state--empty" data-ws-state-kind="empty"><h2 class="ws-state-title">${COPY.vet.emptyTitle}</h2><p class="ws-state-body">${COPY.vet.emptyAll}</p></div>`,
+    );
+    expect(COPY.vet.emptyTitle).toBe('확인된 병원이 아직 없어요');
+    for (const x of ['ws-vets', 'ws-vet-map', 'ws-vet-filters', 'ws-region-chips', 'vetClinics#', 'ws-vet-row']) expect(main).not.toContain(x);
+    expect(main).toContain(COPY.vet.visitNote);
   });
 });
 

@@ -589,3 +589,26 @@
 .ws-cage-row--norule {
   color: var(--ws-ink-muted);
 }
+
+/* R4-8 상태 블록(app.css .ws-state) — L6 안 배치. 등록값 보기의 판정 자리는 소제목 크기, 빈 상태 머리는 폼 위. */
+.ws-cage-summary .ws-state {
+  margin-top: var(--ws-space-2);
+}
+.ws-cage-summary .ws-state-title {
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-section-weight);
+}
+.ws-cage-step .ws-state--empty {
+  margin-bottom: var(--ws-space-6);
+}
+.ws-cage-retry {
+  flex: 1 0 100%;
+  cursor: pointer;
+}
+.ws-cage-retry {
+  border: 0;
+}
+.ws-spec-link.ws-cage-edit {
+  flex: none;
+}

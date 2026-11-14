@@ -3,13 +3,17 @@
 //   필터(진료 동물·야간·응급)는 상태 + 쿼리, 저장 0. 지역은 URL(링크) — 위치 권한·현위치 조회 0(D14, 불변식 ⑧).
 //   지도: 키 있고 SDK 준비 → ≤1023 [목록][지도] 전환(기본 목록) · ≥1024 목록 + 지도 나란히(DR m-7). 키 없음·실패 → 목록 전용(지도 DOM·안내 0).
 //   방문 안내(visitNote)는 항상. 제보는 하단 접힘 섹션 → 접수 안내만(D15 — 제보 병원·"제보됨" 배지 0).
+//   R4-6(R4 시안 hospital_list·hospital_map): 제목(진료 동물이 정해지면 「{동물} 진료하는 병원」) → 바로 아래 방문 안내 한 줄 →
+//     「지역 선택」 → 「{동물} 진료」 필터 → 목록|지도 탭(밑줄) → 병원 0이면 「확인된 병원이 아직 없어요」(허구 병원·지도 예시 그림 0).
+//     프리렌더 renderVet(server/src/prerender/pages/misc.ts)과 같은 순서·마크업(제목의 동물은 쿼리를 읽는 클라이언트만).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { WsPageData } from '@ws/engine';
 import VetMap from '../map/VetMap';
 import { hasMapKey, useNaverMapLoader, type MapLoadStatus } from '../map/useNaverMapLoader';
 import { copyAt, copyFmt } from '../ui/copyText';
+import StateBlock from '../ui/StateBlock';
 import { useMediaQuery } from '../ui/useMediaQuery';
-import { applyVetFilter, isFiltered, NO_FILTER, parseVetFilter, treatChoices, vetFilterSearch, type VetFilter } from './filters';
+import { applyVetFilter, isFiltered, NO_FILTER, parseVetFilter, queryTreats, treatChoices, vetFilterSearch, type VetFilter } from './filters';
 import { sortVets } from './order';
 import { chipsFromCaptured, chipsFromVets, type RegionChip } from './regionChips';
 import VetCard from './VetCard';
@@ -30,10 +34,10 @@ function useMapStatus(enabled: boolean): MapLoadStatus {
   return enabled && hasMapKey() ? status : 'no-key';
 }
 
-function FilterChip({ pressed, label, onClick }: { pressed: boolean; label: string; onClick(): void }) {
+function FilterChip({ pressed, label, onClick, className = 'ws-filter-chip' }: { pressed: boolean; label: string; onClick(): void; className?: string }) {
   return (
-    // 선택 "✓" 접두는 CSS ::before(대체 텍스트 "") — 상태는 aria-pressed 가 말한다(DR M-4).
-    <button type="button" className="ws-filter-chip" aria-pressed={pressed} onClick={onClick}>
+    // 선택 "✓" 접두는 CSS ::before(대체 텍스트 "") — 상태는 aria-pressed 가 말한다(DR M-4). 목록|지도 탭(ws-vet-mode)은 밑줄·굵기로.
+    <button type="button" className={className} aria-pressed={pressed} onClick={onClick}>
       {label}
     </button>
   );
@@ -53,6 +57,14 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
     ),
   );
   const shown = useMemo(() => applyVetFilter(vets, filter), [vets, filter]);
+  // R4-6: 병원 0(필터 칩 없음)이면 홈에서 실어 온 ?treats= 노출 타입을 제목에만 쓴다(최초 진입 값, 거르기 0).
+  const [fromQuery] = useState(() =>
+    queryTreats(
+      typeof window === 'undefined' ? '' : window.location.search,
+      types.map((t) => t.id),
+    ),
+  );
+  const titleAnimal = typeNames.get(filter.treats ?? (vets.length === 0 ? fromQuery ?? '' : '')) ?? null;
 
   // 필터 변경 안내(sr-only live): 필터를 건드린 뒤에만 채운다. 지역이 바뀌면(touchedRegion 불일치) 다시 비운다.
   const [touchedRegion, setTouchedRegion] = useState<string | null>(null);
@@ -123,7 +135,11 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
     return () => ro.disconnect();
   }, [chips, region, updateMoreHint]);
 
-  const title = region ? copyFmt('vet.regionTitle', { name: region }) : copyAt('vet.title');
+  const title = titleAnimal
+    ? copyFmt('vet.animalTitle', { animal: titleAnimal })
+    : region
+      ? copyFmt('vet.regionTitle', { name: region })
+      : copyAt('vet.title');
   const layout = mapOn ? 'map' : 'list';
   const showMap = mapOn && (wide || mode === 'map');
   const showList = !mapOn || wide || mode === 'list';
@@ -136,8 +152,7 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
 
   const list =
     vets.length === 0 ? (
-      <div className="ws-vet-empty">
-        <p>{copyAt(region ? 'vet.emptyRegion' : 'vet.emptyAll')}</p>
+      <StateBlock kind="empty" mark={false} level={2} title={copyAt('vet.emptyTitle') ?? ''} body={copyAt(region ? 'vet.emptyRegion' : 'vet.emptyAll')}>
         <p className="ws-vet-empty-links">
           <a
             href={`#${VET_REPORT_SECTION_ID}`}
@@ -150,7 +165,7 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
           </a>
           {region ? <a href="/vet">{copyAt('vet.nearbyLink')}</a> : null}
         </p>
-      </div>
+      </StateBlock>
     ) : shown.length === 0 ? (
       <div className="ws-vet-empty">
         <p>{copyAt('vet.filterNoResult')}</p>
@@ -184,6 +199,7 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
   return (
     <main id="main" className="ws-page ws-vet-page" data-ws-route={kind} data-ws-vet-layout={layout}>
       <h1>{title}</h1>
+      <p className="ws-vet-note">{copyAt('vet.visitNote')}</p>
       <div className="ws-visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {liveText}
       </div>
@@ -219,7 +235,7 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
           {choices.map((t) => (
             <FilterChip
               key={t.id}
-              label={t.displayName}
+              label={copyFmt('vet.treatsChip', { name: t.displayName }) ?? t.displayName}
               pressed={filter.treats === t.id}
               onClick={() => changeFilter((f) => ({ ...f, treats: f.treats === t.id ? null : t.id }))}
             />
@@ -244,8 +260,8 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
       ) : null}
       {mapOn && !wide ? (
         <div className="ws-vet-modes" role="group">
-          <FilterChip label={copyAt('vet.listTab') ?? ''} pressed={mode === 'list'} onClick={() => setMode('list')} />
-          <FilterChip label={copyAt('vet.mapTab') ?? ''} pressed={mode === 'map'} onClick={() => setMode('map')} />
+          <FilterChip className="ws-vet-mode" label={copyAt('vet.listTab') ?? ''} pressed={mode === 'list'} onClick={() => setMode('list')} />
+          <FilterChip className="ws-vet-mode" label={copyAt('vet.mapTab') ?? ''} pressed={mode === 'map'} onClick={() => setMode('map')} />
         </div>
       ) : null}
       <div className={mapOn && wide ? 'ws-vet-grid' : 'ws-vet-single'}>
@@ -257,7 +273,6 @@ export default function VetPage({ page, capturedMain }: VetPageProps) {
           </div>
         ) : null}
       </div>
-      <p className="ws-vet-note">{copyAt('vet.visitNote')}</p>
       <VetReportForm types={types} open={reportOpen} onToggle={setReportOpen} />
     </main>
   );

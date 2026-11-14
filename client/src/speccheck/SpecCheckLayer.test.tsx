@@ -685,7 +685,7 @@ describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력�
     setNumber(d, /바닥 가로/, '60');
     setNumber(d, /바닥 세로/, '40');
     setNumber(d, /높이/, '35');
-    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.emptyCta }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
 
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
@@ -722,7 +722,7 @@ describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력�
     setNumber(d, /바닥 가로/, '60');
     setNumber(d, /바닥 세로/, '40');
     setNumber(d, /높이/, '35');
-    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.emptyCta }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
 
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
@@ -756,7 +756,7 @@ describe('L6 내 케이지 스텝', () => {
     expect(within(d).getByText(COPY.cage.deviceOnly)).toBeInTheDocument();
     assertNoUrlOrImageInputs(d);
 
-    const save = within(d).getByRole('button', { name: COPY.cage.save });
+    const save = within(d).getByRole('button', { name: COPY.cage.emptyCta });
     expect(save).toBeDisabled();
     pick(d, '리빙박스');
     expect(within(d).queryByLabelText(/철망 간격/)).toBeNull(); // WIRE 만(D7)
@@ -797,12 +797,12 @@ describe('L6 내 케이지 스텝', () => {
     pick(d, '철망');
     expect(within(d).getByLabelText(/철망 간격/)).toBeInTheDocument();
     // 빈 필수 칸: 그냥 비활성, 안내 0
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).toBeDisabled();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).toBeDisabled();
     expect(within(d).queryByText(COPY.cage.outOfRange)).toBeNull();
     setNumber(d, /바닥 가로/, '300');
     setNumber(d, /바닥 세로/, '40');
     setNumber(d, /높이/, '35');
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).toBeDisabled();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).toBeDisabled();
     expect(window.localStorage.getItem(cageKey(golden.id))).toBeNull();
     // DR m-2: 범위 밖 칸만 aria-invalid + fail 테두리 + meta 안내(aria-describedby)
     const bad = within(d).getByLabelText(/바닥 가로/);
@@ -818,7 +818,7 @@ describe('L6 내 케이지 스텝', () => {
     setNumber(d, /바닥 가로/, '80');
     setNumber(d, /철망 간격/, '9');
     expect(within(d).queryByText(COPY.cage.outOfRange)).toBeNull();
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).not.toBeDisabled();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).not.toBeDisabled();
   });
 
   it('케이지가 있으면 "수정" → "등록 지우기" 로 키 삭제 후 이전 스텝', async () => {
@@ -858,7 +858,7 @@ describe('L6 내 케이지 스텝', () => {
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.register }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
     expect(within(d).queryByText(COPY.cage.deviceOnly)).toBeNull();
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).toBeInTheDocument();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).toBeInTheDocument();
   });
 
   it('케이지 호환 규칙이 없는 용품: 케이지 없음 → CageRow 없음', async () => {

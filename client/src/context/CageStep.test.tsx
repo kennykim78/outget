@@ -12,7 +12,7 @@ vi.mock('../ui/layer/Layer', () => ({
   LayerFoot: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-import CageStep, { cageStepDeps } from './CageStep';
+import CageStep, { CAGE_REVIEW_LOADING_DELAY_MS, cageStepDeps } from './CageStep';
 import { cageKey, CAGE_TYPES } from './cageStore';
 
 const TYPE_ID = 'hamster-golden';
@@ -68,7 +68,7 @@ describe('CageStep type 옵션', () => {
     fill(/바닥 세로/, '50');
     fill(/높이/, '40');
     if (type === 'WIRE') fill(/철망 간격/, '9');
-    const save = screen.getAllByRole('button').find((b) => !(b as HTMLButtonElement).disabled && /저장/.test(b.textContent ?? ''));
+    const save = screen.getAllByRole('button').find((b) => !(b as HTMLButtonElement).disabled && /저장|케이지 등록하기/.test(b.textContent ?? ''));
     expect(save).toBeDefined();
     fireEvent.click(save as HTMLElement);
     expect(onBack).toHaveBeenCalled();
@@ -109,7 +109,7 @@ describe('CageStep 저장소 쓰기 실패(#7)', () => {
     fill(/바닥 가로/, '80');
     fill(/바닥 세로/, '50');
     fill(/높이/, '40');
-    fireEvent.click(screen.getAllByRole('button').find((b) => !(b as HTMLButtonElement).disabled && /저장/.test(b.textContent ?? '')) as HTMLElement);
+    fireEvent.click(screen.getAllByRole('button').find((b) => !(b as HTMLButtonElement).disabled && /저장|케이지 등록하기/.test(b.textContent ?? '')) as HTMLElement);
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.getByText(COPY.checklist.storageUnavailable)).toBeInTheDocument();
     expect(screen.queryByText(COPY.cage.deviceOnly)).toBeNull();
@@ -195,13 +195,65 @@ describe('CageStep 등록한 케이지 보기(R4-5)', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it('카탈로그 로드 실패 → 판정 줄 0, 저장값 숫자만', async () => {
+  it('R4-8 카탈로그 로드 실패 → 저장값 숫자 유지 + △ 「호환 정보를 불러오지 못했어요」(alert) + 채운 버튼 「다시 시도하기」 하나 → 다시 불러와 판정', async () => {
     storeIt();
-    vi.spyOn(cageStepDeps, 'load').mockRejectedValue(new Error('x'));
+    const specCheck = vi.fn(() => ({ verdict: 'OK', product: { verdict: 'OK', reasons: [] }, compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] }, reasons: [], alternatives: [] }));
+    const requirementCompat = vi.fn(() => ({ verdict: 'NONE', reasons: [], checkedRuleIds: [] }));
+    const load = vi.spyOn(cageStepDeps, 'load').mockRejectedValueOnce(new Error('x')).mockResolvedValue({ specCheck, requirementCompat } as never);
     render(<CageStep typeId={TYPE_ID} schema={SCHEMA} backLabel="뒤로" onBack={() => {}} reqs={[cageReq] as never} catalogUrl={CATALOG} />);
-    await Promise.resolve();
-    expect(document.querySelector('[data-ws-cage-part="floor"]')?.textContent).toBe('80×45cm');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveAttribute('data-ws-error', 'cage-review');
+    expect(alert).toHaveTextContent(COPY.cage.loadFailTitle);
+    expect(alert).toHaveTextContent(COPY.cage.loadFailBody);
+    expect(alert.querySelector('[data-ws-glyph="check"]')?.textContent).toBe('△');
+    expect(screen.getByRole('heading', { level: 4, name: COPY.cage.loadFailTitle })).toBeInTheDocument();
+    expect(document.querySelector('[data-ws-cage-part="floor"]')?.textContent).toBe('80×45cm'); // 「입력한 크기는 그대로」
     expect(document.querySelector('[data-ws-cage-part="self"]')).toBeNull();
-    expect(document.querySelector('[data-ws-cage-part="compat"]')).toBeNull();
+    expect(alert.textContent).not.toMatch(/catalog|fetch|error|오류 코드|JSON|\d{3}/i); // 개발 용어·상태 코드 0
+    // 채운 버튼 = 다시 시도하기 하나, 수정은 텍스트 링크
+    const fills = screen.getAllByRole('button').filter((b) => b.className.includes('ws-btn--fill'));
+    expect(fills.map((b) => b.textContent)).toEqual([COPY.cage.retry]);
+    const edit = screen.getByRole('button', { name: COPY.cage.editCta });
+    expect(edit.className).not.toContain('ws-btn--fill');
+    fireEvent.click(fills[0]);
+    expect(edit).toHaveFocus(); // 사라지는 버튼 대신 같은 자리 수정 버튼
+    await waitFor(() => expect(document.querySelector('[data-ws-cage-part="self"]')).not.toBeNull());
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: COPY.cage.retry })).toBeNull();
+    expect(screen.getByRole('button', { name: COPY.cage.editCta }).className).toContain('ws-btn--fill');
+  });
+
+  it('R4-8 판정 불러오기가 늦으면 「확인 중이에요」(status·aria-busy, 숫자 없는 막대, 행동 버튼은 수정 하나뿐), 빠르면 로딩 머리 0', async () => {
+    storeIt();
+    let resolve: (e: unknown) => void = () => {};
+    vi.spyOn(cageStepDeps, 'load').mockReturnValue(new Promise((r) => (resolve = r)) as never);
+    render(<CageStep typeId={TYPE_ID} schema={SCHEMA} backLabel="뒤로" onBack={() => {}} reqs={[cageReq] as never} catalogUrl={CATALOG} />);
+    expect(document.querySelector('[data-ws-state-kind="loading"]')).toBeNull(); // 지연 전 0(깜박임 방지)
+    const status = await screen.findByRole('status', {}, { timeout: CAGE_REVIEW_LOADING_DELAY_MS + 1000 });
+    expect(status).toHaveAttribute('aria-busy', 'true');
+    expect(status).toHaveTextContent(COPY.cage.loadingTitle);
+    expect(status).toHaveTextContent(COPY.cage.loadingBody);
+    expect(status).toHaveTextContent(COPY.cage.loadingWait);
+    expect(status.querySelector('.ws-state-bar')).toHaveAttribute('aria-hidden', 'true');
+    expect(status.textContent).not.toMatch(/%|\d/); // 진행률 숫자 0
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([COPY.cage.editCta]);
+    const specCheck = vi.fn(() => ({ verdict: 'OK', product: { verdict: 'OK', reasons: [] }, compat: { verdict: 'NONE', reasons: [], checkedRuleIds: [] }, reasons: [], alternatives: [] }));
+    resolve({ specCheck, requirementCompat: vi.fn(() => ({ verdict: 'NONE', reasons: [], checkedRuleIds: [] })) });
+    await waitFor(() => expect(document.querySelector('[data-ws-cage-part="self"]')).not.toBeNull());
+    expect(document.querySelector('[data-ws-state-kind="loading"]')).toBeNull();
+  });
+
+  it('R4-8 케이지 없음 → 폼 위 빈 상태 머리(「등록한 케이지가 없어요」) + 저장 버튼 「케이지 등록하기」, 있으면 머리 0·「저장」', () => {
+    setup();
+    const head = document.querySelector('[data-ws-state-kind="empty"]') as HTMLElement;
+    expect(head).not.toBeNull();
+    expect(head).not.toHaveAttribute('role');
+    expect(screen.getByRole('heading', { level: 3, name: COPY.cage.emptyTitle })).toBeInTheDocument();
+    expect(head).toHaveTextContent(COPY.cage.emptyBody);
+    expect(head.compareDocumentPosition(document.querySelector('form.ws-cage-form') as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const fills = screen.getAllByRole('button').filter((b) => b.className.includes('ws-btn--fill'));
+    expect(fills.map((b) => b.textContent)).toEqual([COPY.cage.emptyCta]);
+    expect(screen.queryByRole('button', { name: COPY.cage.save })).toBeNull();
   });
 });

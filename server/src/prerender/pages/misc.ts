@@ -484,6 +484,8 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
  * /vet — 지역 칩("전체" + 지역, aria-current) + 병원 카드, 0이면 빈 상태. /vet/{region} — 지역 병원(스펙33 §5.8, G-4).
  *   main[data-ws-vet-layout=map|list] 는 빌드 시 지도 키 존재 여부만(ctx.vetMap) — map 이면 빈 지도 블록을 예약한다.
  *   필터(진료 동물·야간·응급)·목록|지도 전환·제보 섹션은 하이드레이션 후(클라이언트). 좌표는 ws-data 에만.
+ *   R4-6(R4 시안 hospital_list): 제목 → 방문 안내 한 줄 → 「지역 선택」 → 「{동물} 진료」 칩 → 목록, 병원 0 = 상태 머리 「확인된 병원이 아직 없어요」
+ *   (클라이언트 StateBlock 과 같은 마크업 — 허구 병원·지도 예시 그림 0). 제목의 「{동물} 진료하는 병원」은 쿼리를 읽는 클라이언트만.
  */
 export function renderVet(m: SiteModel, ctx: PageContext): RenderedPage {
   const region = ctx.route.region;
@@ -505,19 +507,23 @@ export function renderVet(m: SiteModel, ctx: PageContext): RenderedPage {
   const chip = (label: string): string => `<button type="button" class="ws-filter-chip" aria-pressed="false">${h(label)}</button>`;
   const filters = vets.length
     ? `<div class="ws-vet-row ws-vet-row--filters"><div class="ws-vet-row-head"><p class="ws-vet-row-label" id="ws-vet-filters-label">${h(COPY.vet.filtersTitle)}</p></div><div class="ws-vet-filters" role="group" aria-labelledby="ws-vet-filters-label">${[
-        ...m.types.filter((t) => usedTreats.has(t.id)).map((t) => chip(t.pub.displayName)),
+        ...m.types.filter((t) => usedTreats.has(t.id)).map((t) => chip(formatCopy(COPY.vet.treatsChip, { name: t.pub.displayName }))),
         chip(COPY.vet.night),
         chip(COPY.vet.emergency),
       ].join('')}</div></div>`
     : '';
   const main = [
     `<h1>${h(region === undefined ? COPY.vet.title : formatCopy(COPY.vet.regionTitle, { name: region }))}</h1>`,
+    `<p class="ws-vet-note">${h(COPY.vet.visitNote)}</p>`, // K1: 병원 목록 근처에 항상 — R4-6 제목 바로 아래
     chips,
     filters,
-    vets.length ? '' : `<p>${h(region === undefined ? COPY.vet.emptyAll : COPY.vet.emptyRegion)}</p>`,
+    vets.length
+      ? ''
+      : `<div class="ws-state ws-state--empty" data-ws-state-kind="empty"><h2 class="ws-state-title">${h(COPY.vet.emptyTitle)}</h2><p class="ws-state-body">${h(
+          region === undefined ? COPY.vet.emptyAll : COPY.vet.emptyRegion,
+        )}</p></div>`,
     layout === 'map' && vets.length ? '<div class="ws-vet-map" aria-hidden="true"></div>' : '',
     vets.length ? `<ul class="ws-vets">\n${vets.map((v) => vetCard(v, typeNames, 2)).join('\n')}\n</ul>` : '',
-    `<p class="ws-vet-note">${h(COPY.vet.visitNote)}</p>`, // K1: 병원 목록 근처에 항상
   ];
   return page(ctx, {
     title: `${region ? `${region} · ` : ''}${COPY.vet.title}${COPY.site.titleSuffix}`,

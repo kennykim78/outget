@@ -242,7 +242,7 @@ describe('L8 입력 → 보냄', () => {
     expectNoSecretsStored();
   });
 
-  it('429·네트워크 → 같은 안내(data-ws-error=network)', async () => {
+  it('429·네트워크 → R4-8 「저장 실패」 상태 머리(△·data-ws-error=network), 입력 유지, 채운 버튼 「다시 보내기」 하나 → 다시 보내면 성공', async () => {
     routes['POST /auth/magic/request'] = { status: 429 };
     mount();
     await openFromHome();
@@ -250,7 +250,19 @@ describe('L8 입력 → 보냄', () => {
     fireEvent.click(screen.getByRole('button', { name: COPY.save.submit }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveAttribute('data-ws-error', 'network');
-    expect(alert).toHaveTextContent(COPY.save.errorNetwork);
+    expect(alert).toHaveTextContent(COPY.save.sendFailTitle);
+    expect(alert).toHaveTextContent(COPY.save.sendFailBody);
+    expect(alert.querySelector('[data-ws-glyph="check"]')?.textContent).toBe('△');
+    expect(alert.textContent).not.toMatch(/429|network|오류 코드/i);
+    expect(screen.queryByText(COPY.save.description)).toBeNull(); // 설명 자리를 상태 머리가 대신
+    expect(screen.getByLabelText(COPY.save.emailLabel)).toHaveValue(EMAIL); // 「입력한 이메일은 그대로」
+    const fills = screen.getAllByRole('button').filter((b) => b.className.includes('ws-btn--fill'));
+    expect(fills.map((b) => b.textContent)).toEqual([COPY.save.resend]);
+    expect(screen.queryByRole('button', { name: COPY.save.submit })).toBeNull();
+    expectNoBanned(document.body);
+    routes['POST /auth/magic/request'] = { status: 202 };
+    fireEvent.click(fills[0]);
+    expect(await screen.findByRole('dialog', { name: COPY.save.sentTitle })).toBeInTheDocument();
   });
 
   it('m-11 보냄 화면에서 다른 탭이 연결하면(storage 이벤트) 연결 상태로 전환', async () => {
@@ -891,7 +903,9 @@ describe('P3 D6 포커스 · D7 카운트다운 낭독', () => {
     submit.focus();
     fireEvent.click(submit);
     await screen.findByRole('alert');
-    const again = screen.getByRole('button', { name: COPY.save.submit });
+    // R4-8: 같은 버튼이 「다시 보내기」로 바뀐다(요소 유지 — 포커스 그대로).
+    const again = screen.getByRole('button', { name: COPY.save.resend });
+    expect(again).toBe(submit);
     await act(async () => undefined);
     expect(document.activeElement).toBe(again);
   });

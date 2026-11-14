@@ -1,6 +1,6 @@
 {
-  "head": "d609994+overlay",
-  "note": "꺼짐 빌드 파일 sha256 — gen-baseline --rev d609994 --overlay server/src/prerender/pages/type.ts --overlay server/src/prerender/copy.ts (R4-4·R4-9: L4·L7 정적 aside 본문 순서·「{동물} · {용품}」·사진 자리·검수 내용 머리 — 레이어 딥링크 52개만 변경, aside 밖·main 차이 0)",
+  "head": "dc50b03+overlay",
+  "note": "꺼짐 빌드 파일 sha256 — gen-baseline --rev dc50b03 --overlay server/src/prerender/pages/misc.ts --overlay server/src/prerender/copy.ts (R4-6: /vet 제목 아래 방문 안내 한 줄·「지역 선택」·「{동물} 진료」 칩·병원 0 상태 머리 — vet/*.html 4개만 변경, ws-data(v1) 차이 0)",
   "templateSha256": "3e13f48faee605886ac0e00a7cdc0ebc4ee71f4e0269e3ddbe25dc3fa675ceab",
   "cases": {
     "real": {
@@ -15,7 +15,7 @@
       "save/index.html": "cdc7afac68bbee27dd073df4775c7699d92e5f67cef98910a6a4b7b699d914a8",
       "sitemap.xml": "28844a1dab0912a1065556f5ab7a521700a0c7182304089c267dfd99839607f7",
       "supplies/index.html": "b713c192ff49373bf057a21adcca6f5cc86e70217dcf46ea7ac2dc82390a93d8",
-      "vet/index.html": "0ed795bc8d8f3720f9eb727d7894cdc3d46567549a0362e0edab17bc2a57fd98"
+      "vet/index.html": "4c05b1aab6b0a6a136cf4622be17492b3b68fdd1b073ad24c69964592b7fbeef"
     },
     "promotedTwo": {
       "404.html": "f29433ea3cc6bfa5f56825fd1ef11e6ee46fc0c038a45c3f92fc724bf47dba45",
@@ -50,8 +50,8 @@
       "supplies/wheel/fixture-second/index.html": "3c4c3b22b6b7021687c7aa0fa34b5db802047ae8dad85edaa27f41e9c856e611",
       "supplies/wheel/hamster-golden/index.html": "92ecc17854bb7e5dc3aacd073bae1fe94d0c0d45d59610f9acc134d25a2e4f5d",
       "supplies/wheel/index.html": "2fbec2986838826c0e3bc2b7727136a63b9ec0c517b02e1f783488be624648c9",
-      "vet/index.html": "a9265dca412dab813898a1ae011d81a9439700f3f8b69b9c25bbef5ef32c08fb",
-      "vet/서울-마포구/index.html": "b8f240500b3ef94fa0047fe1a98148ec4c88628d3b41db8ef4c9ee1317d1394c"
+      "vet/index.html": "335544b12078387278fd000cdb01968ff2139d6b3c3139e7f19c229c34c9d008",
+      "vet/서울-마포구/index.html": "2abacf82b3c766989af045c0015d0f0c1f1f1d12a67ea18a3156c9f4bcd2dee7"
     },
     "dwarfPreview": {
       "404.html": "13b99dd5e895c89bbeafa5e9be8594bc137336ed72a97ad54c2b015eed8841b7",
@@ -138,7 +138,7 @@
       "supplies/water/index.html": "e282c5c7eb1b83872d29c78ba900b475769dddc02409936917fc2d79856d3c6e",
       "supplies/wheel/hamster-dwarf/index.html": "ede8ff1b9bd55fc35fcbabb11e77da2fdce858cef6628bb7c2dcbb01073e0d69",
       "supplies/wheel/index.html": "82fb1cfc542c74e08636f570b1478e68b529b5758a79bc640a36b59e1de5784e",
-      "vet/index.html": "1c833463fac509bdb2529c537f8fa8ffc30ab01d56b8fb8b686b7248f5e4dcf8"
+      "vet/index.html": "51892cfecad4bdd058f79a8f516638bdd01cd27f2ef21c996663b65cf3a6dafd"
     }
   }
 }

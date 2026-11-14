@@ -206,7 +206,7 @@ describe('L2 통합(F2-3)', () => {
     fireEvent.change(within(d).getByLabelText(/바닥 가로/), { target: { value: '60' } });
     fireEvent.change(within(d).getByLabelText(/바닥 세로/), { target: { value: '40' } });
     fireEvent.change(within(d).getByLabelText(/높이/), { target: { value: '35' } });
-    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.emptyCta }));
 
     await waitFor(() => expect(d.querySelector('[data-ws-step="L2"]')).not.toBeNull());
     expect(window.localStorage.getItem(cageKey(golden.id))).not.toBeNull();

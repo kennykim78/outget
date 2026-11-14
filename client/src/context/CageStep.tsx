@@ -5,7 +5,9 @@
 //   R4-5(R4 시안 l6_my_cage): 케이지가 이미 있으면 첫 화면 = 「등록한 케이지」 보기(저장값 큰 숫자 → ① 자체 최소 규격 → ② 용품 간 호환)
 //     + 채운 버튼 하나 「등록값 수정하기」 → 위 폼. 판정은 cageReview(엔진 specCheck·requirementCompat)만, 숫자는 저장값·해석된 minSpec 만.
 //     시안의 「검수 대기」 줄은 그리지 않는다(VERIFIED 만 노출 — 불변식 ⑦).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+//   R4-8(R4 시안 states_board): 케이지 없음 = 폼 위 빈 상태 머리 + 저장 버튼 「케이지 등록하기」 · 등록값 보기의 판정 불러오기
+//     늦음 = 「확인 중이에요」(숫자 없는 막대, 행동 없음) · 실패 = 「불러오지 못했어요」 + 채운 버튼 「다시 시도하기」 하나(수정은 텍스트 링크).
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COPY } from '@ws/copy';
 import { findField, optionLabel, splitLabel, type Engine, type PublicRequirement, type SpecSchema } from '@ws/engine';
 import { wsStorage, type WsStorage } from '../lib/storage';
@@ -13,6 +15,7 @@ import { useSaveLinked } from '../save/useSaveLinked';
 import { loadEngine } from '../speccheck/engine';
 import SpecForm from '../speccheck/SpecForm';
 import Glyph from '../ui/Glyph';
+import StateBlock from '../ui/StateBlock';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import { cageReview, type CageReview } from './cageReview';
 import { CAGE_TYPES, useCage, validateCage, type CageV1 } from './cageStore';
@@ -41,26 +44,66 @@ export const cageStepDeps = {
   load: (catalogUrl: string): Promise<Engine> => loadEngine(catalogUrl),
 };
 
-function useReview(typeId: string, cage: CageV1 | null, reqs: readonly PublicRequirement[] | undefined, catalogUrl: string | undefined, animalName: string): CageReview | null {
+/** R4-8: 판정(카탈로그) 불러오기 — 로딩 머리는 이 시간 뒤에도 끝나지 않았을 때만(캐시 적중 시 깜박임 0). */
+export const CAGE_REVIEW_LOADING_DELAY_MS = 250;
+
+export type ReviewStatus = 'idle' | 'pending' | 'loading' | 'ready' | 'failed';
+
+function useReview(
+  typeId: string,
+  cage: CageV1 | null,
+  reqs: readonly PublicRequirement[] | undefined,
+  catalogUrl: string | undefined,
+  animalName: string,
+): { status: ReviewStatus; review: CageReview | null; retry(): void } {
   const [engine, setEngine] = useState<Engine | null>(null);
+  const [phase, setPhase] = useState<'pending' | 'loading' | 'failed'>('pending');
+  const [attempt, setAttempt] = useState(0);
   const need = cage !== null && !!catalogUrl && !!reqs && reqs.length > 0;
   useEffect(() => {
     if (!need || !catalogUrl) return;
     let live = true;
+    setPhase('pending');
+    const timer = setTimeout(() => {
+      if (live) setPhase((p) => (p === 'pending' ? 'loading' : p));
+    }, CAGE_REVIEW_LOADING_DELAY_MS);
     cageStepDeps.load(catalogUrl).then(
       (e) => {
         if (live) setEngine(e);
       },
-      () => undefined, // 실패 → 판정 줄 없음(저장값 숫자만)
+      () => {
+        // 실패 → 「호환 정보를 불러오지 못했어요」 + 다시 시도하기(저장값 숫자는 그대로). 재시도는 같은 동일 출처 카탈로그만.
+        if (live) setPhase('failed');
+      },
     );
     return () => {
       live = false;
+      clearTimeout(timer);
     };
-  }, [need, catalogUrl]);
-  return useMemo(() => (engine && cage && reqs ? cageReview(engine, typeId, reqs, cage, animalName) : null), [engine, cage, reqs, typeId, animalName]);
+  }, [need, catalogUrl, attempt]);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const review = useMemo(
+    () => (engine && cage && reqs ? cageReview(engine, typeId, reqs, cage, animalName) : null),
+    [engine, cage, reqs, typeId, animalName],
+  );
+  if (!need) return { status: 'idle', review: null, retry };
+  if (review) return { status: 'ready', review, retry };
+  return { status: engine ? 'ready' : phase, review: null, retry };
 }
 
-function CageSummary({ cage, schema, animalName, review }: { cage: CageV1; schema: SpecSchema | null; animalName: string; review: CageReview | null }) {
+function CageSummary({
+  cage,
+  schema,
+  animalName,
+  review,
+  status,
+}: {
+  cage: CageV1;
+  schema: SpecSchema | null;
+  animalName: string;
+  review: CageReview | null;
+  status: ReviewStatus;
+}) {
   const field = (key: string) => (schema ? findField(schema, key) : undefined);
   const unit = splitLabel(field('floorWcm')?.label ?? '').unit;
   const height = splitLabel(field('heightCm')?.label ?? '');
@@ -81,6 +124,12 @@ function CageSummary({ cage, schema, animalName, review }: { cage: CageV1; schem
         </p>
         <p className="ws-t-body" data-ws-cage-part="height">{`${height.base || ''} ${cage.heightCm}${height.unit}`.trim()}</p>
       </div>
+      {/* R4-8: 판정 줄 자리 — 늦으면 「확인 중이에요」, 실패면 「불러오지 못했어요」(다시 시도하기는 하단 슬롯). */}
+      {status === 'loading' ? (
+        <StateBlock kind="loading" level={4} title={COPY.cage.loadingTitle} body={COPY.cage.loadingBody} wait={COPY.cage.loadingWait} />
+      ) : status === 'failed' ? (
+        <StateBlock kind="error" level={4} errorId="cage-review" title={COPY.cage.loadFailTitle} body={COPY.cage.loadFailBody} />
+      ) : null}
       {self ? (
         <div className={`ws-verdict-line ws-verdict-line--${self.mark.tone}`} data-ws-cage-part="self" data-ws-tone={self.mark.tone}>
           <h4 className="ws-verdict-line-mark ws-cage-summary-mark" data-ws-mark={self.mark.kind}>
@@ -191,6 +240,7 @@ export default function CageStep({ typeId, schema, backLabel, onBack, storage = 
   const [editing, setEditing] = useState(false);
   const review = useReview(typeId, cage, reqs, catalogUrl, animalName);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const editRef = useRef<HTMLButtonElement | null>(null);
   const focusForm = useRef(false);
   useEffect(() => {
     if (!editing || !focusForm.current) return;
@@ -240,13 +290,28 @@ export default function CageStep({ typeId, schema, backLabel, onBack, storage = 
     return (
       <div className="ws-cage-step" data-ws-step="L6">
         <LayerBody>
-          <CageSummary cage={cage} schema={schema} animalName={animalName} review={review} />
+          <CageSummary cage={cage} schema={schema} animalName={animalName} review={review.review} status={review.status} />
         </LayerBody>
         <LayerFoot>
           <div className="ws-cage-foot">
+            {/* R4-8: 판정 불러오기 실패면 채운 버튼 = 「다시 시도하기」 하나, 수정은 텍스트 링크로(채운 버튼 ≤1). */}
+            {review.status === 'failed' ? (
+              <button
+                type="button"
+                className="ws-btn ws-btn--fill ws-cage-retry"
+                onClick={() => {
+                  // 누른 버튼이 사라지므로(다시 불러오는 동안) 같은 자리에 남는 수정 버튼으로 포커스를 옮긴다.
+                  editRef.current?.focus();
+                  review.retry();
+                }}
+              >
+                {COPY.cage.retry}
+              </button>
+            ) : null}
             <button
+              ref={editRef}
               type="button"
-              className="ws-btn ws-btn--fill ws-cage-edit"
+              className={review.status === 'failed' ? 'ws-spec-link ws-t-meta ws-cage-edit' : 'ws-btn ws-btn--fill ws-cage-edit'}
               onClick={() => {
                 setRaw(toRaw(cage));
                 focusForm.current = true;
@@ -264,6 +329,8 @@ export default function CageStep({ typeId, schema, backLabel, onBack, storage = 
   return (
     <div className="ws-cage-step" data-ws-step="L6">
       <LayerBody>
+        {/* R4-8 빈 상태(시안 states_board): 등록한 케이지가 없으면 폼 위 머리 + 저장 버튼 「케이지 등록하기」(단계 추가 없음). 저장 불가 안내 중엔 생략. */}
+        {!cage && !unavailable ? <StateBlock kind="empty" title={COPY.cage.emptyTitle} body={COPY.cage.emptyBody} /> : null}
         <form
           ref={formRef}
           className="ws-cage-form"
@@ -286,7 +353,7 @@ export default function CageStep({ typeId, schema, backLabel, onBack, storage = 
       <LayerFoot>
         <div className="ws-cage-foot">
           <button type="button" className="ws-btn ws-btn--fill ws-cage-save" disabled={!valid} onClick={onSave}>
-            {COPY.cage.save}
+            {cage ? COPY.cage.save : COPY.cage.emptyCta}
           </button>
           {cage ? (
             <button type="button" className="ws-spec-link ws-t-meta" onClick={onDelete}>

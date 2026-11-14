@@ -333,6 +333,17 @@ export const COPY = deepFreeze({
     /** 용품 간 호환 제목 — {name} = 용품명 + 와/과(comitativeParticle). CHECK 는 시안 원문, BELOW_MIN 은 L5 「케이지와는 맞지 않는 조건이 있어요」와 같은 말. */
     compatCheckTitle: '{name} 함께 확인해요',
     compatBelowMinTitle: '{name} 맞지 않는 조건이 있어요',
+    /** R4-8(R4 시안 states_board) — L6 빈 상태(케이지 없음): 폼 위 머리 + 저장 버튼 문구. */
+    emptyTitle: '등록한 케이지가 없어요',
+    emptyBody: sent('케이지 크기를 입력하면 기준에 맞는지 함께 확인할 수 있어요.'),
+    emptyCta: '케이지 등록하기',
+    /** R4-8 — L6 등록값 보기의 판정(카탈로그) 불러오는 중 · 실패. 진행률 숫자 없음. */
+    loadingTitle: '함께 쓸 수 있는지 확인 중이에요',
+    loadingBody: sent('등록한 케이지와 준비물의 호환 조건을 불러오고 있어요.'),
+    loadingWait: sent('잠시만 기다려 주세요.'),
+    loadFailTitle: '호환 정보를 불러오지 못했어요',
+    loadFailBody: sent('입력한 크기는 그대로 남아 있어요. 잠시 후 다시 시도해 주세요.'),
+    retry: '다시 시도하기',
   },
   /** R5 C1 — 반응(PRD US-015; 스펙33 §2.3). 숫자는 R5 미표시(키 없음). */
   reaction: {
@@ -394,6 +405,9 @@ export const COPY = deepFreeze({
     sentBody: sent('메일의 링크를 누르면 저장이 끝나요. 링크는 15분 동안 한 번만 쓸 수 있어요.'),
     notReceived: '메일이 오지 않았나요?',
     resend: '다시 보내기',
+    /** R4-8(R4 시안 states_board 「저장 실패」) — 링크 요청 실패(429·네트워크·서버) 상태 머리. 입력은 그대로 두고 버튼은 resend. */
+    sendFailTitle: '저장 링크를 보내지 못했어요',
+    sendFailBody: sent('입력한 이메일은 그대로 남아 있어요. 주소를 확인하고 다시 시도해 주세요.'),
     resendWait: '{n}초 뒤 다시 보낼 수 있어요',
     otherAddress: '다른 주소로 보내기',
     errorFormat: sent('이메일 주소를 다시 확인해 주세요'),
@@ -477,7 +491,8 @@ export const COPY = deepFreeze({
     reportLink: '제보하기',
     nearbyLink: '인접 지역 보기',
     reportedBadge: '제보됨·확인 전',
-    regionsTitle: '지역',
+    /** R4-6(R4 시안 hospital_list) 「지역 선택」. 시안의 시/도·시/군/구 선택 상자는 미적용(지역 링크 유지 — 보고서 확인거리). */
+    regionsTitle: '지역 선택',
     /** P5 레인 E — 필터 칩 줄 라벨(지역 칩 줄과 구분). */
     filtersTitle: '조건',
     /** P5 레인 E — ≤767 지역 칩 줄이 넘칠 때만 보이는 힌트. */
@@ -487,7 +502,14 @@ export const COPY = deepFreeze({
     directions: '길찾기',
     night: '야간',
     emergency: '응급',
-    visitNote: sent('방문 전에 진료 동물과 시간을 전화로 확인해 주세요'),
+    /** R4-6 — 제목 바로 아래 한 줄(시안 원문). 이전 「방문 전에 진료 동물과 시간을 전화로 확인해 주세요」(페이지 하단). */
+    visitNote: sent('방문 전 진료 여부를 병원에 문의해 주세요.'),
+    /** R4-6 — 진료 동물이 정해졌을 때(필터 또는 ?treats= 노출 타입) 제목. UX §7 고정 문구 「{동물} 진료하는 병원」. */
+    animalTitle: '{animal} 진료하는 병원',
+    /** R4-6 — 진료 동물 필터 칩 「{name} 진료」(시안 「✓ 골든햄스터 진료」). */
+    treatsChip: '{name} 진료',
+    /** R4-6 — 병원 0(목록 빈 상태) 제목. 본문은 emptyAll/emptyRegion. */
+    emptyTitle: '확인된 병원이 아직 없어요',
     /** R5 C1 — /vet 페이지(스펙33 §5.8). 병원 제보는 /vet 하단 접힘 섹션(오케스트레이터 조정, K-6). */
     all: '전체',
     listTab: '목록',
