@@ -38,10 +38,11 @@ describe('홈 A 마크업 = React Hero·StartBand(R3 시안 v1b, 286 U3a)', () =
     expect(page).toContain('<main id="main" ');
   });
 
-  it('main.ws-page.ws-home-a + 섹션 순서 [hero, starters, start] — 후기·소개 섹션 0(D6)', () => {
+  it('main.ws-page.ws-home-a + 섹션 순서 [hero, starters, (설명 섹션 U3c~e) figures, habitats, vet-split, start] — 후기·소개 섹션 0(D6)', () => {
     expect(main).toMatch(/^<main id="main" class="ws-page ws-home-a" data-ws-route="HOME">/);
     const sections = [...main.matchAll(/<section\b[^>]*data-ws-section="([^"]+)"/g)].map((m) => m[1]);
-    expect(sections).toEqual(['hero', 'starters', 'start']);
+    // 승격 골든은 노출 NOT_NOW 0 → need-split 없음(섹션별 데이터는 prerender.home-explain.test.ts 가 고정).
+    expect(sections).toEqual(['hero', 'starters', 'figures', 'habitats', 'vet-split', 'start']);
     for (const gone of ['ws-reviews', 'ws-review', 'ws-intro', 'ws-feature-chips', 'ws-split-title', 'testimonials#']) expect(main).not.toContain(gone);
   });
 

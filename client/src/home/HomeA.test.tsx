@@ -1,4 +1,4 @@
-// 홈 A(R3 시안 v1b, 286 U3a/U3b): ① 섹션 순서 [hero, starters, start] — 후기·소개 섹션 없음(후기가 ws-data 에 있어도 비노출, D6)
+// 홈 A(R3 시안 v1b, 286 U3a~U3e): ① 섹션 순서 [hero, starters, (설명 섹션), start] — 후기·소개 섹션 없음(후기가 ws-data 에 있어도 비노출, D6)
 //   ② 히어로 = h1 + 부제 + 선택 바(a → /pick, 하이드레이션 후 L1) · 기능 칩 0 ③ 하단 CTA = 채운 버튼 1 ④ /save 링크 0 · 금지어 0
 //   ⑤ 시작 카드 3(U3b): 노출 판정 fail-closed · 선택됨 = 대상 직행 링크 · 미선택 = L1 경유 의도 보존(intent.ts).
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
@@ -43,11 +43,11 @@ afterEach(() => {
 });
 
 describe('홈 A 섹션', () => {
-  it('[hero, starters, start] — 후기·소개 섹션 DOM 없음(PC 폭에서도)', () => {
+  it('[hero, starters, habitats, vet-split, start](homeExplain 없음) — 후기·소개 섹션 DOM 없음(PC 폭에서도)', () => {
     for (const media of [[], ['min-width: 1024px']]) {
       mockMedia(media);
       const { unmount } = render(<App page={home()} captured={NO_CAPTURE} />);
-      expect(sectionsOf()).toEqual(['hero', 'starters', 'start']);
+      expect(sectionsOf()).toEqual(['hero', 'starters', 'habitats', 'vet-split', 'start']);
       expect(document.querySelector('[data-ws-section="reviews"]')).toBeNull();
       expect(document.querySelector('[data-ws-section="intro"]')).toBeNull();
       unmount();
@@ -57,7 +57,7 @@ describe('홈 A 섹션', () => {
   it('D6: ws-data 에 후기가 실려 와도 홈에 그리지 않는다(후기 문구·data-ws-id 0)', () => {
     const list = Array.from({ length: 8 }, (_, i) => testimonial(i + 1));
     const { container } = render(<App page={home({ testimonials: list })} captured={NO_CAPTURE} />);
-    expect(sectionsOf()).toEqual(['hero', 'starters', 'start']);
+    expect(sectionsOf()).toEqual(['hero', 'starters', 'habitats', 'vet-split', 'start']);
     expect(container.querySelector('[data-ws-id^="testimonials#"]')).toBeNull();
     for (const t of list) expect(container.textContent ?? '').not.toContain(t.quote);
   });
@@ -292,5 +292,96 @@ describe('홈 A 시작 카드(286 U3b)', () => {
     expect(assign).toHaveBeenCalledTimes(1);
     expect(assign).toHaveBeenCalledWith('/hamster/golden');
     assign.mockRestore();
+  });
+});
+
+// 286 U3c·U3d·U3e — 설명 섹션. 데이터는 ws-data types[0].homeExplain(서버 엔진 homeAExplainOf 결과)·types·vets 그대로.
+//   아래 이름·숫자는 화면 하드코딩이 아니라 합성 ws-data 값이다(바꾸면 화면이 따라 바뀌는지 본다).
+describe('홈 A 설명 섹션(286 U3c·U3d·U3e)', () => {
+  const explain = {
+    figures: [
+      { requirementId: 'r-cage', itemId: 'cage-x', itemName: '합성케이지', values: [91, 41, 31], unit: 'cm', base: null },
+      { requirementId: 'r-wheel', itemId: 'wheel-x', itemName: '합성바퀴', values: [23], unit: 'cm', base: '지름' },
+    ],
+    need: [
+      { requirementId: 'r-cage', name: '합성케이지' },
+      { requirementId: 'r-bed', name: '합성베딩' },
+    ],
+    notNow: [{ requirementId: 'r-later', name: '합성나중' }],
+  };
+  const vet = { id: 'v1', name: '합성병원', address: '합성주소', phone: '000', region: '합성구', treats: [golden.id], night: null, emergency: null, lat: 1, lng: 2, verifiedAt: null };
+  const full = (over: Parameters<typeof pageOf>[1] = {}) => home({ types: [{ ...golden, homeExplain: explain }], ...over });
+
+  it('섹션 순서 = R3 시안 v1b(필요/불필요 → 숫자 → 함께 살 집 → 병원)', () => {
+    render(<App page={full()} captured={NO_CAPTURE} />);
+    expect(sectionsOf()).toEqual(['hero', 'starters', 'need-split', 'figures', 'habitats', 'vet-split', 'start']);
+  });
+
+  it('노출 타입 0 → 설명 섹션 0(D12 ①)', () => {
+    render(<App page={home({ types: [] })} captured={NO_CAPTURE} />);
+    expect(sectionsOf()).toEqual(['hero', 'start']);
+  });
+
+  it('숫자 = homeExplain.figures 값 그대로(이름 + 숫자 + 「cm 이상」), 링크 → 첫 행 L5 문서', () => {
+    render(<App page={full()} captured={NO_CAPTURE} />);
+    const sec = document.querySelector('[data-ws-section="figures"]') as HTMLElement;
+    const rows = Array.from(sec.querySelectorAll('li.ws-figure')).map((li) => [
+      li.getAttribute('data-ws-id'),
+      li.querySelector('.ws-figure-label')?.textContent,
+      li.querySelector('.ws-figure-value')?.textContent,
+      li.querySelector('.ws-figure-unit')?.textContent,
+    ]);
+    expect(rows).toEqual([
+      ['supplyRequirements#r-cage', '합성케이지', '91×41×31', 'cm 이상'],
+      ['supplyRequirements#r-wheel', '합성바퀴 지름', '23', 'cm 이상'],
+    ]);
+    expect(within(sec).getByText(COPY.homeA.figuresEyebrow.replace('{animal}', golden.displayName))).toBeInTheDocument();
+    expect(sec.querySelector('a.ws-home-link')).toHaveAttribute('href', '/hamster/golden/check/cage-x');
+  });
+
+  it('필요해요 / 지금은 필요 없어요 = homeExplain.need·notNow 이름 그대로, 한 열이라도 비면 섹션 없음', () => {
+    const { unmount } = render(<App page={full()} captured={NO_CAPTURE} />);
+    const sec = document.querySelector('[data-ws-section="need-split"]') as HTMLElement;
+    const col = (k: string) => Array.from(sec.querySelectorAll(`[data-ws-col="${k}"] li`)).map((li) => li.textContent);
+    expect(col('need')).toEqual(['합성케이지', '합성베딩']);
+    expect(col('not-now')).toEqual(['합성나중']);
+    expect(sec.querySelector('a.ws-home-link')).toHaveAttribute('href', '/hamster/golden');
+    unmount();
+    render(<App page={home({ types: [{ ...golden, homeExplain: { ...explain, need: [], notNow: [] } }] })} captured={NO_CAPTURE} />);
+    expect(document.querySelector('[data-ws-section="need-split"]')).toBeNull();
+    expect(document.querySelector('[data-ws-section="figures"]')).not.toBeNull();
+  });
+
+  it('함께 살 집 = 노출 타입 카드(→ 타입 홈) + oneLiner, 버튼·채운 CTA 0', () => {
+    render(<App page={full()} captured={NO_CAPTURE} />);
+    const sec = document.querySelector('[data-ws-section="habitats"]') as HTMLElement;
+    const links = Array.from(sec.querySelectorAll('a.ws-habitat')).map((x) => [x.getAttribute('href'), x.getAttribute('data-ws-id')]);
+    expect(links).toEqual([['/hamster/golden', `animalTypes#${golden.id}`]]);
+    expect(sec).toHaveTextContent(golden.oneLiner as string);
+    expect(sec.querySelectorAll('button, .ws-btn--fill')).toHaveLength(0);
+  });
+
+  it('병원 = 그룹별 진료 타입 집계(이름·주소·전화 0), 0곳이면 「확인된 병원이 아직 없어요」', () => {
+    const { unmount } = render(<App page={full({ vets: [vet] })} captured={NO_CAPTURE} />);
+    let sec = document.querySelector('[data-ws-section="vet-split"]') as HTMLElement;
+    const row = sec.querySelector('li[data-ws-group="SMALL_MAMMAL"]') as HTMLElement;
+    expect(row.querySelector('.ws-vet-row-name')).toHaveTextContent(COPY.homeA.vetRow.replace('{name}', COPY.groups.SMALL_MAMMAL));
+    expect(row.querySelector('.ws-vet-row-types')).toHaveTextContent(golden.displayName);
+    for (const x of [vet.name, vet.address, vet.region]) expect(sec.textContent ?? '').not.toContain(x);
+    expect(sec.querySelector('img, iframe')).toBeNull();
+    expect(sec.querySelector('a.ws-home-link')).toHaveAttribute('href', '/vet');
+    unmount();
+    render(<App page={full({ vets: [{ ...vet, treats: ['not-exposed'] }] })} captured={NO_CAPTURE} />);
+    sec = document.querySelector('[data-ws-section="vet-split"]') as HTMLElement;
+    expect(sec.querySelector('li[data-ws-group]')).toBeNull();
+    expect(sec).toHaveTextContent(COPY.homeB.vetEmpty);
+  });
+
+  it('금지어 0 · 채운 버튼은 하단 CTA 1개뿐', () => {
+    const { container } = render(<App page={full({ vets: [vet] })} captured={NO_CAPTURE} />);
+    const main = screen.getByRole('main');
+    for (const w of BANNED) expect(main.textContent ?? '', w).not.toContain(w);
+    expect(main.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
+    expect(container.querySelector('[data-ws-section="start"] .ws-btn--fill')).not.toBeNull();
   });
 });

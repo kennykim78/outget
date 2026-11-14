@@ -69,6 +69,21 @@ export interface PublicAnimalType {
    *   (routes.ts 와 같은 조건 = 노출 구성안 1개 이상). 시작 카드 「구성안」 대상·노출 판정. 없거나 홈이 아닌 페이지면 키 자체가 없다.
    */
   setupAvailable?: true;
+  /**
+   * 286 U3c·U3d — 홈(HOME·PICK·SAVE) ws-data 에서만, 대표 타입(노출 타입 시드 순 첫 번째, D11 ①)에만: 홈 A 설명 섹션 데이터
+   *   (engine home-a.ts homeAExplainOf — 노출 요구사항의 시드 값 그대로). 숫자·이름이 하나도 없거나 홈이 아닌 페이지면 키 자체가 없다.
+   */
+  homeExplain?: HomeAExplain;
+}
+
+/** 홈 A 설명 섹션 데이터(286 U3c·U3d) — 값은 노출 요구사항의 시드 값 그대로(minSpecFigure·item.name). */
+export interface HomeAExplain {
+  /** 「숫자로 알려 드려요」 행 — values·unit·base = 엔진 minSpecFigure 결과. */
+  figures: Array<{ requirementId: string; itemId: string; itemName: string; values: number[]; unit: string; base: string | null }>;
+  /** 「필요해요」 열(REQUIRED 앞 N) — notNow 와 함께 둘 다 있거나 둘 다 []. */
+  need: Array<{ requirementId: string; name: string }>;
+  /** 「지금은 필요 없어요」 열(NOT_NOW 시드 레코드 앞 N). */
+  notNow: Array<{ requirementId: string; name: string }>;
 }
 
 export interface PublicRequirement {

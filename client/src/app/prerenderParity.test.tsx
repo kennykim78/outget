@@ -243,6 +243,8 @@ function unexplained(kind: RouteKind, d: readonly string[]): string[] {
 
 // 73 S5: 드워프 — 홈B·용품 레이어(L4)·규격 확인(L5)·상품(L7) 정적 경로(경로는 dwarfPreview 산출에서 확인).
 const DWARF_CASES: Array<[RouteKind, string]> = [
+  // 286 U3d: 홈 A 「지금 필요 없는 것도 알려 드려요」는 노출 NOT_NOW 가 있는 드워프 미리보기에서만 그려진다(골든 승격 픽스처엔 없음).
+  ['HOME', '/'],
   ['TYPE', '/hamster/dwarf'],
   ['TYPE', '/hamster/dwarf/supplies/cage'],
   ['TYPE', '/hamster/dwarf/check/cage'],

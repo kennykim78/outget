@@ -71,6 +71,26 @@ export const COPY = deepFreeze({
       SPEC_CHECK: { title: '크기 확인', sub: '준비물 크기를 숫자로' },
       SETUP: { title: '구성안', sub: '한눈에 보는 첫 준비' },
     },
+    /**
+     * 286 U3c·U3d·U3e 설명 섹션(R3 시안 v1b 순서: 필요/불필요 → 숫자 → 함께 살 집 → 병원) — 고정 UI 문구만. 품목명·숫자·동물·병원은
+     *   전부 ws-data(시드 노출 값)에서 오고(engine home-a.ts), 데이터가 없으면 섹션 자체가 없다(D12 ①). {animal} = 대표 타입 표시명.
+     */
+    needEyebrow: '{animal} 첫 준비 예시',
+    needTitle: sent('지금 필요 없는 것도 알려 드려요'),
+    needBody: sent('처음부터 모두 갖출 필요는 없으니까요. 우리 친구와 지금의 준비에 맞춰 골라요.'),
+    needLink: '필요한 것부터 살펴보기',
+    needCol: sent('필요해요'),
+    notNowCol: sent('지금은 필요 없어요'),
+    figuresTitle: sent('숫자로 알려 드려요'),
+    figuresSub: '눈대중 대신, 몸에 맞는 크기로.',
+    figuresEyebrow: '{animal} 예시',
+    figuresLink: '내 준비물 크기 확인하기',
+    habitatsTitle: sent('함께 살 집을 살펴봐요'),
+    habitatsLead: sent('먹고, 쉬고, 움직이는 공간이에요.'),
+    vetTitle: sent('진료하는 병원만 보여 드려요'),
+    vetSub: sent('우리 친구를 진료하는 곳을 찾아요.'),
+    /** {name} = groups.* 표시명. 행 오른쪽 = 그 그룹 노출 타입 중 노출 병원이 진료하는 것(이름 · 구분). */
+    vetRow: '{name} 진료 병원',
     popularTitle: '요즘 많이 찾는 준비',
     /** R4 C1 — 클라이언트 전용(프리렌더 미사용). */
     continueLink: '이어서: {animal}',

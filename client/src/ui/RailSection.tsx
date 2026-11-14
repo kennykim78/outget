@@ -3,7 +3,7 @@
 //   화살표 라벨·"전체" 문구는 호출부가 @ws/copy 에서 넘긴다(카피 단일 소스 D3).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
-export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter';
+export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter' | 'habitat';
 
 // 프리렌더 클래스와 같은 이름(ul.ws-chips|ws-bundles|ws-products) — CSS 가 정적 ul 도 레일로 그린다.
 const LIST_CLASS: Record<RailKind, string> = {
@@ -13,6 +13,8 @@ const LIST_CLASS: Record<RailKind, string> = {
   vet: 'ws-vets',
   review: 'ws-reviews',
   starter: 'ws-starters',
+  // 286 U3e(D4) — 홈 A 「함께 살 집」 노출 타입 카드(grid3, 카드 모양은 시작 카드와 같음).
+  habitat: 'ws-habitats',
 };
 
 /** 286 U3b — 'grid3' = ≥768 3열 그리드 / ≤767 가로 레일 peek(홈 A 시작 카드 전용, CSS). 생략 = 기존 레일(홈 B 무변경). */

@@ -312,7 +312,7 @@ export function sortVets<T extends Pick<PublicVet, 'region' | 'name' | 'id'>>(vs
   return [...vs].sort((p, q) => cmp(p.region, q.region) || cmp(p.name, q.name) || cmp(p.id, q.id));
 }
 
-export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter';
+export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter' | 'habitat';
 const RAIL_LIST_CLASS: Record<RailKind, string> = {
   need: 'ws-chips',
   bundle: 'ws-bundles',
@@ -320,6 +320,8 @@ const RAIL_LIST_CLASS: Record<RailKind, string> = {
   vet: 'ws-vets',
   review: 'ws-reviews',
   starter: 'ws-starters',
+  // 286 U3e(D4) — 홈 A 「함께 살 집」 노출 타입 카드(grid3, 카드 모양은 시작 카드와 같음).
+  habitat: 'ws-habitats',
 };
 
 /**

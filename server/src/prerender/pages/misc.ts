@@ -1,5 +1,17 @@
 // 홈 A(미선택 — 히어로·하단 CTA) · /{family} · /supplies · /supplies/{item}[/{type}] · /vet[/{region}] · /credits · 404.
-import { ANIMAL_GROUPS, PICK_PATH, SUPPLY_CATEGORIES, type LinkedAction, type WsPageData } from '../../engine/index.js';
+import {
+  ANIMAL_GROUPS,
+  PICK_PATH,
+  SPEC_WORDS,
+  SUPPLY_CATEGORIES,
+  figureValueText,
+  homeAExplainOf,
+  homeARepType,
+  homeAVetRows,
+  type HomeAExplain,
+  type LinkedAction,
+  type WsPageData,
+} from '../../engine/index.js';
 import { affiliateDisclosureOn } from '../affiliate.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
@@ -86,12 +98,20 @@ function homeVets(m: SiteModel): SiteModel['vets'] {
  * 홈 ws-data types(R6 G3b) — 노출 타입 전체 + 타입별 specCheckItemId: 노출 요구사항(t.requirements — 이미 엔진 순서
  *   orderHint → priority → 시드 순) 중 specSchema.fields 가 있는 첫 항목 id. 요구사항 전체는 싣지 않는다(LCP·ws-data 크기).
  *   없으면 키 없음(클라이언트는 /{slug} 폴백).
+ *   286 U3c·U3d: 대표 타입(시드 순 첫 노출 타입, D11 ①)에만 homeExplain(엔진 homeAExplainOf — 시드 값 그대로). 요구사항은 여전히 싣지 않는다
+ *   (홈 문서에 부분 요구사항이 실리면 layerLinks·L2·L8 의 판정이 바뀐다).
  */
 function homeTypes(m: SiteModel): WsPageData['data']['types'] {
-  return m.types.map((t) => {
+  return m.types.map((t, i) => {
     const r = t.requirements.find((x) => x.item.specSchema.fields.length > 0);
+    const explain = i === 0 ? homeAExplainOf(t.requirements.map((x) => x.pub)) : null;
     // 286 U3b: /{slug}/setup 이 있는 타입(routes.ts 와 같은 조건 — 노출 구성안 1개 이상)만 setupAvailable.
-    return { ...t.pub, ...(r ? { specCheckItemId: r.item.id } : {}), ...(t.bundles.length > 0 ? { setupAvailable: true as const } : {}) };
+    return {
+      ...t.pub,
+      ...(r ? { specCheckItemId: r.item.id } : {}),
+      ...(t.bundles.length > 0 ? { setupAvailable: true as const } : {}),
+      ...(explain ? { homeExplain: explain } : {}),
+    };
   });
 }
 
@@ -133,7 +153,118 @@ function homeStarters(types: WsPageData['data']['types']): string[] {
   return [railSection({ id: 'starters', kind: 'starter', layout: 'grid3', titleHtml: h(COPY.homeA.startersTitle), items })];
 }
 
-/** 홈 A — 히어로 · (U3b~e 섹션) · 하단 CTA. */
+/** 홈 A 설명 섹션 화살표 링크 꼬리(장식) — client home/Explain.tsx Arrow 와 같은 마크업. */
+const HOME_ARROW = '<span aria-hidden="true"> →</span>';
+
+/** 설명 섹션 머리(h2 display + 리드 문단) — client home/Explain.tsx ExplainHead 와 같은 마크업. */
+function explainHead(id: string, title: string, lead: string): string {
+  return `<div class="ws-home-sec-head"><h2 id="${a(id)}" class="ws-t-display ws-home-sec-title">${h(title)}</h2><p class="ws-t-body ws-muted ws-home-sec-lead">${h(lead)}</p></div>`;
+}
+
+/**
+ * 홈 A 설명 섹션(286 U3c·U3d·U3e, R3 시안 v1b 순서: 필요/불필요 → 숫자 → 함께 살 집 → 병원) — client home/Explain.tsx 와 같은 태그·클래스·id·aria.
+ *   데이터 = 대표 타입(노출 타입 시드 순 첫 번째, D11 ①)의 ws-data types[0].homeExplain(엔진 homeAExplainOf) · 노출 타입 · 노출 병원 — 시드 값 그대로(숫자·이름 창작 0).
+ *   노출 타입이 0이면 전부 없음(D12 ①). 사진 = 빈 자리표시(photos.json 전부 SLOT). 병원 = 그룹별 진료 타입 집계만 — 지도 그림 없음(사용권 자산 없음, D14),
+ *   이름·주소·위치 0(불변식 ⑧). 확인된 병원 0이면 「확인된 병원이 아직 없어요」(허구 0).
+ */
+function homeExplain(data: WsPageData['data']): string[] {
+  const rep = homeARepType(data.types);
+  if (!rep) return [];
+  const out: string[] = [];
+  const ex = rep.homeExplain;
+  if (ex && ex.need.length > 0 && ex.notNow.length > 0) {
+    const col = (key: string, title: string, rs: HomeAExplain['need']): string =>
+      `<div class="ws-need-col" data-ws-col="${a(key)}"><h3 class="ws-t-cta ws-need-col-title">${h(title)}</h3><ul class="ws-need-list" role="list">${rs
+        .map((r) => `<li class="ws-t-body" data-ws-id="supplyRequirements#${a(r.requirementId)}">${h(r.name)}</li>`)
+        .join('')}</ul></div>`;
+    out.push(
+      [
+        '<section class="ws-home-sec ws-explain ws-need-split" data-ws-section="need-split" aria-labelledby="ws-sec-need-split-title">',
+        '<div class="ws-explain-text">',
+        `<p class="ws-t-meta ws-eyebrow ws-explain-eyebrow">${h(formatCopy(COPY.homeA.needEyebrow, { animal: rep.displayName }))}</p>`,
+        explainHead('ws-sec-need-split-title', COPY.homeA.needTitle, COPY.homeA.needBody),
+        `<a class="ws-home-link" href="${a(hrefOf(`/${rep.slug}`))}">${h(COPY.homeA.needLink)}${HOME_ARROW}</a>`,
+        '</div>',
+        '<div class="ws-explain-side">',
+        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        `<div class="ws-need-cols">${col('need', COPY.homeA.needCol, ex.need)}${col('not-now', COPY.homeA.notNowCol, ex.notNow)}</div>`,
+        '</div>',
+        '</section>',
+      ].join(''),
+    );
+  }
+  const figures = ex ? ex.figures : [];
+  if (figures.length > 0) {
+    out.push(
+      [
+        '<section class="ws-home-sec ws-explain ws-figures" data-ws-section="figures" aria-labelledby="ws-sec-figures-title">',
+        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        '<div class="ws-explain-text">',
+        explainHead('ws-sec-figures-title', COPY.homeA.figuresTitle, COPY.homeA.figuresSub),
+        `<p class="ws-t-meta ws-eyebrow ws-explain-eyebrow">${h(formatCopy(COPY.homeA.figuresEyebrow, { animal: rep.displayName }))}</p>`,
+        `<ul class="ws-figure-list" role="list">${figures
+          .map(
+            (figure) =>
+              `<li class="ws-figure" data-ws-id="supplyRequirements#${a(figure.requirementId)}"><p class="ws-t-section ws-figure-label">${h(
+                figure.base !== null ? `${figure.itemName} ${figure.base}` : figure.itemName,
+              )}</p><p class="ws-figure-num"><span class="ws-figure-value">${h(figureValueText(figure))}</span><span class="ws-figure-unit">${h(
+                figure.unit ? `${figure.unit} ${SPEC_WORDS.gte}` : SPEC_WORDS.gte,
+              )}</span></p></li>`,
+          )
+          .join('')}</ul>`,
+        `<a class="ws-home-link" href="${a(hrefOf(`/${rep.slug}/check/${figures[0].itemId}`))}">${h(COPY.homeA.figuresLink)}${HOME_ARROW}</a>`,
+        '</div>',
+        '</section>',
+      ].join(''),
+    );
+  }
+  // 함께 살 집(D4) — 노출 타입 카드만(PLANNED 는 노출 타입이 아니라 data.types 에 없다), 카드 → 타입 홈. 한 줄 = 시드 oneLiner(없으면 줄 없음).
+  out.push(
+    railSection({
+      id: 'habitats',
+      kind: 'habitat',
+      layout: 'grid3',
+      tone: 'home',
+      titleHtml: h(COPY.homeA.habitatsTitle),
+      lead: [COPY.homeA.habitatsLead],
+      items: data.types.map((t) =>
+        [
+          `<li class="ws-starter-item"><a class="ws-starter ws-habitat" href="${a(hrefOf(`/${t.slug}`))}" data-ws-id="animalTypes#${a(t.id)}">`,
+          '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+          `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(t.displayName)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
+          t.oneLiner ? `<span class="ws-t-meta ws-muted ws-starter-sub">${h(t.oneLiner)}</span>` : '',
+          '</a></li>',
+        ].join(''),
+      ),
+    }),
+  );
+  const rows = homeAVetRows(data.types, data.vets);
+  out.push(
+    [
+      '<section class="ws-home-sec ws-explain ws-vet-split" data-ws-section="vet-split" aria-labelledby="ws-sec-vet-split-title">',
+      '<div class="ws-explain-text">',
+      explainHead('ws-sec-vet-split-title', COPY.homeA.vetTitle, COPY.homeA.vetSub),
+      `<a class="ws-home-link" href="/vet">${h(COPY.homeB.vetLink)}${HOME_ARROW}</a>`,
+      '</div>',
+      '<div class="ws-explain-side">',
+      rows.length > 0
+        ? `<ul class="ws-vet-rows" role="list">${rows
+            .map(
+              (row) =>
+                `<li data-ws-group="${a(row.group)}"><span class="ws-t-cta ws-vet-row-name">${h(
+                  formatCopy(COPY.homeA.vetRow, { name: COPY.groups[row.group] }),
+                )}</span><span class="ws-t-body ws-muted ws-vet-row-types">${h(row.types.map((t) => t.displayName).join(' · '))}</span></li>`,
+            )
+            .join('')}</ul>`
+        : `<p class="ws-t-body ws-muted ws-vet-rows-empty">${h(COPY.homeB.vetEmpty)}</p>`,
+      '</div>',
+      '</section>',
+    ].join(''),
+  );
+  return out;
+}
+
+/** 홈 A — 히어로 · 시작 카드 · 설명 섹션(U3c~e) · 하단 CTA. */
 export function renderHome(m: SiteModel, ctx: PageContext): RenderedPage {
   return page(ctx, { title: COPY.site.homeTitle, description: COPY.site.description, crumbs: [HOME], ...homeParts(m) });
 }
@@ -174,11 +305,12 @@ export const PICK_BAR_ARROW =
  * 홈 A 본문(R3 시안 v1b, 286 U3a) — client home/HomeA.tsx(Hero · StartBand)와 같은 태그·클래스·id·aria.
  *   히어로 = h1 + 부제 + 선택 바(a href=/pick — 입력 아님, 하이드레이션 후 L1) · 하단 CTA = 문장 + 채운 버튼 1(a href=/pick).
  *   후기 섹션 없음(D6: 홈 후기 비노출, ws-data testimonials 도 싣지 않는다 — 노출 경로 0 일치). 저장 타입("이어서")은 클라이언트만 알므로 정적 0.
- *   U3b~e(3카드·숫자·필요/불필요·함께 살 집·병원) 섹션은 히어로와 하단 CTA 사이에 들어온다.
+ *   U3b(시작 카드)·U3c~e(설명 섹션 homeExplain) 는 히어로와 하단 CTA 사이.
  */
 function homeParts(m: SiteModel): { main: string[]; mainClass: string; data: WsPageData['data'] } {
   const vets = homeVets(m);
   const types = homeTypes(m);
+  const data: WsPageData['data'] = { ...emptyData(), types, vets };
   return {
     main: [
       '<section class="ws-hero" data-ws-section="hero" aria-labelledby="ws-hero-title">',
@@ -187,13 +319,14 @@ function homeParts(m: SiteModel): { main: string[]; mainClass: string; data: WsP
       `<a class="ws-pick-bar" data-ws-action="pick-animal" href="${PICK_PATH}"><span class="ws-pick-bar-label">${h(COPY.homeA.heroBar)}</span><span class="ws-pick-bar-go">${PICK_BAR_ARROW}</span></a>`,
       '</section>',
       ...homeStarters(types),
+      ...homeExplain(data),
       '<section class="ws-start" data-ws-section="start" aria-labelledby="ws-start-title">',
       `<div class="ws-start-text"><h2 id="ws-start-title" class="ws-t-display ws-start-title">${h(COPY.homeA.startTitle)}</h2><p class="ws-t-body ws-muted">${h(COPY.homeA.startBody)}</p></div>`,
       pickCta(COPY.homeA.startCta),
       '</section>',
     ],
     mainClass: 'ws-home-a',
-    data: { ...emptyData(), types, vets },
+    data,
   };
 }
 
