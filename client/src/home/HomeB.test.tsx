@@ -1,6 +1,7 @@
-// 홈 B(R4-2, R4 시안 home_selected): 컨텍스트 헤더 → [now, later?, spec?, vet, save]. 숫자·이름·이유는 ws-data 에서만(하드코딩 0).
+// 홈 B(R4-2 시안 톤 + R4-2b PRD US-003 섹션 복원): 컨텍스트 헤더 → [now, later?, bundles?, spec?, products?, vet, save]. 숫자·이름·이유는 ws-data 에서만(하드코딩 0).
 //   L3 전 숫자 0 · 항목 카드 = 필수(neutral) · L3 후 요약 카드 「필수 {total}가지 중 {n}가지가 남았어요.」 + 주 버튼 「남은 준비 {n}개 살펴보기」 → L2.
-//   상품·구성안·병원 카드 없음(상품은 L4 후보 영역) · /save 는 a(텍스트 링크) · URL 동물 저장(via url).
+//   남은 항목 = 글리프 + 보이는 단어(! 먼저 준비 · △ 확인 필요), ≤767 항목 줄은 이름마다 L4 링크 · 구성안 레일 → /setup + bundle_viewed
+//   · 상품 레일(ws-data 순서, ○ 기준 충족, 가격 0) → L7 · 병원 레일(sortVets ≤20) 또는 「확인된 병원이 아직 없어요」 · /save 는 a(텍스트 링크).
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
@@ -14,6 +15,8 @@ import { writeSaveState } from '../save/saveStateStore';
 import { layerStore } from '../ui/layer/useLayer';
 import { specTarget, vetHrefFor } from './HomeB';
 import { parseVetFilter } from '../vet/filters';
+import { sortVets } from '../vet/order';
+import * as trackMod from '../events/track';
 
 const T = '2026-10-02T00:00:00.000Z';
 const CAGE_SCHEMA: SpecSchema = {
@@ -57,6 +60,7 @@ function sections(): string[] {
 
 const now = () => document.querySelector('[data-ws-section="now"]') as HTMLElement;
 const cards = () => Array.from(now().querySelectorAll('li.ws-now-item a.ws-now-card'));
+const links = (line: string) => Array.from(now().querySelectorAll(`[data-ws-line="${line}"] li[data-ws-now-link] a.ws-now-link`));
 
 function answer(checks: Record<string, { source: string; at: string }>, firstTime = true) {
   localStorage.setItem(setupKey(golden.id), JSON.stringify({ v: 1, firstTime, owned: [], answeredAt: T, startedAt: T, checks, reached100At: null }));
@@ -72,14 +76,25 @@ afterEach(() => {
 });
 
 describe('홈 B(R4-2)', () => {
-  it('컨텍스트 헤더(눈썹 · h1 · 바꾸기) → [now, spec, vet, save] — 상품·구성안·병원 카드 없음, 마스코트 없음', () => {
+  it('컨텍스트 헤더(눈썹 · h1 · 바꾸기) → PRD 순서 [now, bundles, spec, products, vet, save] — 마스코트 없음', () => {
     render(<App page={typePage()} captured={NO_CAPTURE} />);
-    expect(sections()).toEqual(['context', 'now', 'spec', 'vet', 'save']);
+    expect(sections()).toEqual(['context', 'now', 'bundles', 'spec', 'products', 'vet', 'save']);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('골든햄스터');
     const ctx = document.querySelector('.ws-context') as HTMLElement;
     expect(ctx).toHaveTextContent(COPY.homeB.contextEyebrow);
     expect(ctx.querySelector('img, .ws-avatar')).toBeNull();
-    expect(document.querySelector('main li.ws-product, main [data-ws-tier], main li.ws-vet')).toBeNull();
+    // 레일 섹션도 다른 섹션과 같은 머리(display 제목) · 같은 간격 클래스
+    for (const id of ['bundles', 'products']) {
+      const sec = document.querySelector(`[data-ws-section="${id}"]`) as HTMLElement;
+      expect(sec).toHaveClass('ws-home-sec');
+      expect(sec.querySelector('h2')).toHaveClass('ws-t-display', 'ws-home-sec-title');
+    }
+  });
+
+  it('데이터 없는 구성안·상품 섹션은 그리지 않는다(실시드 DRAFT → 노출 0), 병원은 빈 안내', () => {
+    const p = typePage();
+    render(<App page={{ ...p, data: { ...p.data, products: [], bundles: [], vets: [] } }} captured={NO_CAPTURE} />);
+    expect(sections()).toEqual(['context', 'now', 'spec', 'vet', 'save']);
   });
 
   it('L3 전: 숫자 0, 요약 줄 고정 문구, 항목 카드 = 필수 전부 neutral(글리프 없음, 입력 순서), 이유 = 시드 why 첫 문장', () => {
@@ -97,20 +112,38 @@ describe('홈 B(R4-2)', () => {
     expect(cards()[0].querySelector('.ws-now-reason')).toHaveTextContent(/^바닥이 넓어야 해요\.$/);
     expect(cards()[0]).toHaveAttribute('href', '/hamster/golden/supplies/cage');
     expect(cards()[0].closest('li')).toHaveAttribute('data-ws-id', 'supplyRequirements#req-cage');
-    // 모바일 이름 줄: 필수 이름 전부(라벨 없음)
-    expect(now().querySelector('[data-ws-line="all"]')).toHaveTextContent('케이지 · 쳇바퀴 · 모래 목욕통');
+    // ≤767 항목 줄(MED-1): 필수 전부, 이름마다 L4 링크 · neutral(상태 표시 없음)
+    expect(links('all').map((a) => a.textContent)).toEqual(['케이지', '쳇바퀴', '모래 목욕통']);
+    expect(links('all').map((a) => a.getAttribute('href'))).toEqual(['/hamster/golden/supplies/cage', '/hamster/golden/supplies/wheel', '/hamster/golden/supplies/bath']);
+    for (const a of links('all')) expect(a).toHaveAttribute('data-ws-state', 'neutral');
+    expect(now().querySelector('.ws-now-state')).toBeNull();
   });
 
-  it('L3 후: 요약 「필수 3가지 중 2가지가 남았어요.」, 주 버튼 「남은 준비 2개 살펴보기」 → L2, 카드 = 남은 필수(입력 순서), 줄 = ✓ 준비완료 / 아직 준비 중', () => {
+  it('L3 후: 요약 「필수 3가지 중 2가지가 남았어요.」, 주 버튼 「남은 준비 2개 살펴보기」 → L2, 카드 = 남은 필수(입력 순서, ! 먼저 준비), 줄 = ✓ 준비완료 / 아직 준비 중(링크)', () => {
     answer({ wheel: { source: 'UNKNOWN', at: T } }, false);
     render(<App page={typePage()} captured={NO_CAPTURE} />);
     expect(now()).toHaveTextContent('필수 3가지 중 2가지가 남았어요.');
     expect(cards().map((c) => c.getAttribute('data-ws-state'))).toEqual(['first', 'first']);
     expect(cards().map((c) => c.querySelector('.ws-now-name')?.textContent)).toEqual(['케이지', '모래 목욕통']);
+    // L-1: FIRST 카드 = ! 글리프 + 보이는 단어(R4-1 GLYPH 표 first)
+    for (const c of cards()) {
+      const tag = c.querySelector('.ws-now-state') as HTMLElement;
+      expect(tag.querySelector('[data-ws-glyph="first"]')).toHaveTextContent('!');
+      expect(tag).toHaveTextContent(`!${COPY.glyphLabel.first}`);
+      expect(tag.querySelector('.ws-visually-hidden')).toBeNull();
+    }
     const ready = now().querySelector('[data-ws-line="ready"]') as HTMLElement;
     expect(ready.querySelector('[data-ws-glyph="ready"]')).toHaveTextContent('✓');
     expect(ready).toHaveTextContent('준비완료쳇바퀴');
-    expect(now().querySelector('[data-ws-line="pending"]')).toHaveTextContent(`${COPY.homeB.nowPendingLabel}케이지 · 모래 목욕통`);
+    expect(links('ready').map((a) => a.getAttribute('href'))).toEqual(['/hamster/golden/supplies/wheel']);
+    const pending = now().querySelector('[data-ws-line="pending"]') as HTMLElement;
+    expect(pending.querySelector('.ws-now-line-label')).toHaveTextContent(COPY.homeB.nowPendingLabel);
+    expect(
+      links('pending').map((a) => [a.querySelector('.ws-now-link-name')?.textContent, a.getAttribute('data-ws-state'), a.querySelector('.ws-now-state')?.textContent]),
+    ).toEqual([
+      ['케이지', 'first', `!${COPY.glyphLabel.first}`],
+      ['모래 목욕통', 'first', `!${COPY.glyphLabel.first}`],
+    ]);
     const cta = now().querySelector('.ws-now-cta') as HTMLElement;
     expect(cta).toHaveTextContent('남은 준비 2개 살펴보기');
     expect(cta.tagName).toBe('BUTTON');
@@ -143,7 +176,7 @@ describe('홈 B(R4-2)', () => {
     expect(now().textContent ?? '').not.toMatch(/\d+\s*(개|가지)/);
     expect(cards()).toHaveLength(0);
     expect(now().querySelector('.ws-now-lines')).toBeNull();
-    expect(sections()).toEqual(['context', 'now', 'vet', 'save']); // 규격 숫자 없음 → spec 섹션 없음
+    expect(sections()).toEqual(['context', 'now', 'bundles', 'products', 'vet', 'save']); // 규격 숫자 없음 → spec 섹션 없음
   });
 
   it('K1: L3 후 REQUIRED 전부 ✓ → 완료 줄 + 「권장 항목 보기」, 항목 카드 0', () => {
@@ -157,7 +190,7 @@ describe('홈 B(R4-2)', () => {
   it('나중에 필요한 것: NOT_NOW 시드 레코드만(이름 + notNowReason), 없으면 섹션 없음', () => {
     const saucer: PublicRequirement = { ...req('saucer', 'NOT_NOW', '원반형 쳇바퀴'), notNowReason: '세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요.' };
     render(<App page={typePage([saucer])} captured={NO_CAPTURE} />);
-    expect(sections()).toEqual(['context', 'now', 'later', 'spec', 'vet', 'save']);
+    expect(sections()).toEqual(['context', 'now', 'later', 'bundles', 'spec', 'products', 'vet', 'save']);
     const later = document.querySelector('[data-ws-section="later"]') as HTMLElement;
     expect(Array.from(later.querySelectorAll('li')).map((li) => li.textContent)).toEqual(['원반형 쳇바퀴세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요.']);
     expect(later.querySelector('li')).toHaveAttribute('data-ws-id', 'supplyRequirements#req-saucer');
@@ -187,13 +220,78 @@ describe('홈 B(R4-2)', () => {
     expect(specTarget([r])).toBeNull(); // REQUIRED 아님
   });
 
-  it('병원: 제목 「{동물}를 진료하는 병원」, 링크 /vet?treats= 하나 — vets 가 있어도 카드 레일 없음', () => {
-    const p = typePage();
-    render(<App page={{ ...p, data: { ...p.data, vets: [vet('v1'), vet('v2')] } }} captured={NO_CAPTURE} />);
+  it('병원 0(실시드 SLOT 뿐): 제목 「{동물}를 진료하는 병원」 + 「확인된 병원이 아직 없어요」 + /vet?treats= 링크 하나, 카드 0(허구 병원 0)', () => {
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
     const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
     expect(v.querySelector('h2')).toHaveTextContent('골든햄스터를 진료하는 병원');
+    expect(v).toHaveTextContent(COPY.homeB.vetEmpty);
     expect(v.querySelectorAll('li')).toHaveLength(0);
     expect(Array.from(v.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual([`/vet?treats=${golden.id}`]);
+  });
+
+  it('병원 ≥1: VetCard 레일(sortVets 후 ≤20, 진료 동물 = 표시명) + 안내 + /vet?treats= 링크, 빈 안내 없음', () => {
+    const p = typePage();
+    const vets = [...Array.from({ length: 21 }, (_, i) => vet(`v${i}`)), { ...vet('va'), region: 'aaa' }];
+    render(<App page={{ ...p, data: { ...p.data, vets } }} captured={NO_CAPTURE} />);
+    const v = document.querySelector('[data-ws-section="vet"]') as HTMLElement;
+    expect(v.querySelector('h2')).toHaveTextContent('골든햄스터를 진료하는 병원');
+    const ids = Array.from(v.querySelectorAll('li.ws-vet')).map((li) => li.getAttribute('data-ws-id'));
+    expect(ids).toEqual(sortVets(vets).slice(0, 20).map((x) => `vetClinics#${x.id}`));
+    expect(ids[0]).toBe('vetClinics#va');
+    expect(v).toHaveTextContent(COPY.homeB.vetAsk);
+    expect(v).not.toHaveTextContent(COPY.homeB.vetEmpty);
+    expect(v.textContent).toContain(golden.displayName);
+    expect(v.querySelector(`a.ws-rail-foot[href="/vet?treats=${golden.id}"]`)).not.toBeNull();
+  });
+
+  it('처음 준비한다면: 노출 구성안 카드(이름·목적·개수·참고 범위+면책) + /setup 링크, 「세트」 0 · 노출 시 bundle_viewed{animalTypeId, tier} tier 별 1회', () => {
+    const observed: Element[] = [];
+    let cb: IntersectionObserverCallback = () => undefined;
+    class IO {
+      constructor(c: IntersectionObserverCallback) {
+        cb = c;
+      }
+      observe(el: Element) {
+        observed.push(el);
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', IO);
+    const spy = vi.spyOn(trackMod, 'track');
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
+    const b = document.querySelector('[data-ws-section="bundles"]') as HTMLElement;
+    expect(b.querySelector('h2')).toHaveTextContent(COPY.homeB.bundlesTitle);
+    expect(b.querySelectorAll('li[data-ws-tier]')).toHaveLength(1);
+    expect(b).toHaveTextContent('구성 b1');
+    expect(b).toHaveTextContent(COPY.setup.priceNote);
+    expect(b.querySelector('a.ws-rail-foot')).toHaveAttribute('href', '/hamster/golden/setup');
+    expect(b.textContent).not.toContain('세트');
+    const tiers = observed.filter((el) => el.hasAttribute('data-ws-tier')).map((el) => el.getAttribute('data-ws-tier'));
+    expect(tiers).toEqual(['BUDGET']);
+    const li = observed.find((el) => el.hasAttribute('data-ws-tier')) as Element;
+    const entry = (target: Element) => ({ isIntersecting: true, target }) as unknown as IntersectionObserverEntry;
+    act(() => cb([entry(li), entry(li)], {} as IntersectionObserver));
+    expect(spy.mock.calls.filter(([n]) => n === 'bundle_viewed')).toEqual([['bundle_viewed', { animalTypeId: golden.id, tier: 'BUDGET' }]]);
+    spy.mockRestore();
+  });
+
+  it('기준에 맞는 준비물: ws-data 순서 그대로(재정렬 0), 모든 카드 ○ 기준 충족 · L7 링크 · 대체 타일, 가격·판매처·구매 0', () => {
+    render(<App page={typePage()} captured={NO_CAPTURE} />);
+    const sec = document.querySelector('[data-ws-section="products"]') as HTMLElement;
+    expect(sec.querySelector('h2')).toHaveTextContent(COPY.homeB.productsTitle);
+    const items = Array.from(sec.querySelectorAll('li.ws-product'));
+    expect(items.map((c) => c.getAttribute('data-ws-id'))).toEqual(['curatedProducts#p3', 'curatedProducts#p1']);
+    for (const c of items) {
+      expect(c.querySelector('.ws-badge')?.textContent).toBe(`○${COPY.product.badge}`);
+      expect(c.querySelector('a')).toHaveAttribute('href', `/hamster/golden/products/${(c.getAttribute('data-ws-id') ?? '').split('#')[1]}`);
+      expect(c.querySelector('.ws-tile-label')).toHaveTextContent(COPY.product.imagePending);
+    }
+    expect(sec.textContent ?? '').not.toMatch(/₩|\d+\s*원|가격|판매처|구매|할인|최저가|베스트/);
+    expect(sec.querySelector('img[src*="mascots"]')).toBeNull();
   });
 
   it('④ 병원 링크 href 에 동물 필터 쿼리(?treats=), VetPage 가 그 쿼리를 그대로 읽는다', () => {
@@ -238,8 +336,9 @@ describe('홈 B(R4-2)', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('금지어·가격 0: 홈 B 본문에 가격·판매처·구매 표현 없음', () => {
+  it('금지어·가격 0: 홈 B 본문에 가격·판매처·구매 표현 없음 — 구성안 카드의 참고 범위 면책 문구(COPY.setup.priceNote)만 예외', () => {
     render(<App page={typePage()} captured={NO_CAPTURE} />);
-    expect(screen.getByRole('main').textContent ?? '').not.toMatch(/₩|\d+\s*원|가격|판매처|구매|할인|최저가|베스트/);
+    const text = (screen.getByRole('main').textContent ?? '').split(COPY.setup.priceNote).join('');
+    expect(text).not.toMatch(/₩|\d+\s*원|가격|판매처|구매|할인|최저가|베스트/);
   });
 });

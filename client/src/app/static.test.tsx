@@ -275,10 +275,23 @@ describe('R5 SPA push(C-R5-5)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('홈 B 항목 카드 → L4 push, ✕ = 부모로(레이어 state 없음) — R4-2: 홈 B 엔 상품 카드 없음', async () => {
+  it('홈 B 상품 카드 → L7 push, ✕ = 부모로(레이어 state 없음) — R4-2b 복원', async () => {
     window.history.replaceState(null, '', '/hamster/golden');
     mount(page, typeMain);
-    expect(document.querySelector('a[href="/hamster/golden/products/p1"]')).toBeNull();
+    const card = document.querySelector('a[href="/hamster/golden/products/p1"]') as HTMLElement;
+    expect(card).not.toBeNull();
+    fireEvent.click(card);
+    expect(window.location.pathname).toBe('/hamster/golden/products/p1');
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-ws-layer', 'L7');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: COPY.supplyLayer.close }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(window.location.pathname).toBe('/hamster/golden');
+    expect(readLayerState(window.history.state)).toBeNull();
+  });
+
+  it('홈 B 항목 카드 → L4 push, ✕ = 부모로(레이어 state 없음)', async () => {
+    window.history.replaceState(null, '', '/hamster/golden');
+    mount(page, typeMain);
     const card = document.querySelector('a.ws-now-card[href="/hamster/golden/supplies/wheel"]') as HTMLElement;
     expect(card).not.toBeNull();
     fireEvent.click(card);
@@ -330,7 +343,14 @@ describe('QA-M D1: ws-data 거부(BELOW_MIN 주입) → 상품 추천 표면 렌
     expect(document.querySelector('[data-ws-static="main"] [data-ws-section="vet"] a[href="/vet"]')).not.toBeNull();
   });
 
-  it('대조: 유효한 ws-data 면 같은 상품 카드가 렌더된다(지우는 조건 = 거부일 때만) — R4-2 이후 상품 표면은 L4 후보 영역', async () => {
+  it('대조: 유효한 ws-data 면 같은 상품 카드가 렌더된다(지우는 조건 = 거부일 때만) — 홈 B 레일', () => {
+    window.history.replaceState(null, '', '/hamster/golden');
+    const ok = pageOf('TYPE', { requirements: [req('wheel', 'REQUIRED', '쳇바퀴')], products: [product('cp-001', 'wheel', '픽스처 쳇바퀴 cp-001')] }, { typeId: golden.id, path: '/hamster/golden' });
+    mount(ok, homeMain);
+    expect(document.querySelectorAll('main [data-ws-section="products"] li.ws-product')).toHaveLength(1);
+  });
+
+  it('대조: 유효한 ws-data 면 같은 상품 카드가 렌더된다 — L4 후보 영역', async () => {
     const path = '/hamster/golden/supplies/wheel';
     window.history.replaceState(null, '', path);
     const ok = pageOf(
@@ -340,6 +360,5 @@ describe('QA-M D1: ws-data 거부(BELOW_MIN 주입) → 상품 추천 표면 렌
     );
     mount(ok, homeMain, '<aside class="ws-layer" data-ws-layer="L4" role="dialog" data-ws-id="supplyRequirements#req-wheel"><h2 id="ws-layer-title">쳇바퀴</h2></aside>');
     await waitFor(() => expect(document.querySelectorAll('[data-ws-part="products"] li.ws-product')).toHaveLength(1));
-    expect(document.querySelectorAll('main li.ws-product')).toHaveLength(0);
   });
 });

@@ -84,7 +84,8 @@ export const COPY = deepFreeze({
   /** UX §3.1 B — 동물 선택: 컨텍스트 헤더 + 5섹션. 숫자는 L3 이후(D18) — 프리렌더는 nowBeforeSetup 만. */
   /**
    * 홈 B(동물 선택) — R4 시안 home_selected(R4-2): 컨텍스트 헤더(눈썹·이름·바꾸기) → 지금 필요한 것(요약 카드 + 남은 항목 카드)
-   *   → 나중에 필요한 것(NOT_NOW 시드 레코드) → {용품} 규격 확인(최소 규격 숫자 = 엔진 minSpecFigure) → 병원 안내 → 저장 안내.
+   *   → 나중에 필요한 것(NOT_NOW 시드 레코드) → 처음 준비한다면(구성안 레일) → {용품} 규격 확인(최소 규격 숫자 = 엔진 minSpecFigure)
+   *   → 기준에 맞는 준비물(상품 레일) → 병원(카드 레일 또는 빈 안내) → 저장 안내. R4-2b 에서 PRD US-003 섹션 복원.
    *   숫자·품목명은 전부 ws-data(시드 → resolveRequirement)에서 — 여기엔 고정 UI 문구만.
    */
   homeB: {
@@ -104,8 +105,10 @@ export const COPY = deepFreeze({
     nowPendingLabel: '아직 준비 중',
     nowEmpty: sent('검수를 마친 준비 목록을 정리하고 있어요'),
     laterTitle: '나중에 필요한 것',
-    /** 구성안 페이지(/setup) 제목 — 홈 B 엔 구성안 섹션 없음(R4 시안). */
+    /** 홈 B 구성안 레일 제목 · 구성안 페이지(/setup) 제목(R4-2b — PRD US-003 ③ 복원). */
     bundlesTitle: '처음 준비한다면',
+    /** 홈 B 상품 레일 제목(R4-2b — PRD US-003 ④ 복원). 노출 상품 0 이면 섹션 없음. */
+    productsTitle: '기준에 맞는 준비물',
     specTitle: '{name} 규격 확인',
     specBasis: '{animal} 기준',
     specMine: '내 {name} 확인하기',
@@ -114,6 +117,8 @@ export const COPY = deepFreeze({
     vetLead: sent('지역을 고르면 확인된 병원을 보여 드려요.'),
     vetAsk: sent('방문 전 진료 여부를 병원에 문의해 주세요.'),
     vetLink: '지역으로 병원 찾기',
+    /** R4-2b(Kenny 11-14) — 이 동물을 진료하는 노출 병원 0(시드 SLOT 뿐)일 때. 허구 병원 0. */
+    vetEmpty: sent('확인된 병원이 아직 없어요'),
     saveTitle: sent('준비한 내용을 이어서 볼까요?'),
     saveLink: '이메일로 저장하기',
     /** DR-5 MINOR-2 — 연결 상태 저장 안내 링크(홈 B 링크 관례: › 없음). */

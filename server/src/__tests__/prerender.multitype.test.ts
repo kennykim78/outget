@@ -261,9 +261,10 @@ describe('QA118 D1 — 구성안 0개 타입은 /setup 링크를 내지 않는�
     expect(pageAt(b, `/${SECOND.slug}`).html).toContain('data-ws-section="now"');
   });
 
-  it('대조: 구성안 있는 골든은 /setup 경로 존재(R4-2 홈 B 엔 구성안 섹션·링크 없음 — 진입은 홈 A 시작 카드 SETUP)', () => {
+  it('대조: 구성안 있는 골든은 /setup 경로 존재 + 홈 B 「처음 준비한다면」 레일 아래 /setup 링크(R4-2b 복원), 구성안 0 타입은 섹션 자체 없음', () => {
     expect(paths.has('/hamster/golden/setup')).toBe(true);
-    expect(pageAt(b, '/hamster/golden').html).not.toContain('href="/hamster/golden/setup"');
+    expect(pageAt(b, '/hamster/golden').html).toContain('href="/hamster/golden/setup"');
+    expect(pageAt(b, `/${SECOND.slug}`).html).not.toContain('data-ws-section="bundles"');
   });
 
   it('전 페이지: */setup href 는 모두 생성된 경로를 가리킨다', () => {

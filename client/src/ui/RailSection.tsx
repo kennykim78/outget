@@ -38,6 +38,15 @@ export interface RailSectionProps {
   sectionData?: Record<`data-${string}`, string>;
   /** 배치 변형(서버 railSection layout 과 같은 값) — section 에 ws-rail-section--{layout} 클래스만 더한다. */
   layout?: RailLayout;
+  /**
+   * R4-2b 홈 B 톤(R4 시안 — 섹션 간격 120/72, 제목 display): section 에 ws-home-sec ws-{id}-sec 를 더하고
+   *   제목을 ws-t-display ws-home-sec-title, 부제 대신 lead 문단(섹션당 메시지)을 ws-home-sec-head 안에 그린다. 서버 railSection tone 과 같은 마크업.
+   */
+  tone?: 'home';
+  /** tone=home 의 리드 문단들(ws-t-body ws-muted ws-home-sec-lead). */
+  lead?: readonly string[];
+  /** tone=home 의 레일 아래 텍스트 링크(ws-home-link + 장식 →). */
+  foot?: { label: string; href: string };
   /** li 요소들. */
   children: ReactNode;
 }
@@ -46,7 +55,7 @@ function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export default function RailSection({ id, kind, title, subtitle, more, prevLabel, nextLabel, sectionData, layout, children }: RailSectionProps) {
+export default function RailSection({ id, kind, title, subtitle, more, prevLabel, nextLabel, sectionData, layout, tone, lead, foot, children }: RailSectionProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
   const titleId = `ws-sec-${id}-title`;
@@ -102,18 +111,31 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
 
   return (
     <section
-      className={`ws-rail-section ws-rail-section--${kind}${layout ? ` ws-rail-section--${layout}` : ''}`}
+      className={`ws-rail-section ws-rail-section--${kind}${layout ? ` ws-rail-section--${layout}` : ''}${tone === 'home' ? ` ws-home-sec ws-${id}-sec` : ''}`}
       data-ws-section={id}
       aria-labelledby={titleId}
       {...sectionData}
     >
       <div className="ws-rail-head">
-        <div className="ws-rail-heading">
-          <h2 id={titleId} className="ws-t-section">
-            {title}
-          </h2>
-          {subtitle ? <p className="ws-rail-sub ws-t-body">{subtitle}</p> : null}
-        </div>
+        {tone === 'home' ? (
+          <div className="ws-rail-heading ws-home-sec-head">
+            <h2 id={titleId} className="ws-t-display ws-home-sec-title">
+              {title}
+            </h2>
+            {(lead ?? []).map((x) => (
+              <p key={x} className="ws-t-body ws-muted ws-home-sec-lead">
+                {x}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <div className="ws-rail-heading">
+            <h2 id={titleId} className="ws-t-section">
+              {title}
+            </h2>
+            {subtitle ? <p className="ws-rail-sub ws-t-body">{subtitle}</p> : null}
+          </div>
+        )}
         <div className="ws-rail-tools">
           {edges.overflow && prevLabel !== null && nextLabel !== null ? (
             <>
@@ -162,6 +184,12 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
       >
         {children}
       </ul>
+      {tone === 'home' && foot ? (
+        <a className="ws-home-link ws-rail-foot" href={foot.href}>
+          {foot.label}
+          <span aria-hidden="true"> →</span>
+        </a>
+      ) : null}
     </section>
   );
 }

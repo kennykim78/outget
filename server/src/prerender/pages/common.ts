@@ -320,22 +320,32 @@ export function railSection(o: {
   attrs?: Readonly<Record<string, string>>;
   /** 286 U3b — 'grid3' = ≥768 3열 그리드 / ≤767 가로 레일 peek(홈 A 시작 카드 전용). 생략 = 기존 레일(홈 B 무변경). */
   layout?: 'grid3';
+  /** R4-2b 홈 B 톤 — client RailSection tone='home' 과 같은 마크업(section + ws-home-sec ws-{id}-sec, 제목 display, lead 문단, 레일 아래 → 링크). */
+  tone?: 'home';
+  lead?: readonly string[];
+  foot?: { label: string; href: string } | null;
   items: readonly string[];
 }): string {
   const titleId = `ws-sec-${o.id}-title`;
+  const home = o.tone === 'home';
   const extra = Object.entries(o.attrs ?? {})
     .map(([k, v]) => ` ${k}="${a(v)}"`)
     .join('');
   const more = o.more ? `<a class="ws-rail-more ws-t-meta" href="${a(o.more.href)}">${h(o.more.label)}<span aria-hidden="true"> ›</span></a>` : '';
   return [
-    `<section class="ws-rail-section ws-rail-section--${o.kind}${o.layout ? ` ws-rail-section--${o.layout}` : ''}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
+    `<section class="ws-rail-section ws-rail-section--${o.kind}${o.layout ? ` ws-rail-section--${o.layout}` : ''}${home ? ` ws-home-sec ws-${a(o.id)}-sec` : ''}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
     '<div class="ws-rail-head">',
-    `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
+    home
+      ? `<div class="ws-rail-heading ws-home-sec-head"><h2 id="${titleId}" class="ws-t-display ws-home-sec-title">${o.titleHtml}</h2>${(o.lead ?? [])
+          .map((x) => `<p class="ws-t-body ws-muted ws-home-sec-lead">${h(x)}</p>`)
+          .join('')}</div>`
+      : `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
     `<div class="ws-rail-tools">${more}</div>`,
     '</div>',
     `<ul class="ws-rail ${RAIL_LIST_CLASS[o.kind]}" role="list"${o.layout === 'grid3' ? '' : ' tabindex="0"'} aria-labelledby="${titleId}">`,
     ...o.items,
     '</ul>',
+    ...(home && o.foot ? [`<a class="ws-home-link ws-rail-foot" href="${a(o.foot.href)}">${h(o.foot.label)}<span aria-hidden="true"> →</span></a>`] : []),
     '</section>',
   ].join('\n');
 }

@@ -216,6 +216,11 @@ const ALLOWED: readonly Allowed[] = [
     re: /^main>section\.ws-home-sec\.ws-now\[\d+\]>ul\.ws-now-grid\[\d+\]>li\.ws-now-lead\[\d+\]>a\.ws-btn\.ws-btn--fill\.ws-now-cta\[\d+\] \.tag: static="a" react="button"$/,
     why: '홈B ① 요약 카드 주 버튼(R4-2): 정적 a(첫 필수 항목 L4 문서) → React button(L2) — 같은 클래스·data-ws-action, 이전 ⑤ 저장 CTA a→button 허용과 같은 근거(decisions 2026-10-13 레인 A)',
   },
+  {
+    kinds: ['TYPE'],
+    re: /^main>section\.ws-home-sec\.ws-products-sec\.ws-rail-section\.ws-rail-section--product\[\d+\]>ul\.ws-products\.ws-rail\[\d+\]>li\.ws-product\[\d+\]>span\.ws-like\[\d+\] \.(tag: static="span" react="button"|text: static=undefined react="♡")$/,
+    why: '홈B 상품 카드 ♡(R4-2b 복원): 정적 span 자리표시(내부 span.ws-like-glyph 동일) → React button(D-38; .text 는 button 만 TEXT_TAGS 라 따라오는 차이) — decisions 2026-10-14, R4-2 에서 지웠던 항목을 새 섹션 경로로 되살림',
+  },
 ];
 const allowedHits = new Set<number>();
 function unexplained(kind: RouteKind, d: readonly string[]): string[] {

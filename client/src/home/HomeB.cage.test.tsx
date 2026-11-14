@@ -112,7 +112,7 @@ describe('홈 B 지금 필요한 것 — 케이지 호환 △(R4-2)', () => {
     expect(card('wheel')).toBeNull();
     expect(card('cage')).toBeNull();
     expect(card('bath')).toHaveAttribute('data-ws-state', 'first');
-    expect(line('ready')).toHaveTextContent('케이지 · 쳇바퀴');
+    expect(Array.from(line('ready')?.querySelectorAll('a.ws-now-link') ?? []).map((a) => a.textContent)).toEqual(['케이지', '쳇바퀴']);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 30));
     });
@@ -127,7 +127,7 @@ describe('홈 B 지금 필요한 것 — 케이지 호환 △(R4-2)', () => {
     }
   });
 
-  it('낮은 케이지(높이 35cm) 저장 → 쳇바퀴 카드 △(호환 CHECK, 숨김 라벨 「확인 필요」), 카탈로그는 동일 출처 정적 파일 1회 · 카드 순서 = 입력 순서', async () => {
+  it('낮은 케이지(높이 35cm) 저장 → 쳇바퀴 카드·모바일 링크 △ + 보이는 단어 「확인 필요」(호환 CHECK), 카탈로그는 동일 출처 정적 파일 1회 · 카드 순서 = 입력 순서', async () => {
     writeSetup(wsStorage, golden.id, ANSWERED);
     localStorage.setItem(
       cageKey(golden.id),
@@ -138,7 +138,12 @@ describe('홈 B 지금 필요한 것 — 케이지 호환 △(R4-2)', () => {
     expect(document.querySelector('.ws-now-count')).toHaveTextContent('필수 준비를 먼저 확인해요');
     await waitFor(() => expect(card('wheel')).toHaveAttribute('data-ws-state', 'check'), { timeout: 10000 });
     expect(card('wheel')?.querySelector('[data-ws-glyph="check"]')).not.toBeNull();
-    expect(card('wheel')).toHaveTextContent('확인 필요');
+    expect(card('wheel')?.querySelector('.ws-now-state')).toHaveTextContent('△확인 필요');
+    // qa MED-1: ≤767 에서 보이는 항목 링크 줄도 같은 △ + 단어 + L4 링크
+    const mobile = document.querySelector('[data-ws-section="now"] [data-ws-line="pending"] li[data-ws-now-link="wheel"] a.ws-now-link') as HTMLElement;
+    expect(mobile).toHaveAttribute('data-ws-state', 'check');
+    expect(mobile).toHaveAttribute('href', '/hamster/golden/supplies/wheel');
+    expect(mobile.querySelector('.ws-now-state')).toHaveTextContent('△확인 필요');
     expect(card('cage')).toBeNull(); // 케이지 자체는 최소 충족 → ✓
     expect(Array.from(document.querySelectorAll('[data-ws-section="now"] li.ws-now-item')).map((li) => li.getAttribute('data-ws-item'))).toEqual(['wheel', 'bath']);
     expect(document.querySelector('.ws-now-count')).toHaveTextContent('필수 3가지 중 2가지가 남았어요.');

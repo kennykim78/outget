@@ -1,5 +1,6 @@
-// 타입 홈 B(R4 시안 home_selected — 컨텍스트 헤더 + 지금·나중·규격·병원·저장) · 구성안(/setup) · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
-//   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 항목 카드(neutral). 병원은 /vet 링크만.
+// 타입 홈 B(R4 시안 home_selected 톤 + PRD US-003 섹션 — 컨텍스트 헤더 + 지금·나중·처음 준비·규격·준비물·병원·저장) · 구성안(/setup)
+//   · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
+//   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 항목 카드(neutral).
 import { PICK_PATH, chipSpecText, figureValueText, firstSentence, minSpecFigure, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, splitLabel, visibleSpecFields, type MinSpecFigure, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { affiliateDisclosureOn, renderableSearchLinks } from '../affiliate.js';
 import { COPY, formatCopy, objectParticle } from '../copy.js';
@@ -23,8 +24,10 @@ import {
   renderHeader,
   renderTabBar,
   ruleText,
+  railSection,
   sortVets,
   specLine,
+  vetCard,
   wsData,
   yearMonth,
   type Crumb,
@@ -71,6 +74,30 @@ function productCard(t: TypeModel, p: PublicProduct, item: ItemOf | undefined): 
     .join('\n');
 }
 
+function itemFor(t: TypeModel, itemId: string): ItemOf | undefined {
+  return t.requirements.find((r) => r.item.id === itemId)?.item;
+}
+
+/** 구성안 글리프(client home/BundleCard.tsx TIER_GLYPH 와 같은 표). */
+const TIER_GLYPH: Readonly<Record<string, string>> = { BUDGET: '\u{1F33F}', BALANCED: '☁', USED_MIX: '♻' };
+
+/** 구성안 카드 — client home/BundleCard.tsx 의 빈 저장소 출력(개수 = bundle.itemCount)과 같은 마크업. */
+function bundleCard(b: TypeModel['bundles'][number]): string {
+  return [
+    `<li class="ws-bundle" data-ws-id="setupBundles#${a(b.id)}" data-ws-tier="${a(b.tier)}">`,
+    `<span class="ws-bundle-glyph" aria-hidden="true">${h(TIER_GLYPH[b.tier] ?? '')}</span>`,
+    `<h3 class="ws-t-section">${h(b.name)}</h3>`,
+    `<p class="ws-t-meta ws-muted">${h(b.purpose)}</p>`,
+    `<p class="ws-t-spec">${h(formatCopy(COPY.bundle.itemCount, { n: b.itemIds.length }))}</p>`,
+    b.estimatedRangeText
+      ? `<p class="ws-range ws-t-meta ws-muted">${h(b.estimatedRangeText)}</p><p class="ws-range-note ws-t-meta ws-muted">${h(COPY.setup.priceNote)}</p>`
+      : '',
+    '</li>',
+  ]
+    .filter((x) => x !== '')
+    .join('\n');
+}
+
 /** 타입 페이지 ws-data 병원 상한(D16) — ws-data ≤ 32KB 유지. */
 export const TYPE_VETS_MAX = 20;
 
@@ -102,13 +129,14 @@ function specTarget(t: TypeModel): { r: RequirementModel; figure: MinSpecFigure 
 }
 
 /**
- * 타입 홈 본문(부모 페이지, R4 시안 home_selected · R4-2) — client home/HomeB.tsx 의 빈 저장소(2질문 전·내 케이지 없음·이메일 미연결) 출력과
- *   같은 태그·클래스·id·aria. 컨텍스트 헤더 → ① 지금 필요한 것(요약 카드 + 필수 항목 카드 neutral + 모바일 이름 줄) → ② 나중에 필요한 것(NOT_NOW)
- *   → ③ {용품} 규격 확인(엔진 minSpecFigure) → ④ 병원 안내 → ⑤ 저장 안내. 데이터 없는 ②·③ 은 섹션 없음.
+ * 타입 홈 본문(부모 페이지, R4 시안 home_selected 톤 · R4-2b PRD US-003 섹션 복원) — client home/HomeB.tsx 의 빈 저장소(2질문 전·내 케이지 없음·이메일 미연결)
+ *   출력과 같은 태그·클래스·id·aria. 컨텍스트 헤더 → 지금 필요한 것(요약 카드 + 필수 항목 카드 neutral + 모바일 항목 링크 줄) → 나중에 필요한 것(NOT_NOW)
+ *   → 처음 준비한다면(구성안 레일) → {용품} 규격 확인(엔진 minSpecFigure) → 기준에 맞는 준비물(상품 레일, 노출 순서 그대로 — 불변식 ③)
+ *   → 병원(treats ∋ 타입 노출 병원 카드 레일, 0 이면 「확인된 병원이 아직 없어요」) → 저장 안내.
+ *   PRD 순서(지금 → 처음 준비 → 준비물 → 병원 → 저장)는 지키고, R4 시안 섹션(나중에·규격)은 관련 섹션 뒤에 둔다. 데이터 없는 나중에·처음 준비·규격·준비물은 섹션 없음.
  *   하이드레이션 후에만 동작하는 버튼(① 주 버튼 → L2)은 정적에서 같은 클래스의 링크(첫 필수 항목 L4 문서).
- *   상품·구성안·병원 카드는 홈 B 에 없다(R4 시안) — 상품은 L4 후보 영역·/products 딥링크, 구성안은 /setup, 병원은 /vet. ws-data 는 그대로.
  */
-function typeMain(ctx: PageContext, t: TypeModel): string {
+function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
   const required = t.requirements.filter((r) => r.pub.priority === 'REQUIRED');
   const later = t.requirements.filter((r) => r.pub.priority === 'NOT_NOW');
   const itemHref = (r: RequirementModel): string => hrefOf(`${base(t)}/supplies/${r.item.id}`);
@@ -137,8 +165,14 @@ function typeMain(ctx: PageContext, t: TypeModel): string {
     '<section class="ws-home-sec ws-now" data-ws-section="now" data-ws-answered="0" aria-labelledby="ws-sec-now-title">',
     homeSecHead('ws-sec-now-title', COPY.homeB.nowTitle, COPY.homeB.nowLead),
     `<ul class="ws-now-grid" role="list">${lead}${required.map(nowCard).join('')}</ul>`,
+    // ≤767 항목 줄(MED-1): 이름마다 L4 링크(비링크 이름 줄 금지). 정적 = L3 전 → 상태 표시 없음(neutral).
     required.length
-      ? `<div class="ws-now-lines"><p class="ws-t-body ws-now-line" data-ws-line="all"><span>${h(required.map((r) => r.item.name).join(' · '))}</span></p></div>`
+      ? `<div class="ws-now-lines"><div class="ws-t-body ws-now-line" data-ws-line="all"><ul class="ws-now-links" role="list">${required
+          .map(
+            (r) =>
+              `<li data-ws-now-link="${a(r.item.id)}"><a class="ws-now-link" href="${a(itemHref(r))}" data-ws-state="neutral"><span class="ws-now-link-name">${h(r.item.name)}</span></a></li>`,
+          )
+          .join('')}</ul></div></div>`
       : '',
     '</section>',
   ];
@@ -174,6 +208,48 @@ function typeMain(ctx: PageContext, t: TypeModel): string {
         '</section>',
       ]
     : [];
+  // 처음 준비한다면 — 노출 구성안(검수 통과)만, 0 이면 섹션 없음(/setup 도 그때만 생성된다 — routes.ts).
+  const bundlesSection = t.bundles.length
+    ? railSection({
+        id: 'bundles',
+        kind: 'bundle',
+        tone: 'home',
+        titleHtml: h(COPY.homeB.bundlesTitle),
+        foot: { label: COPY.setup.detailLink, href: hrefOf(`${base(t)}/setup`) },
+        items: t.bundles.map(bundleCard),
+      })
+    : '';
+  // 기준에 맞는 준비물 — t.products = 요구사항 순서 × orderExposableProducts(규격 → 검수 → 선호, 미달 0 · VERIFIED 만) 그대로. 0 이면 섹션 없음.
+  //   상품 표면 표식 유지(client staticCapture PRODUCT_SURFACE_SELECTOR): section[data-ws-section=products] · ul.ws-products · li.ws-product.
+  const productsSection = t.products.length
+    ? railSection({
+        id: 'products',
+        kind: 'product',
+        tone: 'home',
+        titleHtml: h(COPY.homeB.productsTitle),
+        items: t.products.map((p) => productCard(t, p, itemFor(t, p.supplyItemId))),
+      })
+    : '';
+  // 병원 — treats ∋ 타입 노출 병원(SLOT 은 로더가 건너뜀 → 허구 병원 0). 정적 링크는 /vet(하이드레이션 후 client 가 ?treats= — decisions 2026-11-10 M-2).
+  const vets = typeVets(m, t.id);
+  const typeNames = new Map(m.types.map((x) => [x.id, x.pub.displayName] as const));
+  const vetTitle = formatCopy(COPY.homeB.vetTitle, { animal: objectParticle(t.pub.displayName) });
+  const vetSection = vets.length
+    ? railSection({
+        id: 'vet',
+        kind: 'vet',
+        tone: 'home',
+        titleHtml: h(vetTitle),
+        lead: [COPY.homeB.vetLead, COPY.homeB.vetAsk],
+        foot: { label: COPY.homeB.vetLink, href: '/vet' },
+        items: vets.map((v) => vetCard(v, typeNames)),
+      })
+    : [
+        '<section class="ws-home-sec ws-vet-sec" data-ws-section="vet" aria-labelledby="ws-sec-vet-title">',
+        homeSecHead('ws-sec-vet-title', vetTitle, COPY.homeB.vetEmpty),
+        `<a class="ws-home-link" href="/vet">${h(COPY.homeB.vetLink)}${ARROW}</a>`,
+        '</section>',
+      ].join('\n');
   return [
     mainOpen(ctx, t.id, {}, 'ws-home-b'),
     `<section class="ws-context" data-ws-id="animalTypes#${a(t.id)}" aria-labelledby="ws-context-title">`,
@@ -182,14 +258,10 @@ function typeMain(ctx: PageContext, t: TypeModel): string {
     '</section>',
     ...nowSection,
     ...laterSection,
+    bundlesSection,
     ...specSection,
-    // 병원: 정적은 /vet(하이드레이션 후 client 가 ?treats= — decisions 2026-11-10 M-2).
-    '<section class="ws-home-sec ws-vet-sec" data-ws-section="vet" aria-labelledby="ws-sec-vet-title">',
-    homeSecHead('ws-sec-vet-title', formatCopy(COPY.homeB.vetTitle, { animal: objectParticle(t.pub.displayName) })),
-    `<p class="ws-t-body ws-muted">${h(COPY.homeB.vetLead)}</p>`,
-    `<p class="ws-t-body ws-muted">${h(COPY.homeB.vetAsk)}</p>`,
-    `<a class="ws-home-link" href="/vet">${h(COPY.homeB.vetLink)}${ARROW}</a>`,
-    '</section>',
+    productsSection,
+    vetSection,
     '<section class="ws-home-sec ws-save-sec" data-ws-section="save" aria-labelledby="ws-save-title">',
     `<h2 id="ws-save-title" class="ws-t-display ws-home-sec-title">${h(COPY.homeB.saveTitle)}</h2>`,
     `<a class="ws-home-link ws-save-link" href="/save">${h(COPY.homeB.saveLink)}${ARROW}</a>`,
@@ -424,7 +496,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     head: renderHead(ctx, { title, description, crumbs, itemList: layer ? undefined : itemList }),
     body: [
       renderHeader(t.pub, navCurrent(ctx.route), ctx),
-      typeMain(ctx, t),
+      typeMain(ctx, m, t),
       aside ? `${SCRIM}\n${aside}` : '',
       renderFooter(),
       renderTabBar(t.pub, navCurrent(ctx.route)),

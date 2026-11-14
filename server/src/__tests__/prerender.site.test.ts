@@ -213,9 +213,9 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(sm).toContain(`${ORIGIN}/vet/${encodeURIComponent('서울-마포구')}</loc><lastmod>2026-09-28</lastmod>`);
   });
 
-  it('타입 홈 B(R4-2): 컨텍스트 → now → spec → vet → save 순서, ① 진행 숫자 없음(D18), 숫자는 ③ 규격(엔진 minSpecFigure)에만, ④ /vet 링크', () => {
+  it('타입 홈 B(R4-2b): 컨텍스트 → now → bundles → spec → products → vet → save 순서(PRD US-003), ① 진행 숫자 없음(D18), 규격 숫자 = 엔진 minSpecFigure, 병원 레일 + /vet 링크', () => {
     const html = page('/hamster/golden');
-    const order = ['now', 'spec', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
+    const order = ['now', 'bundles', 'spec', 'products', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(html).toContain('<h2 id="ws-sec-now-title" class="ws-t-display ws-home-sec-title">지금 필요한 것</h2>');
@@ -223,13 +223,15 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     // 여는 태그 속성(data-ws-answered="0")은 가시 텍스트가 아니므로 태그 끝 이후부터. ① 엔 진행·개수 숫자 0(이유 문장도 시드 why 첫 문장 — 이 시드엔 숫자 없음).
     const now = html.slice(html.indexOf('>', order[0]) + 1, order[1]);
     expect(visibleText(now)).not.toMatch(/\d/);
-    const spec = html.slice(order[1], order[2]);
+    const spec = html.slice(order[2], order[3]);
     expect(spec).toContain('<span class="ws-spec-sec-value">100×50×50</span>');
     expect(spec).not.toContain('↑');
-    const vet = html.slice(order[2], order[3]);
+    expect(html.slice(order[1], order[2])).toContain('data-ws-id="setupBundles#');
+    expect(html.slice(order[3], order[4])).toContain('data-ws-id="curatedProducts#');
+    const vet = html.slice(order[4], order[5]);
     expect(vet).toContain('href="/vet"');
     expect(vet).toContain('골든햄스터를 진료하는 병원');
-    expect(vet).not.toContain('data-ws-id="vetClinics#');
+    expect(vet).toContain('data-ws-id="vetClinics#');
     expect(html).toContain('data-ws-type="hamster-golden"');
     expect(html).toContain('준비한 내용을 이어서 볼까요?');
   });
@@ -451,9 +453,9 @@ describe('R4 A2 프리렌더 보강', () => {
         expect(c).not.toMatch(/₩|원\b|구매|가격/);
       }
     }
-    // R4-2: 홈 B 에는 상품 카드가 없다(상품 표면은 L4 후보 영역·L7).
-    expect(pageOf(b, '/hamster/golden').match(/<li class="ws-product"/g)).toBeNull();
-    expect(pageOf(b, '/hamster/golden/supplies/wheel').match(/<li class="ws-product"/g)).toHaveLength(1);
+    // R4-2b: 홈 B 상품 레일 복원 — 타입 홈 1(레일), L4 딥링크 2(부모 홈 레일 + L4 후보 영역).
+    expect(pageOf(b, '/hamster/golden').match(/<li class="ws-product"/g)).toHaveLength(1);
+    expect(pageOf(b, '/hamster/golden/supplies/wheel').match(/<li class="ws-product"/g)).toHaveLength(2);
     const l7 = pageOf(b, '/hamster/golden/products/cp-001');
     expect(l7).toContain(badge);
     expect(l7).toContain(tile);

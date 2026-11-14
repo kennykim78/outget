@@ -43,7 +43,7 @@ test('no-JS: 홈 CTA → /pick 200 · 정적 L1 링크 → 타입 홈 200', asyn
   await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
 });
 
-test('no-JS /hamster/golden 본문 — 타입명 · 필수 항목 카드 · 규격 숫자 · 병원 링크(R4-2)', async ({ newContext }) => {
+test('no-JS /hamster/golden 본문 — 타입명 · 필수 항목 카드 · 규격 숫자 · 구성안·준비물·병원 레일(R4-2b)', async ({ newContext }) => {
   const ctx = await newContext({ javaScriptEnabled: false });
   const page = await ctx.newPage();
   const res = await page.goto(TYPE.home);
@@ -62,7 +62,18 @@ test('no-JS /hamster/golden 본문 — 타입명 · 필수 항목 카드 · 규�
   // 규격 숫자 = 시드 최소 규격(BE92: 골든 케이지 100×50×50, Kenny 2026-10-25) — 엔진 minSpecFigure.
   await expect(page.locator('section[data-ws-section="spec"] .ws-spec-sec-value')).toHaveText('100×50×50');
   await expect(page.locator('section[data-ws-section="vet"] a[href="/vet"]')).toHaveCount(1);
-  await expect(page.locator('main li.ws-product, main li.ws-vet')).toHaveCount(0);
+  // R4-2b: PRD US-003 레일 복원 — 데모 시드 병원 3 · 상품 1 · 구성안 ≥1.
+  const vets = page.locator('section[data-ws-section="vet"] li.ws-vet');
+  await expect(vets).toHaveCount(3);
+  await expect(page.locator('section[data-ws-section="vet"]')).toContainText('데모 동물병원 1');
+  await expect(page.locator('section[data-ws-section="products"] li.ws-product')).toHaveCount(1);
+  await expect(page.locator('section[data-ws-section="bundles"] li[data-ws-tier]').first()).toBeVisible();
+  // qa MED-1: 정적에서도 보이는 항목 링크(390 = 링크 줄, 1280 = 카드) — 이름만 있는 비링크 줄 0.
+  for (const item of ['cage', 'wheel']) {
+    await expect(
+      now.locator(`li[data-ws-item="${item}"] a.ws-now-card:visible, li[data-ws-now-link="${item}"] a.ws-now-link:visible`),
+    ).toHaveAttribute('href', `${TYPE.home}/supplies/${item}`);
+  }
   await assertScreen(page, 'no-JS /hamster/golden');
 });
 

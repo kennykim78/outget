@@ -79,12 +79,16 @@ describe('타입 페이지 ws-data.vets(C-R5-6, D16)', () => {
     expect(vs).toHaveLength(TYPE_VETS_MAX);
     expect(vs[0].id).toBe('vc-00');
   });
-  it('홈 B ④ 병원 = 안내 + /vet 링크(R4-2 — 병원 카드 레일 없음, 목록은 /vet), ws-data vets 는 그대로', () => {
+  it('홈 B 병원 레일(R4-2b 복원) = ws-data vets 순서 VetCard, 레일 아래 /vet 링크', () => {
     const page = html(b, '/hamster/golden');
     const sec = page.slice(page.indexOf('data-ws-section="vet"'), page.indexOf('data-ws-section="save"'));
-    expect(sec).not.toContain('vetClinics#');
-    expect(sec).toContain(`<a class="ws-home-link" href="/vet">${COPY.homeB.vetLink}`);
-    expect(data(b, '/hamster/golden').data.vets.map((v) => v.id)).toEqual(['vc-a', 'vc-b']);
+    const ids = [...sec.matchAll(/data-ws-id="vetClinics#([^"]+)"/g)].map((m) => m[1]);
+    expect(ids).toEqual(['vc-a', 'vc-b']);
+    expect(data(b, '/hamster/golden').data.vets.map((v) => v.id)).toEqual(ids);
+    // R4 시안 톤: → 텍스트 링크는 레일 아래(ws-rail-foot).
+    expect(sec).toContain(`<a class="ws-home-link ws-rail-foot" href="/vet">${COPY.homeB.vetLink}`);
+    expect(sec.indexOf('vetClinics#')).toBeLessThan(sec.indexOf('href="/vet"'));
+    expect(sec).not.toContain(COPY.homeB.vetEmpty);
   });
 });
 

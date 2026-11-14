@@ -15,6 +15,23 @@ const CAGE = { floorWcm: '60', floorDcm: '40', heightCm: '35' } as const;
 test.skip(() => process.env.E2E_SEED_MODE !== 'demo', '데모 시드 전용');
 
 const layer = (page: Page, kind: string): Locator => page.locator(`[data-ws-layer="${kind}"][role="dialog"]`);
+/**
+ * 홈 B 「지금 필요한 것」에서 지금 화면에 보이는 항목 링크(qa MED-1): ≥768 은 항목 카드(a.ws-now-card), ≤767 은 항목 링크 줄(a.ws-now-link).
+ *   숨겨진 DOM 이 아니라 보이는 요소만 — 상태는 data-ws-state + 보이는 글리프·단어(.ws-now-state)로 확인한다.
+ */
+const nowItem = (page: Page, itemId: string): Locator =>
+  page.locator(
+    `section[data-ws-section="now"] li[data-ws-item="${itemId}"] a.ws-now-card:visible, section[data-ws-section="now"] li[data-ws-now-link="${itemId}"] a.ws-now-link:visible`,
+  );
+async function expectNowCheck(page: Page, itemId: string): Promise<void> {
+  const el = nowItem(page, itemId);
+  await expect(el).toHaveCount(1);
+  await expect(el).toBeVisible();
+  await expect(el).toHaveAttribute('data-ws-state', 'check');
+  await expect(el).toHaveAttribute('href', `${TYPE.home}/supplies/${itemId}`);
+  await expect(el.locator('.ws-now-state')).toBeVisible();
+  await expect(el.locator('.ws-now-state')).toHaveText('△확인 필요');
+}
 
 /** L5 폼 채우고 판정. diameter '' = 값 누락. */
 async function judgeWheel(L5: Locator, diameter: string): Promise<Locator> {
@@ -155,7 +172,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await assertScreen(page, 'L5 케이지 재판정');
   });
 
-  await test.step('/setup 구성안 → 홈 B → L4 후보 → L7 상품(○ 기준 충족 · 가격·판매처·구매 0)', async () => {
+  await test.step('/setup 구성안 → 홈 B → L7 상품(○ 기준 충족 · 가격·판매처·구매 0)', async () => {
     await gotoHydrated(page, `${TYPE.home}/setup`);
     await expect(page.locator('main section.ws-bundle').first()).toBeVisible();
     await expect(page.locator('main')).toContainText('처음 준비한다면');
@@ -165,14 +182,15 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
     // L3 응답 후: 숫자 줄. 케이지는 등록값 60×40×35 가 골든햄스터 최소(100×50×50)에 못 미쳐 △(arch-23 ③ — 보유 케이지 규격 미달 연결), 쳇바퀴도 케이지 등록으로 △.
     await expect(page.locator('section[data-ws-section="now"]')).toHaveAttribute('data-ws-answered', '1');
-    await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
-    await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
+    // qa MED-1: 390 에서도 보이는 요소(항목 링크 줄)로 △ + 「확인 필요」 + L4 링크 — 숨겨진 카드 DOM 이 아니라.
+    await expectNowCheck(page, 'cage');
+    await expectNowCheck(page, 'wheel');
     await assertScreen(page, '홈 B(L3 후)');
 
-    // R4-2: 홈 B 에는 상품 카드가 없다 — 상품 표면은 L4 후보 영역(규격 → 검수 순, 불변식 ③).
-    await expect(page.locator('main li.ws-product')).toHaveCount(0);
-    await gotoHydrated(page, `${TYPE.home}/supplies/wheel`);
-    const products = layer(page, 'L4').locator('[data-ws-part="products"] li.ws-product');
+    // R4-2b: 홈 B 「처음 준비한다면」 레일 → /setup 링크, 「기준에 맞는 준비물」 레일(규격 → 검수 순, 불변식 ③) → L7.
+    await expect(page.locator('section[data-ws-section="bundles"] li[data-ws-tier]').first()).toBeVisible();
+    await expect(page.locator(`section[data-ws-section="bundles"] a.ws-rail-foot[href="${TYPE.home}/setup"]`)).toBeVisible();
+    const products = page.locator('section[data-ws-section="products"] li.ws-product');
     await expect(products).toHaveCount(1);
     await expect(products.first().locator('.ws-badge')).toContainText('기준 충족');
     await expect(products.first().locator('.ws-badge [data-ws-glyph="ok"]')).toHaveText('○'); // R4-1 판정 4상태
@@ -276,8 +294,8 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     // 화면 복원: 홈 B 항목 카드(케이지 △ — 등록값이 최소 미달 · 쳇바퀴 △) · L5 케이지 줄.
     await gotoHydrated(p2, TYPE.home);
     await expect(p2.locator('h1#ws-context-title')).toHaveText(TYPE.name);
-    await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
-    await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
+    await expectNowCheck(p2, 'cage');
+    await expectNowCheck(p2, 'wheel');
     await assertScreen(p2, '다른 기기 홈 B');
     await gotoHydrated(p2, `${TYPE.home}/check/wheel`);
     await expect(layer(p2, 'L5').locator('[data-ws-cage-row="set"]')).toContainText('60×40×35cm');
