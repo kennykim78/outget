@@ -61,23 +61,51 @@ export interface SignatureEntry {
 const ENTRY_KEYS = ['file', 'id', 'basis', 'signedBy', 'signedAt', 'factHash'] as const;
 const FILE_TO_KEY = new Map<string, SeedKey>(CONTENT_KEYS.map((k) => [SEED_FILES[k], k]));
 
+/** 발췌 비교용 정규화(K1 하위 결정 2026-11-15): NFKC(전각 마침표 U+FF0E → ASCII 마침표) 뒤 공백·마침표(ASCII 마침표·U+3002) 제거. */
+const excerptNorm = (s: string): string => s.normalize('NFKC').replace(/[\s.\u3002]+/gu, '');
+
 /**
- * 행 수준 basis 정책(V10, 서명 매니페스트 없이도 항상): 사람이 행별로 연 출처만 근거가 되는 행은 ROW_CHECKED 만.
- *   상품(제조사 규격 — 확인표 B) · 최소 규격 규칙이 있는 요구사항(확인표 A) · 최소 규격 override 가 있는 AnimalType.
- *   반환 null = 정책 없음(AI_RESEARCH_BULK 허용).
+ * whyShort 가 같은 행(객체) why 또는 notNowReason 의 부분 문자열(공백·마침표 정규화 후)인가 = 원문 발췌.
+ *   발췌는 원문의 검수 근거를 상속, 재서술은 사람이 행별로 확인(ROW_CHECKED)해야 한다(K1, 불변식 7 사실 창작 금지).
+ *   whyShort 키가 없거나 문자열이 아니면 판정 대상 아님(false = 추가 요구 없음; 타입은 S03·R03).
+ *   override 는 같은 override 객체의 why·notNowReason 만 본다(기본 행 원문은 보지 않음 — fail-closed).
  */
-export function requiredBasis(key: SeedKey, r: Rec): ReviewBasis | null {
-  if (key === 'curatedProducts') return 'ROW_CHECKED';
+export function whyShortIsRephrased(o: Rec): boolean {
+  if (!has(o, 'whyShort') || typeof o.whyShort !== 'string') return false;
+  const short = excerptNorm(o.whyShort);
+  return ![o.why, o.notNowReason].some((t) => typeof t === 'string' && excerptNorm(t).includes(short));
+}
+
+/** 행 수준 basis 정책의 사유(V10 메시지용). 정책 없음 = null. */
+export function requiredBasisReason(key: SeedKey, r: Rec): string | null {
+  if (key === 'curatedProducts') return '상품';
   const nonEmptyRules = (rs: unknown): boolean => {
     const rules = asRec(rs)?.rules;
     return Array.isArray(rules) && rules.length > 0;
   };
-  if (key === 'supplyRequirements' && nonEmptyRules(r.minSpec)) return 'ROW_CHECKED';
+  if (key === 'supplyRequirements') {
+    if (nonEmptyRules(r.minSpec)) return '최소 규격 행';
+    if (whyShortIsRephrased(r)) return '원문 발췌가 아닌 whyShort 행';
+  }
   if (key === 'animalTypes') {
     const reqs = asRec(asRec(r.careOverrides)?.requirements);
-    if (reqs && Object.values(reqs).some((o) => nonEmptyRules(asRec(o)?.minSpec))) return 'ROW_CHECKED';
+    if (reqs) {
+      const os = Object.values(reqs).map(asRec).filter((o): o is Rec => o !== null);
+      if (os.some((o) => nonEmptyRules(o.minSpec))) return '최소 규격 행';
+      if (os.some(whyShortIsRephrased)) return '원문 발췌가 아닌 whyShort 행';
+    }
   }
   return null;
+}
+
+/**
+ * 행 수준 basis 정책(V10, 서명 매니페스트 없이도 항상): 사람이 행별로 연 출처만 근거가 되는 행은 ROW_CHECKED 만.
+ *   상품(제조사 규격 — 확인표 B) · 최소 규격 규칙이 있는 요구사항(확인표 A) · 최소 규격 override 가 있는 AnimalType
+ *   · whyShort 가 같은 행 why·notNowReason 의 발췌가 아닌 요구사항·override(K1 하위 결정 2026-11-15).
+ *   반환 null = 정책 없음(AI_RESEARCH_BULK 허용).
+ */
+export function requiredBasis(key: SeedKey, r: Rec): ReviewBasis | null {
+  return requiredBasisReason(key, r) === null ? null : 'ROW_CHECKED';
 }
 
 function parseEntries(ctx: Ctx, data: unknown): SignatureEntry[] {

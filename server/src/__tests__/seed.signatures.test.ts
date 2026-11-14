@@ -9,7 +9,7 @@ import type { SeedBundle } from '../engine/index.js';
 import { CONTENT_KEYS, SEED_FILES, type RawSeed } from '../seed/common.js';
 import { runValidateCli, type CliIo } from '../seed/cli-validate.js';
 import { readSeedDirRaw } from '../seed/read.js';
-import { factHash, FACT_FIELDS, SIGNATURE_FIELDS, SIGNATURE_FILE, type SignatureEntry } from '../seed/signatures.js';
+import { factHash, FACT_FIELDS, requiredBasis, SIGNATURE_FIELDS, SIGNATURE_FILE, whyShortIsRephrased, type SignatureEntry } from '../seed/signatures.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import {
   DWARF_PACKET_PATH,
@@ -272,6 +272,113 @@ describe('V09·V10 — reviewBasis 행 규칙(매니페스트 없이도)', () =>
     rowOf(raw, 'supplyRequirements', 'req-dwarf-wheel').reviewBasis = 'AI_RESEARCH_BULK';
     rowOf(raw, 'supplyRequirements', 'req-dwarf-hideout').reviewBasis = 'ROW_CHECKED'; // 최소 규격 없는 행은 둘 다 허용
     expect(errsOf(v(raw), 'V10').map((i) => i.id).sort()).toEqual(['cp-dw-012', 'req-dwarf-wheel']);
+  });
+});
+
+describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 하위 결정 2026-11-15, 불변식 7)', () => {
+  // req-dwarf-carrier: VERIFIED·AI_RESEARCH_BULK·최소 규격 없음. why = "병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요."
+  // req-dwarf-saucer : VERIFIED·AI_RESEARCH_BULK·NOT_NOW. notNowReason = "세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요."
+  const EXCERPT = '케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+  const REPHRASE = '청소할 때 잠시 옮겨 둘 곳이 있어야 해요.';
+  const NN_EXCERPT = '세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요.';
+  const FULLWIDTH_DOT = String.fromCharCode(0xff0e);
+  const v = (raw: RawSeed): ValidateResult => validateSeed(raw, { now: NOW });
+  const v10 = (raw: RawSeed): string[] => errsOf(v(raw), 'V10').map((i) => String(i.id)).sort();
+  const withShort = (id: string, s: string): RawSeed => {
+    const raw = rawOf(dwarfSignedWith().seed);
+    rowOf(raw, 'supplyRequirements', id).whyShort = s;
+    return raw;
+  };
+  /** 변경 전 requiredBasis 정책 사본(whyShort 없는 행은 이것과 같아야 한다). */
+  const oldPolicy = (key: string, r: Row): string | null => {
+    if (key === 'curatedProducts') return 'ROW_CHECKED';
+    const ne = (rs: unknown): boolean => Array.isArray((rs as Row | null)?.rules) && ((rs as Row).rules as unknown[]).length > 0;
+    if (key === 'supplyRequirements' && ne(r.minSpec)) return 'ROW_CHECKED';
+    if (key === 'animalTypes') {
+      const reqs = (r.careOverrides as Row | null)?.requirements as Row | undefined;
+      if (reqs && Object.values(reqs).some((o) => ne((o as Row | null)?.minSpec))) return 'ROW_CHECKED';
+    }
+    return null;
+  };
+
+  it('whyShortIsRephrased 단위: 발췌 false · 재서술 true · notNowReason 발췌 false · 키 없음/비문자열 false', () => {
+    const why = '병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+    expect(whyShortIsRephrased({ why, whyShort: EXCERPT })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: REPHRASE })).toBe(true);
+    expect(whyShortIsRephrased({ why: '다른 문장이에요.', notNowReason: NN_EXCERPT, whyShort: NN_EXCERPT })).toBe(false);
+    expect(whyShortIsRephrased({ why })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: null })).toBe(false);
+    expect(whyShortIsRephrased({ whyShort: REPHRASE })).toBe(true); // 원문 없음 = 발췌 아님(fail-closed)
+  });
+  it('공백·마침표 정규화: 공백 증감·마침표 유무·전각 마침표는 발췌로 본다, 어절 변경은 재서술', () => {
+    const why = '병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+    expect(whyShortIsRephrased({ why, whyShort: '케이지를  청소할때 잠깐 옮겨 둘 곳이 필요해요' })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: `케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요${FULLWIDTH_DOT}` })).toBe(false);
+    expect(whyShortIsRephrased({ why: why.replace('.', FULLWIDTH_DOT), whyShort: EXCERPT })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: '케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요하죠.' })).toBe(true);
+  });
+  it('발췌 whyShort + AI_RESEARCH_BULK → V10 없음(원문 검수 근거 상속)', () => {
+    expect(v10(withShort('req-dwarf-carrier', EXCERPT))).toEqual([]);
+    expect(v10(withShort('req-dwarf-saucer', NN_EXCERPT))).toEqual([]);
+  });
+  it('재서술 whyShort + AI_RESEARCH_BULK → V10(메시지에 사유), ROW_CHECKED 면 통과', () => {
+    const raw = withShort('req-dwarf-carrier', REPHRASE);
+    const errs = errsOf(v(raw), 'V10');
+    expect(errs.map((i) => i.id)).toEqual(['req-dwarf-carrier']);
+    expect(errs[0].message).toContain('원문 발췌가 아닌 whyShort 행');
+    rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier').reviewBasis = 'ROW_CHECKED';
+    expect(v10(raw)).toEqual([]);
+  });
+  it('AnimalType override whyShort: 같은 override why 발췌면 요구 없음, 재서술·why 없는 override 는 ROW_CHECKED', () => {
+    const at = (o: Row): RawSeed => {
+      const raw = rawOf(dwarfSignedWith().seed);
+      const itemId = String(rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier').supplyItemId);
+      rowOf(raw, 'animalTypes', 'hamster-dwarf').careOverrides = { requirements: { [itemId]: o } };
+      return raw;
+    };
+    const why = '병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+    expect(v10(at({ why, whyShort: EXCERPT }))).toEqual([]);
+    expect(v10(at({ why, whyShort: REPHRASE }))).toEqual(['hamster-dwarf']);
+    expect(v10(at({ whyShort: EXCERPT }))).toEqual(['hamster-dwarf']);
+  });
+  it('whyShort 키 없는 행: requiredBasis 는 변경 전 정책과 같다(실시드·서명 픽스처 전 행)', () => {
+    let n = 0;
+    for (const s of [realSeed(), dwarfSignedWith().seed]) {
+      for (const k of CONTENT_KEYS) {
+        for (const r of s[k as keyof SeedBundle] as unknown as Row[]) {
+          expect(Object.prototype.hasOwnProperty.call(r, 'whyShort')).toBe(false);
+          expect([r.id, requiredBasis(k, r)]).toEqual([r.id, oldPolicy(k, r)]);
+          n++;
+        }
+      }
+    }
+    expect(n).toBe(2 * 149);
+  });
+  it('서명 검증: 재서술 whyShort 를 재서명(해시 갱신)해도 BULK 면 V10, ROW_CHECKED 서명이면 errors 0, 이후 whyShort 수정 → G05', () => {
+    const { seed, manifest: m0 } = dwarfSignedWith();
+    const raw = rawOf(seed);
+    const manifest = clone(m0);
+    const file = SEED_FILES.supplyRequirements;
+    const r = rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier');
+    const e = manifest.find((x) => x.file === file && x.id === 'req-dwarf-carrier');
+    if (!e) throw new Error('서명 항목 없음');
+    // G05 유지: 서명 뒤 whyShort 추가 → 재서명 요구.
+    r.whyShort = EXCERPT;
+    expect(rules(run(raw, manifest))).toEqual(['G05']);
+    // 발췌 + 재서명(BULK) → errors 0.
+    e.factHash = factHash(file, r);
+    expect(run(raw, manifest).errors).toEqual([]);
+    // 재서술로 바꾸고 재서명(BULK) → V10 만.
+    r.whyShort = REPHRASE;
+    e.factHash = factHash(file, r);
+    expect(rules(run(raw, manifest))).toEqual(['V10']);
+    // 행별 확인 서명(ROW_CHECKED) → errors 0.
+    r.reviewBasis = 'ROW_CHECKED';
+    e.basis = 'ROW_CHECKED';
+    expect(run(raw, manifest).errors).toEqual([]);
+    // 서명 뒤 whyShort 수정 → G05.
+    r.whyShort = '청소할 때 잠시 옮겨 둘 곳이 꼭 있어야 해요.';
+    expect(rules(run(raw, manifest))).toEqual(['G05']);
   });
 });
 
