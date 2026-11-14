@@ -18,7 +18,11 @@ describe('app.css static pages', () => {
     expect(appCss).toMatch(/\.ws-nav\s*\{\s*display:\s*none;\s*\}/);
     expect(appCss).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.ws-menu-btn\[aria-expanded='true'\] \+ \.ws-nav\s*\{[^}]*display:\s*flex;/);
     expect(appCss).toMatch(
-      /@media \(max-width: 767px\) and \(scripting: none\)\s*\{[\s\S]*?\.ws-menu-btn\s*\{\s*display:\s*none;\s*\}\s*\.ws-nav\s*\{\s*display:\s*flex;/,
+      /@media \(max-width: 767px\) and \(scripting: none\)\s*\{[\s\S]*?html:not\(\[data-ws-js\]\) \.ws-menu-btn\s*\{\s*display:\s*none;\s*\}\s*html:not\(\[data-ws-js\]\) \.ws-nav\s*\{\s*display:\s*flex;/,
+    );
+    // qa MED-2: JS 준비 표식(<html data-ws-js>) 전에는 ≤767 에서도 단추 숨김 + nav 한 줄 보임(번들 로드 실패 폴백) — 미디어 기능 조건 없이.
+    expect(appCss).toMatch(
+      /@media \(max-width: 767px\)\s*\{\s*html:not\(\[data-ws-js\]\) \.ws-menu-btn\s*\{\s*display:\s*none;\s*\}\s*html:not\(\[data-ws-js\]\) \.ws-nav\s*\{\s*display:\s*flex;[^}]*overflow-x:\s*auto;/,
     );
     expect(appCss).toMatch(/@media \(min-width: 768px\)\s*\{[\s\S]*?\.ws-menu-btn\s*\{\s*display:\s*none;\s*\}/);
   });

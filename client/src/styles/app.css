@@ -356,22 +356,47 @@ button {
   }
 }
 
-/* 무JS(≤767): 메뉴 단추는 동작하지 않으므로 숨기고 메뉴를 헤더 안에 펼쳐 둔다(프리렌더 = 하이드레이션 DOM, CSS 만 다름). */
+/* JS 준비 전(≤767, qa MED-2): <html data-ws-js> 표식(GlobalHeader 마운트 시)이 없으면 단추는 동작하지 않으므로 숨기고,
+   nav 링크를 로고 옆 한 줄(가로 스크롤)로 둔다 — 번들 로드 실패·구형 브라우저에서도 링크에 닿는다.
+   헤더 높이(56)가 그대로라 하이드레이션 후 단추로 바뀌어도 아래 본문은 움직이지 않는다(레이아웃 시프트 0). */
+@media (max-width: 767px) {
+  html:not([data-ws-js]) .ws-menu-btn {
+    display: none;
+  }
+  html:not([data-ws-js]) .ws-nav {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--ws-space-4);
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  html:not([data-ws-js]) .ws-nav > * {
+    flex: none;
+  }
+}
+
+/* 무JS(≤767, scripting: none): 표식이 영영 없으므로 한 줄 스크롤 대신 헤더 안에 줄바꿈으로 펼쳐 둔다(프리렌더 = 하이드레이션 DOM, CSS 만 다름). */
 @media (max-width: 767px) and (scripting: none) {
   .ws-header {
     flex-wrap: wrap;
     height: auto;
     min-height: var(--ws-header-h);
   }
-  .ws-menu-btn {
+  html:not([data-ws-js]) .ws-menu-btn {
     display: none;
   }
-  .ws-nav {
+  html:not([data-ws-js]) .ws-nav {
     display: flex;
+    flex: none;
     flex-wrap: wrap;
     align-items: center;
     column-gap: var(--ws-space-4);
     width: 100%;
+    overflow-x: visible;
+    white-space: normal;
     padding-bottom: var(--ws-space-2);
   }
 }

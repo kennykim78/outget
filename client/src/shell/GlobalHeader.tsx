@@ -4,14 +4,20 @@
 //   ≤767: 로고 + 「메뉴」 단추(하단 탭바 대체, D2) — 펼치면 헤더 아래 패널(nav). 공개 패턴(disclosure navigation):
 //     aria-expanded·aria-controls, 열면 첫 링크로 포커스, Esc = 닫고 단추로 포커스 복귀, 헤더 밖으로 포커스가 나가면 닫힘.
 //     포커스 트랩 없음 — 모달이 아니다(스크림·inert 없음, 뒤 페이지 조작 가능). WAI-ARIA APG Disclosure Navigation 과 같은 근거.
+//   JS 준비 표식(qa MED-2): 마운트(하이드레이션 커밋) 시 <html data-ws-js> 를 단다. 표식 전(번들 로드 실패·구형 브라우저·하이드레이션 전)
+//     ≤767 은 단추를 숨기고 nav 링크를 헤더 한 줄(가로 스크롤)로 보인다 — 헤더 높이 그대로라 표식 후 접혀도 레이아웃 시프트 0.
+//     표식은 <html> 속성이라 프리렌더 마크업·하이드레이션 DOM(#root 안)은 바뀌지 않는다(parity 유지).
 //   「크기 확인」(D3 ①): 동물 있으면 intentHref('SPEC_CHECK')(같은 문서면 layerLinks 가 L5 push), 없으면 /pick + L1 경유 의도 보존.
-import { useEffect, useRef, useState, type FocusEvent, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent } from 'react';
 import type { PublicAnimalType, WsPageData } from '@ws/engine';
 import { COPY } from '@ws/copy';
 import { intentHref } from '../home/intent';
 import AnimalChip from './AnimalChip';
 import { PICK_PATH, pickLinkClick } from './pickLink';
 import type { NavCurrent } from './shellType';
+
+/** JS 준비 표식(<html> 속성) — app.css 가 ≤767 메뉴 단추·접힘을 이 표식이 있을 때만 켠다. */
+export const JS_READY_ATTR = 'data-ws-js';
 
 /** nav id(메뉴 단추 aria-controls) — 서버 common.ts NAV_ID 와 같은 값. */
 export const NAV_ID = 'ws-nav';
@@ -31,6 +37,13 @@ export default function GlobalHeader({ type, current, page, chipExpanded, onChip
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const navRef = useRef<HTMLElement>(null);
+
+  // 하이드레이션 커밋 직후·첫 페인트 전에 표식(useLayoutEffect) — 단추가 동작할 수 있을 때만 단추를 보인다.
+  useLayoutEffect(() => {
+    const html = document.documentElement;
+    html.setAttribute(JS_READY_ATTR, '');
+    return () => html.removeAttribute(JS_READY_ATTR);
+  }, []);
 
   // 열면 첫 링크로 포커스(메뉴 단추로 연 경우만 — open 이 false→true 로 바뀔 때).
   useEffect(() => {

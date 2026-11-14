@@ -182,3 +182,37 @@ test('U2b 헤더 메뉴 — 1280 메뉴 3 · 390 메뉴 단추 펼침/Esc · no-
   expect(res.status()).toBe(200);
   await expect(nojs.locator('.ws-tabbar, .ws-tab')).toHaveCount(0);
 });
+
+// qa MED-2: JS 번들이 오지 않으면(로드 실패·차단·하이드레이션 전) <html data-ws-js> 표식이 없다 — ≤767 에서도 「메뉴」 단추는 숨고
+//   nav 링크(준비물·크기 확인·병원·칩)가 헤더 한 줄(가로 스크롤)로 보인다. 헤더 높이는 하이드레이션 뒤와 같다(레이아웃 시프트 0).
+test('qa MED-2 JS 번들 차단 — 단추 숨김 · nav 링크 보임·이동 · 헤더 높이 = 하이드레이션 뒤', async ({ page, newContext }) => {
+  const links = (p: typeof page) => p.locator('header.ws-header nav#ws-nav a');
+  await gotoHydrated(page, '/');
+  await expect(page.locator('html')).toHaveAttribute('data-ws-js', '');
+  const hydratedH = (await page.locator('header.ws-header').boundingBox())?.height;
+
+  const ctx = await newContext();
+  const blocked = await ctx.newPage();
+  let aborted = 0;
+  await blocked.route(
+    (u) => /\.m?js$/.test(u.pathname),
+    (r) => {
+      aborted += 1;
+      return r.abort();
+    },
+  );
+  await blocked.goto('/');
+  expect(aborted, 'JS 번들 요청을 실제로 막았다').toBeGreaterThan(0);
+  await expect(blocked.locator('#root')).toHaveAttribute('data-ws-prerendered', /.*/); // 하이드레이션 안 됨
+  await expect(blocked.locator('html')).not.toHaveAttribute('data-ws-js', /.*/);
+  await expect(blocked.getByRole('button', { name: '메뉴' })).toBeHidden();
+  await expect(links(blocked)).toHaveText(['준비물', '크기 확인', '병원', '친구 선택하기']);
+  for (const a of await links(blocked).all()) await expect(a).toBeVisible();
+  expect((await blocked.locator('header.ws-header').boundingBox())?.height).toBe(hydratedH);
+  await assertScreen(blocked, 'JS 차단 홈');
+  const [res] = await Promise.all([
+    blocked.waitForResponse((r) => new URL(r.url()).pathname === '/vet' && r.request().isNavigationRequest()),
+    links(blocked).filter({ hasText: '병원' }).click(),
+  ]);
+  expect(res.status()).toBe(200);
+});

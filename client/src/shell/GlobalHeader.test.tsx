@@ -10,7 +10,7 @@ import { nav } from '../animal/navigate';
 import { NO_CAPTURE } from '../app/staticCapture';
 import { golden, pageOf, req } from '../test/fixtures';
 import { layerStore } from '../ui/layer/useLayer';
-import GlobalHeader, { NAV_ID } from './GlobalHeader';
+import GlobalHeader, { JS_READY_ATTR, NAV_ID } from './GlobalHeader';
 
 const BANNED = ['괜찮다', '안전하다', '최저가', '판매순', '베스트', '정확도', '회원가입', '구매'];
 
@@ -38,6 +38,19 @@ describe('GlobalHeader 건너뛰기 링크', () => {
     expect(first).toHaveClass('ws-skip-link');
     expect(first).toHaveAttribute('href', '#main');
     expect(within(header).getByRole('link', { name: COPY.nav.skipToMain })).toBe(first);
+  });
+});
+
+describe('GlobalHeader JS 준비 표식(qa MED-2)', () => {
+  it('마운트 = <html data-ws-js>(≤767 메뉴 단추·접힘을 켜는 표식), 언마운트 = 제거 — 헤더·#root 마크업엔 표식 없음(프리렌더 parity)', () => {
+    expect(document.documentElement.hasAttribute(JS_READY_ATTR)).toBe(false);
+    const { container, unmount } = render(
+      <GlobalHeader type={null} current={null} page={pageOf('HOME')} chipExpanded={false} onChipOpen={() => {}} onSpecCheckIntent={() => {}} />,
+    );
+    expect(document.documentElement.hasAttribute(JS_READY_ATTR)).toBe(true);
+    expect(container.querySelector(`[${JS_READY_ATTR}]`)).toBeNull();
+    unmount();
+    expect(document.documentElement.hasAttribute(JS_READY_ATTR)).toBe(false);
   });
 });
 
