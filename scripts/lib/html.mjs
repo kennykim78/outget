@@ -26,6 +26,24 @@ export function parseAttrs(str) {
   return out;
 }
 
+/**
+ * 같은 이름(대소문자 무시)이 두 번 이상 나온 속성 이름 목록(소문자·첫 등장 순). parseAttrs 와 같은 토큰화.
+ *   parseAttrs 는 마지막 값을 쓰지만 브라우저는 첫 값을 쓴다 — 판정이 갈릴 수 있으므로 호출 쪽이 fail-closed 로 쓴다(C10-AFF-OUT).
+ */
+export function dupAttrNames(str) {
+  const seen = new Set();
+  const dups = [];
+  const re = /([^\s=/>"']+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']+))?/g;
+  let m;
+  while ((m = re.exec(str)) !== null) {
+    const k = m[1].toLowerCase();
+    if (seen.has(k)) {
+      if (!dups.includes(k)) dups.push(k);
+    } else seen.add(k);
+  }
+  return dups;
+}
+
 /** <script> 블록: { attrs, body, index } — 본문은 첫 </script 까지(브라우저와 같음). */
 export function scripts(html) {
   const out = [];

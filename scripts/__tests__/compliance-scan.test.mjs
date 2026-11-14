@@ -3595,6 +3595,57 @@ test('C10-AFF-OUT 281 고지 조상 인라인 style 축소(L-3): 작은 글자·
   }
 });
 
+test('C10-AFF-OUT qa HIGH 속성 중복(fail-closed): style·class·aria-hidden 중복 → 해당 메시지로 FAIL, 정상 문서 통과', async () => {
+  expectClean(await affOut());
+  const D = '속성 중복';
+  const cases = [
+    // 파서는 마지막 값(style="")을, 브라우저는 첫 값(4px)을 쓴다
+    ['footer style 중복(4px 뒤 빈 style)', { footer: footerF({ attrs: ' style="font-size:4px" style=""' }) }, `<footer> ${D}(style)`],
+    // 브라우저는 첫 class(숨김), 파서는 마지막 class(정상 고지 class)
+    ['고지 A class 중복(숨김 클래스 위장)', { layerOpts: { noteA: NOTE_A.replace('<p class="ws-t-meta ws-aff-note"', '<p class="ws-visually-hidden" class="ws-t-meta ws-aff-note"') } }, `<p> ${D}(class)`],
+    // 브라우저는 첫 aria-hidden="true", 파서는 마지막 "false"
+    ['고지 B aria-hidden 중복', { layerOpts: { noteB: NOTE_B.replace('<p ', '<p aria-hidden="true" ARIA-HIDDEN="false" ') } }, `<p> ${D}(aria-hidden)`],
+  ];
+  for (const [label, opts, needle] of cases) expectAffMsg(await affOut(opts), 'C10-AFF-OUT', OUT_PAGE, needle, label);
+});
+
+test('C10-AFF 단위: dupAttrNames·styleShrink transform — 판정 동일, 닫히지 않은 scale( 반복은 선형(2배 입력 → ≤3배 시간)', async () => {
+  const { dupAttrNames } = await import('../lib/html.mjs');
+  const { styleShrink } = await import('../lib/rules-affiliate.mjs');
+  assert.deepEqual(dupAttrNames(' class="a" id="x" style="b"'), []);
+  assert.deepEqual(dupAttrNames(' style="a" STYLE=\'b\' hidden hidden class=c'), ['style', 'hidden']);
+  assert.deepEqual(dupAttrNames(' title="x=y" data-a="title"'), []);
+  assert.equal(styleShrink('transform:scale(1)', 16).why, null);
+  assert.equal(styleShrink('transform:scalex(0.9) scale3d(1, 1, 1) translate(2px)', 16).why, null);
+  assert.match(styleShrink('transform:scale(0.3)', 16).why, /축소/);
+  assert.match(styleShrink('transform:rotate(1deg) scaley(0.5)', 16).why, /축소/);
+  assert.match(styleShrink('transform:scale(0.3', 16).why, /판정 불가/);
+  const time = (fn) => {
+    const r = [];
+    for (let k = 0; k < 7; k++) {
+      const t = process.hrtime.bigint();
+      fn();
+      r.push(Number(process.hrtime.bigint() - t) / 1e6);
+    }
+    return r.sort((a, b) => a - b)[3];
+  };
+  const shapes = [
+    ['닫히지 않은 scale( 반복', (n) => `transform:${'scale('.repeat(n)}`],
+    ['닫히지 않은 scalex(1 반복', (n) => `transform:${'scalex(1 '.repeat(n)}`],
+    ['scale 낱말 반복(괄호 없음)', (n) => `transform:${'scale'.repeat(n)}`],
+    ['닫힌 scale(1) 반복', (n) => `transform:${'scale(1) '.repeat(n)}`],
+  ];
+  const rows = [];
+  for (const [name, make] of shapes) {
+    styleShrink(make(500), 16); // 워밍업
+    const ms = [4000, 8000, 16000].map((n) => time(() => styleShrink(make(n), 16)));
+    rows.push(`${name}: ${ms.map((x) => x.toFixed(2)).join(' / ')} ms`);
+    // 2배 입력마다 3배 이하(7회 중앙값, 고정비·GC 잡음 바닥 2ms). 제곱이면 4배씩.
+    for (let k = 1; k < ms.length; k++) assert.ok(ms[k] <= Math.max(ms[k - 1], 2) * 3, rows.join('\n'));
+  }
+  process.stdout.write(`# qa MED transform 시간(4천/8천/1만6천)\n${rows.map((r) => `#   ${r}`).join('\n')}\n`);
+});
+
 test('C10-AFF-OUT: 꺼진(off) 형태 — 일반 쿠팡 검색 링크·ws-data v2 는 규칙 0, aff 없는 v3 는 FAIL', async () => {
   const offLink = j('<a href="', CP_SEARCH('햄스터 케이지'), '" target="_blank" rel="noopener noreferrer nofollow">쿠팡에서 찾기</a>');
   expectClean(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }), footerNote: '' }));

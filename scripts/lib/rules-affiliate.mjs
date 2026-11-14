@@ -24,7 +24,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { extname, join, posix } from 'node:path';
 import { CODE_EXT, isDir, lexJs, lineIndex, relPosix, stripBom, walk } from './files.mjs';
-import { decodeEntities, maskNonMarkup, parseAttrs, scripts } from './html.mjs';
+import { decodeEntities, dupAttrNames, maskNonMarkup, parseAttrs, scripts } from './html.mjs';
 import { isTestFile, jsonErrorWhere, safeLabel } from './rules-source.mjs';
 
 const L = safeLabel;
@@ -1340,7 +1340,8 @@ export function elementTree(html) {
       continue;
     }
     const raw = html.slice(m.index + 1 + m[2].length, m.index + m[0].length - 1);
-    els.push({ name, attrs: parseAttrs(raw.replace(/\/\s*$/, '')), start: m.index, openEnd: m.index + m[0].length, end: null, parent: stack.length ? stack[stack.length - 1] : -1 });
+    const rawAttrs = raw.replace(/\/\s*$/, '');
+    els.push({ name, attrs: parseAttrs(rawAttrs), dupAttrs: dupAttrNames(rawAttrs), start: m.index, openEnd: m.index + m[0].length, end: null, parent: stack.length ? stack[stack.length - 1] : -1 });
     if (!VOID.has(name) && !/\/\s*$/.test(raw)) {
       stack.push(els.length - 1);
       open.set(name, (open.get(name) ?? 0) + 1);
@@ -1444,7 +1445,7 @@ const normColor = (v) => v.replace(/\s+/g, '');
  * 요소 하나의 인라인 style 축소 판정 — { why|null, px }(px = 이 요소의 실효 글자 크기).
  *   why: 사람이 읽는 이유(FAIL 메시지 조각). parentPx 는 부모 실효 px.
  */
-function styleShrink(style, parentPx) {
+export function styleShrink(style, parentPx) {
   let px = parentPx;
   if (style === undefined) return { why: null, px };
   if (style.includes('\\')) return { why: '이스케이프(판정 불가)', px };
@@ -1479,10 +1480,24 @@ function styleShrink(style, parentPx) {
     } else if (p === 'transform') {
       if (v === 'none') continue;
       if (/var\(|calc\(|matrix|perspective|env\(|attr\(/.test(v)) note(`transform:${L(v.slice(0, 30))} 판정 불가`);
-      const sre = /scale(?:x|y|z|3d)?\(([^)]*)\)/g;
-      let sm;
-      while ((sm = sre.exec(v)) !== null) {
-        for (const t of sm[1].split(/[\s,]+/).filter(Boolean)) {
+      // qa MED: 정규식 /scale…\(([^)]*)\)/g 는 닫히지 않은 'scale(' 반복에서 매 위치마다 끝까지 훑어 제곱 — indexOf 로 한 번씩만 전진(선형).
+      //   닫는 ')' 가 없으면 그 뒤 어떤 scale( 도 닫히지 않으므로 판정 불가로 한 번 적고 멈춘다(CSS 는 끝에서 자동으로 닫아 적용될 수 있다 → fail-closed).
+      for (let at = v.indexOf('scale'); at >= 0; ) {
+        let q = at + 5;
+        const suf = v.startsWith('3d', q) ? 2 : 'xyz'.includes(v[q] ?? '-') ? 1 : 0;
+        q += suf;
+        if (v[q] !== '(') {
+          at = v.indexOf('scale', at + 1);
+          continue;
+        }
+        const close = v.indexOf(')', q + 1);
+        if (close < 0) {
+          note(`transform:${L(v.slice(0, 30))} 판정 불가`);
+          break;
+        }
+        const args = v.slice(q + 1, close);
+        at = v.indexOf('scale', close + 1);
+        for (const t of args.split(/[\s,]+/).filter(Boolean)) {
           const m = /^-?(\d+(?:\.\d*)?|\.\d+)(%)?$/.exec(t);
           if (!m) note(`transform:${L(v.slice(0, 30))} 판정 불가`);
           else if ((m[2] ? Number(m[1]) / 100 : Number(m[1])) < 0.6) note(`transform:${L(v.slice(0, 30))} 축소`);
@@ -1599,6 +1614,8 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
   for (let i = 0; i < n; i++) {
     const e = els[i];
     const p = e.parent;
+    // qa HIGH: 속성 중복 — 파서(마지막 값)와 브라우저(첫 값)가 갈린다(style·class·aria-hidden·hidden·title 등으로 숨김·축소 위장). 정상 산출물엔 0 → fail-closed.
+    if (e.dupAttrs.length > 0) fail(lineOf(e.start), `<${e.name}> 속성 중복(${e.dupAttrs.map((k) => L(k.slice(0, 30))).join('·')}) — 브라우저는 첫 값을 쓴다, 숨김·축소 판정 우회 통로라 금지(fail-closed)`);
     if (p >= 0) {
       if (!children.has(p)) children.set(p, []);
       children.get(p).push(i);
