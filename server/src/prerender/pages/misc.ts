@@ -27,7 +27,7 @@ import {
 } from './common.js';
 import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell } from '../privacy-content.js';
 import { familyName } from './family.js';
-import { layerL4 } from './type.js';
+import { layerL4, specCheckTestimonials } from './type.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
 
@@ -318,6 +318,7 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
     data.requirements = [r.pub];
     data.products = r.products;
+    data.testimonials = specCheckTestimonials(m, t.id); // D6-B: 여기서 연 L4 → L5 결과 아래 후기(타입 페이지와 같은 1건)
   }
   return page(ctx, {
     title: `${it.name}${header ? ` · ${header.pub.displayName}` : ''}${COPY.site.titleSuffix}`,

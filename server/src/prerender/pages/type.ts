@@ -452,6 +452,21 @@ function layerL7(t: TypeModel, p: PublicProduct): string {
     .join('\n');
 }
 
+/**
+ * D6-B(Kenny 2026-11-14): L5 결과 아래 「크기 확인에 도움 된 점」 후보 — 서버 투영(m.testimonials = isTestimonialPublic:
+ *   APPROVED ∧ verifiedUsage ∧ 노출 타입, 불변식 ⑦) 중 이 타입 ∧ linkedAction=SPEC_CHECK 만, 시드 순서 첫 1건.
+ *   용품 단위 연결 필드가 없어 용품까지는 거르지 않는다(「같은 규격」 표기 없음). 0건이면 [] — 클라이언트는 영역째 그리지 않는다.
+ *   선정 순서(여러 건일 때)는 운영 결정 전까지 시드 순서 첫 건 — 별점·인기·판매 지표 없음.
+ *   정적 L5 는 입력 상태만 그리므로(판정 없음) 후기 마크업은 정적 HTML 에 없다 — ws-data 로만 싣는다.
+ */
+export function specCheckTestimonials(m: Pick<SiteModel, 'testimonials'>, typeId: string): WsPageData['data']['testimonials'] {
+  // L5 후기는 선 1개 + 텍스트(사진 없음) — 리뷰어 사진 경로는 싣지 않는다(쓰지 않는 자산 참조 0).
+  return m.testimonials
+    .filter((x) => x.animalTypeId === typeId && x.linkedAction === 'SPEC_CHECK')
+    .slice(0, 1)
+    .map((x) => ({ ...x, reviewerImage: null }));
+}
+
 /** ws-data — types 는 노출 타입 전체(R4 A2(a)), 나머지는 이 타입의 것. */
 function typeData(m: SiteModel, t: TypeModel): WsPageData['data'] {
   return {
@@ -460,7 +475,7 @@ function typeData(m: SiteModel, t: TypeModel): WsPageData['data'] {
     products: t.products,
     bundles: t.bundles,
     vets: typeVets(m, t.id),
-    testimonials: [],
+    testimonials: specCheckTestimonials(m, t.id),
   };
 }
 

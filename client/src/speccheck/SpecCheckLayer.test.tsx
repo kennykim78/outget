@@ -2,9 +2,9 @@
 //   경계값(최소 정확히 OK · 1 미만 BELOW_MIN · 최소~권장 사이 BELOW_RECOMMENDED), 60×40×35 리빙박스 + 30cm 쳇바퀴 → CHECK,
 //   컨텍스트 없으면 2단 미표시, spec_checker_used 제출당 1, compatibility_checked 규칙당 1, URL·이미지 입력 0,
 //   카탈로그 실패 → 폼 비활성 + 안내, D-35(입력 변경 → 결과 제거), 결과에 상품·♥ 0(D-43), L6 저장 키 = 스키마 키만.
-import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY, formatCopy } from '@ws/copy';
-import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type PublicRequirement, type SpecSchema } from '@ws/engine';
+import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type PublicRequirement, type SpecSchema, type WsPageData } from '@ws/engine';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry } from '../app/layerRegistry';
@@ -953,5 +953,99 @@ describe('L5 제휴 고지(265 — K6 전부 펼침 + 261 §1·§2.5)', () => {
     );
     expect(screen.queryAllByRole('link')).toHaveLength(0);
     expect(document.querySelector('[data-ws-aff]')).toBeNull();
+  });
+});
+
+// D6-B(Kenny 2026-11-14): L5 결과 아래 「크기 확인에 도움 된 점」 — ws-data testimonials(서버 투영 = APPROVED ∧ verifiedUsage) 중
+//   이 동물 ∧ SPEC_CHECK 의 첫 1건만. 0건·다른 동물·다른 행동이면 영역째 없음. 입력 상태에는 없음. 선 1개 + 텍스트(버튼·링크·사진·별점 0).
+describe('L5 후기 — 크기 확인에 도움 된 점(D6-B)', () => {
+  const SPEC_T = { id: 't-spec', quote: '지름을 재 보고 나서 바꿔야 할 걸 알았어요', animalTypeId: golden.id, situation: 'FIRST_TIME', linkedAction: 'SPEC_CHECK', reviewerImage: null } as const;
+  function reviewPage(testimonials: WsPageData['data']['testimonials']) {
+    return pageOf('TYPE', { ...PAGE.data, testimonials }, { typeId: golden.id, path: '/hamster/golden' });
+  }
+  async function openWithPage(page: WsPageData): Promise<HTMLElement> {
+    render(
+      <LayerPageProvider page={page}>
+        <LayerHost registry={layerRegistry} />
+      </LayerPageProvider>,
+    );
+    act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'wheel' }, { url: '/hamster/golden/check/wheel' }));
+    const d = await screen.findByRole('dialog');
+    await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 });
+    return d;
+  }
+  const reviewOf = (d: HTMLElement) => d.querySelector('[data-ws-part="review"]');
+  const cleanupAll = () => {
+    act(() => layerStore.resetForTest());
+    cleanup();
+  };
+
+  it('0건 → 결과 상태에 영역·제목 없음(DOM 0)', async () => {
+    const d = await openWithPage(reviewPage([]));
+    await ready(d);
+    await checkWheel(d, '26');
+    expect(reviewOf(d)).toBeNull();
+    expect(d.textContent).not.toContain(COPY.verdict.reviewTitle);
+    expect(d.querySelector('[data-ws-id^="testimonials#"]')).toBeNull();
+  });
+
+  it('1건 → 결과 상태(BELOW_MIN·OK 모두)에 제목·원문·한 줄, 입력 상태에는 없음', async () => {
+    const d = await openWithPage(reviewPage([SPEC_T]));
+    await ready(d);
+    expect(reviewOf(d)).toBeNull(); // 입력 상태
+    let r = await checkWheel(d, '26');
+    expect(r.getAttribute('data-ws-verdict')).toBe('BELOW_MIN');
+    let s = reviewOf(d) as HTMLElement;
+    expect(s).not.toBeNull();
+    expect(s.getAttribute('data-ws-id')).toBe('testimonials#t-spec');
+    expect(within(s).getByRole('heading', { level: 4 }).textContent).toBe(COPY.verdict.reviewTitle);
+    expect(s.querySelector('blockquote')?.textContent).toBe(`“${SPEC_T.quote}”`);
+    expect(s.textContent).toContain(`${golden.displayName} · ${COPY.situation.FIRST_TIME}`);
+    // 선 1개 + 텍스트: 버튼·링크·사진·폼 없음, 결과 설명 다음 · 대안·검색 링크 앞.
+    expect(s.querySelectorAll('button, a, img, input')).toHaveLength(0);
+    const order = Array.from(r.querySelectorAll('[data-ws-tier="product"], [data-ws-part="review"], [data-ws-part="alternatives"], .ws-search-merchants'));
+    expect(order[0].getAttribute('data-ws-tier')).toBe('product');
+    expect(order[1]).toBe(s);
+    expect(order.length).toBeGreaterThan(2);
+    // 「다시 입력하기」 → 입력 상태: 후기 없음.
+    toInput(d);
+    expect(reviewOf(d)).toBeNull();
+    r = await checkWheel(d, '30');
+    expect(r.getAttribute('data-ws-verdict')).toBe('OK');
+    s = reviewOf(d) as HTMLElement;
+    expect(s).not.toBeNull();
+    expect(d.querySelectorAll('[data-ws-part="review"]')).toHaveLength(1);
+  });
+
+  it('다른 동물·다른 행동(CHECKLIST·SETUP·VET)·빈 문장 후기는 비노출, 여러 건이면 첫 1건만', async () => {
+    const others: WsPageData['data']['testimonials'] = [
+      { ...SPEC_T, id: 't-other', animalTypeId: 'hamster-dwarf' },
+      { ...SPEC_T, id: 't-cl', linkedAction: 'CHECKLIST' },
+      { ...SPEC_T, id: 't-su', linkedAction: 'SETUP' },
+      { ...SPEC_T, id: 't-vet', linkedAction: 'VET' },
+      { ...SPEC_T, id: 't-empty', quote: '  ' },
+    ];
+    const d = await openWithPage(reviewPage(others));
+    await ready(d);
+    await checkWheel(d, '26');
+    expect(reviewOf(d)).toBeNull();
+    cleanupAll();
+    const d2 = await openWithPage(reviewPage([...others, SPEC_T, { ...SPEC_T, id: 't-spec-2', quote: '두 번째 문장이에요' }]));
+    await ready(d2);
+    await checkWheel(d2, '26');
+    const all = d2.querySelectorAll('[data-ws-part="review"]');
+    expect(all).toHaveLength(1);
+    expect(all[0].getAttribute('data-ws-id')).toBe('testimonials#t-spec');
+    expect(d2.textContent).not.toContain('두 번째 문장이에요');
+  });
+
+  it('후기 영역 고정 문구에 금지어·별점·시안 자리표시 없음', async () => {
+    const d = await openWithPage(reviewPage([SPEC_T]));
+    await ready(d);
+    await checkWheel(d, '26');
+    const text = (reviewOf(d) as HTMLElement).textContent ?? '';
+    for (const banned of ['괜찮', '안전하', '최저가', '판매순', '베스트', '정확도', '회원가입', '구매', '★', '별점', '예시 문구', '시안용', '자리표시', '실제 후기 아님']) {
+      expect(text, banned).not.toContain(banned);
+    }
   });
 });

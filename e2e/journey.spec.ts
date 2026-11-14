@@ -128,16 +128,24 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await Promise.all([page.waitForURL(`**${TYPE.home}/check/wheel`), tap(page, L4.locator('.ws-layer-foot a', { hasText: '규격 확인' }))]);
     await expect(L5.locator('[data-ws-step="L5"]')).toBeVisible();
     await assertScreen(page, 'L5');
+    await expect(L5.locator('[data-ws-part="review"]')).toHaveCount(0); // D6-B: 입력 상태엔 후기 없음
 
     const v30 = await judgeWheel(L5, '30');
     await expect(v30).toHaveAttribute('data-ws-verdict', 'OK');
     await expect(v30.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('○'); // 286 U5b R4 fix 4상태: ○ 기준 충족
     await expect(v30.locator('[data-ws-tier="compat"]')).toHaveCount(0);
+    // D6-B: 결과 아래 「크기 확인에 도움 된 점」 — 데모 시드의 골든 SPEC_CHECK 승인 후기 첫 1건(t-002), 선 1개 + 텍스트.
+    const review = v30.locator('[data-ws-part="review"]');
+    await expect(review).toHaveCount(1);
+    await expect(review).toHaveAttribute('data-ws-id', 'testimonials#t-002');
+    await expect(review.locator('h4')).toHaveText('크기 확인에 도움 된 점');
+    await expect(review.locator('a, button, img')).toHaveCount(0);
     await assertScreen(page, 'L5 30cm');
 
     const v20 = await judgeWheel(L5, '20');
     await expect(v20).toHaveAttribute('data-ws-verdict', 'BELOW_MIN');
     await expect(v20.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('✕');
+    await expect(v20.locator('[data-ws-part="review"]')).toHaveCount(1); // 미달 결과에서도 같은 자리(판정은 바뀌지 않음)
     await assertScreen(page, 'L5 20cm');
 
     const vNone = await judgeWheel(L5, '');

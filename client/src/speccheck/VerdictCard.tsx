@@ -1,6 +1,6 @@
 // VerdictCard(스펙33 §3·§4 · 286 U5b 결과 상태) — 판정 = 정보, 추천 아님. 상품 카드·♥·상품명 0(D-43), 대안은 SupplyItem 만.
 //   순서: 「{동물} · {용품}」 → 판정 제목 문장 → 「최소 {항목}」 큰 숫자(+ 권장 줄) → 제품 규격 단(「내 {용품}」 입력값 · 아이콘+색+단어 · 차이 줄)
-//        → 내 환경 호환 단(엔진 compat ≠ NONE 일 때만, 2단 구조 유지) → 케이지 줄 → 대안 → 검색 블록 → 고정 meta → 검수 meta.
+//        → 내 환경 호환 단(엔진 compat ≠ NONE 일 때만, 2단 구조 유지) → 케이지 줄 → (D6-B 후기, 있을 때만) → 대안 → 검색 블록 → 고정 meta → 검수 meta.
 //   숫자는 계산하지 않는다(불변식 ⑥): 큰 숫자 = 해석된 minSpec 규칙 값·Reason.expected, 내 값 = 입력, 차이 = expected − actual(표시용 뺄셈).
 //   이유는 엔진 Reason.message 그대로(앞 3개 + "그 밖에 {n}개" 펼침). 낭독용 라이브 영역은 SpecCheckLayer(항상 마운트) — 여기엔 aria-live 없음.
 //   카드 속 카드 없음: 테두리 상자 대신 구분선으로 단을 나눈다.
@@ -53,6 +53,8 @@ export interface VerdictCardProps {
   describedId?: string;
   /** 호환 단 아래 케이지 줄(등록·수정 링크) — SpecCheckLayer 가 그린다. */
   contextRow?: ReactNode;
+  /** D6-B: 결과 설명(제품·호환 단·케이지 줄) 바로 다음, 대안·검색 링크 앞 — 「크기 확인에 도움 된 점」(0건이면 null). */
+  reviewSlot?: ReactNode;
   onOpenAlternative(supplyItemId: string): void;
 }
 
@@ -170,6 +172,7 @@ const VerdictCard = forwardRef<HTMLHeadingElement, VerdictCardProps>(function Ve
         </div>
       ) : null}
       {p.contextRow ?? null}
+      {p.reviewSlot ?? null}
       {p.alternatives.length > 0 ? (
         <div className="ws-verdict-alts" data-ws-part="alternatives">
           <p className="ws-t-label ws-spec-muted">{COPY.supplyLayer.alternatives}</p>

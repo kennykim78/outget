@@ -279,6 +279,8 @@ export const COPY = deepFreeze({
     shortBy: sent('최소 {name}보다 {n}{unit} 작아요'),
     reenter: '다시 입력하기',
     seeBasis: '{name} 기준 살펴보기',
+    /** D6-B(Kenny 2026-11-14) — L5 결과 아래 승인 후기 1건의 제목. 후기가 0건이면 제목째 그리지 않는다(빈 상태 문구 없음). */
+    reviewTitle: '크기 확인에 도움 된 점',
   },
   /** R5 C1 — L6 내 케이지(PRD US-010). 필드 라벨은 cage specSchema(시드)가 정한다. */
   cage: {

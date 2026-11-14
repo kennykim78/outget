@@ -331,6 +331,26 @@
   border-top: 1px solid var(--ws-line);
 }
 
+/* D6-B 후기(시안 r5 B): 선 1개 + 텍스트만 — 테두리 상자·배경·그림자 없음(카드 속 카드 금지). 0건이면 요소째 없음. */
+.ws-spec-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding-top: var(--ws-space-4);
+  border-top: 1px solid var(--ws-line);
+}
+
+.ws-spec-review-title {
+  margin: 0;
+  color: var(--ws-ink);
+}
+
+.ws-spec-review-quote {
+  margin: 0;
+  color: var(--ws-ink);
+  overflow-wrap: anywhere;
+}
+
 .ws-verdict-line-head {
   color: var(--ws-ink-muted);
 }

@@ -578,6 +578,58 @@ describe('R4 A2 프리렌더 보강', () => {
     expect([...ex.ids.testimonials].sort()).toEqual(['t-001']);
   });
 
+  // D6-B(Kenny 2026-11-14): L5 결과 아래 후기 — 타입 페이지 ws-data 에만, 이 타입 ∧ SPEC_CHECK ∧ (APPROVED ∧ verifiedUsage) 첫 1건, 사진 경로 없음.
+  //   정적 L5 는 입력 상태만이라 후기 마크업 0(결과 상태에서만 클라이언트가 그린다). 홈·기타 페이지 ws-data 는 [] 유지.
+  describe('D6-B L5 후기 ws-data', () => {
+    const tData = (html: string) => (wsDataOf(html) as { data: { testimonials: Row[]; requirements: Row[] } }).data;
+    const approve = (s: SeedBundle, id: string, over: Record<string, unknown> = {}) =>
+      patch(s, 'testimonials', id, { status: 'APPROVED', verifiedUsage: true, quote: `${id} 크기 후기 표식이에요`, consentAt: '2026-09-26', ...over });
+
+    it('APPROVED ∧ verifiedUsage ∧ SPEC_CHECK(골든) → 타입 페이지 ws-data 1건(첫 건만·사진 null), 정적 HTML 엔 마크업 0', () => {
+      const s = promoted();
+      approve(s, 't-002', { reviewerImage: '/assets/reviewers/x.webp', reviewerImageConsent: true });
+      approve(s, 't-005');
+      const b = buildM(s);
+      const typePages = b.pages.filter((p) => tData(p.html).requirements.length > 0);
+      expect(typePages.map((p) => p.route.path)).toContain('/hamster/golden/check/wheel');
+      for (const p of typePages) {
+        const ts = tData(p.html).testimonials;
+        expect(ts.map((t) => t.id), p.route.path).toEqual(['t-002']);
+        expect(ts[0].reviewerImage, p.route.path).toBeNull();
+        expect(ts[0].linkedAction).toBe('SPEC_CHECK');
+      }
+      for (const p of b.pages.filter((x) => tData(x.html).requirements.length === 0)) expect(tData(p.html).testimonials, p.route.path).toEqual([]);
+      // 정적 마크업(ws-data 밖)에는 후기 문장·제목·testimonials# 0 — 정적 L5 는 입력 상태.
+      for (const p of b.pages) {
+        const visible = p.html.replace(/<script id="ws-data"[\s\S]*?<\/script>/, '');
+        expect(visible, p.route.path).not.toContain('크기 후기 표식');
+        expect(visible, p.route.path).not.toContain('testimonials#');
+        expect(visible, p.route.path).not.toContain(COPY.verdict.reviewTitle);
+      }
+      // 홈 후기(CHECKLIST t-001)는 타입 페이지에도 없다(SPEC_CHECK 만).
+      expect([...b.files.values()].join('\n')).not.toContain('픽스처 후기 문장이에요');
+      expect(leaks(b, s)).toEqual([]);
+    });
+
+    it.each([
+      ['SUBMITTED', { status: 'SUBMITTED' }],
+      ['HIDDEN', { status: 'HIDDEN' }],
+      ['SLOT', { status: 'SLOT' }],
+      ['verifiedUsage=false', { verifiedUsage: false }],
+    ])('%s 후기는 어떤 산출물에도 없다', (_name, over) => {
+      const s = promoted();
+      approve(s, 't-002', over);
+      const b = buildM(s);
+      expect([...b.files.values()].join('\n')).not.toContain('t-002 크기 후기 표식');
+      for (const p of b.pages) expect(tData(p.html).testimonials, p.route.path).toEqual([]);
+    });
+
+    it('실시드(후기 전부 SLOT) → 모든 페이지 testimonials []', () => {
+      const b = buildM(realSeed());
+      for (const p of b.pages) expect(tData(p.html).testimonials, p.route.path).toEqual([]);
+    });
+  });
+
   it('ws-data ≤ 32KB (모든 페이지)', () => {
     for (const p of buildM(promoted()).pages) expect(p.wsDataBytes, p.route.path).toBeLessThanOrEqual(32 * 1024);
   });

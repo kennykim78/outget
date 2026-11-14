@@ -20,6 +20,7 @@ import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
 import { layerStore } from '../ui/layer/useLayer';
 import SpecForm from './SpecForm';
+import SpecReview from './SpecReview';
 import { useSpecCatalog } from './useSpecCatalog';
 import VerdictCard, { verdictLiveText, type VerdictAlternative } from './VerdictCard';
 import { cageSummary, hasCageRule, perRuleVerdicts, toSpecInput, yearMonth } from './verdictView';
@@ -247,6 +248,7 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
               seq={outcome.seq}
               describedId={describedId}
               contextRow={cageRow}
+              reviewSlot={<SpecReview testimonials={page.data.testimonials} animalTypeId={typeId} animalName={type.displayName} />}
               onOpenAlternative={openAlternative}
             />
           ) : (
