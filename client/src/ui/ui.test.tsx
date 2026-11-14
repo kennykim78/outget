@@ -109,7 +109,7 @@ describe('copyText', () => {
     expect(copyAt('nav.logo')).toBe('WithSmall');
     expect(copyAt('nav')).toBeNull();
     expect(copyAt('nope.missing')).toBeNull();
-    expect(copyFmt('homeB.saveTitle', { animal: '골든햄스터' })).toBe('골든햄스터 준비, 이어서 할까요?');
-    expect(copyFmt('homeB.saveTitle', {})).toBeNull();
+    expect(copyFmt('homeB.specBasis', { animal: '골든햄스터' })).toBe('골든햄스터 기준');
+    expect(copyFmt('homeB.specBasis', {})).toBeNull();
   });
 });

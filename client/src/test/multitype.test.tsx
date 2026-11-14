@@ -73,15 +73,15 @@ afterEach(() => {
 });
 
 describe('다동물 격리 — 섞인 page.data 에서 A 만', () => {
-  it('① 홈 B(A): 칩 = A 필수만, "필수 2개 남았어요"(B 3 이 섞이면 5)', () => {
+  it('① 홈 B(A): 항목 카드 = A 필수만, "필수 2가지 중 2가지가 남았어요."(B 3 이 섞이면 5)', () => {
     window.localStorage.setItem(setupKey(golden.id), answered());
     render(<App page={mixedPage()} captured={NO_CAPTURE} />);
     const now = document.querySelector('[data-ws-section="now"]') as HTMLElement;
-    const chips = Array.from(now.querySelectorAll('.ws-need')).map((c) => c.textContent ?? '');
-    expect(chips).toHaveLength(2);
-    expect(chips[0]).toContain('골든케이지');
-    expect(chips[1]).toContain('골든바퀴');
-    expect(now).toHaveTextContent('필수 2개 남았어요');
+    const cards = Array.from(now.querySelectorAll('.ws-now-card .ws-now-name')).map((c) => c.textContent ?? '');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain('골든케이지');
+    expect(cards[1]).toContain('골든바퀴');
+    expect(now).toHaveTextContent('필수 2가지 중 2가지가 남았어요.');
     expect(document.body.textContent ?? '').not.toContain('픽스처');
   });
 

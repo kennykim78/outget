@@ -4,7 +4,7 @@ import { escapeAttr, escapeHtml, jsonForScript } from '../prerender/html.js';
 import { BODY_MARKER, HEAD_MARKER, injectTemplate } from '../prerender/template.js';
 import { buildSitemap } from '../prerender/sitemap.js';
 import { buildRobots } from '../prerender/robots.js';
-import { COPY, allCopyStrings, formatCopy } from '../prerender/copy.js';
+import { COPY, allCopyStrings, formatCopy, objectParticle } from '../prerender/copy.js';
 import { lintText } from '../seed/lint.js';
 
 // 위반 문자열은 런타임 조립(compliance-scan 이 테스트 소스를 걸러내지 않음).
@@ -216,7 +216,7 @@ describe('copy', () => {
 
   it('문구가 충분히 수집된다(섹션 제목 포함)', () => {
     expect(strings.length).toBeGreaterThan(40);
-    for (const t of ['지금 필요한 것', '처음 준비한다면', '기준에 맞는 준비물', '우리 동네 병원']) {
+    for (const t of ['지금 필요한 것', '나중에 필요한 것', '꼭 필요한 것 먼저', '우리 동네 병원']) {
       expect(strings).toContain(t);
     }
     expect(COPY.homeB.nowBeforeSetup).toBe('필수 준비를 먼저 확인해요');
@@ -270,18 +270,26 @@ describe('copy', () => {
   });
 
   it('formatCopy 는 {animal} 만 채우고 미지 토큰은 throw', () => {
-    expect(formatCopy(COPY.homeB.saveTitle, { animal: '골든햄스터' })).toBe('골든햄스터 준비, 이어서 할까요?');
+    expect(formatCopy(COPY.homeB.specBasis, { animal: '골든햄스터' })).toBe('골든햄스터 기준');
     expect(() => formatCopy('{x}', { animal: 'a' })).toThrow();
-    expect(() => formatCopy(COPY.homeB.saveTitle, {})).toThrow();
+    expect(() => formatCopy(COPY.homeB.specBasis, {})).toThrow();
   });
 
   it('formatCopy 는 {n}(숫자)·{alias}·{name} 도 채우고 누락·비유한수는 throw', () => {
-    expect(formatCopy(COPY.homeB.nowRemaining, { n: 3 })).toBe('필수 3개 남았어요');
-    expect(formatCopy(COPY.homeB.nowRemaining, { n: 0 })).toBe('필수 0개 남았어요');
+    expect(formatCopy(COPY.homeB.nowCount, { total: 6, n: 2 })).toBe('필수 6가지 중 2가지가 남았어요.');
+    expect(formatCopy(COPY.homeB.nowCta, { n: 0 })).toBe('남은 준비 0개 살펴보기');
     expect(formatCopy(COPY.homeB.aliasLine, { alias: '골댕이' })).toBe('골댕이라고도 불러요');
     expect(formatCopy(COPY.checklist.itemDetailAria, { name: '케이지' })).toBe('케이지 자세히');
     expect(formatCopy(COPY.bundle.newCount, { n: 2 })).toBe('새로 2개');
-    expect(() => formatCopy(COPY.homeB.nowRemaining, {})).toThrow();
-    expect(() => formatCopy(COPY.homeB.nowRemaining, { n: Number.NaN })).toThrow();
+    expect(() => formatCopy(COPY.homeB.nowCount, { n: 2 })).toThrow();
+    expect(() => formatCopy(COPY.homeB.nowCta, { n: Number.NaN })).toThrow();
+  });
+
+  it('objectParticle: 받침 있으면 「을」, 없으면 「를」, 한글이 아니면 「을(를)」', () => {
+    expect(objectParticle('골든햄스터')).toBe('골든햄스터를');
+    expect(objectParticle('저빌')).toBe('저빌을');
+    expect(objectParticle('왕관앵무')).toBe('왕관앵무를');
+    expect(objectParticle('Robo')).toBe('Robo을(를)');
+    expect(formatCopy(COPY.homeB.vetTitle, { animal: objectParticle('골든햄스터') })).toBe('골든햄스터를 진료하는 병원');
   });
 });

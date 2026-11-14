@@ -213,24 +213,25 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(sm).toContain(`${ORIGIN}/vet/${encodeURIComponent('서울-마포구')}</loc><lastmod>2026-09-28</lastmod>`);
   });
 
-  it('타입 홈 B: 컨텍스트 + 5섹션 순서, ① 진행 숫자 없음(D18 — 칩 규격 요약 G-1 만 예외), ④ 병원 레일(D16) + /vet 링크', () => {
+  it('타입 홈 B(R4-2): 컨텍스트 → now → spec → vet → save 순서, ① 진행 숫자 없음(D18), 숫자는 ③ 규격(엔진 minSpecFigure)에만, ④ /vet 링크', () => {
     const html = page('/hamster/golden');
-    const order = ['now', 'bundles', 'products', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
+    const order = ['now', 'spec', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    // 51 레인 A: client RailSection 마크업(h2.ws-t-section + p.ws-rail-sub), NeedChip 규격 span.ws-need-spec.
-    expect(html).toContain('<h2 id="ws-sec-now-title" class="ws-t-section">지금 필요한 것</h2><p class="ws-rail-sub ws-t-body">필수 준비를 먼저 확인해요</p>');
-    // 여는 태그 속성(data-ws-answered="0")은 가시 텍스트가 아니므로 태그 끝 이후부터.
+    expect(html).toContain('<h2 id="ws-sec-now-title" class="ws-t-display ws-home-sec-title">지금 필요한 것</h2>');
+    expect(html).toContain('<p class="ws-t-body ws-muted ws-now-count">필수 준비를 먼저 확인해요</p>');
+    // 여는 태그 속성(data-ws-answered="0")은 가시 텍스트가 아니므로 태그 끝 이후부터. ① 엔 진행·개수 숫자 0(이유 문장도 시드 why 첫 문장 — 이 시드엔 숫자 없음).
     const now = html.slice(html.indexOf('>', order[0]) + 1, order[1]);
-    // 진행·개수 숫자 0. 숫자는 칩 규격 요약(엔진 chipSpecText, "28cm 이상")에만.
-    expect(visibleText(now.replace(/<span class="ws-t-meta ws-need-spec">[^<]*<\/span>/g, ''))).not.toMatch(/\d/);
-    expect(now).toContain('<span class="ws-t-meta ws-need-spec">100×50×50cm 이상</span>');
-    expect(now).not.toContain('↑');
-    const vet = html.slice(order[3], order[4]);
+    expect(visibleText(now)).not.toMatch(/\d/);
+    const spec = html.slice(order[1], order[2]);
+    expect(spec).toContain('<span class="ws-spec-sec-value">100×50×50</span>');
+    expect(spec).not.toContain('↑');
+    const vet = html.slice(order[2], order[3]);
     expect(vet).toContain('href="/vet"');
-    expect(vet).toContain('data-ws-id="vetClinics#');
+    expect(vet).toContain('골든햄스터를 진료하는 병원');
+    expect(vet).not.toContain('data-ws-id="vetClinics#');
     expect(html).toContain('data-ws-type="hamster-golden"');
-    expect(html).toContain('골든햄스터 준비, 이어서 할까요?');
+    expect(html).toContain('준비한 내용을 이어서 볼까요?');
   });
 
   it('L4 레이어: 부모 본문 + US-007 순서, 규격 문장, 검색 링크 rel noopener', () => {
@@ -273,8 +274,8 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(l7aside).toContain('>이 조건으로 쿠팡에서 찾기<span class="ws-visually-hidden"> (새 창)</span></a>');
     expect(l7aside).toContain('>이 조건으로 네이버에서 찾기<span class="ws-visually-hidden"> (새 창)</span></a>');
     expect(l7aside).toContain('<h3>이 조건으로 찾기</h3>');
-    // 구성안 참고 범위 옆 안내(K1)
-    expect(page('/hamster/golden')).toContain('참고 범위예요. 실제 가격은 판매처마다 달라요');
+    // 구성안 참고 범위 옆 안내(K1) — R4-2 이후 구성안 카드는 /setup 에만
+    expect(page('/hamster/golden/setup')).toContain('참고 범위예요. 실제 가격은 판매처마다 달라요');
   });
 
   it('PublicProduct.verdict 는 orderExposableProducts 결과(OK)', () => {
@@ -450,7 +451,9 @@ describe('R4 A2 프리렌더 보강', () => {
         expect(c).not.toMatch(/₩|원\b|구매|가격/);
       }
     }
-    expect(pageOf(b, '/hamster/golden').match(/<li class="ws-product"/g)).toHaveLength(1);
+    // R4-2: 홈 B 에는 상품 카드가 없다(상품 표면은 L4 후보 영역·L7).
+    expect(pageOf(b, '/hamster/golden').match(/<li class="ws-product"/g)).toBeNull();
+    expect(pageOf(b, '/hamster/golden/supplies/wheel').match(/<li class="ws-product"/g)).toHaveLength(1);
     const l7 = pageOf(b, '/hamster/golden/products/cp-001');
     expect(l7).toContain(badge);
     expect(l7).toContain(tile);
@@ -458,13 +461,13 @@ describe('R4 A2 프리렌더 보강', () => {
 
   it('(d) enum 라벨: 규격 한 줄은 라벨 없는 enum 생략, L4 조건 행 숨김, L5 는 라벨 불완전 enum 필드 미렌더 + 선택 표기', () => {
     const labeled = buildM(promoted());
-    expect(pageOf(labeled, '/hamster/golden')).toContain('<span class="ws-spec">지름 30cm · 바닥면 픽스처 라벨 1 · 설치 픽스처 라벨 1</span>');
+    expect(pageOf(labeled, '/hamster/golden/supplies/wheel')).toContain('<span class="ws-spec">지름 30cm · 바닥면 픽스처 라벨 1 · 설치 픽스처 라벨 1</span>');
     expect(pageOf(labeled, '/hamster/golden/supplies/wheel')).toContain('바닥면 픽스처 라벨 1');
     const s = promoted();
     const wheel = s.supplyItems.find((x) => x.id === 'wheel') as SeedBundle['supplyItems'][number];
     for (const f of wheel.specSchema.fields) if (f.type === 'enum') delete f.optionLabels;
     const b = buildM(s);
-    const home = pageOf(b, '/hamster/golden');
+    const home = pageOf(b, '/hamster/golden/supplies/wheel');
     expect(home).toContain('<span class="ws-spec">지름 30cm</span>');
     for (const code of ['SOLID', 'STAND', 'MESH', 'HANG']) {
       for (const p of b.pages) expect(p.html.replace(/<script[\s\S]*?<\/script>/g, ''), `${p.route.path} ${code}`).not.toContain(code);
@@ -506,11 +509,14 @@ describe('R4 A2 프리렌더 보강', () => {
     }
     expect(pageOf(b, '/hamster/golden')).not.toContain('ws-scrim');
     // 51 레인 A(O-1): 인라인 SVG(D-2) → client AnimalAvatar 와 같은 img(/mascots/{asset}.svg). 정제 SVG 는 빌드 시 자산 검증용으로만.
-    //   286 U3a: 홈 A 히어로는 마스코트 없음(R3 시안) — 아래 홈 B 컨텍스트 헤더로 확인.
+    //   286 U3a: 홈 A 히어로는 마스코트 없음(R3 시안), R4-2: 홈 B 컨텍스트 헤더도 마스코트 없음 — 헤더 동물 칩으로 확인.
     expect(/<section class="ws-hero"[^>]*>\n<span class="ws-avatar/.test(pageOf(b, '/'))).toBe(false);
-    const ctx = /<section class="ws-context"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/hamster/golden'));
-    expect(ctx?.[1]).toContain('ws-avatar--peach-soft');
-    expect(ctx?.[1]).toContain('src="/mascots/hamster-golden.svg"');
+    const home = pageOf(b, '/hamster/golden');
+    const ctxSec = home.slice(home.indexOf('<section class="ws-context"'), home.indexOf('</section>', home.indexOf('<section class="ws-context"')));
+    expect(ctxSec).not.toContain('ws-avatar');
+    const chip = /(<span class="ws-avatar ws-avatar--sm[^"]*" aria-hidden="true"><img [^>]*>)/.exec(home);
+    expect(chip?.[1]).toContain('ws-avatar--peach-soft');
+    expect(chip?.[1]).toContain('src="/mascots/hamster-golden.svg"');
     expect(pageOf(b, '/hamster/golden')).not.toMatch(/role="img"|aria-label="골든/);
   });
 

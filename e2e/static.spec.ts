@@ -43,27 +43,26 @@ test('no-JS: 홈 CTA → /pick 200 · 정적 L1 링크 → 타입 홈 200', asyn
   await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
 });
 
-test('no-JS /hamster/golden 본문 — 타입명 · 필수 항목 · 규격 문장 · 병원 리스트', async ({ newContext }) => {
+test('no-JS /hamster/golden 본문 — 타입명 · 필수 항목 카드 · 규격 숫자 · 병원 링크(R4-2)', async ({ newContext }) => {
   const ctx = await newContext({ javaScriptEnabled: false });
   const page = await ctx.newPage();
   const res = await page.goto(TYPE.home);
   expect(res?.status()).toBe(200);
   await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
   const now = page.locator('section[data-ws-section="now"]');
-  // 필수 항목(데모 시드: 케이지·쳇바퀴)과 각 규격 문장(최소 규격에서 나온 "… 이상").
-  for (const [item, name, spec] of [
-    ['cage', '케이지', '100×50×50cm 이상'], // BE92: 골든 케이지 최소 100×50×50(Kenny 2026-10-25)
-    ['wheel', '쳇바퀴', '27cm 이상'], // BE92: 쳇바퀴 최소 27(85)
+  // 필수 항목(데모 시드: 케이지·쳇바퀴) 카드 — 정적은 neutral.
+  for (const [item, name] of [
+    ['cage', '케이지'],
+    ['wheel', '쳇바퀴'],
   ] as const) {
-    const chip = now.locator(`li[data-ws-item="${item}"]`);
-    await expect(chip).toContainText(name);
-    await expect(chip).toContainText(spec);
+    const card = now.locator(`li[data-ws-item="${item}"]`);
+    await expect(card).toContainText(name);
+    await expect(card.locator('a.ws-now-card')).toHaveAttribute('data-ws-state', 'neutral');
   }
-  const vets = page.locator('section[data-ws-section="vet"] li.ws-vet');
-  await expect(vets).toHaveCount(3);
-  await expect(page.locator('section[data-ws-section="vet"]')).toContainText('데모 동물병원 1');
-  const products = page.locator('section[data-ws-section="products"] li.ws-product');
-  await expect(products).toHaveCount(1);
+  // 규격 숫자 = 시드 최소 규격(BE92: 골든 케이지 100×50×50, Kenny 2026-10-25) — 엔진 minSpecFigure.
+  await expect(page.locator('section[data-ws-section="spec"] .ws-spec-sec-value')).toHaveText('100×50×50');
+  await expect(page.locator('section[data-ws-section="vet"] a[href="/vet"]')).toHaveCount(1);
+  await expect(page.locator('main li.ws-product, main li.ws-vet')).toHaveCount(0);
   await assertScreen(page, 'no-JS /hamster/golden');
 });
 
@@ -107,9 +106,9 @@ test('/privacy 390 — 표 폭 ≤ 부모 폭 · 문서 가로 넘침 0', async 
   expect(m.doc.scroll, '문서 가로 넘침 0').toBeLessThanOrEqual(m.doc.client);
 });
 
-// qa MED-1: 홈 B 「지금 필요한 것」 칩이 하이드레이션 뒤 재정렬(케이지 체크 ✓ → 호환 판정 △ 로 맨 앞)되어도
-//   레일은 시작(scrollLeft 0)에 머문다 — Chrome scroll-snap 재스냅이 원래 첫 칩을 따라가 새 첫 칩이 왼쪽으로 잘리던 결함.
-test('홈 B 칩 레일 — 재정렬 뒤에도 첫 칩이 잘리지 않는다(390 · 1280)', async ({ page }) => {
+// R4-2(이월 R4-1 qa MED-1): 홈 B 「지금 필요한 것」은 가로 레일이 아니라 카드 그리드 — 재정렬 없이 derive 순서 고정.
+//   케이지 체크 ✓ → 호환 판정 뒤 △ 로 바뀌면 카드가 제자리(입력 순서)에 나타날 뿐, 앞 카드 순서는 흔들리지 않는다.
+test('홈 B 항목 카드 — 판정 뒤에도 derive 순서(케이지 → 쳇바퀴)를 지킨다(390 · 1280)', async ({ page }) => {
   await page.addInitScript((typeId) => {
     if (sessionStorage.getItem('ws.e2e.seeded')) return;
     sessionStorage.setItem('ws.e2e.seeded', '1');
@@ -122,16 +121,11 @@ test('홈 B 칩 레일 — 재정렬 뒤에도 첫 칩이 잘리지 않는다(39
     localStorage.setItem(`ws.context.${typeId}.cage`, JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: now }));
   }, TYPE.id);
   await gotoHydrated(page, TYPE.home);
-  const rail = page.locator('section[data-ws-section="now"] ul.ws-chips');
-  // 호환 판정 뒤 △ 케이지가 맨 앞(재정렬 완료).
-  await expect(rail.locator('li').first()).toHaveAttribute('data-ws-item', 'cage');
-  await expect(rail.locator('li').first().locator('a.ws-need')).toHaveAttribute('data-ws-state', 'check');
-  await page.waitForTimeout(300); // 재스냅(스크롤 이벤트) 한 바퀴
-  const m = await rail.evaluate((ul) => {
-    const pad = parseFloat(getComputedStyle(ul).paddingLeft) || 0;
-    const first = ul.querySelector('li')!.getBoundingClientRect().left;
-    return { scrollLeft: ul.scrollLeft, first, start: ul.getBoundingClientRect().left + pad };
-  });
-  expect(m.scrollLeft, '레일 시작 고정').toBe(0);
-  expect(m.first, '첫 칩 왼쪽 ≥ 레일 안쪽 시작').toBeGreaterThanOrEqual(m.start - 0.5);
+  const items = page.locator('section[data-ws-section="now"] li.ws-now-item');
+  await expect(items.first()).toHaveAttribute('data-ws-item', 'cage');
+  await expect(items.first().locator('a.ws-now-card')).toHaveAttribute('data-ws-state', 'check');
+  const ids = await items.evaluateAll((els) => els.map((e) => e.getAttribute('data-ws-item')));
+  expect(ids.indexOf('cage')).toBeLessThan(ids.indexOf('wheel'));
+  const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+  expect(doc.scroll, '문서 가로 넘침 0').toBeLessThanOrEqual(doc.client);
 });

@@ -73,7 +73,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   });
 
   await test.step('L3 2질문 → L2 체크리스트 체크', async () => {
-    await tap(page, page.locator('section[data-ws-section="save"] button.ws-btn--fill'));
+    await tap(page, page.locator('section[data-ws-section="now"] button.ws-now-cta')); // R4-2: 채운 주 버튼 = ① 요약 카드
     const L2 = layer(page, 'L2');
     await expect(L2.locator('[data-ws-step="L3"]')).toBeVisible();
     await assertScreen(page, 'L3');
@@ -155,7 +155,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await assertScreen(page, 'L5 케이지 재판정');
   });
 
-  await test.step('/setup 구성안 → 홈 B → L7 상품(○ 기준 충족 · 가격·판매처·구매 0)', async () => {
+  await test.step('/setup 구성안 → 홈 B → L4 후보 → L7 상품(○ 기준 충족 · 가격·판매처·구매 0)', async () => {
     await gotoHydrated(page, `${TYPE.home}/setup`);
     await expect(page.locator('main section.ws-bundle').first()).toBeVisible();
     await expect(page.locator('main')).toContainText('처음 준비한다면');
@@ -169,7 +169,10 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
     await assertScreen(page, '홈 B(L3 후)');
 
-    const products = page.locator('section[data-ws-section="products"] li.ws-product');
+    // R4-2: 홈 B 에는 상품 카드가 없다 — 상품 표면은 L4 후보 영역(규격 → 검수 순, 불변식 ③).
+    await expect(page.locator('main li.ws-product')).toHaveCount(0);
+    await gotoHydrated(page, `${TYPE.home}/supplies/wheel`);
+    const products = layer(page, 'L4').locator('[data-ws-part="products"] li.ws-product');
     await expect(products).toHaveCount(1);
     await expect(products.first().locator('.ws-badge')).toContainText('기준 충족');
     await expect(products.first().locator('.ws-badge [data-ws-glyph="ok"]')).toHaveText('○'); // R4-1 판정 4상태
@@ -270,7 +273,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     expect(cage).toMatchObject({ type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35 });
     expect(await p2.evaluate(() => localStorage.getItem('ws.animalType'))).toBe(TYPE.id);
 
-    // 화면 복원: 홈 B 칩(케이지 △ — 등록값이 최소 미달 · 쳇바퀴 △) · L5 케이지 줄.
+    // 화면 복원: 홈 B 항목 카드(케이지 △ — 등록값이 최소 미달 · 쳇바퀴 △) · L5 케이지 줄.
     await gotoHydrated(p2, TYPE.home);
     await expect(p2.locator('h1#ws-context-title')).toHaveText(TYPE.name);
     await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');

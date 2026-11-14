@@ -416,52 +416,268 @@ ul.ws-starters > li {
   flex: none;
 }
 
-/* ── 배너(§2.15) — ≤767 full-bleed 라운드 없음, ≥768 radius-lg ── */
-.ws-band {
+/* ── 홈 B(R4 시안 home_selected, R4-2) ─────────────────────────────────
+   컨테이너 1200(12열 78 · 거터 24) · 섹션 간격 PC 120 / 모바일 72 · 버튼 52. 토큰 변수만 — hex·그라데이션·그림자 0.
+   크기: h1·h2 = display(32), 카드 이름 = title(24), 본문 = body(16), 큰 숫자 = display × 2(L5 VerdictCard 와 같은 규칙).
+   시안의 36/40·66 크기는 토큰 체계 밖이라 가장 가까운 토큰 값으로(브리프 L16 개정 = D13). */
+.ws-context {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--ws-space-3);
-  margin-top: var(--ws-space-12);
-  margin-inline: calc(-1 * var(--ws-gutter-mobile));
-  padding: var(--ws-space-8) var(--ws-gutter-mobile);
-  background: var(--ws-brand-soft);
-  text-align: center;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ws-space-4);
+  padding: var(--ws-space-8) 0 var(--ws-space-6);
+  border-bottom: 1px solid var(--ws-line);
 }
 
-@media (min-width: 768px) {
-  .ws-band {
-    margin-inline: 0;
-    padding-inline: var(--ws-gutter-wide);
-    border-radius: var(--ws-radius-lg);
+.ws-context-eyebrow {
+  margin-bottom: var(--ws-space-2);
+}
+
+.ws-context-change,
+.ws-home-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-title-weight);
+}
+
+.ws-home-b .ws-home-sec {
+  margin-top: var(--ws-section-gap-mobile);
+}
+
+/* 컨텍스트 헤더 바로 뒤 첫 섹션 — 구분선에서 32(PC 48). */
+.ws-home-b .ws-context + .ws-home-sec {
+  margin-top: var(--ws-space-8);
+}
+
+.ws-home-sec-title {
+  word-break: keep-all;
+}
+
+.ws-home-sec-lead {
+  margin-top: var(--ws-space-3);
+}
+
+.ws-home-sec-head {
+  margin-bottom: var(--ws-space-6);
+}
+
+/* ① 지금 필요한 것 — ≤767: 요약 카드 + 이름 줄 / ≥768: 3열 그리드(요약 카드 + 남은 필수 항목 카드), 이름 줄 숨김. */
+ul.ws-now-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ws-space-8) var(--ws-grid-gutter);
+}
+
+.ws-now-item {
+  display: none;
+}
+
+.ws-now-lead,
+.ws-now-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-now-card {
+  color: var(--ws-ink);
+  text-decoration: none;
+}
+
+.ws-now-photo {
+  aspect-ratio: 384 / 244;
+  margin-bottom: var(--ws-space-4);
+  border-radius: var(--ws-radius-md);
+}
+
+.ws-now-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ws-space-2);
+  word-break: keep-all;
+}
+
+.ws-now-count,
+.ws-now-reason {
+  margin-top: var(--ws-space-2);
+}
+
+.ws-now-cta {
+  width: 100%;
+  min-height: var(--ws-btn-h);
+  margin-top: var(--ws-space-6);
+}
+
+.ws-now-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  margin-top: var(--ws-space-6);
+}
+
+.ws-now-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ws-space-2);
+  color: var(--ws-ink-body);
+}
+
+@media (hover: hover) {
+  .ws-now-card:hover .ws-now-name {
+    text-decoration: underline;
   }
 }
 
-.ws-save-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ws-touch);
-  color: var(--ws-brand-text);
-  font-weight: var(--ws-type-label-weight);
+/* ② 나중에 필요한 것 — 이름 + 시드 이유(notNowReason), 아래 구분선. */
+.ws-later {
+  padding-bottom: var(--ws-space-8);
+  border-bottom: 1px solid var(--ws-line);
 }
 
-/* ── 홈 B 컨텍스트 헤더(§3.2) ─────────────────────── */
-.ws-context {
+ul.ws-later-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--ws-space-3);
-  margin-inline: calc(-1 * var(--ws-gutter-mobile));
-  padding: var(--ws-space-8) var(--ws-gutter-mobile) var(--ws-space-6);
-  background: var(--ws-peach-soft);
-  text-align: center;
+  gap: var(--ws-space-4);
+}
+
+ul.ws-later-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+
+/* ③ {용품} 규격 확인 — ≤767 세로(제목·기준 → 사진 → 숫자·링크) / ≥768 좌 글(6열)·우 사진(6열). */
+.ws-spec-sec {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-spec-sec-text {
+  display: contents;
+}
+
+.ws-spec-sec-text > .ws-home-sec-head {
+  order: 1;
+  margin-bottom: 0;
+}
+
+.ws-spec-sec-basis {
+  order: 2;
+  margin-top: var(--ws-space-2);
+}
+
+.ws-spec-sec-photo {
+  order: 3;
+  aspect-ratio: 588 / 340;
+  margin-top: var(--ws-space-6);
+  border-radius: var(--ws-radius-md);
+}
+
+.ws-spec-sec-label {
+  order: 4;
+  margin-top: var(--ws-space-6);
+}
+
+.ws-spec-sec-num {
+  order: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ws-num-unit-gap);
+  margin-top: var(--ws-space-2);
+  color: var(--ws-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-spec-sec-value {
+  color: var(--ws-brand-text);
+  /* ≤767: display × 1.5(세 값 「100×50×50」이 360 폭 한 줄), ≥768: display × 2. 숫자 덩이는 줄바꿈하지 않는다. */
+  font-size: calc(var(--ws-type-display-size) * 1.5);
+  line-height: calc(var(--ws-type-display-lh) * 1.5);
+  white-space: nowrap;
+  font-weight: var(--ws-type-display-weight);
+  letter-spacing: var(--ws-type-display-tracking);
+}
+
+.ws-spec-sec-unit {
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+}
+
+.ws-spec-sec .ws-home-link {
+  order: 6;
+  align-self: flex-start;
+  margin-top: var(--ws-space-4);
+}
+
+/* ④ 병원 · ⑤ 저장 안내 */
+.ws-vet-sec .ws-home-sec-head {
+  margin-bottom: var(--ws-space-3);
+}
+
+.ws-vet-sec .ws-home-link {
+  margin-top: var(--ws-space-4);
+}
+
+.ws-save-sec {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ws-space-2);
+  margin-bottom: var(--ws-section-gap-mobile);
 }
 
 @media (min-width: 768px) {
   .ws-context {
-    margin-inline: 0;
-    margin-top: var(--ws-space-6);
-    border-radius: var(--ws-radius-lg);
+    padding-top: var(--ws-space-12);
+    padding-bottom: var(--ws-space-8);
+  }
+  .ws-home-b .ws-home-sec {
+    margin-top: var(--ws-section-gap);
+  }
+  .ws-home-b .ws-context + .ws-home-sec {
+    margin-top: var(--ws-space-12);
+  }
+  ul.ws-now-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .ws-now-item {
+    display: block;
+  }
+  .ws-now-lines {
+    display: none;
+  }
+  .ws-spec-sec {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--ws-grid-gutter);
+    align-items: start;
+  }
+  .ws-spec-sec-text {
+    display: flex;
+    flex-direction: column;
+    grid-column: 1 / span 6;
+  }
+  .ws-spec-sec-photo {
+    grid-column: 7 / span 6;
+    margin-top: 0;
+  }
+  .ws-spec-sec-label {
+    margin-top: var(--ws-space-12);
+  }
+  .ws-spec-sec-value {
+    font-size: calc(var(--ws-type-display-size) * 2);
+    line-height: calc(var(--ws-type-display-lh) * 2);
+  }
+  .ws-save-sec {
+    margin-bottom: var(--ws-section-gap);
   }
 }
 
@@ -510,18 +726,6 @@ ul.ws-chips > li > a.ws-need--check {
 /* 「나중에」: 글리프 없이 보이는 단어(R4-1 qa). ink-muted 5.5:1 on surface. */
 .ws-need-later {
   color: var(--ws-ink-muted);
-}
-
-.ws-done {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--ws-space-3);
-  margin-top: var(--ws-space-6);
-  padding: var(--ws-space-4);
-  border-radius: var(--ws-radius-lg);
-  background: var(--ws-butter);
-  text-align: center;
 }
 
 /* ── BundleCard(§2.6) ─────────────────────────────── */
@@ -676,6 +880,3 @@ li.ws-product > .ws-like {
   font-variant-numeric: tabular-nums;
 }
 
-.ws-vet-link {
-  margin-top: var(--ws-space-6);
-}

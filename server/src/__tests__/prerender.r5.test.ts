@@ -79,14 +79,12 @@ describe('타입 페이지 ws-data.vets(C-R5-6, D16)', () => {
     expect(vs).toHaveLength(TYPE_VETS_MAX);
     expect(vs[0].id).toBe('vc-00');
   });
-  it('홈 B ④ 병원 레일 = ws-data vets 순서 VetCard, 이어서 /vet 링크', () => {
+  it('홈 B ④ 병원 = 안내 + /vet 링크(R4-2 — 병원 카드 레일 없음, 목록은 /vet), ws-data vets 는 그대로', () => {
     const page = html(b, '/hamster/golden');
     const sec = page.slice(page.indexOf('data-ws-section="vet"'), page.indexOf('data-ws-section="save"'));
-    const ids = [...sec.matchAll(/data-ws-id="vetClinics#([^"]+)"/g)].map((m) => m[1]);
-    expect(ids).toEqual(['vc-a', 'vc-b']);
-    // 51 레인 A: client RailSection 과 같이 "/vet" 링크는 레일 머리(ws-rail-more) — 카드 목록보다 앞.
-    expect(sec).toContain(`<a class="ws-rail-more ws-t-meta" href="/vet">${COPY.homeB.vetLink}`);
-    expect(sec.indexOf('href="/vet"')).toBeLessThan(sec.indexOf('vetClinics#'));
+    expect(sec).not.toContain('vetClinics#');
+    expect(sec).toContain(`<a class="ws-home-link" href="/vet">${COPY.homeB.vetLink}`);
+    expect(data(b, '/hamster/golden').data.vets.map((v) => v.id)).toEqual(['vc-a', 'vc-b']);
   });
 });
 
@@ -153,8 +151,8 @@ describe('/vet(G-4)', () => {
 
 describe('G-6 프리렌더 정합', () => {
   const b = build(promoted());
-  it('ProductCard: ♡ span 은 링크의 형제(a 안 0), 숫자 0', () => {
-    const page = html(b, '/hamster/golden');
+  it('ProductCard(L4 후보 영역): ♡ span 은 링크의 형제(a 안 0), 숫자 0', () => {
+    const page = html(b, '/hamster/golden/supplies/wheel');
     const li = page.slice(page.indexOf('<li class="ws-product"'), page.indexOf('</li>', page.indexOf('<li class="ws-product"')));
     expect(li).toMatch(/<\/a>\n<span class="ws-like" aria-hidden="true"><span class="ws-like-glyph" aria-hidden="true">♡<\/span><\/span>\n?$/);
     const a = li.slice(li.indexOf('<a '), li.indexOf('</a>'));

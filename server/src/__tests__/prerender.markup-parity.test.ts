@@ -124,35 +124,53 @@ describe('홈 B 마크업 = React HomeB(빈 저장소)', () => {
   const page = html(b, '/hamster/golden');
   const main = mainOf(page);
 
-  it('main.ws-home-b · 컨텍스트 헤더(h1#ws-context-title · 상태 줄 · change-animal a[href=/pick])', () => {
+  it('main.ws-home-b · 컨텍스트 헤더(눈썹 · h1#ws-context-title · change-animal a[href=/pick] 「바꾸기」) — 마스코트 없음(R4 시안)', () => {
     expect(main).toMatch(/^<main id="main" class="ws-page ws-home-b" data-ws-route="TYPE" data-ws-type="hamster-golden">/);
     expect(main).toContain('<section class="ws-context" data-ws-id="animalTypes#hamster-golden" aria-labelledby="ws-context-title">');
-    expect(main).toContain('<h1 id="ws-context-title" class="ws-t-display">');
-    expect(main).toContain(`<a class="ws-btn ws-btn--outline" data-ws-action="change-animal" href="/pick">${COPY.nav.changeFriend}</a>`);
-    expect(main).toMatch(/<span class="ws-avatar ws-avatar--lg ws-avatar--peach-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="96" height="96" alt="" fetchpriority="high"><\/span>/);
-    // R6 F2b ②: LCP 마스코트는 이 하나뿐 — 페이지 전체에서 fetchpriority 1회, 헤더 칩 등 나머지는 decoding=async 유지.
-    expect(page.match(/fetchpriority=/g)).toHaveLength(1);
+    expect(main).toContain(`<div class="ws-context-text"><p class="ws-t-meta ws-muted ws-context-eyebrow">${COPY.homeB.contextEyebrow}</p><h1 id="ws-context-title" class="ws-t-display">`);
+    expect(main).toContain(`<a class="ws-context-change" data-ws-action="change-animal" href="/pick" aria-label="${COPY.nav.changeFriend}">${COPY.homeB.change}</a>`);
+    // R4-2: 컨텍스트 헤더 마스코트 제거 → LCP 우선 이미지 0(h1 글자가 LCP). 헤더 칩 마스코트는 decoding=async 유지.
+    expect(main).not.toContain('ws-avatar--lg');
+    expect(page.match(/fetchpriority=/g)).toBeNull();
     expect(page).toMatch(/<span class="ws-avatar ws-avatar--sm ws-avatar--peach-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="24" height="24" alt="" decoding="async"><\/span>/);
   });
 
-  it('① ② ③ 레일 섹션 = RailSection 클래스, ① neutral 칩, ④ 링크 섹션, ⑤ 저장 배너', () => {
-    expect(main).toMatch(/<section class="ws-rail-section ws-rail-section--need" data-ws-section="now" aria-labelledby="ws-sec-now-title"[^>]*id="ws-now"/);
-    expect(main).toContain(`<p class="ws-rail-sub ws-t-body">${COPY.homeB.nowBeforeSetup}</p>`);
-    expect(main).toContain('<ul class="ws-rail ws-chips" role="list" tabindex="0" aria-labelledby="ws-sec-now-title">');
-    expect(main).toMatch(/<a class="ws-need ws-need--neutral" href="\/hamster\/golden\/supplies\/[a-z-]+" data-ws-state="neutral"><span class="ws-need-name">/);
-    expect(main).toContain('<section class="ws-rail-section ws-rail-section--bundle" data-ws-section="bundles"');
-    expect(main).toContain('<section class="ws-rail-section ws-rail-section--product" data-ws-section="products"');
-    expect(main).toContain('<ul class="ws-rail ws-products" role="list"');
-    expect(main).toContain('<section class="ws-band ws-band--save" data-ws-section="save" aria-labelledby="ws-save-title">');
-    expect(main).toContain(`<a class="ws-save-link ws-t-meta" href="/save">${COPY.homeB.saveLink}</a>`);
-    expect(main).toMatch(/<section class="ws-vet-link" data-ws-section="vet"|<section class="ws-rail-section ws-rail-section--vet" data-ws-section="vet"/);
+  it('섹션 = 컨텍스트 → now → later? → spec → vet → save, ① 요약 카드 + neutral 항목 카드 + 이름 줄, 정적 주 버튼 = a', () => {
+    const order = ['now', 'spec', 'vet', 'save'].map((s) => main.indexOf(`data-ws-section="${s}"`));
+    expect(order.every((x) => x > 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(main).toContain('<section class="ws-home-sec ws-now" data-ws-section="now" data-ws-answered="0" aria-labelledby="ws-sec-now-title">');
+    expect(main).toContain(`<p class="ws-t-body ws-muted ws-home-sec-lead">${COPY.homeB.nowLead}</p>`);
+    expect(main).toContain(`<p class="ws-t-body ws-muted ws-now-count">${COPY.homeB.nowBeforeSetup}</p>`);
+    expect(main).toMatch(
+      new RegExp(`<a class="ws-btn ws-btn--fill ws-now-cta" data-ws-action="open-checklist" href="/hamster/golden/supplies/[a-z-]+">${COPY.homeB.nowCtaStart}</a>`),
+    );
+    expect(main).toMatch(
+      /<li class="ws-now-item" data-ws-item="cage" data-ws-id="supplyRequirements#req-syrian-cage"><a class="ws-now-card" href="\/hamster\/golden\/supplies\/cage" data-ws-state="neutral"><span class="ws-photo ws-now-photo" aria-hidden="true"><\/span><span class="ws-t-title ws-now-name">케이지<\/span><span class="ws-t-body ws-muted ws-now-reason">[^<]+\.<\/span><\/a><\/li>/,
+    );
+    expect(main).toContain('<div class="ws-now-lines"><p class="ws-t-body ws-now-line" data-ws-line="all"><span>');
+    expect(main).toContain(`<a class="ws-home-link ws-save-link" href="/save">${COPY.homeB.saveLink}<span aria-hidden="true"> →</span></a>`);
+    expect(main).toContain(`<a class="ws-home-link" href="/vet">${COPY.homeB.vetLink}<span aria-hidden="true"> →</span></a>`);
+    // 채운 CTA 1개 · 버튼 0(정적) · 상품·구성안·병원 카드 0(R4 시안 — 상품은 L4 후보 영역)
+    expect(main.match(/ws-btn--fill/g)).toHaveLength(1);
     expect(main).not.toContain('<button');
+    expect(main).not.toMatch(/ws-product|curatedProducts#|ws-bundle|setupBundles#|li class="ws-vet"/);
   });
 
-  it('상품 표면 표식 유지(client PRODUCT_SURFACE_SELECTOR) — section[data-ws-section=products] · ul.ws-products · li.ws-product[data-ws-id^=curatedProducts#]', () => {
-    expect(main).toContain('data-ws-section="products"');
-    expect(main).toMatch(/<ul class="ws-rail ws-products"/);
-    expect(main).toMatch(/<li class="ws-product" data-ws-id="curatedProducts#cp-001">/);
+  it('③ 규격 확인 = 엔진 minSpecFigure(시드 규칙 값 그대로) · 링크 L5 · 시드 값을 바꾸면 화면이 따라 바뀐다', () => {
+    expect(main).toContain('<section class="ws-home-sec ws-spec-sec" data-ws-section="spec" data-ws-id="supplyRequirements#req-syrian-cage" aria-labelledby="ws-sec-spec-title">');
+    expect(main).toContain(`<p class="ws-t-section ws-spec-sec-label">${COPY.verdict.minSpecLabel}</p>`);
+    expect(main).toContain('<p class="ws-spec-sec-num"><span class="ws-spec-sec-value">100×50×50</span><span class="ws-spec-sec-unit">cm</span></p>');
+    expect(main).toContain('<a class="ws-home-link" href="/hamster/golden/check/cage">내 케이지 확인하기<span aria-hidden="true"> →</span></a>');
+    const s = promoted();
+    const cage = s.supplyRequirements.find((r) => r.id === 'req-syrian-cage');
+    if (!cage) throw new Error('fixture: req-syrian-cage');
+    cage.minSpec = { rules: cage.minSpec.rules.map((r) => (r.key === 'floorWcm' ? { ...r, value: 120 } : r)) };
+    expect(mainOf(html(build(s), '/hamster/golden'))).toContain('<span class="ws-spec-sec-value">120×50×50</span>');
+  });
+
+  it('상품 표면 표식은 L4 후보 영역에 유지(client PRODUCT_SURFACE_SELECTOR) — 홈 B main 엔 상품 표면 0', () => {
+    expect(main).not.toContain('data-ws-section="products"');
     const l4 = asideOf(html(b, '/hamster/golden/supplies/wheel'));
     expect(l4).toContain('<section data-ws-part="products">');
     expect(l4).toMatch(/<li class="ws-product" data-ws-id="curatedProducts#cp-001">/);

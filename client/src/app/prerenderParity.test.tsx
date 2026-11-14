@@ -213,28 +213,8 @@ interface Allowed {
 const ALLOWED: readonly Allowed[] = [
   {
     kinds: ['TYPE'],
-    re: /^main>section\.ws-rail-section\.ws-rail-section--need\[\d+\] \.id: static="ws-now" react=undefined$/,
-    why: '홈B ① 정적 앵커 id=ws-now(⑤ 저장 CTA #ws-now 이동 대상) — React 는 CTA 가 L2 를 열어 앵커 불필요',
-  },
-  {
-    kinds: ['TYPE'],
-    re: /^main>section\.ws-rail-section\.ws-rail-section--need\[\d+\]>ul\.ws-chips\.ws-rail\[\d+\]>li\[\d+\] \.wsId: static="supplyRequirements#[a-z0-9-]+" react=undefined$/,
-    why: '홈B ① 정적 칩 li data-ws-id(컴플라이언스 산출물 스캔용 출처 표지) — 클라 전용 아님, 정적만',
-  },
-  {
-    kinds: ['TYPE'],
-    re: /^main>section\.ws-band\.ws-band--save\[\d+\]>a\.ws-btn\.ws-btn--fill\[\d+\] \.tag: static="a" react="button"$/,
-    why: '홈B ⑤ 저장 CTA: 정적 a href=#ws-now → React button(L2/L8)',
-  },
-  {
-    kinds: ['TYPE'],
-    re: /^main>section\.ws-rail-section\.ws-rail-section--need\[\d+\]>div\.ws-rail-head\[\d+\]>div\.ws-rail-tools\[\d+\]>a\.ws-rail-more\.ws-t-meta\[\d+\] \.tag: static="a" react="button"$/,
-    why: 'now 전체 ›: 정적은 /{slug}/setup 링크, React는 L2 버튼 — decisions 2026-10-14',
-  },
-  {
-    kinds: ['TYPE'],
-    re: /^main>section\.ws-rail-section\.ws-rail-section--product\[\d+\]>ul\.ws-products\.ws-rail\[\d+\]>li\.ws-product\[\d+\]>span\.ws-like\[\d+\] \.(tag: static="span" react="button"|text: static=undefined react="♡")$/,
-    why: '상품 카드 ♡: 정적 span 자리표시(내부 span.ws-like-glyph 동일) → React button(D-38; .text 는 button 만 TEXT_TAGS 라 따라오는 차이) — decisions 2026-10-14',
+    re: /^main>section\.ws-home-sec\.ws-now\[\d+\]>ul\.ws-now-grid\[\d+\]>li\.ws-now-lead\[\d+\]>a\.ws-btn\.ws-btn--fill\.ws-now-cta\[\d+\] \.tag: static="a" react="button"$/,
+    why: '홈B ① 요약 카드 주 버튼(R4-2): 정적 a(첫 필수 항목 L4 문서) → React button(L2) — 같은 클래스·data-ws-action, 이전 ⑤ 저장 CTA a→button 허용과 같은 근거(decisions 2026-10-13 레인 A)',
   },
 ];
 const allowedHits = new Set<number>();

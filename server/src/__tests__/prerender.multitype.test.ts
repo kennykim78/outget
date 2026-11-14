@@ -257,14 +257,13 @@ describe('QA118 D1 — 구성안 0개 타입은 /setup 링크를 내지 않는�
     expect(b.model.types.find((t) => t.id === B)?.bundles.length).toBe(0);
     expect(paths.has(`/${SECOND.slug}/setup`)).toBe(false);
     for (const p of typePages(b, B)) expect(p.html, p.route.path).not.toContain(`href="/${SECOND.slug}/setup"`);
-    // now 레일 자체는 남는다(전체 › 만 빠짐).
-    expect(pageAt(b, `/${SECOND.slug}`).html).toContain('id="ws-now"');
+    // ① 지금 필요한 것 섹션은 그대로 있다.
+    expect(pageAt(b, `/${SECOND.slug}`).html).toContain('data-ws-section="now"');
   });
 
-  it('대조: 구성안 있는 골든은 now 전체 ›·구성안 › 둘 다 /setup 링크 + 경로 존재', () => {
+  it('대조: 구성안 있는 골든은 /setup 경로 존재(R4-2 홈 B 엔 구성안 섹션·링크 없음 — 진입은 홈 A 시작 카드 SETUP)', () => {
     expect(paths.has('/hamster/golden/setup')).toBe(true);
-    const html = pageAt(b, '/hamster/golden').html;
-    expect(html.split('href="/hamster/golden/setup"').length - 1).toBeGreaterThanOrEqual(2);
+    expect(pageAt(b, '/hamster/golden').html).not.toContain('href="/hamster/golden/setup"');
   });
 
   it('전 페이지: */setup href 는 모두 생성된 경로를 가리킨다', () => {

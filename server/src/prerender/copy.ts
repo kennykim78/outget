@@ -82,28 +82,48 @@ export const COPY = deepFreeze({
   /** R4 C1 — 구성안 카드 개수. */
   bundle: { itemCount: '{n}개', newCount: '새로 {n}개' },
   /** UX §3.1 B — 동물 선택: 컨텍스트 헤더 + 5섹션. 숫자는 L3 이후(D18) — 프리렌더는 nowBeforeSetup 만. */
+  /**
+   * 홈 B(동물 선택) — R4 시안 home_selected(R4-2): 컨텍스트 헤더(눈썹·이름·바꾸기) → 지금 필요한 것(요약 카드 + 남은 항목 카드)
+   *   → 나중에 필요한 것(NOT_NOW 시드 레코드) → {용품} 규격 확인(최소 규격 숫자 = 엔진 minSpecFigure) → 병원 안내 → 저장 안내.
+   *   숫자·품목명은 전부 ws-data(시드 → resolveRequirement)에서 — 여기엔 고정 UI 문구만.
+   */
   homeB: {
+    contextEyebrow: '함께하는 친구',
+    /** 컨텍스트 헤더 「바꾸기」(보이는 글자) — 접근 이름은 nav.changeFriend(보이는 글자를 포함). */
+    change: '바꾸기',
     nowTitle: '지금 필요한 것',
+    nowLead: sent('남은 준비부터 하나씩 살펴봐요.'),
+    nowCardTitle: '꼭 필요한 것 먼저',
     nowBeforeSetup: sent('필수 준비를 먼저 확인해요'),
-    bundlesTitle: '처음 준비한다면',
-    productsTitle: '기준에 맞는 준비물',
-    vetTitle: '우리 동네 병원',
-    vetLink: '우리 동네 병원 보기',
-    saveTitle: sent('{animal} 준비, 이어서 할까요?'),
-    saveCta: '지금 필요한 것 보기',
-    saveLink: '다른 기기에서도 이어서 — 이메일로 저장',
-    /** DR-5 MINOR-2 — 연결 상태 저장 배너 링크(홈 B 링크 관례: › 없음). */
-    saveLinked: '이 기기와 메일에 저장되고 있어요',
-    nowEmpty: sent('검수를 마친 준비 목록을 정리하고 있어요'),
-    bundlesEmpty: sent('검수를 마친 구성안을 준비하고 있어요'),
-    productsEmpty: sent('기준을 확인한 준비물을 정리하고 있어요'),
     /** R4 C1 — 클라이언트 전용(L3 이후 숫자). */
-    aliasLine: sent('{alias}라고도 불러요'),
-    nowRemaining: sent('필수 {n}개 남았어요'),
-    nowDone: '필수 준비 끝',
-    deviceOnly: sent('이 기기에만 저장돼요'),
-    doneTitle: sent('필수 준비가 끝났어요 — 권장 항목도 볼까요?'),
+    nowCount: sent('필수 {total}가지 중 {n}가지가 남았어요.'),
+    nowCta: '남은 준비 {n}개 살펴보기',
+    /** L3 전·판정 대기 중 주 버튼(숫자 없음). */
+    nowCtaStart: '지금 필요한 것 보기',
+    /** 모바일 줄 — 아직 준비 중인 필수 항목 이름 앞 라벨(준비완료 줄은 ✓ 글리프 + 숨김 라벨). */
+    nowPendingLabel: '아직 준비 중',
+    nowEmpty: sent('검수를 마친 준비 목록을 정리하고 있어요'),
+    laterTitle: '나중에 필요한 것',
+    /** 구성안 페이지(/setup) 제목 — 홈 B 엔 구성안 섹션 없음(R4 시안). */
+    bundlesTitle: '처음 준비한다면',
+    specTitle: '{name} 규격 확인',
+    specBasis: '{animal} 기준',
+    specMine: '내 {name} 확인하기',
+    /** {animal} = objectParticle(표시명) — 「골든햄스터를」. */
+    vetTitle: '{animal} 진료하는 병원',
+    vetLead: sent('지역을 고르면 확인된 병원을 보여 드려요.'),
+    vetAsk: sent('방문 전 진료 여부를 병원에 문의해 주세요.'),
+    vetLink: '지역으로 병원 찾기',
+    saveTitle: sent('준비한 내용을 이어서 볼까요?'),
+    saveLink: '이메일로 저장하기',
+    /** DR-5 MINOR-2 — 연결 상태 저장 안내 링크(홈 B 링크 관례: › 없음). */
+    saveLinked: '이 기기와 메일에 저장되고 있어요',
+    doneLine: sent('필수 준비가 끝났어요 — 권장 항목도 볼까요?'),
     doneCta: '권장 항목 보기',
+    /** L1 후보 별칭 줄(AnimalPicker·프리렌더 /pick 공용). */
+    aliasLine: sent('{alias}라고도 불러요'),
+    /** L2 기기 저장 안내(ChecklistLayer). */
+    deviceOnly: sent('이 기기에만 저장돼요'),
   },
   /** R4 C1 — L1 친구 선택(스펙22 §7.3). 후보 안내일 뿐 종을 확정하지 않는다(브리프 고정 문구). */
   picker: {
@@ -580,12 +600,12 @@ export function allCopyStrings(opts: { sentencesOnly?: boolean } = {}): string[]
 }
 
 const TOKEN_RE = /\{([a-zA-Z]+)\}/g;
-const ALLOWED_TOKENS = new Set(['animal', 'n', 'alias', 'name', 'unit']);
+const ALLOWED_TOKENS = new Set(['animal', 'n', 'total', 'alias', 'name', 'unit']);
 
-/** `{animal}`·`{n}`(숫자)·`{alias}`·`{name}`·`{unit}`(단위 — 빈 문자열 허용) 토큰을 채운다. 미지 토큰·값 누락은 throw. 결과는 호출부가 escapeHtml. */
+/** `{animal}`·`{n}`·`{total}`(숫자)·`{alias}`·`{name}`·`{unit}`(단위 — 빈 문자열 허용) 토큰을 채운다. 미지 토큰·값 누락은 throw. 결과는 호출부가 escapeHtml. */
 export function formatCopy(
   template: string,
-  vars: { animal?: string; n?: number; alias?: string; name?: string; unit?: string },
+  vars: { animal?: string; n?: number; total?: number; alias?: string; name?: string; unit?: string },
 ): string {
   return template.replace(TOKEN_RE, (_m, name: string) => {
     if (!ALLOWED_TOKENS.has(name)) throw new Error(`copy: 알 수 없는 토큰 {${name}}`);
@@ -594,4 +614,15 @@ export function formatCopy(
     if (typeof v !== 'string') throw new Error(`copy: {${name}} 값이 없다`);
     return v;
   });
+}
+
+/**
+ * 목적격 조사(을/를)를 붙인다 — 한글 음절로 끝나면 받침 유무로, 아니면(영문·숫자 등) 「을(를)」.
+ *   표시명(시드 displayName)에 붙이는 표시 규칙일 뿐 사실값이 아니다.
+ */
+export function objectParticle(word: string): string {
+  const w = word.trim();
+  const last = w.charCodeAt(w.length - 1);
+  if (last >= 0xac00 && last <= 0xd7a3) return `${w}${(last - 0xac00) % 28 === 0 ? '를' : '을'}`;
+  return `${w}을(를)`;
 }
