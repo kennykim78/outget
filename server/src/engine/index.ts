@@ -26,7 +26,8 @@ export { listResolvedRequirements, resolveRequirement } from './resolve.js';
 export { EngineLookupError, checkAnimalMinSpec, checkProfileMinSpec, createEngine, minSpecBaseline, productCageCompat, requirementBaseline, requirementCompat, specCheck } from './spec-check.js';
 export type { Engine, MinSpecResult, RequirementBaseline } from './spec-check.js';
 export { buildSearchKeyword } from './search-keyword.js';
-export { SPEC_WORDS, chipSpecText, ruleText, specLine } from './spec-text.js';
+export { SPEC_WORDS, chipSpecText, figureValueText, firstSentence, minSpecFigure, ruleText, specLine } from './spec-text.js';
+export type { MinSpecFigure } from './spec-text.js';
 export { naverMapSearchUrl } from './links.js';
 export {
   VET_LISTED_STATUS,

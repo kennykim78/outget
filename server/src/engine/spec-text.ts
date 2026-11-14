@@ -78,15 +78,24 @@ export function specLine(schema: SpecSchema, values: Readonly<Record<string, Spe
   return parts.join(' · ');
 }
 
+/** 최소 규격 숫자 한 덩이(홈 B 「{용품} 규격 확인」 큰 숫자 · 칩 요약 공용). values·keys 는 스키마 필드 순서. */
+export interface MinSpecFigure {
+  values: number[];
+  keys: string[];
+  /** 공통 단위(스키마 라벨 괄호 — 없으면 ''). */
+  unit: string;
+  /** 값이 하나면 그 필드 이름(라벨 앞부분), 여럿이면 null. */
+  base: string | null;
+}
+
 /**
- * 칩·체크리스트 행 규격 요약(스펙33 §0 G-1): "28cm 이상", "60×40cm 이상".
- *   minSpec 중 when 없는 숫자 gte 규칙(스키마 number 필드 + 유한 숫자 값)만, 스키마 필드 순서.
- *   모두 같은 단위면 최대 3값 "×" 연결 + 단위 + " 이상", 단위가 섞이면 첫 규칙 하나, 해당 규칙이 없으면 null.
+ * 최소 규격 숫자 선택(스펙33 §0 G-1 — chipSpecText 와 같은 규칙): minSpec 중 when 없는 숫자 gte 규칙(스키마 number 필드 + 유한 숫자 값)만,
+ *   스키마 필드 순서. 모두 같은 단위면 최대 3값, 단위가 섞이면 첫 규칙 하나, 해당 규칙이 없으면 null. 값은 규칙 값 그대로(계산 없음).
  */
-export function chipSpecText(schema: SpecSchema, minSpec: RuleSet | null | undefined): string | null {
+export function minSpecFigure(schema: SpecSchema, minSpec: RuleSet | null | undefined): MinSpecFigure | null {
   const fields = Array.isArray(schema?.fields) ? schema.fields : [];
   const rules = Array.isArray(minSpec?.rules) ? minSpec.rules : [];
-  const picked: Array<{ value: number; unit: string }> = [];
+  const picked: Array<{ key: string; value: number; unit: string; base: string }> = [];
   for (const f of fields) {
     if (f.type !== 'number') continue;
     const r = rules.find(
@@ -98,10 +107,37 @@ export function chipSpecText(schema: SpecSchema, minSpec: RuleSet | null | undef
         Number.isFinite(x.value) &&
         !(Array.isArray(x.when) && x.when.length > 0),
     );
-    if (r) picked.push({ value: r.value as number, unit: splitLabel(f.label).unit });
+    if (r) picked.push({ key: f.key, value: r.value as number, unit: splitLabel(f.label).unit, base: splitLabel(f.label).base });
   }
   if (picked.length === 0) return null;
   const sameUnit = picked.every((p) => p.unit === picked[0].unit);
   const shown = sameUnit ? picked.slice(0, CHIP_MAX_VALUES) : picked.slice(0, 1);
-  return `${shown.map((p) => String(p.value)).join(CHIP_JOIN)}${picked[0].unit} ${SPEC_WORDS.gte}`;
+  return { values: shown.map((p) => p.value), keys: shown.map((p) => p.key), unit: picked[0].unit, base: shown.length === 1 ? shown[0].base : null };
+}
+
+/** 숫자 연결 표기("100×50×50") — minSpecFigure.values 를 칩과 같은 연결자로. */
+export function figureValueText(f: Pick<MinSpecFigure, 'values'>): string {
+  return f.values.map((v) => String(v)).join(CHIP_JOIN);
+}
+
+/**
+ * 칩·체크리스트 행 규격 요약(스펙33 §0 G-1): "28cm 이상", "60×40cm 이상".
+ *   선택 규칙은 minSpecFigure(when 없는 숫자 gte, 스키마 순서, 같은 단위 최대 3값 / 섞이면 첫 값). 해당 규칙이 없으면 null.
+ */
+export function chipSpecText(schema: SpecSchema, minSpec: RuleSet | null | undefined): string | null {
+  const f = minSpecFigure(schema, minSpec);
+  return f ? `${figureValueText(f)}${f.unit} ${SPEC_WORDS.gte}` : null;
+}
+
+// 이유 한 줄(286 U6 · D9 ①): 시드 원문(why·notNowReason)의 첫 문장을 기계적으로 자른다 — 요약·창작 없음(불변식 ⑦).
+//   체크리스트 행(client)·홈 B 카드(client + 프리렌더)가 같은 함수를 쓴다(프리렌더 ↔ 하이드레이션 문구 일치).
+//   문장 끝 = 마침표·물음표·느낌표 뒤 공백 또는 끝("2.5배" 같은 소수점은 자르지 않는다). 문장 끝이 없으면 원문 전체.
+//   화면 한 줄 넘침은 CSS 말줄임이 맡는다(글자 수로 자르지 않는다).
+const SENTENCE_END = /[.?!](?=\s|$)/;
+
+export function firstSentence(text: string | null | undefined): string | null {
+  const t = (text ?? '').trim();
+  if (t === '') return null;
+  const m = SENTENCE_END.exec(t);
+  return m ? t.slice(0, m.index + 1) : t;
 }
