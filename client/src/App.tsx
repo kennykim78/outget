@@ -74,7 +74,7 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   if (rv.view === 'homeA') {
     view = <HomeA page={page} continueType={continueType} onPick={openL1} />;
   } else if (rv.view === 'homeB') {
-    view = <HomeB page={page} type={rv.type} capturedMain={captured.main} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
+    view = <HomeB page={page} type={rv.type} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
   } else if (rv.view === 'vet') {
     const fallback = <StaticMain kind={page.route.kind} html={captured.main} />;
     view = (

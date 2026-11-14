@@ -369,10 +369,5 @@ export function railSection(o: {
   ].join('\n');
 }
 
-/** 레일 빈 상태 li(client li.ws-empty-li > p.ws-t-body.ws-muted). */
-export function emptyLi(text: string): string {
-  return `<li class="ws-empty-li"><p class="ws-t-body ws-muted">${h(text)}</p></li>`;
-}
-
 /** ProductCard ♡ 자리(스펙33 §2.4, D-38): 링크 형제 span, 하이드레이션 후 버튼으로 교체. 숫자 0(프리렌더). */
 export const LIKE_PLACEHOLDER = '<span class="ws-like" aria-hidden="true"><span class="ws-like-glyph" aria-hidden="true">♡</span></span>';

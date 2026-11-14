@@ -44,7 +44,6 @@ const ITEM_PHOTO: Readonly<Record<string, string>> = { cage: 'ph-08', bedding: '
 export interface HomeBProps {
   page: WsPageData;
   type: PublicAnimalType;
-  capturedMain: string | null;
   onOpenL1(): void;
   onOpenL2(): void;
   /** 저장 안내 텍스트 링크 → L8(진입점 1/2, 스펙33 §5.9). */
