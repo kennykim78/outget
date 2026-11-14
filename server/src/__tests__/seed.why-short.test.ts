@@ -8,6 +8,7 @@ import { type RawSeed, type Rec, type SeedKey } from '../seed/common.js';
 import { readSeedDirRaw } from '../seed/read.js';
 import { factHash } from '../seed/signatures.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
+import { disguisedNumbers, numbersWithoutUnit, sentenceCount, strictSentenceCount } from '../seed/lint.js';
 import { graphemeLength, whyShortFormProblem, whyShortNumberProblems } from '../seed/validate-why-short.js';
 import { DWARF_PREVIEW_AS_OF, dwarfSignedWith } from './fixtures/prerender-seed.js';
 
@@ -110,6 +111,20 @@ describe('W02 — 같은 행 원문에 없는 숫자·단위', () => {
     expect(of(withShort('req-syrian-saucer', '쳇바퀴 뒤 1개 더 봐요.'), 'W02')).toHaveLength(1);
     expect(withShort('req-syrian-saucer', '쳇바퀴를 먼저 갖춰요.').errors).toEqual([]);
   });
+  it('notNowReason 에만 있는 숫자를 whyShort 가 인용 → 통과(출처에서 notNowReason 을 빼면 W02 — 변이 고정)', () => {
+    const setReason = (s: Required<RawSeed>) => {
+      row(s, 'supplyRequirements', 'req-syrian-saucer').notNowReason = '쳇바퀴를 2주 먼저 써 본 뒤 고려해요.';
+    };
+    const ok = withShort('req-syrian-saucer', '쳇바퀴를 2주 먼저 써 봐요.', setReason);
+    const saucer = row(BASE, 'supplyRequirements', 'req-syrian-saucer');
+    expect(saucer.priority).toBe('NOT_NOW');
+    // why·caution 에는 그 숫자가 없다 — notNowReason 만이 출처.
+    expect(whyShortNumberProblems('쳇바퀴를 2주 먼저 써 봐요.', [saucer.why as string, saucer.caution as string | null])).toHaveLength(1);
+    expect(of(ok, 'W02')).toEqual([]);
+    expect(ok.errors).toEqual([]);
+    // 같은 숫자라도 notNowReason 에 없으면 W02.
+    expect(of(withShort('req-syrian-saucer', '쳇바퀴를 3주 먼저 써 봐요.', setReason), 'W02')).toHaveLength(1);
+  });
   it('override: resolve 후 원문(override why) 기준', () => {
     const s = fresh();
     row(s, 'animalTypes', 'hamster-golden').careOverrides = {
@@ -128,6 +143,79 @@ describe('W02 — 같은 행 원문에 없는 숫자·단위', () => {
     expect(whyShortNumberProblems('베딩 0cm 이상.', ['베딩을 20cm 이상'])).toHaveLength(1);
     expect(whyShortNumberProblems('가로 60cm 이상이에요.', ['가로·세로 60×40cm 이상'])).toEqual([]);
     expect(whyShortNumberProblems('가로 60mm 이상이에요.', ['가로·세로 60×40cm 이상'])).toHaveLength(1);
+  });
+});
+
+describe('W02 · L03 — 비ASCII 숫자·한글 수사 우회(NFKC 뒤 판정)', () => {
+  const SRC = ['가로·세로 60×40cm 이상, 베딩은 15cm 이상'];
+  const BYPASS = ['가로 ９９cm 이상이에요.', '가로 𝟗𝟗cm 이상이에요.', '가로 ⑨cm 이상이에요.', '가로 ٩٩cm 이상이에요.', '가로 ❾cm 이상이에요.', '가로 아흔cm 이상이에요.', '가로 구십 cm 이상이에요.', '가로 스물다섯 센티예요.', '베딩 열 cm는 깔아요.'];
+  it.each(BYPASS)('원문에 없는 숫자 우회 "%s" → W02(순수 함수)', (v) => {
+    expect(whyShortNumberProblems(v, SRC).length).toBeGreaterThan(0);
+  });
+  it('NFKC 로 펴지는 표기(전각·수학 굵은·원문자)는 원문 대조로, 남는 비ASCII 숫자·한글 수사는 그 자체로 W02', () => {
+    expect(whyShortNumberProblems('가로 ６０cm 이상이에요.', SRC)).toEqual([]);
+    expect(whyShortNumberProblems('가로 𝟔𝟎cm 이상이에요.', SRC)).toEqual([]);
+    expect(whyShortNumberProblems('가로 ٦٠cm 이상이에요.', SRC)[0]).toContain('숫자 표기 우회');
+    expect(whyShortNumberProblems('가로 예순cm 이상이에요.', SRC)[0]).toContain('숫자 표기 우회');
+  });
+  it('정상 문장(ASCII 숫자·자연어 수 세기·"높이 cm" 같은 낱말) → 통과', () => {
+    expect(whyShortNumberProblems('가로 60cm 이상이에요.', SRC)).toEqual([]);
+    expect(whyShortNumberProblems('한 번 더 살펴봐요.', SRC)).toEqual([]);
+    expect(whyShortNumberProblems('두 개를 두면 좋아요.', SRC)).toEqual([]);
+    expect(whyShortNumberProblems('세 마리면 넓게 봐요.', SRC)).toEqual([]);
+    expect(whyShortNumberProblems('높이 cm 를 재어 봐요.', SRC)).toEqual([]);
+    expect(disguisedNumbers('하루 한 번 확인해요. 열을 맞춰요.')).toEqual([]);
+  });
+  it('validate: whyShort 우회 → W02 error, why 우회 → L03 warning(오류 아님)', () => {
+    expect(of(withShort('req-syrian-cage', '가로는 아흔cm 넘게 봐요.'), 'W02')).toHaveLength(1);
+    expect(of(withShort('req-syrian-cage', '가로는 ９９cm 넘게 봐요.'), 'W02')).toHaveLength(1);
+    const s = fresh();
+    const cage = row(s, 'supplyRequirements', 'req-syrian-cage');
+    cage.why = `${cage.why as string} 가로는 ٩٩cm 넘게 봐요.`;
+    const res = run(s);
+    expect(of(res, 'L03', 'warnings').filter((i) => i.id === 'req-syrian-cage' && i.path === 'why').map((i) => i.message).join(' ')).toContain('숫자 표기 우회');
+    // 전각 숫자 단위 누락도 L03(NFKC 뒤 ASCII 규칙).
+    expect(numbersWithoutUnit('가로 ９９ 이상')).toEqual(['99']);
+  });
+});
+
+describe('W01 — 줄바꿈·문장 경계·보이지 않는 문자 우회', () => {
+  it.each([
+    ['U+2029', '물이 필요해요\u2029매일 봐요'],
+    ['U+2028', '물이 필요해요\u2028매일 봐요'],
+    ['NEL', '물이 필요해요\u0085매일 봐요'],
+    ['VT', '물이 필요해요\u000B매일 봐요'],
+    ['FF', '물이 필요해요\u000C매일 봐요'],
+  ])('%s → 개행 W01', (_n, v) => {
+    expect(whyShortFormProblem(v)).toContain('개행');
+  });
+  it('마침표 뒤 공백 없는 두 문장·전각 마침표 → 한 문장 아님 W01, 소수점은 경계 아님', () => {
+    expect(whyShortFormProblem('물이 필요해요.먹이도 봐요.')).toContain('한 문장');
+    expect(whyShortFormProblem('물이 필요해요．먹이도 봐요．')).toContain('한 문장');
+    expect(whyShortFormProblem('물이 필요해요!먹이도 봐요.')).toContain('한 문장');
+    expect(whyShortFormProblem('가로는 몸길이의 2.5배예요.')).toBeNull();
+    expect(whyShortFormProblem('물이 꼭 필요해요．')).toBeNull();
+    expect(strictSentenceCount('물이 필요해요.먹이도 봐요.')).toBe(2);
+    // why·caution 용 sentenceCount 는 그대로(공백 없는 마침표는 경계 아님 — 실시드 L03 결과 불변).
+    expect(sentenceCount('물이 필요해요.먹이도 봐요.')).toBe(1);
+  });
+  it.each([
+    ['ZWSP', '물이 꼭\u200B필요해요.'],
+    ['ZWNJ', '물이 꼭\u200C필요해요.'],
+    ['ZWJ(글자 사이)', '물이 꼭\u200D필요해요.'],
+    ['LRM', '물이 꼭 필요해요.\u200E'],
+    ['RLO', '물이 꼭 \u202E필요해요.'],
+    ['RLI', '물이 꼭 \u2067필요해요.'],
+    ['BOM', '\uFEFF물이 꼭 필요해요.'],
+    ['WJ', '물이 꼭\u2060필요해요.'],
+    ['SHY', '물이 꼭 필\u00AD요해요.'],
+  ])('%s → W01(제로폭·방향 제어)', (_n, v) => {
+    expect(whyShortFormProblem(v)).toContain('제로폭');
+    expect(of(withShort('req-syrian-water', v), 'W01')).toHaveLength(1);
+  });
+  it('정상: 이모지 ZWJ 결합은 허용', () => {
+    expect(whyShortFormProblem('👨‍👩‍👧가나다라.')).toBeNull();
+    expect(whyShortFormProblem('물이 꼭 필요해요.')).toBeNull();
   });
 });
 

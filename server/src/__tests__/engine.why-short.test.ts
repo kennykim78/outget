@@ -80,6 +80,19 @@ describe('D9 ② resolveRequirement — whyShort 결합', () => {
     expect(resolveRequirement(cat, 'critter', 'disc')!.whyShort).toBeNull();
   });
 
+  it('기본 행 whyShort 가 문자열 아님(42) → null(fail-closed), override 없는 경로·why 안 바꾸는 override 경로 모두', () => {
+    const cat = withShort((b) => {
+      (reqOf(b, 'pf-test', 'box') as unknown as Record<string, unknown>).whyShort = 42;
+      (reqOf(b, 'pf-test', 'disc') as unknown as Record<string, unknown>).whyShort = 42;
+    });
+    const plain = resolveRequirement(cat, 'critter-plain', 'box')!;
+    expect(plain.whyShort).toBeNull();
+    expect(plain.provenance.whyShort).toBe('REQUIREMENT');
+    // critter.disc override 는 why 를 바꾸지 않는다 → 기본 행 경로(42 → null).
+    expect(resolveRequirement(cat, 'critter', 'disc')!.whyShort).toBeNull();
+    expect(reasonLine(plain)).toBe(firstSentence(plain.why as string));
+  });
+
   it('정렬·노출 계산은 whyShort 와 무관(표시 전용, 불변식 3)', () => {
     const base = createCatalog(makeBundle());
     const cat = withShort((b) => {

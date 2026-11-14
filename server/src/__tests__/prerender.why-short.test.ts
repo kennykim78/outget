@@ -8,7 +8,7 @@ import { WS_WIRE_VERSION, decodeWsPage } from '../engine/ws-wire.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { BASELINE_FILE, baseOptions, hashFiles } from './fixtures/affiliate/baseline.js';
 import type { BaselineFile } from './fixtures/affiliate/gen-baseline.js';
-import { FIXTURE_AS_OF, SECOND, promotedTwo } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, SECOND, V, labelEnums, patch, promotedTwo } from './fixtures/prerender-seed.js';
 
 const WS_RE = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/;
 const SHORT_CAGE = '바닥을 넓게 쓰는 동물이라 넓어야 해요.'; // 테스트 전용 가짜 값
@@ -31,6 +31,11 @@ const wireReqs = (html: string): Rec[] => ((JSON.parse(WS_RE.exec(html)![1]) as 
 const reqById = (rs: Rec[], id: string): Rec => rs.find((r) => r.requirementId === id)!;
 const nowReason = (html: string, item: string): string | null => {
   const m = new RegExp(`<li class="ws-now-item" data-ws-item="${item}"[^>]*>[\\s\\S]*?<span class="ws-t-body ws-muted ws-now-reason">([^<]*)</span>`).exec(html);
+  return m ? m[1] : null;
+};
+const SHORT_SAUCER = '쳇바퀴부터 갖추고 나서 봐도 돼요.'; // 테스트 전용 가짜 값(NOT_NOW)
+const laterReason = (html: string, item: string): string | null => {
+  const m = new RegExp(`<li data-ws-item="${item}"[^>]*><span class="ws-t-cta ws-later-name">[^<]*</span><span class="ws-t-body ws-muted ws-later-reason">([^<]*)</span>`).exec(html);
   return m ? m[1] : null;
 };
 
@@ -84,6 +89,29 @@ describe('값 있음 — 있는 행만 키, 이유 줄 = whyShort', () => {
     expect(nowReason(golden.html, 'wheel')).toBe(SHORT_WHEEL);
     const why = (reqById(second.data.data.requirements as unknown as Rec[], 'req-fixture-cage').why as string);
     expect(nowReason(second.html, 'cage')).toBe(firstSentence(why));
+  });
+
+  it('나중에 필요한 것(NOT_NOW): notNowReason 없는 행은 whyShort, notNowReason 있는 행은 notNowReason(client HomeB 와 같은 우선순위)', () => {
+    // NOT_NOW 행(원반형 쳇바퀴)을 메모리에서만 승격 — 실시드 파일 불변.
+    const withSaucer = (keepReason: boolean) => {
+      const s = seedWith();
+      patch(s, 'supplyRequirements', 'req-syrian-saucer', { ...V });
+      patch(s, 'supplyItems', 'saucer', { ...V });
+      labelEnums(s, 'saucer');
+      const saucer = s.supplyRequirements.find((r) => r.id === 'req-syrian-saucer')!;
+      expect(saucer.priority).toBe('NOT_NOW');
+      if (!keepReason) saucer.notNowReason = null;
+      saucer.whyShort = SHORT_SAUCER;
+      return { saucer, html: typePage(build(s), 'hamster-golden').html };
+    };
+    const noReason = withSaucer(false);
+    // whyShort 는 why 첫 문장과 달라야 reasonLine({why}) 변이가 드러난다.
+    expect(firstSentence(noReason.saucer.why as string)).not.toBe(SHORT_SAUCER);
+    expect(laterReason(noReason.html, 'saucer')).toBe(SHORT_SAUCER);
+    // notNowReason 이 있으면 그것이 이긴다.
+    const withReason = withSaucer(true);
+    expect(withReason.saucer.notNowReason).toBeTruthy();
+    expect(laterReason(withReason.html, 'saucer')).toBe(withReason.saucer.notNowReason);
   });
 
   it('catalog: 기본 행 whyShort 만 supplyRequirements 에, override 는 careOverrides 그대로', () => {

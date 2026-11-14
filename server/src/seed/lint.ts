@@ -70,6 +70,18 @@ export function sentenceCount(text: string): number {
     .filter((s) => s.length > 0).length;
 }
 
+/**
+ * 이유 한 줄(whyShort, D9 ②) 전용 엄격 문장 수 — sentenceCount(why·caution 규칙, 결과 불변)와 따로 둔다.
+ *   NFKC(전각 마침표 ．→ . , ｡→ 。) 뒤, 마침표 뒤 공백이 없어도 경계("요.먹이도" = 2문장). 단 숫자 사이 마침표(1.5)는 경계 아님.
+ */
+export function strictSentenceCount(text: string): number {
+  return text
+    .normalize('NFKC')
+    .split(/[!?。]|(?<!\d)\.|\.(?!\d)/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0).length;
+}
+
 // 숫자 뒤에 와야 하는 단위·수량사. 긴 것 먼저.
 const UNIT_RE =
   /^\s?(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|℃|°C|°|원|만|천|개월|개|마리|회|번|년|일|주|시간|분|초|층|종|가지|단계|세|살|배|명|월|호|차|박|칸|장|쌍)/;
@@ -87,7 +99,10 @@ export function numbersWithoutUnit(text: string): string[] {
  * 숫자 묶음 + 뒤따르는 단위(없으면 null) 목록(순수, D9 ② W02 와 공용). 영문에 붙은 숫자(모델명 등)는 건너뛴다.
  *   예: "가로 60×40cm 이상, 2 개" → [{group:'60×40', unit:'cm'}, {group:'2', unit:'개'}].
  */
-export function numberTokens(text: string): Array<{ group: string; unit: string | null }> {
+export function numberTokens(raw: string): Array<{ group: string; unit: string | null }> {
+  // NFKC 먼저: 전각 ９９·수학 굵은 𝟗𝟗·원문자 ⑨·㎝ 등을 ASCII 숫자·단위로 펴서 ASCII \d 규칙이 우회되지 않게.
+  //   NFKC 로도 ASCII 가 안 되는 숫자(아라비아-인도 ٩·❾ 등)·한글 수사+단위는 disguisedNumbers 가 따로 잡는다.
+  const text = raw.normalize('NFKC');
   const out: Array<{ group: string; unit: string | null }> = [];
   const re = new RegExp(NUMBER_GROUP_RE.source, 'g');
   let m: RegExpExecArray | null;
@@ -98,6 +113,24 @@ export function numberTokens(text: string): Array<{ group: string; unit: string 
     out.push({ group: m[0], unit: u ? u[0].trim() : null });
   }
   return out;
+}
+
+// NFKC 뒤에도 남는 비ASCII 숫자(\p{N}: 아라비아-인도 ٩·데바나가리 ९·❾·〇 등).
+const NON_ASCII_NUMBER_RE = /[^\P{N}0-9]+/gu;
+// 한글 수사(고유어·한자어) 바로 뒤(공백 1개 허용) 측정 단위. 앞은 한글이 아닐 때만("높이 cm" 의 "이" 는 수사 아님).
+//   고유어 수 세기(한 번·두 개·세 마리)는 자연어라 대상 아님 — 측정 단위(cm·g·%·℃ 및 센티·그램 등 한글 단위)만.
+const HANGUL_NUMERAL =
+  '(?:(?:스물|스무|서른|마흔|쉰|예순|일흔|여든|아흔|열)(?:하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉)?|하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|[일이삼사오육칠팔구십백천영공]+)';
+const MEASURE_UNIT = '(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|°C|°|센티미터|센티|밀리미터|밀리|킬로그램|킬로미터|킬로|미터|그램|리터|퍼센트)';
+const HANGUL_NUMERAL_UNIT_RE = new RegExp(`(?<![가-힣])${HANGUL_NUMERAL}\\s?${MEASURE_UNIT}(?![A-Za-z])`, 'gu');
+
+/**
+ * 숫자 표기 우회 목록(순수, L03·W02 공용) — NFKC 뒤에도 남는 비ASCII 숫자, 한글 수사+측정 단위("아흔cm").
+ *   숫자는 ASCII 로 쓴다(단위·원문 대조 규칙이 ASCII 기준).
+ */
+export function disguisedNumbers(raw: string): string[] {
+  const text = raw.normalize('NFKC');
+  return [...(text.match(NON_ASCII_NUMBER_RE) ?? []), ...(text.match(HANGUL_NUMERAL_UNIT_RE) ?? [])];
 }
 
 const PLACEHOLDERS = new Set(['', '—', '–', '-', 'TODO', 'TBD', 'N/A']);
@@ -228,6 +261,8 @@ export function lintRecord(key: SeedKey, id: string, r: Rec, out: Collector): vo
     if (f.role === 'prose' || f.role === 'why' || f.role === 'caution') {
       const bare = numbersWithoutUnit(f.text);
       if (bare.length > 0) out.warn('L03', key, id, f.path, `단위 없는 숫자: ${bare.join(', ')}`);
+      const odd = disguisedNumbers(f.text);
+      if (odd.length > 0) out.warn('L03', key, id, f.path, `숫자 표기 우회(비ASCII 숫자·한글 수사+단위): ${odd.join(', ')} — ASCII 숫자로`);
     }
     if (f.role === 'keyword' && f.text.trim() !== '' && !f.text.includes('{animal}')) {
       out.warn('L05', key, id, f.path, 'searchKeyword override 에 {animal} 토큰 없음 — 동물명이 붙지 않는다');

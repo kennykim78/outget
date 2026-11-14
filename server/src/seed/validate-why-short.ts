@@ -1,6 +1,8 @@
 // 이유 한 줄(whyShort, D9 ②) 규칙 W01~W04 — SupplyRequirement 행과 AnimalType.careOverrides.requirements[*] 의 whyShort.
-//   W01 ERROR: 6~30자(grapheme, K2 2026-11-14)·정확히 한 문장·개행 없음·앞뒤 공백 없음.
-//   W02 ERROR: 같은 행 원문(why·caution·notNowReason — override 는 resolve 후 값)에 없는 숫자·단위 도입, 단위 없는 숫자.
+//   W01 ERROR: 6~30자(grapheme, K2 2026-11-14)·정확히 한 문장(strictSentenceCount — 마침표 뒤 공백 없음·전각 ．도 경계)·
+//              개행 없음(CR·LF·VT·FF·NEL·U+2028·U+2029)·제로폭·방향 제어 문자 없음(이모지 ZWJ 결합만 허용)·앞뒤 공백 없음.
+//   W02 ERROR: 같은 행 원문(why·caution·notNowReason — override 는 resolve 후 값)에 없는 숫자·단위 도입, 단위 없는 숫자,
+//              숫자 표기 우회(NFKC 뒤 비ASCII 숫자·한글 수사+측정 단위 — lint.disguisedNumbers).
 //   W03 WARN : whyShort 가 firstSentence(why) 와 같다(폴백과 중복 — 쓸 이유가 없다).
 //   W04 ERROR: FOOD/HEALTH 행 whyShort — 첫 라운드 제외(K3 2026-11-14, 의료 인접 불변식 5). 해제는 Kenny 결정 뒤 이 상수만.
 //   금지어·의료 표현 린트(L01~L04)는 lint.ts 가 why 와 같은 역할로 본다. 타입(string, null 불허)은 S03·R03.
@@ -8,7 +10,7 @@
 import { firstSentence } from '../engine/spec-text.js';
 import { asRec, has, isNonEmptyStr, type Rec } from './common.js';
 import type { Ctx } from './context.js';
-import { numberTokens, sentenceCount } from './lint.js';
+import { disguisedNumbers, numberTokens, strictSentenceCount } from './lint.js';
 
 export const WHY_SHORT_MIN = 6;
 export const WHY_SHORT_MAX = 30;
@@ -21,13 +23,21 @@ export function graphemeLength(s: string): number {
   return [...segmenter.segment(s)].length;
 }
 
+// 줄바꿈으로 보는 문자: CR·LF·VT·FF·NEL·LINE SEPARATOR·PARAGRAPH SEPARATOR.
+// eslint-disable-next-line no-control-regex -- VT·FF 는 일부러 줄바꿈으로 잡는다.
+const LINE_BREAK_RE = /[\r\n\u000B\u000C\u0085\u2028\u2029]/;
+// 제로폭·방향 제어(보이지 않게 글자·숫자·금지어를 쪼개거나 순서를 뒤집는 문자). ZWJ 는 이모지 결합 사이만 허용.
+const INVISIBLE_RE = /[\u00AD\u061C\u180E\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]|\u200D/u;
+const EMOJI_ZWJ_RE = /(?<=\p{Extended_Pictographic}(?:\p{Emoji_Modifier}|\uFE0F)?)\u200D(?=\p{Extended_Pictographic})/gu;
+
 /** W01 형식 문제(없으면 null). */
 export function whyShortFormProblem(v: string): string | null {
-  if (/[\r\n]/.test(v)) return '개행 없이 한 줄';
+  if (LINE_BREAK_RE.test(v)) return '개행 없이 한 줄';
+  if (INVISIBLE_RE.test(v.replace(EMOJI_ZWJ_RE, ''))) return '제로폭·방향 제어 문자 없이';
   if (v !== v.trim()) return '앞뒤 공백 없이';
   const n = graphemeLength(v);
   if (n < WHY_SHORT_MIN || n > WHY_SHORT_MAX) return `${WHY_SHORT_MIN}~${WHY_SHORT_MAX}자 (현재 ${n}자)`;
-  const sc = sentenceCount(v);
+  const sc = strictSentenceCount(v);
   if (sc !== 1) return `정확히 한 문장 (현재 ${sc})`;
   return null;
 }
@@ -46,7 +56,7 @@ export function whyShortNumberProblems(v: string, sourceTexts: ReadonlyArray<str
   const src = numberTokens(sourceTexts.filter((t): t is string => typeof t === 'string').join('\n'))
     .filter((t) => t.unit !== null)
     .map((t) => ({ whole: squash(`${t.group}${t.unit}`), unit: t.unit as string, parts: partsOf(t.group) }));
-  const out: string[] = [];
+  const out: string[] = disguisedNumbers(v).map((d) => `숫자 표기 우회 "${d}" — ASCII 숫자로`);
   for (const t of numberTokens(v)) {
     if (t.unit === null) {
       out.push(`단위 없는 숫자 "${t.group}"`);
