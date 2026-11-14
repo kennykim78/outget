@@ -320,6 +320,19 @@ export const COPY = deepFreeze({
     backTo: '‹ {name}',
     stepSpecCheck: '크기 확인',
     stepNow: '지금 필요한 것',
+    /**
+     * R4-5(R4 시안 l6_my_cage) — 등록한 케이지 보기(케이지가 있을 때 L6 첫 화면). 숫자는 저장값·해석된 minSpec·엔진 결과만(⑥).
+     *   자체 최소 규격(케이지 vs 동물 최소, engine.specCheck 제품 단) ≠ 용품 간 호환(engine.requirementCompat).
+     */
+    registeredTitle: '등록한 케이지',
+    floorLabel: '바닥 가로 × 세로',
+    editCta: '등록값 수정하기',
+    /** 자체 최소 규격 OK 제목(시안 원문 「케이지 최소 규격 충족」). {name} = 케이지 용품명(시드). 그 밖 판정은 L5 verdictTitle 재사용. */
+    selfOk: '{name} 최소 규격 충족',
+    selfNote: sent('표시한 치수 기준만 비교한 결과예요.'),
+    /** 용품 간 호환 제목 — {name} = 용품명 + 와/과(comitativeParticle). CHECK 는 시안 원문, BELOW_MIN 은 L5 「케이지와는 맞지 않는 조건이 있어요」와 같은 말. */
+    compatCheckTitle: '{name} 함께 확인해요',
+    compatBelowMinTitle: '{name} 맞지 않는 조건이 있어요',
   },
   /** R5 C1 — 반응(PRD US-015; 스펙33 §2.3). 숫자는 R5 미표시(키 없음). */
   reaction: {
@@ -369,10 +382,13 @@ export const COPY = deepFreeze({
   save: {
     title: '이메일로 저장해 둘까요?',
     description: sent('선택한 동물과 준비 상태만 저장해요. 비밀번호 없이 메일의 링크로 확인해요.'),
-    submit: '인증 메일 보내기',
+    /** R4-7(R4 시안 l8_email) — 채운 버튼 하나 「저장 링크 받기」(이전 「인증 메일 보내기」). */
+    submit: '저장 링크 받기',
     later: '나중에 할게요',
     noAds: sent('광고 메일은 보내지 않아요'),
-    emailLabel: '이메일 주소',
+    /** R4-7 — 입력 라벨·자리 표시(시안 원문). 자리 표시는 형식 예시일 뿐 값이 아니다. */
+    emailLabel: '이메일',
+    emailPlaceholder: 'name@example.com',
     sending: '보내고 있어요',
     sentTitle: '메일을 보냈어요',
     sentBody: sent('메일의 링크를 누르면 저장이 끝나요. 링크는 15분 동안 한 번만 쓸 수 있어요.'),
@@ -665,4 +681,15 @@ export function objectParticle(word: string): string {
   const last = w.charCodeAt(w.length - 1);
   if (last >= 0xac00 && last <= 0xd7a3) return `${w}${(last - 0xac00) % 28 === 0 ? '를' : '을'}`;
   return `${w}을(를)`;
+}
+
+/**
+ * 공동격 조사(와/과)를 붙인다 — objectParticle 과 같은 규칙(받침 있으면 「과」, 없으면 「와」, 한글 음절이 아니면 「와(과)」).
+ *   표시명(시드 용품명)에 붙이는 표시 규칙일 뿐 사실값이 아니다(R4-5 L6 「쳇바퀴와 함께 확인해요」).
+ */
+export function comitativeParticle(word: string): string {
+  const w = word.trim();
+  const last = w.charCodeAt(w.length - 1);
+  if (last >= 0xac00 && last <= 0xd7a3) return `${w}${(last - 0xac00) % 28 === 0 ? '와' : '과'}`;
+  return `${w}와(과)`;
 }

@@ -247,7 +247,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await assertScreen(page, 'L8 입력');
     const before = mailsTo(email).length;
     await L8.locator('input[type="email"]').fill(email);
-    await tap(page, L8.getByRole('button', { name: '인증 메일 보내기' }));
+    await tap(page, L8.getByRole('button', { name: '저장 링크 받기' }));
     await expect(L8.locator('[data-ws-save="sent"]')).toBeVisible();
     await assertScreen(page, 'L8 보냄');
     const link = await waitForSaveLink(email, before, origin);
@@ -278,7 +278,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     expect(await p2.evaluate((k) => localStorage.getItem(k), `ws.setup.${TYPE.id}`)).toBeNull();
     const before = mailsTo(email).length;
     await L8.locator('input[type="email"]').fill(email);
-    await tap(p2, L8.getByRole('button', { name: '인증 메일 보내기' }));
+    await tap(p2, L8.getByRole('button', { name: '저장 링크 받기' }));
     await expect(L8.locator('[data-ws-save="sent"]')).toBeVisible();
     const link2 = await waitForSaveLink(email, before, origin);
     await gotoHydrated(p2, link2);

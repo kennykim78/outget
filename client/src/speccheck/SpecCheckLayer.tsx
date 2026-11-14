@@ -54,6 +54,8 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
     return ready?.catalog.supplyItems.get(CAGE_ITEM_ID)?.specSchema ?? null;
   }, [page.data.requirements, typeId, ready]);
   const { cage } = useCage(typeId, { schema: cageSchema });
+  // R4-5: L6 등록한 케이지 보기 — 이 타입의 ws-data 요구사항(자체 최소 규격·용품 간 호환 판정 대상).
+  const typeReqs = useMemo(() => page.data.requirements.filter((r) => r.animalTypeId === typeId), [page.data.requirements, typeId]);
   const cageRule = ready !== null && type !== null && hasCageRule(ready.catalog, type.careProfileId, itemId);
 
   const [raw, setRaw] = useState<Record<string, string>>({});
@@ -120,7 +122,17 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
   if (!requirement || !type) return null;
 
   if (step === 'L6') {
-    return <CageStep typeId={typeId} schema={cageSchema} backLabel={COPY.cage.stepSpecCheck} onBack={backFromCage} />;
+    return (
+      <CageStep
+        typeId={typeId}
+        schema={cageSchema}
+        backLabel={COPY.cage.stepSpecCheck}
+        onBack={backFromCage}
+        animalName={type.displayName}
+        reqs={typeReqs}
+        catalogUrl={page.catalogUrl}
+      />
+    );
   }
 
   const schema = requirement.item.specSchema;

@@ -514,8 +514,56 @@
 }
 
 .ws-spec-submit.ws-btn--fill,
-.ws-cage-save {
+.ws-cage-save,
+.ws-cage-edit {
   border: 0;
+}
+
+.ws-cage-edit {
+  flex: 1 0 100%;
+  cursor: pointer;
+}
+
+/* R4-5 등록한 케이지 보기(시안 l6_my_cage): 왼쪽 정렬 큰 숫자 → 구분선 단(자체 최소 규격 · 용품 간 호환). 상자·배경·그림자 없음. */
+.ws-cage-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-4);
+}
+
+.ws-cage-summary p,
+.ws-cage-summary h3,
+.ws-cage-summary h4 {
+  margin: 0;
+}
+
+.ws-cage-summary-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-cage-summary-title {
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+  letter-spacing: var(--ws-type-title-tracking);
+  color: var(--ws-ink);
+}
+
+.ws-cage-summary-label {
+  margin-top: var(--ws-space-2);
+  color: var(--ws-ink);
+}
+
+.ws-cage-summary-mark {
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-section-weight);
+}
+
+.ws-cage-summary-muted {
+  color: var(--ws-ink-muted);
 }
 
 .ws-cage-foot {

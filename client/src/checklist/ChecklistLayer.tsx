@@ -137,7 +137,17 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   const allRows = view.groups.flatMap((g) => g.rows);
 
   if (step === 'L6') {
-    return <CageStep typeId={type.id} schema={cageSchema} backLabel={COPY.cage.stepNow} onBack={backFromCage} />;
+    return (
+      <CageStep
+        typeId={type.id}
+        schema={cageSchema}
+        backLabel={COPY.cage.stepNow}
+        onBack={backFromCage}
+        animalName={type.displayName}
+        reqs={reqs}
+        catalogUrl={page.catalogUrl}
+      />
+    );
   }
 
   if (step === 'L3') {

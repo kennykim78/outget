@@ -697,6 +697,7 @@ describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력�
     // 케이지 수정(바닥 가로 축소 → 호환 CHECK)으로 한 번 더 재계산 — 제품 단은 여전히 OK(floorType 유지)
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.edit }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.editCta })); // R4-5: 등록한 케이지 보기 → 폼
     setNumber(d, /바닥 가로/, '25');
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
@@ -826,6 +827,11 @@ describe('L6 내 케이지 스텝', () => {
     await ready(d);
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.edit }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    // R4-5: 케이지가 있으면 보기부터(폼·지우기 0) → 「등록값 수정하기」 → 폼(첫 입력 포커스)
+    expect(d.querySelector('[data-ws-cage="summary"]')).not.toBeNull();
+    expect(within(d).queryByRole('button', { name: COPY.cage.delete })).toBeNull();
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.editCta }));
+    expect(d.querySelector('[data-ws-cage="summary"]')).toBeNull();
     expect(within(d).getByLabelText(/바닥 가로/)).toHaveValue(80);
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.delete }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());

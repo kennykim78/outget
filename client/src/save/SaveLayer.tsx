@@ -879,7 +879,8 @@ export default function SaveLayer({ close }: LayerContentProps) {
         <div className="ws-save" data-ws-save="input">
           <p className="ws-t-body">{COPY.save.description}</p>
           <form className="ws-save-form" noValidate onSubmit={onSubmit}>
-            <label htmlFor={inputId} className="ws-t-label ws-save-muted">
+            {/* R4-7(시안 l8_email): 라벨 「이메일」(잉크 색) → 72 높이 입력 하나(자리 표시 = 형식 예시). */}
+            <label htmlFor={inputId} className="ws-t-label ws-save-label">
               {COPY.save.emailLabel}
             </label>
             <input
@@ -889,6 +890,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
               name="email"
               autoComplete="email"
               inputMode="email"
+              placeholder={COPY.save.emailPlaceholder}
               required
               value={email}
               aria-invalid={error === 'format' ? true : undefined}

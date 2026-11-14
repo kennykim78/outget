@@ -15,9 +15,14 @@
   gap: var(--ws-space-2);
 }
 
+/* R4-7(시안 l8_email): 라벨 잉크 색·입력 높이 72(--ws-input-h, 시안 notes 「입력 72」). */
+.ws-save-label {
+  color: var(--ws-ink);
+}
+
 .ws-save-input {
-  min-height: 48px;
-  padding: 0 var(--ws-space-3);
+  min-height: var(--ws-input-h);
+  padding: 0 var(--ws-space-4);
   border: 1px solid var(--ws-line-strong);
   border-radius: var(--ws-radius-sm);
   background: var(--ws-bg-000);
