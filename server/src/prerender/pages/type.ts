@@ -54,7 +54,7 @@ function crumbsOf(t: TypeModel): Crumb[] {
 
 type ItemOf = RequirementModel['item'];
 
-/** 스펙22 §2.7 — li.ws-product > a > img|span.ws-tile, .ws-product-title, .ws-spec(비면 생략), .ws-badge(✓ 기준 충족). 가격·판매처 없음. */
+/** 스펙22 §2.7 — li.ws-product > a > img|span.ws-tile, .ws-product-title, .ws-spec(비면 생략), .ws-badge(○ 기준 충족, R4-1). 가격·판매처 없음. */
 function productCard(t: TypeModel, p: PublicProduct, item: ItemOf | undefined): string {
   const img = p.imageAsset
     ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" loading="lazy" decoding="async" width="160" height="160">`
@@ -350,7 +350,7 @@ function layerL7(t: TypeModel, p: PublicProduct): string {
     spec ? `<p class="ws-spec">${h(spec)}</p>` : '',
     `<p>${meetsBadge()}</p>`,
     `<h3>${h(COPY.product.reasonsTitle)}</h3>`,
-    `<ul class="ws-reasons">${reasons.map((x) => `<li>${glyphSpan('ready')}${h(x)}</li>`).join('')}</ul>`,
+    `<ul class="ws-reasons">${reasons.map((x) => `<li>${glyphSpan('ok')}${h(x)}</li>`).join('')}</ul>`,
     `<p><a href="${a(hrefOf(`${base(t)}/supplies/${r.item.id}`))}">${h(formatCopy(COPY.product.supplyBasisLink, { name: r.item.name }))}</a></p>`,
     lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
     searchBlock(r),

@@ -114,12 +114,13 @@ describe('L4 SupplyLayer', () => {
     expect(splitChipText('28cm')).toEqual({ value: '28cm', suffix: null });
   });
 
-  it('NOT_NOW: ○ + "지금은 필요 없어요 — 이유"가 왜보다 앞', () => {
+  it('NOT_NOW: 글리프 없이 "지금은 필요 없어요 — 이유"가 왜보다 앞(R4-1 — ○ 는 기준 충족 전용)', () => {
     const d = openL4(pageWith([wheel({ priority: 'NOT_NOW', notNowReason: '첫 주에는 필요 없어요' })]));
     expect(parts(d).slice(0, 2)).toEqual(['notNow', 'why']);
     const nn = d.querySelector('[data-ws-part="notNow"]') as HTMLElement;
     expect(nn.textContent).toContain(`${COPY.supplyLayer.notNow} — 첫 주에는 필요 없어요`);
-    expect(nn.querySelector('[data-ws-glyph="later"]')).not.toBeNull();
+    expect(nn.querySelector('.ws-glyph')).toBeNull();
+    expect(nn.textContent).not.toContain('○');
   });
 
   it('상품 = ws-data 순서 그대로 이 용품 것만 앞 3, 링크 → L7 URL', () => {
@@ -299,6 +300,8 @@ describe('L4 내 케이지 서브카드 meta 문구 — usedRecommended(작업 1
     await waitFor(() => expect(d.querySelector('.ws-compat')).not.toBeNull());
     expect(metaTexts(d)).toContain(COPY.supplyLayer.compatSubNoteRecommended);
     expect(metaTexts(d)).not.toContain(COPY.supplyLayer.compatSubNote);
+    // R4-1: 호환 OK = L5 호환 단과 같은 ○(✓ 아님).
+    expect(d.querySelector('.ws-compat-verdict [data-ws-glyph="ok"]')).toHaveTextContent('○');
   });
 
   it('usedRecommended 없음 → 기존 최소 규격 문구', async () => {

@@ -1,4 +1,4 @@
-// 상품 카드(스펙22 §2.7). 이미지(운영자 자산 imageAsset 만) 또는 대체 타일 → 상품명 → 규격 한 줄 → "✓ 기준 충족". ♥ 는 링크 형제 button.ws-like(D-38, reaction/LikeToggle — 숫자 없음).
+// 상품 카드(스펙22 §2.7). 이미지(운영자 자산 imageAsset 만) 또는 대체 타일 → 상품명 → 규격 한 줄 → "○ 기준 충족". ♥ 는 링크 형제 button.ws-like(D-38, reaction/LikeToggle — 숫자 없음).
 //   가격·판매처·할인·별점·마스코트 없음. 카드 전체 링크(/{slug}/products/{id}) → app/layerLinks 가 L7 push(C-R5-5), JS 꺼짐이면 딥링크 문서.
 import type { PublicProduct } from '@ws/engine';
 import { COPY } from '@ws/copy';
@@ -38,7 +38,7 @@ export default function ProductCard({ product, href, specLine, glyph }: ProductC
         {specLine ? <span className="ws-spec">{specLine}</span> : null}
         <span className="ws-product-foot">
           <span className="ws-badge">
-            <Glyph kind="ready" />
+            <Glyph kind="ok" />
             {COPY.product.badge}
           </span>
         </span>

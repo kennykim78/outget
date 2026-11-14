@@ -85,7 +85,7 @@ function openL7(id = 'p1', p = page()): HTMLElement {
 }
 
 describe('L7 ProductLayer', () => {
-  it('구조: 대체 타일 → 용품명 meta → ✓ 기준 충족 + 검수일 + ♥ → 추천 이유(템플릿) → 기준 보기 링크, data-ws-id', () => {
+  it('구조: 대체 타일 → 용품명 meta → ○ 기준 충족(R4-1) + 검수일 + ♥ → 추천 이유(템플릿) → 기준 보기 링크, data-ws-id', () => {
     const d = openL7();
     expect(d).toHaveAttribute('data-ws-id', 'curatedProducts#p1');
     expect(d.querySelector('.ws-tile')).not.toBeNull();
@@ -94,8 +94,8 @@ describe('L7 ProductLayer', () => {
     expect(d.textContent).toContain(`${COPY.supplyLayer.lastVerified} 2026.09`);
     const items = Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => li.textContent);
     expect(items).toEqual([
-      `✓${formatCopy(COPY.product.reasonSpecRecommended, { animal: golden.displayName })}`,
-      `✓${formatCopy(COPY.product.reasonProfileTpl, { name: '쳇바퀴' })}`,
+      `○${formatCopy(COPY.product.reasonSpecRecommended, { animal: golden.displayName })}`,
+      `○${formatCopy(COPY.product.reasonProfileTpl, { name: '쳇바퀴' })}`,
     ]);
     // DR B-1: 용품 why 는 L7 에 없다(L4 에서 — 아래 기준 보기 링크).
     expect(d.querySelector('[data-ws-part="why"]')).toBeNull();
@@ -129,7 +129,7 @@ describe('L7 ProductLayer', () => {
         COPY.product.reasonCageBelowMin,
       ].map((x) => x),
     );
-    const items = Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => (li.textContent ?? '').replace(/^[✓△✕]/, ''));
+    const items = Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => (li.textContent ?? '').replace(/^[○△✕]/, ''));
     expect(items).toEqual([formatCopy(COPY.product.reasonSpecMinimum, { animal: golden.displayName })]);
     for (const t of items) expect(allowed.has(t)).toBe(true);
   });
@@ -316,10 +316,10 @@ describe('L7 케이지 호환 — 상품 실제 규격값 기준(작업 183)', (
     expect(d.textContent).toContain('베딩 깊이 고려 높이 확인');
   });
 
-  it('30cm · 케이지 높이 55 → "내 케이지와 호환" ✓ 줄', async () => {
+  it('30cm · 케이지 높이 55 → "내 케이지와 호환" ○ 줄(R4-1)', async () => {
     setCage(55);
     const d = openL7('w30', pg());
-    await waitFor(() => expect(Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => li.textContent)).toContain(`✓${COPY.product.reasonCageOk}`));
+    await waitFor(() => expect(Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => li.textContent)).toContain(`○${COPY.product.reasonCageOk}`));
     expect(d.querySelector('[data-ws-reason="check"]')).toBeNull();
   });
 
@@ -348,7 +348,7 @@ describe('L7 케이지 호환 — 상품 실제 규격값 기준(작업 183)', (
     const d = openL7('w30', pg());
     await loaded();
     const items = Array.from(d.querySelectorAll('.ws-reasons li')).map((li) => li.textContent);
-    expect(items).toEqual([`✓${formatCopy(COPY.product.reasonSpecRecommended, { animal: golden.displayName })}`]);
+    expect(items).toEqual([`○${formatCopy(COPY.product.reasonSpecRecommended, { animal: golden.displayName })}`]);
     expect(d.querySelector('[data-ws-reason-note="compat"]')).toBeNull();
   });
 });

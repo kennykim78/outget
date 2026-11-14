@@ -437,9 +437,9 @@ describe('R4 A2 프리렌더 보강', () => {
     }
   });
 
-  it('(d) 상품 카드·L7: ✓ 글리프 span + "기준 충족", 이미지 없으면 item.glyph + "이미지 준비 중" 타일', () => {
+  it('(d) 상품 카드·L7: ○ 글리프 span(R4-1 판정 4상태) + "기준 충족", 이미지 없으면 item.glyph + "이미지 준비 중" 타일', () => {
     const b = buildM(promoted());
-    const badge = '<span class="ws-badge"><span class="ws-glyph" data-ws-glyph="ready" aria-hidden="true">✓</span>' + COPY.product.badge + '</span>';
+    const badge = '<span class="ws-badge"><span class="ws-glyph" data-ws-glyph="ok" aria-hidden="true">○</span>' + COPY.product.badge + '</span>';
     const tile = '<span class="ws-tile" aria-hidden="true"><span class="ws-tile-glyph">🎡</span><span class="ws-tile-label">' + COPY.product.imagePending + '</span></span>';
     for (const p of ['/hamster/golden', '/hamster/golden/supplies/wheel', '/hamster/golden/products/cp-001']) {
       const html = pageOf(b, p);

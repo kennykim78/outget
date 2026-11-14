@@ -1,6 +1,7 @@
 // ui 기본 요소: AnimalAvatar(리포 자산만), Glyph(텍스트 글리프), RailSection(구조·화살표 라벨).
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { COPY, GLYPH } from '@ws/copy';
 import AnimalAvatar from './AnimalAvatar';
 import Glyph from './Glyph';
 import RailSection from './RailSection';
@@ -37,6 +38,30 @@ describe('Glyph', () => {
     expect(g).toHaveTextContent('✓');
     expect(g).toHaveAttribute('aria-hidden', 'true');
     expect(g).toHaveAttribute('data-ws-glyph', 'ready');
+  });
+
+  it('R4-1 전역 표: 판정 4상태 ○ △ ✕ — + ? · 준비 ✓ ! · 글자 중복 없음(○ 는 기준 충족 하나뿐, 「나중에」 글리프 없음)', () => {
+    expect([GLYPH.ok, GLYPH.check, GLYPH.fail, GLYPH.none, GLYPH.unknown]).toEqual(['○', '△', '✕', '—', '?']);
+    expect([GLYPH.ready, GLYPH.first]).toEqual(['✓', '!']);
+    const chars = Object.values(GLYPH);
+    expect(new Set(chars).size).toBe(chars.length);
+    expect(Object.keys(GLYPH)).not.toContain('later');
+    const { container } = render(<Glyph kind="ok" className="ws-verdict-glyph" />);
+    const g = container.querySelector('.ws-glyph');
+    expect(g).toHaveClass('ws-verdict-glyph');
+    expect(g).toHaveAttribute('data-ws-glyph', 'ok');
+    expect(g).toHaveTextContent('○');
+  });
+
+  it('R4-1 qa: glyphLabel 은 GLYPH 키를 모두 덮고(+ later), 판정 단어는 L5 와 같다', () => {
+    for (const k of Object.keys(GLYPH)) expect(COPY.glyphLabel, k).toHaveProperty(k);
+    expect(COPY.glyphLabel.later).toBe('나중에');
+    expect(COPY.glyphLabel.ok).toBe(COPY.verdict.markOk);
+    expect(COPY.glyphLabel.fail).toBe(COPY.verdict.productBelowMin);
+    expect(COPY.glyphLabel.none).toBe(COPY.verdict.markNone);
+    expect(COPY.glyphLabel.unknown).toBe(COPY.verdict.markInput);
+    render(<Glyph kind="unknown" labelled />);
+    expect(screen.getByText(COPY.verdict.markInput)).toHaveClass('ws-visually-hidden');
   });
 });
 

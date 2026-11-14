@@ -190,9 +190,9 @@ export function glyphSpan(kind: keyof typeof GLYPH): string {
   return `<span class="ws-glyph" data-ws-glyph="${a(kind)}" aria-hidden="true">${h(GLYPH[kind])}</span>`;
 }
 
-/** 스펙22 §4-1 — "✓ 기준 충족" 배지(상품 카드·L7). */
+/** 스펙22 §4-1 — 「기준 충족」 배지(상품 카드·L7). 글리프 = 판정 4상태 ○(R4-1, 클라이언트 ProductCard·ProductLayer 와 같은 표). */
 export function meetsBadge(): string {
-  return `<span class="ws-badge">${glyphSpan('ready')}${h(COPY.product.badge)}</span>`;
+  return `<span class="ws-badge">${glyphSpan('ok')}${h(COPY.product.badge)}</span>`;
 }
 
 /** 스펙22 §4-2 — imageAsset 없을 때 대체 타일: item.glyph(있으면) + "이미지 준비 중". */

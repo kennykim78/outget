@@ -349,7 +349,11 @@
   gap: var(--ws-space-2);
 }
 
-.ws-verdict-glyph {
+/* 글리프 = 전역 Glyph(R4-1). 판정 단에서는 단의 색(글리프 + 단어 같은 색)·원래 폭·굵기를 그대로 쓴다. */
+.ws-verdict-line-mark .ws-glyph.ws-verdict-glyph {
+  min-width: 0;
+  color: inherit;
+  font-weight: inherit;
   font-size: var(--ws-type-section-size);
   line-height: 1;
 }

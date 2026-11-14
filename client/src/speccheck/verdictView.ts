@@ -1,6 +1,6 @@
 // L5 판정 표시 — 순수 함수(스펙33 §3 표). 판정 계산은 @ws/engine specCheck 만(불변식 ⑥) — 여기는 엔진 결과를 글자로 옮길 뿐.
 //   판정 = 정보, 추천 아님: 상품·상품명·"추천" 문구 0(D-43). 카피는 @ws/copy 단일 소스.
-import { COPY, VERDICT_GLYPH, formatCopy } from '@ws/copy';
+import { COPY, formatCopy } from '@ws/copy';
 import {
   findField,
   hasCompleteOptionLabels,
@@ -22,12 +22,16 @@ import {
 } from '@ws/engine';
 import type { CageV1 } from '../context/cageStore';
 import { CAGE_ITEM_ID } from '../context/cageStore';
+import type { GlyphKind } from '../ui/Glyph';
 
 /** 'none' = 종별 규격 기준 없음(arch-23) — 기존 ink-muted·bg-100 토큰만, 새 색 없음. */
 export type Tone = 'ready' | 'check' | 'fail' | 'none';
 
+/** 판정 글리프 = 전역 GLYPH 의 판정 4상태 + 입력 필요(R4-1 — 같은 Glyph 컴포넌트로 그린다). */
+export type VerdictGlyphKind = Extract<GlyphKind, 'ok' | 'check' | 'fail' | 'none' | 'unknown'>;
+
 export interface VerdictMark {
-  glyph: string;
+  kind: VerdictGlyphKind;
   tone: Tone;
   label: string;
 }
@@ -43,20 +47,20 @@ export function isProductNoCriteria(product: SpecCheckResult['product']): boolea
  *   그 밖의 미달은 「최소 규격 미달」) · CHECK+NO_CRITERIA — 기준 없음(○ 와 다른 글리프) · 값 누락 CHECK ? 입력 필요.
  */
 export function productMark(v: Verdict, noCriteria = false, small = false, reasons?: readonly Reason[]): VerdictMark {
-  if (v === 'CHECK' && noCriteria) return { glyph: VERDICT_GLYPH.none, tone: 'none', label: COPY.verdict.markNone };
+  if (v === 'CHECK' && noCriteria) return { kind: 'none', tone: 'none', label: COPY.verdict.markNone };
   switch (v) {
     case 'OK':
-      return { glyph: VERDICT_GLYPH.ok, tone: 'ready', label: COPY.verdict.markOk };
+      return { kind: 'ok', tone: 'ready', label: COPY.verdict.markOk };
     case 'BELOW_RECOMMENDED':
-      return { glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck };
+      return { kind: 'check', tone: 'check', label: COPY.verdict.markCheck };
     case 'BELOW_MIN':
-      return { glyph: VERDICT_GLYPH.fail, tone: 'fail', label: small ? COPY.verdict.markSmall : COPY.verdict.productBelowMin };
+      return { kind: 'fail', tone: 'fail', label: small ? COPY.verdict.markSmall : COPY.verdict.productBelowMin };
     case 'CHECK':
       // reasons 를 주면: INPUT(값 누락·잘못된 값) 사유가 있을 때만 「입력 필요」, 기준·규칙 쪽 사유뿐이면 「확인 필요」(△). 생략 시 기존 동작.
       if (reasons !== undefined && !reasons.some((r) => r.kind === 'INPUT')) {
-        return { glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck };
+        return { kind: 'check', tone: 'check', label: COPY.verdict.markCheck };
       }
-      return { glyph: VERDICT_GLYPH.input, tone: 'check', label: COPY.verdict.markInput };
+      return { kind: 'unknown', tone: 'check', label: COPY.verdict.markInput };
   }
 }
 
@@ -64,11 +68,11 @@ export function productMark(v: Verdict, noCriteria = false, small = false, reaso
 export function compatMark(v: CompatVerdict): VerdictMark | null {
   switch (v) {
     case 'OK':
-      return { glyph: VERDICT_GLYPH.ok, tone: 'ready', label: COPY.verdict.compatOk };
+      return { kind: 'ok', tone: 'ready', label: COPY.verdict.compatOk };
     case 'CHECK':
-      return { glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.compatCheck };
+      return { kind: 'check', tone: 'check', label: COPY.verdict.compatCheck };
     case 'BELOW_MIN':
-      return { glyph: VERDICT_GLYPH.fail, tone: 'fail', label: COPY.verdict.compatBelowMin };
+      return { kind: 'fail', tone: 'fail', label: COPY.verdict.compatBelowMin };
     default:
       return null;
   }

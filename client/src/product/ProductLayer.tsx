@@ -1,5 +1,5 @@
 // L7 상품 상세(UX §4 L7 · 스펙33 §5.4 · 계획 F1-3). 데이터는 같은 문서 ws-data(useLayerPage)만.
-//   순서: 이미지 1:1 160(운영자 자산만, 없으면 대체 타일) → meta "{용품명} · {specLine}" → ✓ 기준 충족 + 검수일 + ♥(공개 수 ≥10 만)
+//   순서: 이미지 1:1 160(운영자 자산만, 없으면 대체 타일) → meta "{용품명} · {specLine}" → ○ 기준 충족 + 검수일 + ♥(공개 수 ≥10 만)
 //   → "WithSmall 추천 이유"(템플릿만: reasonCodes + 케이지 호환 줄·규칙 문구) → "{용품명} 기준 보기 ›"(→ L4 — 용품 why 는 L4 에서, DR B-1).
 //   → SearchBlock + meta 가격·판매처 안내(265 K6: 접힘 없이 처음부터). 꼬리 [이 조건으로 찾기](채움) = 검색 머리로 스크롤+포커스(L4 D-36과 같음).
 //   제휴 링크가 그려질 때만 본문 첫 요소에 고지 B(A 는 SearchBlock 안, 261 §1).
@@ -31,15 +31,16 @@ export interface ReasonLine {
   text: string;
 }
 
-/** 추천 이유(템플릿만). SPEC_MET 은 verdict 로 권장/최소, PROFILE_MATCH 는 용품명, 케이지 호환은 결과가 있을 때만. */
+/** 추천 이유(템플릿만). SPEC_MET 은 verdict 로 권장/최소, PROFILE_MATCH 는 용품명, 케이지 호환은 결과가 있을 때만.
+ *  글리프 = 판정 4상태 전역 표(R4-1): 충족 ○ · 호환 확인 △ · 호환 미충족 ✕. */
 export function productReasons(p: PublicProduct, r: PublicRequirement, animal: string, compat: CageCompat): ReasonLine[] {
   const out: ReasonLine[] = p.reasonCodes.map((c) =>
     c === 'SPEC_MET'
-      ? { glyph: 'ready', text: formatCopy(p.verdict === 'OK' ? COPY.product.reasonSpecRecommended : COPY.product.reasonSpecMinimum, { animal }) }
-      : { glyph: 'ready', text: formatCopy(COPY.product.reasonProfileTpl, { name: r.item.name }) },
+      ? { glyph: 'ok', text: formatCopy(p.verdict === 'OK' ? COPY.product.reasonSpecRecommended : COPY.product.reasonSpecMinimum, { animal }) }
+      : { glyph: 'ok', text: formatCopy(COPY.product.reasonProfileTpl, { name: r.item.name }) },
   );
   if (compat.state === 'result') {
-    if (compat.verdict === 'OK') out.push({ glyph: 'ready', text: COPY.product.reasonCageOk });
+    if (compat.verdict === 'OK') out.push({ glyph: 'ok', text: COPY.product.reasonCageOk });
     else if (compat.verdict === 'CHECK') out.push({ glyph: 'check', text: COPY.product.reasonCageCheck });
     else out.push({ glyph: 'fail', text: COPY.product.reasonCageBelowMin });
   }
@@ -121,7 +122,7 @@ export default function ProductLayer({ props, close }: LayerContentProps) {
           </p>
           <div className="ws-product-detail-row">
             <span className="ws-badge">
-              <Glyph kind="ready" />
+              <Glyph kind="ok" />
               {COPY.product.badge}
             </span>
             {lm ? <span className="ws-t-meta">{`${COPY.supplyLayer.lastVerified} ${lm}`}</span> : null}

@@ -1,6 +1,6 @@
 // X1 데모 완주 + X2 화면 불변식(R6 E2) — 데모 시드 전용(실시드는 real-seed.spec.ts).
-//   홈 A → L1(소동물 → 골든햄스터) → 홈 B → L3 2질문 → L2 체크 → L4 쳇바퀴 → L5 판정(30 ✓ · 20 ✕ · 누락 ?)
-//   → L6 케이지 60×40×35 → 재판정 △ '공간 조건 재확인' → /setup → L7(✓ 기준 충족 · 가격·판매처·구매 0) → /vet/서울-마포구
+//   홈 A → L1(소동물 → 골든햄스터) → 홈 B → L3 2질문 → L2 체크 → L4 쳇바퀴 → L5 판정(30 ○ · 20 ✕ · 누락 ?)
+//   → L6 케이지 60×40×35 → 재판정 △ '공간 조건 재확인' → /setup → L7(○ 기준 충족 · 가격·판매처·구매 0) → /vet/서울-마포구
 //   → L8 이메일 → 메일 링크 → [이 기기 연결하기] → 확인(마스킹 주소) → [이 주소로 저장하기] → 다른 컨텍스트 새 링크 → 체크·케이지 복원.
 //   각 화면: assertScreen(금지어 0 · 판매처 면책만 · 미달 상품 0). 외부 요청 0·pageerror 0 은 guard 가 테스트 끝에 단언.
 import type { Locator, Page } from '@playwright/test';
@@ -155,7 +155,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await assertScreen(page, 'L5 케이지 재판정');
   });
 
-  await test.step('/setup 구성안 → 홈 B → L7 상품(✓ 기준 충족 · 가격·판매처·구매 0)', async () => {
+  await test.step('/setup 구성안 → 홈 B → L7 상품(○ 기준 충족 · 가격·판매처·구매 0)', async () => {
     await gotoHydrated(page, `${TYPE.home}/setup`);
     await expect(page.locator('main section.ws-bundle').first()).toBeVisible();
     await expect(page.locator('main')).toContainText('처음 준비한다면');
@@ -172,12 +172,12 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     const products = page.locator('section[data-ws-section="products"] li.ws-product');
     await expect(products).toHaveCount(1);
     await expect(products.first().locator('.ws-badge')).toContainText('기준 충족');
-    await expect(products.first().locator('.ws-badge [data-ws-glyph="ready"]')).toHaveText('✓');
+    await expect(products.first().locator('.ws-badge [data-ws-glyph="ok"]')).toHaveText('○'); // R4-1 판정 4상태
     await Promise.all([page.waitForURL(`**${TYPE.home}/products/cp-001`), tap(page, products.first().locator('a').first())]);
     const L7 = layer(page, 'L7');
     await expect(L7).toBeVisible();
     await expect(L7.locator('.ws-badge')).toContainText('기준 충족');
-    await expect(L7.locator('.ws-badge [data-ws-glyph="ready"]')).toHaveText('✓');
+    await expect(L7.locator('.ws-badge [data-ws-glyph="ok"]')).toHaveText('○');
     await expect(L7.locator('[data-ws-part="reasons"] li').first()).toBeVisible();
     const noCommerce = async (label: string) => {
       const t = withoutPriceNotes(await L7.innerText());

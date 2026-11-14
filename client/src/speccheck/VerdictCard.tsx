@@ -7,6 +7,7 @@
 import { forwardRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { COPY, formatCopy } from '@ws/copy';
 import { specLine, type RuleSet, type SearchLink, type SpecCheckResult, type SpecSchema, type SpecValue } from '@ws/engine';
+import Glyph from '../ui/Glyph';
 import SpecSearch from './SpecSearch';
 import {
   isProductNoCriteria,
@@ -83,9 +84,7 @@ function Reasons({ messages }: { messages: string[] }) {
 function Mark({ mark }: { mark: VerdictMark }) {
   return (
     <p className="ws-verdict-line-mark">
-      <span className="ws-verdict-glyph" aria-hidden="true">
-        {mark.glyph}
-      </span>
+      <Glyph kind={mark.kind} className="ws-verdict-glyph" />
       <span className="ws-t-cta">{mark.label}</span>
     </p>
   );

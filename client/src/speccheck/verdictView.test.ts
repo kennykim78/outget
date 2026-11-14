@@ -1,5 +1,5 @@
 // verdictView — 순수 표시 함수(스펙33 §3 표 · 286 U5b). 판정 계산은 엔진, 여기는 매핑·표시용 뺄셈만.
-import { COPY, VERDICT_GLYPH, formatCopy } from '@ws/copy';
+import { COPY, GLYPH, formatCopy } from '@ws/copy';
 import type { Reason, RuleSet, SpecCheckResult, SpecSchema } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
 import {
@@ -33,26 +33,26 @@ const NAMES = { item: '쳇바퀴', animal: '골든햄스터' };
 
 describe('verdictView', () => {
   it('제품 단 매핑(R4 fix 4상태): OK ○ 기준 충족 · 권장 미만 △ 확인 필요 · 최소 미달 ✕ · 값 누락 ? 입력 필요', () => {
-    expect(productMark('OK')).toEqual({ glyph: VERDICT_GLYPH.ok, tone: 'ready', label: COPY.verdict.markOk });
-    expect(productMark('BELOW_RECOMMENDED')).toEqual({ glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck });
-    expect(productMark('BELOW_MIN')).toEqual({ glyph: VERDICT_GLYPH.fail, tone: 'fail', label: COPY.verdict.productBelowMin });
-    expect(productMark('BELOW_MIN', false, true)).toEqual({ glyph: VERDICT_GLYPH.fail, tone: 'fail', label: COPY.verdict.markSmall });
-    expect(productMark('CHECK')).toEqual({ glyph: VERDICT_GLYPH.input, tone: 'check', label: COPY.verdict.markInput });
-    expect([VERDICT_GLYPH.ok, VERDICT_GLYPH.check, VERDICT_GLYPH.fail, VERDICT_GLYPH.none]).toEqual(['○', '△', '✕', '—']);
+    expect(productMark('OK')).toEqual({ kind: 'ok', tone: 'ready', label: COPY.verdict.markOk });
+    expect(productMark('BELOW_RECOMMENDED')).toEqual({ kind: 'check', tone: 'check', label: COPY.verdict.markCheck });
+    expect(productMark('BELOW_MIN')).toEqual({ kind: 'fail', tone: 'fail', label: COPY.verdict.productBelowMin });
+    expect(productMark('BELOW_MIN', false, true)).toEqual({ kind: 'fail', tone: 'fail', label: COPY.verdict.markSmall });
+    expect(productMark('CHECK')).toEqual({ kind: 'unknown', tone: 'check', label: COPY.verdict.markInput });
+    expect([GLYPH.ok, GLYPH.check, GLYPH.fail, GLYPH.none, GLYPH.unknown]).toEqual(['○', '△', '✕', '—', '?']);
   });
 
   it('호환 단 매핑: NONE → null(단 생략), US-011 원문 판정어, 글리프 ○ △ ✕', () => {
     expect(compatMark('NONE')).toBeNull();
-    expect(compatMark('OK')).toMatchObject({ glyph: VERDICT_GLYPH.ok, label: COPY.verdict.compatOk });
-    expect(compatMark('CHECK')).toMatchObject({ glyph: VERDICT_GLYPH.check, label: COPY.verdict.compatCheck });
-    expect(compatMark('BELOW_MIN')).toMatchObject({ glyph: VERDICT_GLYPH.fail, label: COPY.verdict.compatBelowMin });
+    expect(compatMark('OK')).toMatchObject({ kind: 'ok', label: COPY.verdict.compatOk });
+    expect(compatMark('CHECK')).toMatchObject({ kind: 'check', label: COPY.verdict.compatCheck });
+    expect(compatMark('BELOW_MIN')).toMatchObject({ kind: 'fail', label: COPY.verdict.compatBelowMin });
   });
 
   it('호환 줄 가시성: 제품 최소 미달이면 숨김', () => {
     const mk = (verdict: string, product: string, compat: string) =>
       ({ verdict, product: { verdict: product, reasons: [] }, compat: { verdict: compat, reasons: [], checkedRuleIds: [] } }) as unknown as SpecCheckResult;
-    expect(visibleCompatMark(mk('CHECK', 'OK', 'CHECK'))?.glyph).toBe(VERDICT_GLYPH.check);
-    expect(visibleCompatMark(mk('OK', 'OK', 'OK'))?.glyph).toBe(VERDICT_GLYPH.ok);
+    expect(visibleCompatMark(mk('CHECK', 'OK', 'CHECK'))?.kind).toBe('check');
+    expect(visibleCompatMark(mk('OK', 'OK', 'OK'))?.kind).toBe('ok');
     expect(visibleCompatMark(mk('BELOW_MIN', 'BELOW_MIN', 'OK'))).toBeNull();
   });
 
@@ -68,10 +68,11 @@ describe('verdictView', () => {
     expect(isProductNoCriteria(noCrit)).toBe(true);
     expect(isProductNoCriteria(missing)).toBe(false);
     const m = productMark('CHECK', true);
-    expect(m).toEqual({ glyph: VERDICT_GLYPH.none, tone: 'none', label: COPY.verdict.markNone });
-    expect(m.glyph).not.toBe(VERDICT_GLYPH.ok);
+    expect(m).toEqual({ kind: 'none', tone: 'none', label: COPY.verdict.markNone });
+    expect(m.kind).not.toBe('ok');
+    expect(GLYPH.none).not.toBe(GLYPH.ok);
     expect(m.label).not.toMatch(/충족|문제 없음|사용 가능/);
-    expect(productMark('CHECK', false)).toMatchObject({ glyph: VERDICT_GLYPH.input, label: COPY.verdict.markInput });
+    expect(productMark('CHECK', false)).toMatchObject({ kind: 'unknown', label: COPY.verdict.markInput });
     expect(minFigure(SCHEMA, noCrit, { rules: [] })).toBeNull();
     expect(verdictTitle(SCHEMA, noCrit, { rules: [] }, NAMES)).toBe('골든햄스터 기준값이 없는 용품이에요');
     expect(verdictTitle(SCHEMA, missing, MIN27, NAMES)).toBe(COPY.verdict.productCheck);
@@ -80,8 +81,8 @@ describe('verdictView', () => {
   it('CHECK 표시 분리: INPUT 사유가 있을 때만 「입력 필요」(?), 기준·규칙 사유뿐이면 「확인 필요」(△)', () => {
     const input = [{ stage: 'PRODUCT', kind: 'INPUT', verdict: 'CHECK', key: 'diameterCm', message: 'm' }] as unknown as Reason[];
     const rule = [{ stage: 'PRODUCT', kind: 'RULE', verdict: 'CHECK', message: 'm' }] as unknown as Reason[];
-    expect(productMark('CHECK', false, false, input)).toMatchObject({ glyph: VERDICT_GLYPH.input, label: COPY.verdict.markInput });
-    expect(productMark('CHECK', false, false, rule)).toEqual({ glyph: VERDICT_GLYPH.check, tone: 'check', label: COPY.verdict.markCheck });
+    expect(productMark('CHECK', false, false, input)).toMatchObject({ kind: 'unknown', label: COPY.verdict.markInput });
+    expect(productMark('CHECK', false, false, rule)).toEqual({ kind: 'check', tone: 'check', label: COPY.verdict.markCheck });
     expect(productMark('CHECK', false, false, [...rule, ...input])).toMatchObject({ label: COPY.verdict.markInput });
   });
 

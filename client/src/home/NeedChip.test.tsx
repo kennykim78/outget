@@ -1,5 +1,6 @@
 // F2-3 칩·행 규격 "{값}{단위} 이상"(스펙33 §0 F3 · DR #38): 엔진 chipSpecText 단일 소스, "↑" 0, neutral(L3 전) 규격 0(D-4).
 import { render, screen } from '@testing-library/react';
+import { COPY, GLYPH } from '@ws/copy';
 import type { PublicRequirement, SpecSchema } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
 import ChecklistRow, { rowSpecText } from '../checklist/ChecklistRow';
@@ -77,6 +78,27 @@ describe('NeedChip', () => {
     expect(a).toHaveAttribute('data-ws-state', 'neutral');
     expect(a.querySelector('.ws-glyph, [data-ws-glyph]')).toBeNull();
     expect(a.childElementCount).toBe(2); // 이름 + 규격(글리프 0)
+  });
+
+  it('later(나중에): 글리프 0 + 보이는 단어 「나중에」(시각 숨김 아님) — 준비완료 ✓ 칩과 눈으로 구분', () => {
+    render(
+      <ul>
+        <NeedChip itemId="toy" name="장난감" state="later" href="/x" />
+        <NeedChip itemId="cage" name="케이지" state="ready" href="/y" />
+      </ul>,
+    );
+    const [later, ready] = screen.getAllByRole('link');
+    expect(later).toHaveAttribute('data-ws-state', 'later');
+    expect(later.querySelector('.ws-glyph, [data-ws-glyph]')).toBeNull();
+    const word = later.querySelector('.ws-need-later');
+    expect(word).toHaveTextContent(COPY.glyphLabel.later);
+    expect(word).not.toHaveClass('ws-visually-hidden');
+    expect(later.querySelector('.ws-visually-hidden')).toBeNull();
+    expect(later).toHaveAccessibleName(new RegExp(`^${COPY.glyphLabel.later}\\s*장난감$`));
+    // 준비완료는 ✓ 글리프, 「나중에」 단어 없음.
+    expect(ready.querySelector('[data-ws-glyph="ready"]')).toHaveTextContent(GLYPH.ready);
+    expect(ready.querySelector('.ws-need-later')).toBeNull();
+    expect(ready).not.toHaveTextContent(COPY.glyphLabel.later);
   });
 
   it('spec 없으면 이름만', () => {

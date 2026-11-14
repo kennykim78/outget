@@ -119,6 +119,10 @@
   align-items: center;
   gap: var(--ws-space-1);
 }
+/* 글리프 = 단어와 같은 색(ink, 상태 soft 바탕 위 ≥13:1) — 전역 data-ws-glyph 색을 덮는다(R4-1 qa, L5 판정 단과 같은 inherit 방식). */
+.ws-compat-verdict .ws-glyph[data-ws-glyph] {
+  color: inherit;
+}
 .ws-compat-link {
   display: inline-flex;
   align-items: center;

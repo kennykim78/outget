@@ -154,23 +154,26 @@ button {
   font-weight: var(--ws-type-cta-weight);
 }
 
+/* 판정 4상태(R4 fix 규칙표·R4-1 전역): ○ 기준 충족 = brand-text · △ = status-check · ✕ = status-fail · — 기준 없음 = ink-muted.
+   준비 상태: ✓ = status-ready · ! = status-first. 「나중에」는 글리프 없음(○ 는 기준 충족 전용). */
+.ws-glyph[data-ws-glyph='ok'] {
+  color: var(--ws-brand-text);
+}
+.ws-glyph[data-ws-glyph='check'] {
+  color: var(--ws-status-check);
+}
+.ws-glyph[data-ws-glyph='fail'] {
+  color: var(--ws-status-fail);
+}
+.ws-glyph[data-ws-glyph='none'],
+.ws-glyph[data-ws-glyph='unknown'] {
+  color: var(--ws-ink-muted);
+}
 .ws-glyph[data-ws-glyph='ready'] {
   color: var(--ws-status-ready);
 }
 .ws-glyph[data-ws-glyph='first'] {
   color: var(--ws-status-first);
-}
-.ws-glyph[data-ws-glyph='check'] {
-  color: var(--ws-status-check);
-}
-.ws-glyph[data-ws-glyph='later'] {
-  color: var(--ws-status-later);
-}
-.ws-glyph[data-ws-glyph='fail'] {
-  color: var(--ws-status-fail);
-}
-.ws-glyph[data-ws-glyph='unknown'] {
-  color: var(--ws-ink-muted);
 }
 
 /* ── 아바타(§2.16) ─────────────────────────────────── */

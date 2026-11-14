@@ -152,14 +152,16 @@ export const COPY = deepFreeze({
     itemDetailAria: '{name} 자세히',
     owned: '보유',
   },
-  /** 상태 글리프 라벨(문장 아님). 글리프 문자는 GLYPH. */
+  /** 상태 라벨(문장 아님). 글리프 문자는 GLYPH(later 는 글리프 없음 — 단어만). 판정 단어는 L5(verdict.markOk·productBelowMin·markNone·markInput)와 같다. */
   glyphLabel: {
+    ok: '기준 충족',
     ready: '준비완료',
     first: '먼저 준비',
     check: '확인 필요',
     later: '나중에',
-    fail: '기준 미달',
-    unknown: '확인 전',
+    fail: '최소 규격 미달',
+    none: '기준 없음',
+    unknown: '입력 필요',
   },
   /** UX §4 L4 — 섹션 순서 고정: 왜 → 조건 → 주의 → 피할 것 → 대안. */
   supplyLayer: {
@@ -557,17 +559,12 @@ export type Copy = typeof COPY;
 export { BACKUP_RETENTION_DAYS } from '../privacy/policy.js';
 
 /**
- * 상태 글리프(스펙22 §2.0·§4-1) — 텍스트 문자, 색만으로 상태를 말하지 않는다. 프리렌더·클라이언트 공용 단일 소스.
- *   ready ✓ 준비됨·기준 충족 · first ! 먼저 준비 · check △ 확인 필요 · later ○ 나중에 · fail ✕ 미달 · unknown ? 알 수 없음.
+ * 상태 글리프 — 텍스트 문자, 색만으로 상태를 말하지 않는다. 프리렌더·클라이언트 공용 단일 소스(R4-1: 판정이 보이는 모든 곳이 이 표 하나).
+ *   판정 4상태(R4 fix status_glyph_rules): ok ○ 기준 충족 · check △ 확인 필요 · fail ✕ 미달 · none — 기준 없음(○ 와 다른 글리프)
+ *     + unknown ? 입력 필요(값 누락 CHECK). 아이콘 + 색 + 단어를 항상 함께.
+ *   준비 상태(판정 아님): ready ✓ 준비완료 · first ! 먼저 준비. 「나중에」는 글리프 없이 단어만(○ 는 기준 충족 전용 — R4-1).
  */
-export const GLYPH = deepFreeze({ ready: '✓', first: '!', check: '△', later: '○', fail: '✕', unknown: '?' });
-
-/**
- * 286 U5b — L5 규격 판정 4상태 글리프(R4 fix status_glyph_rules): ○ 기준 충족 · △ 확인 필요 · ✕ 미달 · — 기준 없음(○ 와 다른 글리프).
- *   값 누락 CHECK 는 ?(입력 필요). 아이콘 + 색 + 단어를 항상 함께 — 색만으로 구분하지 않는다.
- *   L5 전용(체크리스트·칩의 GLYPH 전역 재정의는 R4-1 범위).
- */
-export const VERDICT_GLYPH = deepFreeze({ ok: '○', check: '△', fail: '✕', none: '—', input: '?' });
+export const GLYPH = deepFreeze({ ok: '○', check: '△', fail: '✕', none: '—', unknown: '?', ready: '✓', first: '!' });
 
 function collect(v: unknown, out: string[]): void {
   if (typeof v === 'string') out.push(v);

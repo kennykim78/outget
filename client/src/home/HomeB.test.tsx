@@ -86,12 +86,13 @@ describe('홈 B', () => {
     expect(chips[2]).toHaveTextContent('케이지');
   });
 
-  it('③ 상품 렌더 순서 = ws-data 입력 순서(재정렬 0) ④ 모든 카드에 ✓ 기준 충족, 가격·판매처·"구매" 0, 대체 타일', () => {
+  it('③ 상품 렌더 순서 = ws-data 입력 순서(재정렬 0) ④ 모든 카드에 ○ 기준 충족(R4-1 판정 글리프), 가격·판매처·"구매" 0, 대체 타일', () => {
     const { container } = render(<App page={typePage()} captured={NO_CAPTURE} />);
     const cards = Array.from(document.querySelectorAll('[data-ws-section="products"] li.ws-product'));
     expect(cards.map((c) => c.getAttribute('data-ws-id'))).toEqual(['curatedProducts#p3', 'curatedProducts#p1', 'curatedProducts#p2']);
     for (const c of cards) {
-      expect(c.querySelector('.ws-badge')?.textContent).toBe('✓기준 충족');
+      expect(c.querySelector('.ws-badge')?.textContent).toBe('○기준 충족');
+      expect(c.querySelector('.ws-badge [data-ws-glyph="ok"]')).not.toBeNull();
       expect(c.querySelector('a')).toHaveAttribute('href', `/hamster/golden/products/${(c.getAttribute('data-ws-id') ?? '').split('#')[1]}`);
       expect(c.querySelector('.ws-tile-label')).toHaveTextContent('이미지 준비 중');
     }

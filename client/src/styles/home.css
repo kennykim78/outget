@@ -507,6 +507,11 @@ ul.ws-chips > li > a.ws-need--check {
   color: var(--ws-ink-muted);
 }
 
+/* 「나중에」: 글리프 없이 보이는 단어(R4-1 qa). ink-muted 5.5:1 on surface. */
+.ws-need-later {
+  color: var(--ws-ink-muted);
+}
+
 .ws-done {
   display: flex;
   flex-direction: column;
@@ -626,8 +631,11 @@ li.ws-product img,
   letter-spacing: var(--ws-type-label-tracking);
 }
 
-.ws-badge .ws-glyph {
+/* 글리프 = 단어와 같은 색(status-ready 4.6:1 on status-ready-soft) — 전역 data-ws-glyph 색을 덮는다(R4-1 qa). */
+.ws-badge .ws-glyph,
+.ws-badge .ws-glyph[data-ws-glyph] {
   min-width: 0;
+  color: inherit;
 }
 
 /* ♥(스펙33 §2.4 · D-38): 링크의 형제 버튼, 카드 오른쪽 아래. 링크 바닥 행은 오른쪽 44px 를 비운다. */

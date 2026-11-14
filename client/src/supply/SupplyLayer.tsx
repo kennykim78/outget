@@ -22,7 +22,9 @@ import { affiliateDisclosureOn } from './searchLinks';
 import { useCageCompat, type CageCompat } from './useCageCompat';
 import '../styles/layers.css';
 
-const GLYPH_OF: Record<ItemState, GlyphKind> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
+/** 상태 칩 문구 키(copy glyphLabel)·클래스. 글리프는 전역 Glyph(R4-1) — LATER 는 글리프 없이 단어만(○ 는 기준 충족 전용). */
+const STATE_KEY: Record<ItemState, 'ready' | 'first' | 'check' | 'later'> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
+const STATE_GLYPH: Partial<Record<ItemState, GlyphKind>> = { READY: 'ready', FIRST: 'first', CHECK: 'check' };
 const MAX_PRODUCTS = 3;
 
 /** "YYYY.MM"(프리렌더 yearMonth 와 같은 형식). */
@@ -114,7 +116,8 @@ function Conditions({ r }: { r: PublicRequirement }) {
   );
 }
 
-const COMPAT_GLYPH = { OK: 'ready', CHECK: 'check', BELOW_MIN: 'fail' } as const;
+/** 호환 판정 글리프 = L5 호환 단과 같은 표(○ △ ✕, R4-1). */
+const COMPAT_GLYPH = { OK: 'ok', CHECK: 'check', BELOW_MIN: 'fail' } as const satisfies Record<string, GlyphKind>;
 const COMPAT_WORD = {
   OK: COPY.verdict.compatOk,
   CHECK: COPY.verdict.compatCheck,
@@ -211,9 +214,9 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
           {affiliateDisclosureOn(r.searchLinks) ? <AffNote kind="b" /> : null}
           <div className="ws-supply-meta">
             {state ? (
-              <span className={`ws-state-chip ws-state-chip--${GLYPH_OF[state]} ws-t-label`}>
-                <Glyph kind={GLYPH_OF[state]} />
-                {COPY.glyphLabel[GLYPH_OF[state]]}
+              <span className={`ws-state-chip ws-state-chip--${STATE_KEY[state]} ws-t-label`}>
+                {STATE_GLYPH[state] ? <Glyph kind={STATE_GLYPH[state]} /> : null}
+                {COPY.glyphLabel[STATE_KEY[state]]}
               </span>
             ) : null}
             <span className="ws-t-meta">{`${COPY.priority[r.priority]} · ${COPY.orderHint[r.orderHint]}`}</span>
@@ -223,7 +226,6 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
           {r.priority === 'NOT_NOW' ? (
             <section className="ws-supply-part ws-supply-notnow" data-ws-part="notNow">
               <p className="ws-t-body">
-                <Glyph kind="later" />
                 {r.notNowReason ? `${COPY.supplyLayer.notNow} — ${r.notNowReason}` : COPY.supplyLayer.notNow}
               </p>
             </section>
