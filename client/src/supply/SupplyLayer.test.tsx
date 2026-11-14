@@ -82,9 +82,9 @@ function openL4(page: WsPageData, itemId = 'wheel'): HTMLElement {
 const parts = (d: HTMLElement) => Array.from(d.querySelectorAll('[data-ws-part]')).map((el) => el.getAttribute('data-ws-part'));
 
 describe('L4 SupplyLayer', () => {
-  it('섹션 DOM 순서: 왜 → 조건 → 주의 → 피할 것 → 대안 → [준비했어요] → 찾기 → 검수 → 상품', () => {
+  it('섹션 DOM 순서(R4-4 시안 규격 → 검수 → 상인 링크): 왜 → 조건 → 주의 → 피할 것 → 대안 → [준비했어요] → 상품 → 검수 → 찾기', () => {
     const d = openL4(pageWith([wheel(), req('saucer', 'OPTIONAL', '접시형 바퀴')]));
-    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'alternatives', 'ready', 'search', 'verified', 'products']);
+    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'alternatives', 'ready', 'products', 'verified', 'search']);
     expect(d).toHaveAttribute('data-ws-id', 'supplyRequirements#req-wheel');
     // 꼬리: 채운 CTA 하나 = 규격 확인(→ L5 URL)
     const fills = d.querySelectorAll('.ws-btn--fill');
@@ -93,6 +93,26 @@ describe('L4 SupplyLayer', () => {
     expect(fills[0]).toHaveAttribute('href', '/hamster/golden/check/wheel');
     // 대안 → L4 링크(같은 타입)
     expect(within(d).getByRole('link', { name: '접시형 바퀴' })).toHaveAttribute('href', '/hamster/golden/supplies/saucer');
+  });
+
+  it('R4-4 머리: 「{동물} · {용품}」 → 메타 → 사진 자리(빈 블록, img 0) — 마지막 검수는 메타가 아니라 「검수 내용」 섹션에만', () => {
+    const d = openL4(pageWith([wheel()]));
+    const body = d.querySelector('.ws-supply') as HTMLElement;
+    const kids = Array.from(body.children);
+    const eyebrow = body.querySelector('.ws-supply-eyebrow') as HTMLElement;
+    expect(eyebrow).toHaveTextContent(`${golden.displayName} · 쳇바퀴`);
+    const meta = body.querySelector('.ws-supply-meta') as HTMLElement;
+    const photo = body.querySelector('.ws-supply-photo') as HTMLElement;
+    expect(kids.indexOf(eyebrow)).toBe(0); // 제휴 꺼짐: 고지 B 없음 → 첫 자식
+    expect(kids.indexOf(meta)).toBe(1);
+    expect(kids.indexOf(photo)).toBe(2);
+    expect(photo.tagName).toBe('SPAN'); // photos.json 전부 SLOT → 빈 블록(생성 이미지 0)
+    expect(photo).toHaveAttribute('aria-hidden', 'true');
+    expect(meta.textContent).not.toContain(COPY.supplyLayer.lastVerified);
+    const ver = d.querySelector('[data-ws-part="verified"]') as HTMLElement;
+    expect(ver.querySelector('h3')).toHaveTextContent(COPY.supplyLayer.reviewTitle);
+    expect(ver.textContent).toContain(`${COPY.supplyLayer.lastVerified} 2026.09`);
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
   });
 
   it('조건: 최소|권장 칩 텍스트 + ruleText — 이유 목록(엔진 단일 소스)', () => {
@@ -207,7 +227,7 @@ describe('L4 SupplyLayer', () => {
     vi.spyOn(compatDeps, 'load').mockResolvedValue(engine);
     const d = openL4(pageWith([wheel()]));
     await waitFor(() => expect(d.querySelector('[data-ws-part="compat"]')).not.toBeNull());
-    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'compat', 'ready', 'search', 'verified', 'products']);
+    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'compat', 'ready', 'products', 'verified', 'search']);
     expect(within(d).getByRole('link', { name: COPY.supplyLayer.compatRegisterLink })).toHaveAttribute('href', '/hamster/golden/check/wheel');
   });
 });

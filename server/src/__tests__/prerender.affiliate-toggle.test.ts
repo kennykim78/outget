@@ -302,8 +302,9 @@ describe('on 빌드 — 고지 A·B 위치·문구·rel', () => {
         expect(aside.split('data-ws-aff="note-b"').length - 1, p.route.path).toBe(1);
         const layer = /data-ws-layer="(L\d)"/.exec(aside)?.[1];
         const noteB = `<p class="ws-t-meta ws-aff-note" data-ws-aff="note-b">${DISCLOSURE}</p>`;
-        if (layer === 'L4') expect(aside).toMatch(/<\/h2>\n<a [^>]*class="ws-layer-close"[^>]*>[^<]*<\/a>\n<p class="ws-t-meta ws-aff-note" data-ws-aff="note-b">/);
-        if (layer === 'L7') expect(aside).toContain(`</h2>\n${noteB}\n<p class="ws-meta"`);
+        // R4-4·R4-9: L4·L7 같은 머리 — 제목 → 닫기 → 고지 B(본문 첫 요소) → 「{동물} · {용품}」.
+        expect(aside).toMatch(/<\/h2>\n<a [^>]*class="ws-layer-close"[^>]*>[^<]*<\/a>\n<p class="ws-t-meta ws-aff-note" data-ws-aff="note-b">/);
+        expect(aside).toContain(`${noteB}\n<p class="ws-supply-eyebrow"`);
         expect(['L4', 'L7']).toContain(layer);
       }
     }

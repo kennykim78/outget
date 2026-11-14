@@ -311,7 +311,11 @@ function searchBlock(r: RequirementModel): string {
     .join('\n');
 }
 
-/** L4 용품 상세 — 순서 고정: 왜 → 조건(최소/권장) → 주의 → 피할 것 → 대안 → [규격 확인][찾기] → 마지막 검수 → 상품 2~3. */
+/**
+ * L4 용품 상세 — R4-4(R4 시안 l4_supply: 규격 → 검수 → 상인 링크, client SupplyLayer 와 같은 순서):
+ *   (고지 B) → 「{동물} · {용품}」 → 메타 → 사진 자리(빈 블록) → (지금은 필요 없어요) → 왜 → 조건(최소/권장) → 주의 → 피할 것 → 대안
+ *   → 상품 2~3 → 검수 내용(마지막 검수 · 출처) → [규격 확인] + 찾기(상인 링크).
+ */
 export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = base(t)): string {
   const p = r.pub;
   const schema = r.item.specSchema;
@@ -332,7 +336,10 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     `<h2 id="ws-layer-title" data-ws-id="supplyItems#${a(r.item.id)}">${h(r.item.name)}</h2>`,
     layerClose(parentPath),
     affNoteB(r),
+    `<p class="ws-supply-eyebrow">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
     `<p class="ws-meta">${h(COPY.priority[p.priority])} · ${h(COPY.orderHint[p.orderHint])}</p>`,
+    // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용)는 싣지 않는다.
+    '<span class="ws-photo ws-supply-photo" aria-hidden="true"></span>',
     p.priority === 'NOT_NOW' ? `<p>${h(COPY.supplyLayer.notNow)}${p.notNowReason ? ` — ${h(p.notNowReason)}` : ''}</p>` : '',
     `<section data-ws-part="why"><h3>${h(COPY.supplyLayer.why)}</h3><p>${h(p.why)}</p></section>`,
     `<section data-ws-part="conditions"><h3>${h(COPY.supplyLayer.conditions)}</h3>`,
@@ -346,20 +353,28 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
           .map((x) => `<li data-ws-id="supplyItems#${a(x.item.id)}"><a href="${a(hrefOf(`${base(t)}/supplies/${x.item.id}`))}">${h(x.item.name)}</a></li>`)
           .join('\n')}\n</ul></section>`
       : '',
-    '<div class="ws-actions">',
-    `<a href="${a(hrefOf(`${base(t)}/check/${r.item.id}`))}">${h(COPY.supplyLayer.checkSpec)}</a>`,
-    searchBlock(r),
-    '</div>',
-    lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
-    p.source.length
-      ? `<p class="ws-source">${h(COPY.supplyLayer.source)}: ${p.source.map((s) => externalLink(s.url, s.title)).join(' · ')}</p>`
-      : '',
     r.products.length
       ? `<section data-ws-part="products"><h3>${h(COPY.supplyLayer.matchingProducts)}</h3><ul>\n${r.products
           .slice(0, 3)
           .map((x) => productCard(t, x, r.item))
           .join('\n')}\n</ul></section>`
       : '',
+    lm || p.source.length
+      ? [
+          `<section data-ws-part="verified"><h3>${h(COPY.supplyLayer.reviewTitle)}</h3>`,
+          lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
+          p.source.length
+            ? `<p class="ws-source">${h(COPY.supplyLayer.source)}: ${p.source.map((s) => externalLink(s.url, s.title)).join(' · ')}</p>`
+            : '',
+          '</section>',
+        ]
+          .filter((x) => x !== '')
+          .join('\n')
+      : '',
+    '<div class="ws-actions">',
+    `<a href="${a(hrefOf(`${base(t)}/check/${r.item.id}`))}">${h(COPY.supplyLayer.checkSpec)}</a>`,
+    searchBlock(r),
+    '</div>',
     '</aside>',
   ]
     .filter((x) => x !== '')
@@ -430,7 +445,10 @@ function layerL5(t: TypeModel, r: RequirementModel): string {
   ].join('\n');
 }
 
-/** L7 상품 상세 — 이미지·상품명·용품 종류·규격 한 줄·추천 이유(자동 조립)·검수일·[이 조건으로 찾기]. 가격·판매처 없음. */
+/**
+ * L7 상품 상세 — R4-9(client ProductLayer 와 같은 순서, L4 시안의 규격 → 검수 → 상인 링크 짜임): 제목(상품명) → (고지 B) → 「{동물} · {용품}」
+ *   → 이미지 → ○ 기준 충족 → 규격 한 줄 → 마지막 검수 → 추천 이유(자동 조립) → 용품 기준 링크 → [이 조건으로 찾기]. 가격·판매처 없음.
+ */
 function layerL7(t: TypeModel, p: PublicProduct): string {
   const r = t.requirements.find((x) => x.item.id === p.supplyItemId) as RequirementModel;
   const lm = yearMonth(p.specVerifiedAt);
@@ -443,17 +461,17 @@ function layerL7(t: TypeModel, p: PublicProduct): string {
   const spec = specLine(r.item.specSchema, p.specValues);
   return [
     `<aside class="ws-layer" id="ws-layer" data-ws-layer="L7" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="curatedProducts#${a(p.id)}">`,
-    layerClose(base(t)),
-    p.imageAsset ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" decoding="async" width="160" height="160">` : imageTile(r.item.glyph),
     `<h2 id="ws-layer-title">${h(p.title)}</h2>`,
+    layerClose(base(t)),
     affNoteB(r),
-    `<p class="ws-meta" data-ws-id="supplyItems#${a(r.item.id)}">${h(r.item.name)}</p>`,
-    spec ? `<p class="ws-spec">${h(spec)}</p>` : '',
+    `<p class="ws-supply-eyebrow" data-ws-id="supplyItems#${a(r.item.id)}">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
+    p.imageAsset ? `<img src="${a(p.imageAsset)}" alt="${a(p.title)}" decoding="async" width="160" height="160">` : imageTile(r.item.glyph),
     `<p>${meetsBadge()}</p>`,
+    spec ? `<p class="ws-spec">${h(spec)}</p>` : '',
+    lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
     `<h3>${h(COPY.product.reasonsTitle)}</h3>`,
     `<ul class="ws-reasons">${reasons.map((x) => `<li>${glyphSpan('ok')}${h(x)}</li>`).join('')}</ul>`,
     `<p><a href="${a(hrefOf(`${base(t)}/supplies/${r.item.id}`))}">${h(formatCopy(COPY.product.supplyBasisLink, { name: r.item.name }))}</a></p>`,
-    lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
     searchBlock(r),
     '</aside>',
   ]

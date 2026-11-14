@@ -250,6 +250,35 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(aside).toContain('https://www.coupang.com/np/search?q=');
     // 대안 saucer 는 DRAFT → 렌더·ws-data 에 없음
     expect(html).not.toContain('saucer');
+    // R4-4(R4 시안 l4_supply, client SupplyLayer 와 같은 순서): 「{동물} · {용품}」 → 사진 자리 → 왜 … → 상품 → 검수 내용 → [규격 확인]·찾기(상인 링크).
+    const seq = [
+      '<p class="ws-supply-eyebrow">골든햄스터 · 쳇바퀴</p>',
+      '<span class="ws-photo ws-supply-photo" aria-hidden="true"></span>',
+      'data-ws-part="why"',
+      'data-ws-part="products"',
+      `<section data-ws-part="verified"><h3>${COPY.supplyLayer.reviewTitle}</h3>`,
+      '<div class="ws-actions">',
+      '<div class="ws-search">',
+    ].map((s) => aside.indexOf(s));
+    expect(seq.every((i) => i > 0)).toBe(true);
+    expect([...seq].sort((x, y) => x - y)).toEqual(seq);
+    expect(aside).not.toContain('<img'); // 사진 자리는 빈 블록(photos.json SLOT, 생성 이미지 0)
+  });
+
+  it('R4-9 L7 정적 본문 순서: 제목 → 닫기 → 「{동물} · {용품}」 → 이미지 → ○ 기준 충족 → 규격 → 마지막 검수 → 추천 이유 → 기준 링크 → 찾기', () => {
+    const html = page('/hamster/golden/products/cp-001');
+    const aside = html.slice(html.indexOf('<aside'), html.indexOf('</aside>'));
+    const seq = [
+      '<h2 id="ws-layer-title">',
+      'class="ws-layer-close"',
+      '<p class="ws-supply-eyebrow" data-ws-id="supplyItems#',
+      'class="ws-badge"',
+      `<p class="ws-verified">${COPY.supplyLayer.lastVerified}`,
+      `<h3>${COPY.product.reasonsTitle}</h3>`,
+      '<div class="ws-search">',
+    ].map((s) => aside.indexOf(s));
+    expect(seq.every((i) => i > 0)).toBe(true);
+    expect([...seq].sort((x, y) => x - y)).toEqual(seq);
   });
 
   it('L5 정적 폼(판정 없음), L7 상품 상세(가격·판매처 없음)', () => {

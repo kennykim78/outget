@@ -247,6 +247,8 @@ export const COPY = deepFreeze({
     cageEntryRegister: '내 케이지 등록 ›',
     cageEntryEdit: '내 케이지 수정 ›',
     markReady: '준비했어요',
+    /** R4-4(R4 시안 l4_supply): 검수 행(마지막 검수 · 출처 · 👍⚠) 섹션 머리 — 시안 원문. */
+    reviewTitle: '검수 내용',
   },
   /** R5 C1 — L5 VerdictCard 판정 표시(스펙33 §3). 판정어는 정보일 뿐 추천 아님. 헤드라인 숫자는 표시 함수가 "최소 {v}{u} · 입력 {a}{u}"로 조립. */
   verdict: {

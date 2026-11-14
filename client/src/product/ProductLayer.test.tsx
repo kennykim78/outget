@@ -106,6 +106,39 @@ describe('L7 ProductLayer', () => {
     );
   });
 
+  it('R4-9 본문 순서(L4 시안 규격 → 검수 → 상인 링크): 「{동물} · {용품}」 → 이미지 → ○ 기준 충족·♥ → 규격 한 줄 → 마지막 검수 → 추천 이유 → 기준 링크 → 찾기', () => {
+    const w = wheel();
+    const schema = { fields: [{ key: 'diameterCm', label: '지름(cm)', type: 'number' as const, min: 1, max: 100 }] };
+    const pg = pageOf(
+      'TYPE',
+      { requirements: [{ ...w, item: { ...w.item, specSchema: schema } }], products: [{ ...P1, specValues: { diameterCm: 30 } }] },
+      { typeId: golden.id, path: '/hamster/golden' },
+    );
+    const d = openL7('p1', pg);
+    const body = d.querySelector('.ws-product-detail') as HTMLElement;
+    const kids = Array.from(body.children);
+    const at = (sel: string) => kids.findIndex((el) => el.matches(sel));
+    const eyebrow = body.querySelector('.ws-supply-eyebrow') as HTMLElement;
+    expect(eyebrow).toHaveTextContent(`${golden.displayName} · 쳇바퀴`);
+    expect(eyebrow).toHaveAttribute('data-ws-id', 'supplyItems#wheel');
+    const order = [
+      at('.ws-supply-eyebrow'),
+      at('.ws-product-detail-img'),
+      at('.ws-product-detail-row'),
+      at('.ws-product-detail-spec'),
+      at('.ws-product-detail-verified'),
+      at('[data-ws-part="reasons"]'),
+      at('.ws-compat-link'),
+      kids.findIndex((el) => el.querySelector('.ws-search') !== null),
+    ];
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(eyebrow).toBe(kids[0]); // 제휴 꺼짐: 고지 B 없음 → 첫 자식
+    expect(body.querySelector('.ws-product-detail-row')?.textContent).not.toContain(COPY.supplyLayer.lastVerified);
+    expect(body.querySelector('.ws-product-detail-verified')).toHaveTextContent(`${COPY.supplyLayer.lastVerified} 2026.09`);
+    expect(body.querySelector('.ws-product-detail-spec')?.textContent).toContain('30');
+  });
+
   it('DR B-1: 추천 이유 섹션 = 제목 + ul.ws-reasons(템플릿 li)만, 케이지 없으면 규칙 문구 0', () => {
     const d = openL7();
     const sec = d.querySelector('[data-ws-part="reasons"]') as HTMLElement;
