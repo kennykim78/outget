@@ -1,6 +1,6 @@
 // F1-2 L4 React: 섹션 DOM 순서, NOT_NOW 이유, 상품 순서 = ws-data(앞 3), 가격·"구매" 0, external_product_clicked props,
 //   [준비했어요] = PURCHASED(기존 ✓ 유지), data-ws-id, 👍·⚠, 내 케이지 서브카드(엔진 주입). 합성 fixture.
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY } from '@ws/copy';
 import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type Engine, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,8 @@ import LayerHost from '../ui/layer/LayerHost';
 import { layerStore } from '../ui/layer/useLayer';
 import { splitChipText } from './SupplyLayer';
 import { cageCompatOf, compatDeps } from './useCageCompat';
+import Footer from '../shell/Footer';
+import { layerAffiliateOn } from './searchLinks';
 
 const loadSpecCatalogMock = vi.hoisted(() => vi.fn());
 vi.mock('../speccheck/engine', async (orig) => ({ ...(await orig<typeof import('../speccheck/engine')>()), loadSpecCatalog: loadSpecCatalogMock }));
@@ -356,5 +358,57 @@ describe('L4 제휴 고지(265 — 261 §1·§2.2)', () => {
     expect(d.querySelector('[data-ws-aff]')).toBeNull();
     expect(d.querySelector('[aria-describedby^="ws-aff-a-"]')).toBeNull();
     for (const x of Array.from(d.querySelectorAll('[data-ws-merchant]'))) expect(x.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+  });
+});
+
+// R4-3(R4 시안 affiliate_candidates): 상인 링크(URL) 0 → 비활성 「상인 링크 준비 중」, 푸터 고지 F 판정(layerAffiliateOn)·Footer 렌더.
+describe('R4-3 상인 링크 준비 중 · 푸터 고지 F', () => {
+  it('렌더 필터를 통과한 링크 0(빈 배열·허용 밖 href) → disabled 버튼 1, 상인 a·고지 0', () => {
+    for (const links of [[], [{ provider: 'COUPANG' as const, href: 'https://evil.example/np/search?q=x' }]]) {
+      const d = openL4(pageWith([wheel({ searchLinks: links })]));
+      const merchants = d.querySelector('.ws-search-merchants') as HTMLElement;
+      const btn = within(merchants).getByRole('button', { name: COPY.supplyLayer.merchantPending });
+      expect(btn).toBeDisabled();
+      expect(merchants.querySelectorAll('a')).toHaveLength(0);
+      expect(d.querySelector('[data-ws-aff]')).toBeNull();
+      act(() => layerStore.resetForTest());
+      cleanup();
+    }
+  });
+
+  it('링크가 있으면 비활성 버튼 없음(꺼짐·켜짐 모두)', () => {
+    const off = openL4(pageWith([wheel()]));
+    expect(within(off).queryByRole('button', { name: COPY.supplyLayer.merchantPending })).toBeNull();
+  });
+
+  it('layerAffiliateOn: L4·L7 의 요구사항에 제휴 링크가 그려질 때만 true(L5·닫힘·대상 없음 false)', () => {
+    const aff = wheel({ searchLinks: buildSearchLinks('골든햄스터 쳇바퀴 28cm', { COUPANG: 'FAKE0001' }) });
+    const on = pageWith([aff]);
+    const off = pageWith([wheel()]);
+    expect(layerAffiliateOn(on, { kind: 'L4', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(true);
+    expect(layerAffiliateOn(on, { kind: 'L7', props: { typeId: golden.id, productId: 'p1' } })).toBe(true);
+    expect(layerAffiliateOn(on, { kind: 'L7', props: { typeId: golden.id, productId: 'x' } })).toBe(false); // cage 요구사항 없음
+    expect(layerAffiliateOn(on, { kind: 'L5', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(false);
+    expect(layerAffiliateOn(on, null)).toBe(false);
+    expect(layerAffiliateOn(off, { kind: 'L4', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(false);
+    // 허용 필터 밖 AFFILIATE 는 고지도 켜지 않는다(A·B 와 같은 판정)
+    const forged = pageWith([wheel({ searchLinks: [{ provider: 'COUPANG', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}bad/../x` }] })]);
+    expect(layerAffiliateOn(forged, { kind: 'L4', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(false);
+  });
+
+  it('Footer: affNote 일 때만 © 바로 앞에 원문 고지 F(전부 펼침), 아니면 이전과 같은 DOM', () => {
+    const { container, rerender } = render(<Footer />);
+    const f = container.querySelector('footer.ws-footer') as HTMLElement;
+    expect(f.querySelector('[data-ws-aff]')).toBeNull();
+    const offHtml = f.innerHTML;
+    rerender(<Footer affNote />);
+    const note = f.querySelector('[data-ws-aff="note-f"]') as HTMLElement;
+    expect(note.className).toBe('ws-t-meta ws-aff-note');
+    expect(note.textContent).toBe(COPY.affiliate.coupang);
+    expect(note.children).toHaveLength(0);
+    expect(note.nextElementSibling?.className).toBe('ws-footer-copy');
+    expect(note.parentElement).toBe(f);
+    rerender(<Footer affNote={false} />);
+    expect(f.innerHTML).toBe(offHtml);
   });
 });

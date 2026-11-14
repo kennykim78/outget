@@ -953,6 +953,22 @@ describe('L5 제휴 고지(265 — K6 전부 펼침 + 261 §1·§2.5)', () => {
     );
     expect(screen.queryAllByRole('link')).toHaveLength(0);
     expect(document.querySelector('[data-ws-aff]')).toBeNull();
+    // R4-3(R4 시안 affiliate_candidates): 그릴 상인 링크 0 → 비활성 「상인 링크 준비 중」 1개
+    expect(screen.getByRole('button', { name: COPY.supplyLayer.merchantPending })).toBeDisabled();
+  });
+
+  it('R4-3 SpecSearch: 검색어가 없으면 블록 없음, 링크가 있으면 비활성 버튼 없음', () => {
+    const { container, rerender } = render(<SpecSearch animalTypeId={golden.id} supplyItemId="wheel" keyword="" links={[]} />);
+    expect(container.innerHTML).toBe('');
+    rerender(
+      <SpecSearch
+        animalTypeId={golden.id}
+        supplyItemId="wheel"
+        keyword={KW}
+        links={[{ provider: 'NAVER', href: 'https://search.shopping.naver.com/search/all?query=x' }]}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: COPY.supplyLayer.merchantPending })).toBeNull();
   });
 });
 

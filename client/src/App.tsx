@@ -16,6 +16,7 @@ import type { CapturedStatic } from './app/staticCapture';
 import HomeA from './home/HomeA';
 import HomeB from './home/HomeB';
 import Footer from './shell/Footer';
+import { layerAffiliateOn } from './supply/searchLinks';
 import GlobalHeader from './shell/GlobalHeader';
 import { navCurrentFor, pickShellType } from './shell/shellType';
 import { usePickIntent } from './shell/usePickIntent';
@@ -98,7 +99,7 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
         onSpecCheckIntent={() => startIntent('SPEC_CHECK')}
       />
       {view}
-      <Footer />
+      <Footer affNote={layerAffiliateOn(page, open)} />
       <LayerPageProvider page={page}>
         <LayerHost registry={layerRegistry} wsIdFor={(k, p) => layerWsId(page, k, p)} />
       </LayerPageProvider>

@@ -24,6 +24,9 @@ import { COPY } from '../prerender/copy.js';
 import { WS_DATA_MAX_BYTES, WS_DATA_WARN_BYTES } from '../prerender/cli.js';
 import { jsonForScript } from '../prerender/html.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
+import { projectSite, type RequirementModel } from '../prerender/project.js';
+import { layerL4 } from '../prerender/pages/type.js';
+import { FIXTURE_AS_OF, promotedTwo } from './fixtures/prerender-seed.js';
 import { BASELINE_CASES, BASELINE_FILE, baseOptions, hashFiles, sha256 } from './fixtures/affiliate/baseline.js';
 import { buildKeywords, fakeLinkMap } from './fixtures/affiliate/fake-map.js';
 import { BASELINE_V1_FILE, diffBaselines, type BaselineFile } from './fixtures/affiliate/gen-baseline.js';
@@ -33,12 +36,12 @@ const WS_RE = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script
 const MERCHANT_A_RE = /<a href="(https:\/\/(?:www\.coupang\.com|link\.coupang\.com|search\.shopping\.naver\.com)\/[^"]*)"([^>]*)>([\s\S]*?)<\/a>/g;
 const DISCLOSURE = '이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
 /**
- * 275 A-2: 정규화가 지우는 것은 프리렌더가 만드는 고지 두 형태뿐 — note-a(id ws-aff-a-{supplyItemId})·note-b(id 없음), 원문 문구 그대로
- *   (pages/type.ts affNote). 그 밖 data-ws-aff 값·문구·id·속성의 p 는 남겨서 off 와의 비교가 빨강이 되게 한다.
+ * 275 A-2: 정규화가 지우는 것은 프리렌더가 만드는 고지 형태뿐 — note-a(id ws-aff-a-{supplyItemId})·note-b(id 없음)·note-f(R4-3 푸터, id 없음),
+ *   원문 문구 그대로(pages/common.ts affNote). 그 밖 data-ws-aff 값·문구·id·속성의 p 는 남겨서 off 와의 비교가 빨강이 되게 한다.
  */
 const reEsc = (x: string): string => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const NOTE_RE = new RegExp(
-  `<p class="ws-t-meta ws-aff-note"(?: id="ws-aff-a-[A-Za-z0-9_-]+" data-ws-aff="note-a"| data-ws-aff="note-b")>${reEsc(DISCLOSURE)}</p>\\n?`,
+  `<p class="ws-t-meta ws-aff-note"(?: id="ws-aff-a-[A-Za-z0-9_-]+" data-ws-aff="note-a"| data-ws-aff="note-b"| data-ws-aff="note-f")>${reEsc(DISCLOSURE)}</p>\\n?`,
   'g',
 );
 const AFF_REL = ' rel="sponsored nofollow noopener noreferrer"';
@@ -307,6 +310,26 @@ describe('on 빌드 — 고지 A·B 위치·문구·rel', () => {
     expect(n).toBeGreaterThan(10);
   });
 
+  it('R4-3 고지 F: 제휴 a 가 있는 문서마다 footer.ws-footer 안 © 바로 앞에 note-f 정확히 1개(원문·전부 펼침), 없는 문서는 0', () => {
+    const noteF = `<p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">${DISCLOSURE}</p>`;
+    let withAff = 0;
+    for (const p of pages) {
+      const html = p.html.replace(WS_RE, '');
+      const footer = /<footer class="ws-footer">[\s\S]*?<\/footer>/.exec(html)?.[0] ?? '';
+      const count = html.split('data-ws-aff="note-f"').length - 1;
+      if (html.includes('<a href="https://link.coupang.com/a/')) {
+        withAff++;
+        expect(count, p.route.path).toBe(1);
+        expect(footer, p.route.path).toContain(`${noteF}\n<p class="ws-footer-copy">`);
+        // 접힘·숨김 장치 없음(details·hidden·title).
+        expect(footer, p.route.path).not.toMatch(/<details|\shidden[\s>]|\stitle="/);
+      } else {
+        expect(count, p.route.path).toBe(0);
+      }
+    }
+    expect(withAff).toBeGreaterThan(5);
+  });
+
   it('고지·제휴 링크 없는 화면: 레이어 없는 페이지·L5·홈·/setup·/vet·/supplies 목록 — data-ws-aff·link.coupang 0', () => {
     for (const p of pages) {
       const html = p.html.replace(WS_RE, '');
@@ -349,5 +372,35 @@ describe('on 빌드 — 고지 A·B 위치·문구·rel', () => {
     const over = full.filter((p) => p.wsDataBytes > WS_DATA_WARN_BYTES).length;
     // 기록용(실패 아님) — 보고서에 옮긴다.
     console.log(`[259] on ws-data max ${max}B, >28KB ${over}쪽`);
+  });
+});
+
+// R4-3(R4 시안 affiliate_candidates): 렌더 필터를 통과한 상인 링크(URL)가 0 → 정적 L4 검색 블록에 비활성 「상인 링크 준비 중」 1개, 고지·제휴 0.
+//   엔진은 검색어가 있으면 링크 ≥ 1 이라 정상 빌드(기준선 3종)에는 이 상태가 없다 — 모델의 링크를 비워 직접 확인한다.
+describe('R4-3 상인 링크 0 → 비활성 「준비 중」', () => {
+  const m = projectSite(promotedTwo(), FIXTURE_AS_OF);
+  const t = m.types[0];
+  const r = t.requirements.find((x) => x.pub.searchKeyword.trim() !== '') as RequirementModel;
+
+  it('전제: 정상 모델은 링크 ≥ 1 이고 비활성 버튼이 없다', () => {
+    expect(r.pub.searchLinks.length).toBeGreaterThan(0);
+    expect(layerL4(t, r)).not.toContain(COPY.supplyLayer.merchantPending);
+  });
+
+  it('링크 0(또는 허용 필터 밖 href 만) → 검색어 + disabled button 1, 상인 a·고지 0', () => {
+    for (const links of [[], [{ provider: 'COUPANG' as const, kind: 'SEARCH' as const, href: 'https://evil.example/np/search?q=x' }]]) {
+      const rr: RequirementModel = { ...r, pub: { ...r.pub, searchLinks: links } };
+      const html = layerL4(t, rr);
+      const block = /<div class="ws-search">[\s\S]*?<\/div>/.exec(html)?.[0] ?? '';
+      expect(block).toContain(`<button type="button" disabled>${COPY.supplyLayer.merchantPending}</button>`);
+      expect(block).toContain(r.pub.searchKeyword);
+      expect(block).not.toMatch(/<a\s/);
+      expect(html).not.toContain('data-ws-aff');
+    }
+  });
+
+  it('검색어도 없으면 블록 없음(이전과 같음)', () => {
+    const rr: RequirementModel = { ...r, pub: { ...r.pub, searchKeyword: '', searchLinks: [] } };
+    expect(layerL4(t, rr)).not.toContain('class="ws-search"');
   });
 });

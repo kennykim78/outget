@@ -5,7 +5,7 @@
 //   서버 모듈 import 예외(사유): 클라 규칙은 서버 파일을 @ws/* 별칭으로만 가져온다(.eslintrc no-restricted-imports, tsconfig paths).
 //   프리렌더(site.ts)·픽스처는 node:fs/node:crypto 를 쓰는 빌드 타임 코드라 별칭 대상이 아니다. 이 테스트만 lazy import.meta.glob 으로
 //   가져온다(번들에 들어가지 않음 — *.test.tsx, 클라 tsconfig 에 node 타입을 들이지 않음). 반환 타입은 아래 최소 인터페이스.
-import { act } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RouteKind } from '@ws/engine';
@@ -36,6 +36,7 @@ const SERVER_MODULES = import.meta.glob([
   '../../../server/src/prerender/site.ts',
   '../../../server/src/prerender/mascot.ts',
   '../../../server/src/__tests__/fixtures/prerender-seed.ts',
+  '../../../server/src/__tests__/fixtures/affiliate/fake-map.ts',
 ]);
 async function serverModule<T>(rel: string): Promise<T> {
   const load = SERVER_MODULES[`../../../server/src/${rel}`];
@@ -48,6 +49,8 @@ const TEMPLATE = '<!doctype html><html><head><!--ws:head--></head><body><div id=
 let site: SiteLite;
 // 73 S5: 드워프 미리보기(PLANNED→ACTIVE 픽스처, 와이어 v2 최대 쪽 포함) — 같은 템플릿·마스코트, 고정 asOf.
 let dwarfSite: SiteLite;
+// R4-3: 제휴 켜짐(가짜 맵 — 검색어 전부 FAKE 코드) 골든 승격 빌드. 푸터 고지 F 프리렌더 ↔ React 일치용.
+let affSite: SiteLite;
 
 beforeAll(async () => {
   const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
@@ -64,6 +67,12 @@ beforeAll(async () => {
     asOf: fx.FIXTURE_AS_OF,
     mascots,
   });
+  const fake = await serverModule<{
+    buildKeywords: (seed: unknown, opts: Record<string, unknown>) => string[];
+    fakeLinkMap: (kws: readonly string[]) => unknown;
+  }>('__tests__/fixtures/affiliate/fake-map.ts');
+  const affOpts = { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots };
+  affSite = siteMod.buildSite(fx.promoted(), { ...affOpts, affiliate: fake.fakeLinkMap(fake.buildKeywords(fx.promoted(), affOpts)) });
   dwarfSite = siteMod.buildSite(fx.dwarfPreview(), {
     template: TEMPLATE,
     origin: 'http://localhost:3001',
@@ -399,4 +408,55 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
   it('허용 목록 항목은 모두 실제로 쓰인다', () => {
     expect(ALLOWED.filter((_, i) => !allowedHits.has(i)).map((a) => a.why)).toEqual([]);
   });
+});
+
+// R4-3(R4 시안 affiliate_candidates): 제휴 켜짐 빌드 — 푸터 고지 F 는 「지금 화면에 제휴 링크가 그려질 때만」(프리렌더 renderFooter(affOn)
+//   · React Footer affNote = layerAffiliateOn). 타입 딥링크(L4·L7)는 하이드레이션 전후 푸터가 같다. 레이어 없는 문서는 양쪽 다 0.
+//   /supplies/{item}/{type}(SUPPLY_ITEM_TYPE): 기존 동작상 하이드레이션 뒤 정적 L4 aside 가 걷히고 React 레이어를 열지 않는다(deepLinkFor = TYPE 만)
+//   — 제휴 링크가 화면에서 사라지므로 고지 F 도 0(링크 없는 화면에 고지 없음). 그 밖 푸터는 같다.
+describe('R4-3 제휴 on 빌드 — 푸터 고지 F 프리렌더 ↔ React', () => {
+  const footerState = () => {
+    const fs = document.querySelectorAll('footer.ws-footer');
+    expect(fs).toHaveLength(1);
+    const f = fs[0];
+    const notes = Array.from(f.querySelectorAll('[data-ws-aff="note-f"]'));
+    const texts = Array.from(f.querySelectorAll('p')).filter((x) => !notes.includes(x)).map((x) => norm(x.textContent));
+    return { notes: notes.length, noteText: notes.map((x) => x.textContent), texts, affLinks: document.querySelectorAll('a[href^="https://link.coupang.com/a/"]').length };
+  };
+
+  it('고지 F 개수 = 화면에 제휴 링크가 있는가(하이드레이션 전후), 타입 딥링크 L4·L7 은 전후 동일', async () => {
+    const withF = affSite.pages.filter((p) => p.html.includes('data-ws-aff="note-f"'));
+    const kinds = new Set(withF.map((p) => (p.route.kind === 'SUPPLY_ITEM_TYPE' ? 'SIT' : /\/products\//.test(p.route.path) ? 'L7' : 'L4')));
+    expect([...kinds].sort()).toEqual(['L4', 'L7', 'SIT']);
+    const cases: Array<[BuiltPageLite | undefined, 'deep' | 'sit' | 'plain' | 'l5']> = [
+      [withF.find((p) => p.route.kind === 'TYPE' && /\/supplies\//.test(p.route.path)), 'deep'],
+      [withF.find((p) => /\/products\//.test(p.route.path)), 'deep'],
+      [withF.find((p) => p.route.kind === 'SUPPLY_ITEM_TYPE'), 'sit'],
+      [pageAt('/', affSite), 'plain'],
+      [pageAt('/hamster/golden', affSite), 'plain'],
+      [pageAt('/hamster/golden/check/wheel', affSite), 'l5'],
+    ];
+    for (const [p, mode] of cases) {
+      expect(p).toBeDefined();
+      if (!p) continue;
+      loadStatic(p);
+      const before = footerState();
+      expect({ path: p.route.path, notes: before.notes }).toEqual({ path: p.route.path, notes: before.affLinks > 0 ? 1 : 0 });
+      hydrate(p);
+      // 딥링크 문서는 첫 커밋이 레이어 청크를 기다린다 — 레이어가 store 에 열리고(React 렌더 뒤) 내용이 그려질 때까지.
+      if (mode === 'deep') await waitFor(() => expect(footerState().affLinks).toBeGreaterThan(0), { timeout: 15000 });
+      if (mode === 'l5') await waitFor(() => expect(layerStore.get()).not.toBeNull(), { timeout: 15000 });
+      const after = footerState();
+      expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: after.affLinks > 0 ? 1 : 0 });
+      expect(after.texts).toEqual(before.texts);
+      for (const t of [...before.noteText, ...after.noteText]) expect(t).toBe('이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.');
+      if (mode === 'deep') expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: 1 });
+      if (mode === 'sit') expect({ path: p.route.path, notes: after.notes, affLinks: after.affLinks }).toEqual({ path: p.route.path, notes: 0, affLinks: 0 });
+      if (mode === 'plain' || mode === 'l5') expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: 0 });
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+    }
+  }, 60_000);
 });

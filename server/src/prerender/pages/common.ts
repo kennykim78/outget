@@ -174,16 +174,29 @@ export function renderHeader(
  * 푸터(U2b·D3 최소 범위, R3 시안 v1b) — client shell/Footer.tsx 와 같은 마크업.
  *   로고 · 한 줄 소개 · 처리방침(항상 — 계획 86 P8, compliance C9-PRIVACY) · 사진 출처(/credits 항상 — R4 D6, 불변식 ① 사용권 공개)
  *   · 의료 고지(불변식 ⑤) · ©. 소개·문의 링크 없음(D3).
+ *   R4-3(R4 시안 affiliate_candidates): affOn(이 문서의 레이어 aside 에 제휴 링크가 그려짐)일 때만 © 바로 앞에 제휴 고지 F(원문, 전부 펼침).
+ *   꺼짐이면 이전과 바이트 동일(off 기준선 불변).
  */
-export function renderFooter(): string {
+export function renderFooter(affOn = false): string {
   return [
     '<footer class="ws-footer">',
     `<p class="ws-footer-brand"><span class="ws-footer-logo">${h(COPY.nav.logo)}</span> <span class="ws-footer-tagline">${h(COPY.footer.tagline)}</span></p>`,
     `<p class="ws-footer-links"><a href="/privacy">${h(COPY.footer.privacy)}</a> <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
     `<p class="ws-footer-note">${h(COPY.footer.medical)}</p>`,
+    affOn ? affNote('f') : '',
     `<p class="ws-footer-copy">${h(COPY.footer.copyright)}</p>`,
     '</footer>',
-  ].join('\n');
+  ]
+    .filter((x) => x !== '')
+    .join('\n');
+}
+
+/**
+ * 259 제휴 고지(111/261 §1) — note-a(검색 블록 안, 상인 버튼 바로 위) · note-b(레이어 본문 첫 요소) · note-f(R4-3 페이지 하단 푸터).
+ *   문구 = COPY.affiliate.coupang 원문(자식 태그 0, class 는 ws-t-meta·ws-aff-note 만 — compliance C10-AFF-OUT). 클라이언트 supply/AffNote 와 같은 마크업.
+ */
+export function affNote(kind: 'a' | 'b' | 'f', id?: string): string {
+  return `<p class="ws-t-meta ws-aff-note"${id ? ` id="${a(id)}"` : ''} data-ws-aff="note-${kind}">${h(COPY.affiliate.coupang)}</p>`;
 }
 
 /** 레이어 딥링크 페이지: aside.ws-layer 앞의 스크림(스펙22 §2.9 G4). 장식 — 닫기 동작은 하이드레이션 후. */

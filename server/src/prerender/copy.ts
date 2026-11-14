@@ -207,6 +207,8 @@ export const COPY = deepFreeze({
     findWithCondition: '이 조건으로 찾기',
     findCoupang: '이 조건으로 쿠팡에서 찾기',
     findNaver: '이 조건으로 네이버에서 찾기',
+    /** R4-3(R4 시안 affiliate_candidates): 렌더 필터를 통과한 상인 링크가 0개일 때 비활성 상인 버튼 라벨(시안 원문). */
+    merchantPending: '상인 링크 준비 중',
     lastVerified: '마지막 검수',
     matchingProducts: '이 항목에 맞는 준비물',
     alternativesNote: sent('이것 대신 아래 용품으로도 구성할 수 있어요'),

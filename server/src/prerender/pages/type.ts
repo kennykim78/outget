@@ -9,6 +9,7 @@ import type { RequirementModel, SiteModel, TypeModel } from '../project.js';
 import {
   LIKE_PLACEHOLDER,
   SCRIM,
+  affNote,
   affiliateLink,
   allTypes,
   externalLink,
@@ -274,10 +275,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
 /** 259 고지 A 의 id(261 §1: ws-aff-a-{supplyItemId} — 페이지당 레이어 aside 1개라 유일, 빌드마다 같다). */
 const affNoteId = (r: RequirementModel): string => `ws-aff-a-${r.item.id}`;
 
-/** 259 제휴 고지(111/261 §1) — note-a(검색 블록 안, 상인 버튼 바로 위) · note-b(레이어 본문 첫 요소). 문구 = COPY.affiliate.coupang 원문. */
-function affNote(kind: 'a' | 'b', id?: string): string {
-  return `<p class="ws-t-meta ws-aff-note"${id ? ` id="${a(id)}"` : ''} data-ws-aff="note-${kind}">${h(COPY.affiliate.coupang)}</p>`;
-}
+/* 259 제휴 고지 마크업(note-a·note-b·note-f)은 common.ts affNote 한 곳(R4-3 — 푸터 고지 F 와 같은 원문·마크업). */
 
 /** 고지 B — A 와 같은 판정(affiliateDisclosureOn: 렌더 필터 통과 AFFILIATE ≥ 1). 아니면 ''(꺼짐 = 바이트 동일). */
 function affNoteB(r: RequirementModel): string {
@@ -286,7 +284,18 @@ function affNoteB(r: RequirementModel): string {
 
 function searchBlock(r: RequirementModel): string {
   const links = renderableSearchLinks(r.pub.searchLinks);
-  if (links.length === 0) return '';
+  if (links.length === 0) {
+    // R4-3(R4 시안 affiliate_candidates): 그릴 상인 링크(URL)가 0 → 비활성 상인 버튼 「상인 링크 준비 중」 1개(클라 SearchBlock 과 같은 판정).
+    //   검색어도 없으면 블록 없음(이전과 같음). 엔진은 검색어가 있으면 링크 ≥ 1 이라 정상 빌드에서는 그려지지 않는다(off 기준선 불변).
+    if (r.pub.searchKeyword.trim() === '') return '';
+    return [
+      '<div class="ws-search">',
+      `<h3>${h(COPY.supplyLayer.findWithCondition)}</h3>`,
+      `<p>${h(COPY.supplyLayer.searchKeyword)}: <span class="ws-keyword">${h(r.pub.searchKeyword)}</span></p>`,
+      `<button type="button" disabled>${h(COPY.supplyLayer.merchantPending)}</button>`,
+      '</div>',
+    ].join('\n');
+  }
   const on = affiliateDisclosureOn(r.pub.searchLinks);
   return [
     '<div class="ws-search">',
@@ -488,10 +497,13 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
   let title = seoTitle ?? formatCopy(COPY.site.typeTitle, { animal: t.pub.displayName }) + COPY.site.titleSuffix;
   let description = seoDesc ?? formatCopy(COPY.site.typeDescription, { animal: t.pub.displayName });
   const crumbs = crumbsOf(t);
+  // R4-3: 푸터 고지 F 판정 대상 — 검색 블록을 그리는 레이어(L4·L7)의 요구사항. L5 정적판은 검색 블록이 없다(판정 없음).
+  let affReq: RequirementModel | null = null;
   if (layer && (layer.kind === 'L4' || layer.kind === 'L5')) {
     const r = t.requirements.find((x) => x.item.id === layer.itemId);
     if (!r) throw new Error(`pages: ${t.id} 에 노출 요구사항 ${layer.itemId} 없음`);
     aside = layer.kind === 'L4' ? layerL4(t, r) : layerL5(t, r);
+    if (layer.kind === 'L4') affReq = r;
     const label = layer.kind === 'L4' ? r.item.name : `${COPY.checkLayer.title} · ${r.item.name}`;
     title = `${t.pub.displayName} ${label}${COPY.site.titleSuffix}`;
     description = r.pub.why;
@@ -500,6 +512,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     const p = t.products.find((x) => x.id === layer.productId);
     if (!p) throw new Error(`pages: ${t.id} 에 노출 상품 ${layer.productId} 없음`);
     aside = layerL7(t, p);
+    affReq = t.requirements.find((x) => x.item.id === p.supplyItemId) ?? null;
     title = `${p.title}${COPY.site.titleSuffix}`;
     crumbs.push({ name: p.title, path: ctx.route.path });
   }
@@ -513,7 +526,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
       renderHeader(t.pub, navCurrent(ctx.route), data),
       typeMain(ctx, m, t),
       aside ? `${SCRIM}\n${aside}` : '',
-      renderFooter(),
+      renderFooter(affReq !== null && affiliateDisclosureOn(affReq.pub.searchLinks)),
     ]
       .filter((x) => x !== '')
       .join('\n'),

@@ -1589,11 +1589,20 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       }
     }
   }
+  // 고지 F(R4-3, R4 시안 affiliate_candidates) — 제휴 a 가 1개 이상인 문서는 페이지 하단 footer.ws-footer 직속에 정확히 1개, 원문·숨김 0.
+  if (affLinks.length > 0) {
+    const footers = [];
+    for (let i = 0; i < n; i++) if (els[i].name === 'footer' && classesOf(els[i]).includes('ws-footer')) footers.push(i);
+    const notesF = footers.flatMap((f) => kids(f).filter((x) => els[x].attrs['data-ws-aff'] === 'note-f'));
+    if (footers.length !== 1) fail(null, `제휴 문서의 footer.ws-footer 가 정확히 1개여야 한다(현재 ${footers.length}) — 고지 F 자리`);
+    else if (notesF.length !== 1) fail(null, `고지 F(data-ws-aff="note-f")가 footer.ws-footer 직속에 정확히 1개여야 한다(현재 ${notesF.length})`);
+    else noteCheck(notesF[0], 'F');
+  }
   // 고지·data-ws-aff 가 제휴 링크와 짝이 없으면(off 바이트 보존 위반) FAIL
   for (let i = 0; i < n; i++) {
     const v = els[i].attrs['data-ws-aff'];
     if (v === undefined) continue;
-    if (v !== 'note-a' && v !== 'note-b') fail(lineOf(els[i].start), `data-ws-aff=${L(v)} — note-a·note-b 만`);
+    if (v !== 'note-a' && v !== 'note-b' && v !== 'note-f') fail(lineOf(els[i].start), `data-ws-aff=${L(v)} — note-a·note-b·note-f 만`);
     else if (!usedNotes.has(i)) fail(lineOf(els[i].start), `짝 없는 고지 ${v}(제휴 링크 0 인 블록·레이어에 고지 — 꺼짐은 HEAD 와 바이트 동일)`);
   }
 }

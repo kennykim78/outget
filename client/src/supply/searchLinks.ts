@@ -3,7 +3,7 @@
 //   그 밖의 kind·호스트·코드 형식은 그리지 않는다(fail-closed). 순서는 공급자 순서(쿠팡 → 네이버) 고정 — 제휴 여부로 바뀌지 않는다(불변식 ③).
 //   고지 A·B 는 같은 판정(affiliateDisclosureOn: 필터를 통과한 AFFILIATE ≥ 1). 문구 = 서버 COPY.affiliate.coupang 원문(@ws/copy, 한 곳).
 //   제휴 호스트 리터럴은 두지 않는다(compliance C10-AFF-HOST — providers.ts 만).
-import { PROVIDERS, SEARCH_PROVIDER_ORDER, affiliateCodeFromHref, type SearchLink, type SearchLinkKind, type SearchProvider } from '@ws/engine';
+import { PROVIDERS, SEARCH_PROVIDER_ORDER, affiliateCodeFromHref, type SearchLink, type SearchLinkKind, type SearchProvider, type WsPageData } from '@ws/engine';
 
 /** 일반 검색 링크 허용 접두 — 서버 renderableSearchLinks 와 같은 규칙(PROVIDERS 검색 base?param=). */
 function searchPrefix(p: SearchProvider): string | null {
@@ -46,3 +46,21 @@ export const affNoteId = (supplyItemId: string): string => `ws-aff-a-${supplyIte
 
 export const REL_SEARCH = 'noopener noreferrer nofollow';
 export const REL_AFFILIATE = 'sponsored nofollow noopener noreferrer';
+
+/**
+ * R4-3 푸터 고지 F 판정 — 지금 열린 레이어가 검색 블록을 그리는 L4·L7 이고 그 요구사항에 제휴 링크가 그려지는가.
+ *   서버 renderFooter(affOn) 와 같은 규칙(type.ts renderTypePage affReq · misc.ts renderSupplyItem footerAff): L4 = typeId·itemId 요구사항,
+ *   L7 = 상품의 supplyItemId 요구사항. L5 는 정적판에 검색 블록이 없어 대상 밖(레이어 안 고지 A·B 는 그대로).
+ */
+export function layerAffiliateOn(
+  page: WsPageData,
+  open: { kind: string; props: Readonly<Record<string, unknown>> } | null,
+): boolean {
+  if (open === null || (open.kind !== 'L4' && open.kind !== 'L7')) return false;
+  const typeId = open.props.typeId;
+  let itemId = open.props.itemId;
+  if (open.kind === 'L7') itemId = page.data.products.find((p) => p.id === open.props.productId)?.supplyItemId;
+  if (typeof typeId !== 'string' || typeof itemId !== 'string') return false;
+  const r = page.data.requirements.find((x) => x.animalTypeId === typeId && x.supplyItemId === itemId);
+  return r !== undefined && affiliateDisclosureOn(r.searchLinks);
+}

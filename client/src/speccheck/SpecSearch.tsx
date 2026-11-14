@@ -33,7 +33,7 @@ export default function SpecSearch({ animalTypeId, supplyItemId, keyword, links 
   );
 
   const ordered = renderSearchLinks(links);
-  if (keyword.trim() === '' || ordered.length === 0) return null;
+  if (keyword.trim() === '') return null;
   const affOn = ordered.some((l) => l.kind === 'AFFILIATE');
   const noteId = affNoteId(supplyItemId);
 
@@ -65,6 +65,12 @@ export default function SpecSearch({ animalTypeId, supplyItemId, keyword, links 
         </p>
         {affOn ? <AffNote kind="a" id={noteId} /> : null}
         <div className="ws-search-merchants">
+          {ordered.length === 0 ? (
+            // R4-3(R4 시안 affiliate_candidates): 그릴 상인 링크(URL)가 0 → 비활성 상인 버튼 1개(SearchBlock 과 같은 규칙).
+            <button type="button" className="ws-btn ws-btn--outline ws-search-merchant" disabled>
+              {COPY.supplyLayer.merchantPending}
+            </button>
+          ) : null}
           {ordered.map((l) => (
             <a
               key={l.provider}

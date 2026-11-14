@@ -526,6 +526,18 @@ button {
   }
 }
 
+/* R4-3 제휴 고지 F(R4 시안 affiliate_candidates) — 제휴 링크가 그려진 화면에서만 © 바로 앞. 한 문장 전부 펼침(접힘·줄임 없음).
+   ≥768 그리드: 소개 아래 전체 폭 한 행, © 는 그 다음 행. */
+@media (min-width: 768px) {
+  .ws-footer > .ws-aff-note {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .ws-footer > .ws-aff-note ~ .ws-footer-copy {
+    grid-row: 4;
+  }
+}
+
 .ws-footer a {
   display: inline-flex;
   align-items: center;

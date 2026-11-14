@@ -1,7 +1,7 @@
 // SearchBlock(스펙33 §2.2) — L4·L5·L7 공용. "이 조건으로 찾기" 라벨 + 검색어 행(복사 버튼) + 머천트 버튼 2(쿠팡·네이버 순서 고정, 아웃라인 동등 D-37).
 //   링크는 ws-data searchLinks(빌드 시 buildSearchLinks)만 — 허용 필터(./searchLinks: SEARCH 기존 호스트, AFFILIATE 레지스트리 prefix+codeRe) 밖은 그리지 않는다. 새 창, nofollow.
 //   제휴(AFFILIATE) 링크가 그려질 때만 고지 A(복사 안내 뒤·상인 버튼 앞) + 쿠팡 a rel sponsored·aria-describedby(261 §1). 꺼짐이면 지금과 같은 DOM.
-//   가격·판매처명·"구매" 0. 클릭 = external_product_clicked{animalTypeId, supplyItemId, merchant}.
+//   그릴 링크가 0이면 비활성 「상인 링크 준비 중」(R4-3). 가격·판매처명·"구매" 0. 클릭 = external_product_clicked{animalTypeId, supplyItemId, merchant}.
 import { useEffect, useRef, useState } from 'react';
 import { COPY } from '@ws/copy';
 import type { PublicRequirement, SearchProvider } from '@ws/engine';
@@ -86,7 +86,14 @@ export default function SearchBlock({ requirement, headingId }: SearchBlockProps
             </a>
           ))}
         </div>
-      ) : null}
+      ) : requirement.searchKeyword.trim() === '' ? null : (
+        // R4-3(R4 시안 affiliate_candidates): 그릴 상인 링크(URL)가 0 → 비활성 상인 버튼 1개(서버 type.ts searchBlock 과 같은 판정 — 검색어 없으면 0).
+        <div className="ws-search-merchants">
+          <button type="button" className="ws-btn ws-btn--outline" disabled>
+            {COPY.supplyLayer.merchantPending}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

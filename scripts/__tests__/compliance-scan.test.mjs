@@ -3419,6 +3419,8 @@ test('C10-AFF-FIELD 변이: 시드·Prisma·코드 식별자의 수수료류·af
 const NAVER_A = j('<a href="', HTTPS, 'search.shopping.naver.com/search/all?query=x" target="_blank" rel="noopener noreferrer nofollow">네이버에서 찾기</a>');
 const NOTE_A = j('<p class="ws-t-meta ws-aff-note" id="ws-aff-a-1" data-ws-aff="note-a">', AFF_NOTE, '</p>');
 const NOTE_B = j('<p class="ws-t-meta ws-aff-note" data-ws-aff="note-b">', AFF_NOTE, '</p>');
+/** R4-3 고지 F — 페이지 하단 footer.ws-footer 직속. */
+const NOTE_F = j('<p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">', AFF_NOTE, '</p>');
 const affA = (attrs, href = AFF_HREF) => j('<a href="', href, '" target="_blank" ', attrs, '>쿠팡에서 찾기</a>');
 const AFF_A_OK = affA('rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"');
 function affLayer({ noteA = NOTE_A, noteB = NOTE_B, link = AFF_A_OK, layer = 'L4', noteAAfter = false, wrapSearch = (x) => x } = {}) {
@@ -3446,12 +3448,14 @@ const affWire = (reqOver = {}, top = {}) => ({
 });
 const AFF_MAIN = '<main class="ws-page" data-ws-route="TYPE" data-ws-type="hamster-golden"><section data-ws-section="now"><h2>지금 필요한 것</h2></section></main>';
 /** 제휴 켜진 산출물 스캔. layerOpts·wire·mode·extra(o)·body 로 변이. */
-async function affOut({ layerOpts = {}, wire = affWire(), mode = 'production', extra = noop, body = null } = {}) {
+async function affOut({ layerOpts = {}, wire = affWire(), mode = 'production', extra = noop, body = null, footerNote = NOTE_F } = {}) {
   return scan(
     await makeRoot({
       source: (s) => Object.assign(s, affEngineClient()),
       output: (o) => {
-        o['hamster/golden/index.html'] = page(body ?? `${AFF_MAIN}${affLayer(layerOpts)}`, wire);
+        o['hamster/golden/index.html'] = page(body ?? `${AFF_MAIN}${affLayer(layerOpts)}`, wire)
+          .replace('<footer>', '<footer class="ws-footer">')
+          .replace('</footer>', `${footerNote}</footer>`);
         extra(o);
       },
       manifest: (dg) => manifestFor(dg, { mode }),
@@ -3485,6 +3489,13 @@ test('C10-AFF-OUT 변이: 고지·rel·위치·숨김·개발 빌드·ws-data·�
     ['고지 B 없음', { layerOpts: { noteB: '' } }],
     ['고지 B 문구 변경', { layerOpts: { noteB: NOTE_B.replace('쿠팡', '쿠 팡') } }],
     ['고지 B 중복', { layerOpts: { noteB: `${NOTE_B}${NOTE_B}` } }],
+    ['고지 F 없음(R4-3)', { footerNote: '' }],
+    ['고지 F 문구 변경', { footerNote: NOTE_F.replace('일정액의', '일정 금액의') }],
+    ['고지 F 중복', { footerNote: `${NOTE_F}${NOTE_F}` }],
+    ['고지 F 숨김 클래스', { footerNote: NOTE_F.replace('ws-aff-note"', 'ws-aff-note ws-visually-hidden"') }],
+    ['고지 F 접기(details)', { footerNote: `<details><summary>더보기</summary>${NOTE_F}</details>` }],
+    ['고지 F 가 footer 밖(본문)', { footerNote: '', extra: (o) => { o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('</main>', `${NOTE_F}</main>`); } }],
+    ['짝 없는 고지 F(홈)', { extra: (o) => { o['index.html'] = o['index.html'].replace('</footer>', `${NOTE_F}</footer>`); } }],
     ['L5 정적 레이어', { layerOpts: { layer: 'L5' } }],
     ['상인 버튼 class 다름', { layerOpts: { link: affA('class="ws-btn ws-btn--fill" rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"') } }],
     ['개발 빌드에 제휴', { mode: 'development' }],
@@ -3510,7 +3521,9 @@ test('C10-AFF-OUT 변이: 고지·rel·위치·숨김·개발 빌드·ws-data·�
 
 test('C10-AFF-OUT: 꺼진(off) 형태 — 일반 쿠팡 검색 링크·ws-data v2 는 규칙 0, aff 없는 v3 는 FAIL', async () => {
   const offLink = j('<a href="', CP_SEARCH('햄스터 케이지'), '" target="_blank" rel="noopener noreferrer nofollow">쿠팡에서 찾기</a>');
-  expectClean(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }) }));
+  expectClean(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }), footerNote: '' }));
+  // R4-3: 제휴 a 0 인 문서의 고지 F 는 짝 없음 → FAIL(꺼짐 = 바이트 동일)
+  expectAff(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }) }), 'C10-AFF-OUT', OUT_PAGE, '꺼짐 문서에 고지 F');
   expectAff(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }) }), 'C10-AFF-OUT', OUT_PAGE, 'aff 0 인 v3');
 });
 

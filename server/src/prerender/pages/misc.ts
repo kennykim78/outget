@@ -1,5 +1,6 @@
 // 홈 A(미선택 — 히어로·하단 CTA) · /{family} · /supplies · /supplies/{item}[/{type}] · /vet[/{region}] · /credits · 404.
 import { ANIMAL_GROUPS, PICK_PATH, SUPPLY_CATEGORIES, type LinkedAction, type WsPageData } from '../../engine/index.js';
+import { affiliateDisclosureOn } from '../affiliate.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { SiteModel, TypeModel } from '../project.js';
@@ -44,6 +45,8 @@ function page(
     mainAttrs?: Readonly<Record<string, string>>;
     /** main 에 덧붙일 클래스(client 와 같은 ws-home-a 등). */
     mainClass?: string;
+    /** R4-3: 레이어 aside 에 제휴 링크가 그려지면 true — 푸터 고지 F. 생략 = 꺼짐(바이트 동일). */
+    footerAff?: boolean;
     data: WsPageData['data'];
   },
 ): RenderedPage {
@@ -56,7 +59,7 @@ function page(
       '</main>',
       o.aside ? `${SCRIM}
 ${o.aside}` : '',
-      renderFooter(),
+      renderFooter(o.footerAff === true),
     ]
       .filter((x) => x !== '')
       .join('\n'),
@@ -307,12 +310,14 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
   let aside: string | undefined;
   let typeId: string | undefined;
   let header: TypeModel | undefined;
+  let footerAff = false;
   const data: WsPageData['data'] = { ...emptyData(), types: allTypes(m) };
   if (ctx.route.kind === 'SUPPLY_ITEM_TYPE') {
     const t = ts.find((x) => x.id === ctx.route.typeId);
     const r = t?.requirements.find((x) => x.item.id === it.id);
     if (!t || !r) throw new Error(`pages: ${ctx.route.typeId} × ${it.id} 노출 요구사항 없음`);
     aside = layerL4(t, r, `/supplies/${it.id}`);
+    footerAff = affiliateDisclosureOn(r.pub.searchLinks);
     typeId = t.id;
     header = t;
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
@@ -337,6 +342,7 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     aside,
     typeId,
     header,
+    footerAff,
     data,
   });
 }
