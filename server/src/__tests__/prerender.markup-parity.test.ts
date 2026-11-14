@@ -113,8 +113,8 @@ describe('홈 A 마크업 = React Hero·StartBand(R3 시안 v1b, 286 U3a)', () =
     expect(html(b0, PICK_PATH)).not.toContain('/mascots/');
   });
 
-  it('헤더 칩 = a[data-ws-chip][href=/pick] (홈·타입 모두)', () => {
-    expect(html(b, '/')).toMatch(/<a data-ws-chip class="ws-chip" href="\/pick">/);
+  it('헤더 칩 = a[data-ws-chip][href=/pick] (홈·타입 모두) — U2b: 미선택 채운 버튼, 선택 이름', () => {
+    expect(html(b, '/')).toMatch(/<a data-ws-chip class="ws-chip ws-btn ws-btn--fill" href="\/pick">/);
     expect(html(b, '/hamster/golden')).toMatch(/<a data-ws-chip class="ws-chip ws-chip--selected" href="\/pick">/);
   });
 });
@@ -129,10 +129,10 @@ describe('홈 B 마크업 = React HomeB(빈 저장소)', () => {
     expect(main).toContain('<section class="ws-context" data-ws-id="animalTypes#hamster-golden" aria-labelledby="ws-context-title">');
     expect(main).toContain(`<div class="ws-context-text"><p class="ws-t-meta ws-muted ws-context-eyebrow">${COPY.homeB.contextEyebrow}</p><h1 id="ws-context-title" class="ws-t-display">`);
     expect(main).toContain(`<a class="ws-context-change" data-ws-action="change-animal" href="/pick" aria-label="${COPY.nav.changeFriend}">${COPY.homeB.change}</a>`);
-    // R4-2: 컨텍스트 헤더 마스코트 제거 → LCP 우선 이미지 0(h1 글자가 LCP). 헤더 칩 마스코트는 decoding=async 유지.
+    // R4-2: 컨텍스트 헤더 마스코트 제거 → LCP 우선 이미지 0(h1 글자가 LCP). U2b(D1·R4 시안): 헤더 칩도 이름만 — 문서에 마스코트 img 0.
     expect(main).not.toContain('ws-avatar--lg');
     expect(page.match(/fetchpriority=/g)).toBeNull();
-    expect(page).toMatch(/<span class="ws-avatar ws-avatar--sm ws-avatar--peach-soft" aria-hidden="true"><img src="\/mascots\/hamster-golden\.svg" width="24" height="24" alt="" decoding="async"><\/span>/);
+    expect(page).not.toContain('/mascots/hamster-golden.svg');
   });
 
   it('섹션 = 컨텍스트 → now → later? → bundles → spec → products → vet → save(PRD US-003 순서, R4-2b), ① 요약 카드 + neutral 항목 카드 + 항목 링크 줄, 정적 주 버튼 = a', () => {

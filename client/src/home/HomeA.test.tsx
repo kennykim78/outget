@@ -1,7 +1,7 @@
 // 홈 A(R3 시안 v1b, 286 U3a/U3b): ① 섹션 순서 [hero, starters, start] — 후기·소개 섹션 없음(후기가 ws-data 에 있어도 비노출, D6)
 //   ② 히어로 = h1 + 부제 + 선택 바(a → /pick, 하이드레이션 후 L1) · 기능 칩 0 ③ 하단 CTA = 채운 버튼 1 ④ /save 링크 0 · 금지어 0
 //   ⑤ 시작 카드 3(U3b): 노출 판정 fail-closed · 선택됨 = 대상 직행 링크 · 미선택 = L1 경유 의도 보존(intent.ts).
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { COPY } from '@ws/copy';
 import App from '../App';
@@ -106,8 +106,9 @@ describe('홈 A 섹션', () => {
     const ctas = Array.from(document.querySelectorAll('main a[data-ws-action="pick-animal"][href="/pick"]'));
     expect(ctas).toHaveLength(2);
     expect(document.querySelectorAll('main button[data-ws-action="pick-animal"]')).toHaveLength(0);
-    // 접근 이름 유지(링크 역할).
-    expect(ctas.map((a) => screen.getByRole('link', { name: a === ctas[0] ? COPY.homeA.heroBar : COPY.homeA.startCta }))).toEqual(ctas);
+    // 접근 이름 유지(링크 역할). main 안에서 찾는다 — 헤더 CTA(U2b)도 같은 「친구 선택하기」.
+    const main = screen.getByRole('main');
+    expect(ctas.map((a) => within(main).getByRole('link', { name: a === ctas[0] ? COPY.homeA.heroBar : COPY.homeA.startCta }))).toEqual(ctas);
     for (const a of ctas) {
       for (const mod of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
         expect(fireEvent.click(a, mod)).toBe(true); // defaultPrevented=false

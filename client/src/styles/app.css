@@ -1,6 +1,6 @@
 /* WithSmall 앱 스타일(스펙22 §2). 값은 전부 tokens.css 변수 — hex·rgb·그라데이션·임의 그림자 0(§1.6).
    브레이크포인트 리터럴: ≤767 모바일 · 768–1023 태블릿 · ≥1024 데스크톱. 다크 모드 규칙 없음(단일 라이트).
-   프리렌더 마크업(header.ws-header, main.ws-page, footer.ws-footer, nav.ws-tabbar, aside.ws-layer, ul.ws-chips…)도
+   프리렌더 마크업(header.ws-header, main.ws-page, footer.ws-footer, nav.ws-nav, aside.ws-layer, ul.ws-chips…)도
    하이드레이션 전부터 같은 모양이 되도록 같은 클래스를 그린다. */
 
 /* ── 기본 ─────────────────────────────────────────── */
@@ -14,12 +14,6 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-padding-top: var(--ws-header-h);
-}
-
-@media (max-width: 767px) {
-  html {
-    scroll-padding-bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--ws-space-2));
-  }
 }
 
 body {
@@ -289,11 +283,10 @@ button {
   display: inline-flex;
   align-items: center;
   min-height: var(--ws-touch);
-  font-size: var(--ws-type-body-size);
-  line-height: var(--ws-type-cta-lh);
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
   font-weight: var(--ws-type-display-weight);
-  letter-spacing: var(--ws-type-label-tracking);
-  text-transform: uppercase;
+  letter-spacing: var(--ws-type-title-tracking);
   color: var(--ws-brand-text);
 }
 
@@ -303,8 +296,84 @@ button {
   }
 }
 
+/* 메뉴 단추(≤767, U2b · Kenny D2 — 하단 탭바 대체). R4 시안 「메뉴」 글자. 44 히트. */
+.ws-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  margin-left: auto;
+  padding: 0 0 0 var(--ws-space-3);
+  border: 0;
+  background: none;
+  color: var(--ws-ink);
+  font: inherit;
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+  cursor: pointer;
+}
+
+/* 메뉴(nav#ws-nav) — ≤767 접힘: 단추 aria-expanded=true 일 때만 헤더 아래 패널(가로 전체, 위 선 + 아래 선, 그림자 없음). */
 .ws-nav {
   display: none;
+}
+
+.ws-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-ink);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-cta-weight);
+}
+
+.ws-nav a[aria-current='page'] {
+  color: var(--ws-brand-text);
+}
+
+@media (hover: hover) {
+  .ws-nav a:hover {
+    text-decoration: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .ws-menu-btn[aria-expanded='true'] + .ws-nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--ws-space-2) var(--ws-gutter-mobile) var(--ws-space-4);
+    background: var(--ws-bg-000);
+    border-bottom: 1px solid var(--ws-line);
+  }
+  .ws-menu-btn[aria-expanded='true'] + .ws-nav [data-ws-chip] {
+    align-self: flex-start;
+    margin-top: var(--ws-space-2);
+  }
+}
+
+/* 무JS(≤767): 메뉴 단추는 동작하지 않으므로 숨기고 메뉴를 헤더 안에 펼쳐 둔다(프리렌더 = 하이드레이션 DOM, CSS 만 다름). */
+@media (max-width: 767px) and (scripting: none) {
+  .ws-header {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--ws-header-h);
+  }
+  .ws-menu-btn {
+    display: none;
+  }
+  .ws-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--ws-space-4);
+    width: 100%;
+    padding-bottom: var(--ws-space-2);
+  }
 }
 
 @media (min-width: 768px) {
@@ -312,59 +381,46 @@ button {
     gap: var(--ws-space-8);
     padding-inline: max(var(--ws-gutter-wide), calc((100% - var(--ws-content-tablet)) / 2));
   }
+  .ws-menu-btn {
+    display: none;
+  }
+  /* 로고 · 메뉴 3(왼쪽 정렬) · 칩(오른쪽 끝) — R3·R4 시안. */
   .ws-nav {
     display: flex;
+    flex: 1;
     align-items: center;
     gap: var(--ws-space-8);
+    min-width: 0;
+  }
+  .ws-nav [data-ws-chip] {
     margin-left: auto;
-  }
-  .ws-nav a {
-    display: inline-flex;
-    align-items: center;
-    min-height: var(--ws-touch);
-    color: var(--ws-ink);
-    font-size: var(--ws-type-cta-size);
-    line-height: var(--ws-type-cta-lh);
-    font-weight: var(--ws-type-cta-weight);
-  }
-  .ws-nav a[aria-current='page'] {
-    color: var(--ws-brand-text);
   }
 }
 
 @media (min-width: 1024px) {
   .ws-header {
+    gap: var(--ws-space-12);
     padding-inline: max(var(--ws-gutter-wide), calc((100% - var(--ws-content-max)) / 2));
+  }
+  .ws-nav {
+    gap: var(--ws-space-12);
   }
 }
 
-/* ── 동물 칩(§2.2) — 시각 높이 40, 히트 44 ─────────── */
-[data-ws-chip] {
+/* ── 동물 칩(U2b · D1) — 미선택 = .ws-btn.ws-btn--fill(친구 선택하기), 선택 = 동물 이름 글자(brand-text 600). 히트 44 ── */
+.ws-nav a[data-ws-chip] {
   position: relative;
-  display: inline-flex;
-  align-items: center;
   gap: var(--ws-space-2);
   min-width: 0;
-  height: calc(var(--ws-touch) - var(--ws-space-1));
-  padding: 0 var(--ws-space-4) 0 var(--ws-space-3);
-  border: 1px solid var(--ws-line-strong);
-  border-radius: var(--ws-radius-pill);
-  background: var(--ws-surface);
-  color: var(--ws-ink);
-  font-size: var(--ws-type-cta-size);
-  line-height: var(--ws-type-cta-lh);
-  font-weight: var(--ws-type-cta-weight);
   white-space: nowrap;
 }
 
-[data-ws-chip]::after {
-  content: '';
-  position: absolute;
-  inset: calc(var(--ws-space-1) / -2) 0;
+.ws-nav a.ws-btn--fill[data-ws-chip] {
+  color: var(--ws-on-brand);
 }
 
-.ws-chip--selected {
-  padding-left: var(--ws-space-1);
+.ws-nav a.ws-chip--selected {
+  color: var(--ws-brand-text);
 }
 
 .ws-chip-name {
@@ -372,80 +428,76 @@ button {
   text-overflow: ellipsis;
 }
 
-.ws-chip-caret {
-  color: var(--ws-ink-muted);
-}
-
-@media (hover: hover) {
-  [data-ws-chip]:hover {
-    text-decoration: none;
-    border-color: var(--ws-ink-muted);
-  }
-}
-
-/* ── 탭바(§2.3, ≤767) ──────────────────────────────── */
-.ws-tabbar {
-  position: fixed;
-  inset: auto 0 0 0;
-  z-index: 20;
-  display: flex;
-  height: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: var(--ws-bg-000);
-  border-top: 1px solid var(--ws-line);
-}
-
-.ws-tab {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--ws-space-1);
-  min-height: var(--ws-touch);
-  color: var(--ws-ink-muted);
-  font-size: var(--ws-type-label-size);
-  line-height: var(--ws-type-label-lh);
-  font-weight: var(--ws-type-label-weight);
-  letter-spacing: var(--ws-type-label-tracking);
-}
-
-.ws-tab[aria-current='page'] {
-  color: var(--ws-brand-text);
-}
-
-@media (hover: hover) {
-  .ws-tab:hover {
-    text-decoration: none;
-  }
-}
-
-@media (min-width: 768px) {
-  .ws-tabbar {
-    display: none;
-  }
-}
-
-/* ── 푸터(§2.19) ───────────────────────────────────── */
+/* ── 푸터(U2b · D3, R3 시안 v1b) ─────────────────────
+   ≤767 세로: 로고 / 한 줄 소개 / 링크 / 고지 / ©.  ≥768: 1행 = 로고(왼쪽) · 링크(가운데) · 고지(오른쪽), 2행 = 한 줄 소개, 3행 = ©. */
 .ws-footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ws-space-2);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--ws-space-2);
   margin-top: var(--ws-space-12);
-  padding-block: var(--ws-space-6);
+  padding-block: var(--ws-space-8);
   border-top: 1px solid var(--ws-line);
   color: var(--ws-ink-muted);
   font-size: var(--ws-type-meta-size);
   line-height: var(--ws-type-meta-lh);
 }
 
-@media (max-width: 767px) {
-  .ws-page,
+.ws-footer p {
+  margin: 0;
+}
+
+.ws-footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-footer-logo {
+  color: var(--ws-brand-text);
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-display-weight);
+}
+
+.ws-footer-tagline {
+  color: var(--ws-ink-body);
+}
+
+.ws-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--ws-space-6);
+}
+
+.ws-footer-copy {
+  margin-top: var(--ws-space-2);
+}
+
+@media (min-width: 768px) {
   .ws-footer {
-    padding-bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
+    grid-template-columns: auto 1fr auto;
+    column-gap: var(--ws-space-8);
+    align-items: start;
   }
-  .ws-footer {
-    padding-bottom: calc(var(--ws-tabbar-h) + var(--ws-space-6) + env(safe-area-inset-bottom, 0px));
+  .ws-footer-brand {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .ws-footer-links {
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: center;
+  }
+  .ws-footer-note {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    min-height: var(--ws-touch);
+  }
+  .ws-footer-copy {
+    grid-column: 1 / -1;
+    grid-row: 3;
   }
 }
 
@@ -453,7 +505,7 @@ button {
   display: inline-flex;
   align-items: center;
   min-height: var(--ws-touch);
-  color: var(--ws-brand-text);
+  color: var(--ws-ink-body);
 }
 
 /* 96 S5 — 처리방침 외 푸터 링크는 본문 굵기(전부 600 이면 처리방침 강조가 무효). */
@@ -613,13 +665,6 @@ ul.ws-reviews > li {
   background: var(--ws-scrim);
 }
 
-/* 프리렌더 정적 scrim(JS 전, data-ws-scrim 없음): 모바일에서 하단 탭바를 덮지 않는다. React scrim 은 제외. */
-@media (max-width: 767px) {
-  .ws-scrim:not([data-ws-scrim]) {
-    bottom: calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px));
-  }
-}
-
 .ws-layer-panel,
 aside.ws-layer {
   position: fixed;
@@ -665,8 +710,8 @@ aside.ws-layer {
 
 /* 프리렌더 딥링크 aside.ws-layer(하이드레이션 전) — 같은 변형을 미디어 쿼리로. */
 aside.ws-layer {
-  inset: auto 0 calc(var(--ws-tabbar-h) + env(safe-area-inset-bottom, 0px)) 0;
-  max-height: calc(100dvh - var(--ws-header-h) - var(--ws-tabbar-h) - env(safe-area-inset-bottom, 0px));
+  inset: auto 0 0 0;
+  max-height: calc(100dvh - var(--ws-header-h));
   overflow-y: auto;
   padding: var(--ws-layer-pad-mobile);
   border-radius: var(--ws-radius-lg) var(--ws-radius-lg) 0 0;

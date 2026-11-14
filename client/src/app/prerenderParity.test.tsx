@@ -300,6 +300,40 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
     expect(after.texts).toEqual(before.texts);
   });
 
+  // U2b: 헤더(로고·메뉴 단추·메뉴 3·칩)는 서버 renderHeader 와 하이드레이션 후 같다(빈 저장소) — 골격·href·속성(aria-controls/expanded·current).
+  //   탭바는 어디에도 없다(D2). 드워프 L5 딥링크(요구사항 1개짜리 문서 아님 — 크기 확인 대상 계산 경로 확인용)도 같이 본다.
+  it.each([...CASES.map((c) => [c[0], c[1], 'golden'] as const), ['TYPE', '/hamster/dwarf/supplies/cage', 'dwarf'] as const])(
+    '헤더 %s %s: 프리렌더 ↔ React header 동일, 탭바 0',
+    (_kind, path, which) => {
+      const p = pageAt(path, which === 'dwarf' ? dwarfSite : site);
+      loadStatic(p);
+      const headerOf = () => {
+        const hs = document.querySelectorAll('header.ws-header');
+        expect(hs).toHaveLength(1);
+        const h = hs[0];
+        const btn = h.querySelector('button.ws-menu-btn');
+        return {
+          skel: skel(h),
+          links: Array.from(h.querySelectorAll('a')).map((a) => [a.getAttribute('href'), a.getAttribute('aria-current'), norm(a.textContent)]),
+          btn: [btn?.getAttribute('aria-expanded'), btn?.getAttribute('aria-controls'), btn?.getAttribute('type')],
+          nav: [h.querySelector('nav')?.id, h.querySelector('nav')?.getAttribute('aria-label')],
+        };
+      };
+      const before = headerOf();
+      expect(before.btn).toEqual(['false', 'ws-nav', 'button']);
+      expect(document.querySelector('.ws-tabbar, .ws-tab')).toBeNull();
+      hydrate(p);
+      const after = headerOf();
+      const d: string[] = [];
+      diff(before.skel, after.skel, 'header', d);
+      expect(d).toEqual([]);
+      expect(after.links).toEqual(before.links);
+      expect(after.btn).toEqual(before.btn);
+      expect(after.nav).toEqual(before.nav);
+      expect(document.querySelector('.ws-tabbar, .ws-tab')).toBeNull();
+    },
+  );
+
   // 114 FE-gp-schema(기니피그 S5, 계획 107): L5 폼 필드 목록·'· 선택' 표시가 프리렌더 = 하이드레이션 후(visibleSpecFields·isFieldOptionalForDisplay 공용).
   //   React 는 숫자 칸을 먼저 묶어 그리므로(SpecForm) 순서가 아닌 키 집합 + 키별 '선택' 표시로 비교한다.
   //   ruleScoped 6개(floorType·dustFree·forSpecies·baseType·vitaminC·entrances)는 골든·드워프 규칙이 참조하지 않아 양쪽 모두 미노출.

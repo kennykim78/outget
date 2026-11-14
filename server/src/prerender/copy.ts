@@ -34,13 +34,19 @@ export const COPY = deepFreeze({
   },
   nav: {
     logo: 'WithSmall',
-    chooseFriend: '친구 선택',
+    /** 헤더 CTA(미선택) — R3 시안 v1b 헤더 「친구 선택하기」(U2b, D1: 선택되면 같은 자리가 동물 칩). */
+    chooseFriend: '친구 선택하기',
     changeFriend: '친구 바꾸기',
+    /** /supplies 본문 링크 라벨(misc.ts 홈 외 본문) — 헤더 메뉴 라벨은 menuSupplies. */
     supplies: '용품 찾기',
+    /** 헤더 메뉴 3(R3·R4 시안: 준비물 · 크기 확인 · 병원, U2b). */
+    menuSupplies: '준비물',
+    menuSpecCheck: '크기 확인',
     vet: '병원',
-    tabHome: '홈',
-    tabSupplies: '용품',
-    tabVet: '병원',
+    /** 모바일(≤767) 메뉴 단추(R4 시안 「메뉴」, D2: 하단 탭바 대신). */
+    menu: '메뉴',
+    /** 메뉴 목록(nav) 접근 이름. */
+    menuLabel: '주 메뉴',
     seeAll: '전체',
     skipToMain: '본문으로 건너뛰기',
   },
@@ -549,11 +555,14 @@ export const COPY = deepFreeze({
   /** 규격 조건 한 줄 조립용(값·라벨은 시드 specSchema). */
   spec: { gte: '이상', lte: '이하', notIn: '제외', none: '없음', when: '일 때' },
   situation: { FIRST_TIME: '처음 준비', ALREADY: '이미 함께하는 중' },
+  /** 푸터(U2b·D3 최소 범위, R3 시안 v1b): 로고 · 한 줄 소개 · 처리방침 · 사진 출처(credits.footerLink) · 의료 고지 · ©. 소개·문의 페이지 없음. */
   footer: {
-    identity: sent('WithSmall은 쇼핑몰이 아니라 준비 도우미예요'),
-    health: sent('건강이 걱정되면 병원에 문의해 주세요'),
+    tagline: '작은 친구와 함께하는 첫 준비',
+    /** 불변식 ⑤ 고지 — 시안 문구 그대로. */
+    medical: '의료 판단을 대신하지 않아요',
     /** R6 레인 0.2 — 푸터 개인정보 처리방침 링크 라벨. */
     privacy: '개인정보 처리방침',
+    copyright: '© WithSmall',
   },
   /** /privacy 페이지 틀(계획 86 P8). 본문 사실은 prerender/privacy-content.ts. */
   privacy: {

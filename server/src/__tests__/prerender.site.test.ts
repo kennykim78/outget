@@ -495,17 +495,22 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(l5cage).toContain('aria-describedby="ws-f-floorWcm-unit"><span class="ws-spec-unit" id="ws-f-floorWcm-unit">cm</span></span>');
   });
 
-  it('G4: color-scheme meta, 탭바(현재 aria-current), 레이어 딥링크 스크림, 히어로·컨텍스트 인라인 마스코트(정제)', () => {
+  it('G4: color-scheme meta, 헤더 메뉴(현재 aria-current)·탭바 0(U2b D2), 레이어 딥링크 스크림, 히어로·컨텍스트 마스코트 없음', () => {
     const b = buildM(promoted());
     for (const p of b.pages) {
       expect(p.html.match(/<meta name="color-scheme" content="light"/g), p.route.path).toHaveLength(1);
-      expect(p.html, p.route.path).toContain('<nav class="ws-tabbar">');
+      expect(p.html, p.route.path).not.toMatch(/ws-tabbar|class="ws-tab"/);
+      expect(p.html.match(/<nav class="ws-nav" id="ws-nav" aria-label="주 메뉴">/g), p.route.path).toHaveLength(1);
+      expect(p.html.match(/<button type="button" class="ws-menu-btn" aria-expanded="false" aria-controls="ws-nav">메뉴<\/button>/g), p.route.path).toHaveLength(1);
       expect(p.html).not.toContain('<metadata');
       expect(p.html).not.toContain('c2pa');
     }
-    expect(pageOf(b, '/vet')).toMatch(/<a class="ws-tab" href="\/vet" aria-current="page">/);
-    expect(pageOf(b, '/hamster/golden')).toMatch(/<a class="ws-tab" href="\/hamster\/golden" aria-current="page">/);
-    expect(pageOf(b, '/supplies')).toMatch(/<a href="\/supplies" aria-current="page">/);
+    expect(pageOf(b, '/vet')).toMatch(/<a href="\/vet" aria-current="page">병원<\/a>/);
+    expect(pageOf(b, '/supplies')).toMatch(/<a href="\/supplies" aria-current="page">준비물<\/a>/);
+    expect(pageOf(b, '/hamster/golden')).not.toMatch(/<header[\s\S]*aria-current[\s\S]*<\/header>/);
+    // 크기 확인(D3 ①): 미선택 문서 /pick, 타입 문서 = 규격 필드가 있는 첫 노출 요구사항의 L5.
+    expect(pageOf(b, '/')).toContain('<a data-ws-nav="spec-check" href="/pick">크기 확인</a>');
+    expect(pageOf(b, '/hamster/golden')).toMatch(/<a data-ws-nav="spec-check" href="\/hamster\/golden\/check\/[a-z-]+">크기 확인<\/a>/);
     for (const p of ['/hamster/golden/supplies/cage', '/hamster/golden/check/cage', '/hamster/golden/products/cp-001', '/supplies/cage/hamster-golden']) {
       expect(pageOf(b, p), p).toMatch(/<div class="ws-scrim" aria-hidden="true"><\/div>\n<aside class="ws-layer"/);
     }
@@ -516,9 +521,9 @@ describe('R4 A2 프리렌더 보강', () => {
     const home = pageOf(b, '/hamster/golden');
     const ctxSec = home.slice(home.indexOf('<section class="ws-context"'), home.indexOf('</section>', home.indexOf('<section class="ws-context"')));
     expect(ctxSec).not.toContain('ws-avatar');
-    const chip = /(<span class="ws-avatar ws-avatar--sm[^"]*" aria-hidden="true"><img [^>]*>)/.exec(home);
-    expect(chip?.[1]).toContain('ws-avatar--peach-soft');
-    expect(chip?.[1]).toContain('src="/mascots/hamster-golden.svg"');
+    // U2b(D1·R4 시안): 헤더 칩 = 이름만 — 아바타 없음.
+    const header = home.slice(home.indexOf('<header'), home.indexOf('</header>'));
+    expect(header).not.toMatch(/ws-avatar|<img/);
     expect(pageOf(b, '/hamster/golden')).not.toMatch(/role="img"|aria-label="골든/);
   });
 
@@ -554,16 +559,6 @@ describe('R4 A2 프리렌더 보강', () => {
     const sorted = [...vs].sort((a, c) => (a.region + a.name + a.id < c.region + c.name + c.id ? -1 : 1));
     expect(vs.map((v) => v.id)).toEqual(sorted.map((v) => v.id));
     expect(vs[0].region).toBe('서울 강남구');
-  });
-
-  it('F7: 탭바 아이콘 = 보드 SVG(viewBox 0 0 24 24, stroke-width 2, 22px)', () => {
-    const html = pageOf(buildM(promoted()), '/');
-    const svgs = html.match(/<svg class="ws-tab-icon"[^>]*>[\s\S]*?<\/svg>/g) ?? [];
-    expect(svgs).toHaveLength(3);
-    for (const s of svgs) expect(s).toMatch(/viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"/);
-    expect(svgs[0]).toContain('<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>');
-    expect(svgs[1]).toContain('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>');
-    expect(svgs[2]).toContain('<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>');
   });
 
   it('F5: 비노출 동물(hamster-dwarf·guinea-pig)의 승인 후기는 어떤 산출물에도 없다, 노출 타입 후기도 홈엔 없음(D6)', () => {

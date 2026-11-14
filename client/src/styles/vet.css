@@ -280,7 +280,7 @@ li.ws-vet .ws-vet-actions {
 .ws-vet-map {
   width: 100%;
   min-height: 360px;
-  height: calc(100dvh - var(--ws-header-h) - var(--ws-tabbar-h) - 2 * var(--ws-touch) - var(--ws-space-8));
+  height: calc(100dvh - var(--ws-header-h) - 2 * var(--ws-touch) - var(--ws-space-8));
   background: var(--ws-bg-100);
   border: 1px solid var(--ws-line);
   border-radius: var(--ws-radius-md);

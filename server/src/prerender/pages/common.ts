@@ -120,64 +120,68 @@ export function navCurrent(route: Pick<RoutePlan, 'kind'>): NavCurrent {
 
 const cur = (on: boolean): string => (on ? ' aria-current="page"' : '');
 
-/** 스펙22 §2.1 — header.ws-header > a.ws-logo + a[data-ws-chip] + nav.ws-nav(≥768 표시, 현재 메뉴 aria-current). */
+/** 헤더 nav id(메뉴 단추 aria-controls) — client shell/GlobalHeader.tsx NAV_ID 와 같은 값. */
+export const NAV_ID = 'ws-nav';
+
+/**
+ * 「크기 확인」 메뉴 대상(U2b, D3 ①) — client home/intent.ts intentHref('SPEC_CHECK') 와 같은 규칙·같은 입력(이 문서 ws-data).
+ *   타입 없음 = /pick(무JS: L1 → 타입 홈, 하이드레이션 후 L1 경유 의도 보존) · 대상 항목 = ws-data types[].specCheckItemId,
+ *   없으면 이 문서 requirements 중 그 타입의 규격 필드가 있는 첫 항목 · 둘 다 없으면 타입 홈.
+ */
+export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null, data: WsPageData['data'] | null): string {
+  if (!type) return PICK_PATH;
+  const home = hrefOf(`/${type.slug}`);
+  if (!data) return home;
+  const fromType = data.types.find((t) => t.id === type.id)?.specCheckItemId;
+  const itemId =
+    typeof fromType === 'string' && fromType !== ''
+      ? fromType
+      : data.requirements.find((x) => x.animalTypeId === type.id && x.item.specSchema.fields.length > 0)?.supplyItemId;
+  return itemId ? `${home}/check/${encodeURIComponent(itemId)}` : home;
+}
+
+/**
+ * 전역 헤더(U2b · R3 v1b / R4 시안, Kenny D1·D2·D3 2026-11-14) — client shell/GlobalHeader.tsx 와 같은 마크업.
+ *   header.ws-header > 건너뛰기 · a.ws-logo · button.ws-menu-btn(≤767 「메뉴」, aria-expanded/controls) · nav#ws-nav.ws-nav
+ *   (준비물 · 크기 확인 · 병원 · 동물 칩). 칩 = 미선택 「친구 선택하기」 채운 버튼 / 선택 = 동물 이름(D1: CTA 자리를 칩으로).
+ *   하단 탭바 없음(D2). 무JS: CSS @media (scripting: none) 가 ≤767 에서도 nav 를 펼쳐 둔다(메뉴 단추 숨김).
+ */
 export function renderHeader(
-  type: Pick<PublicAnimalType, 'slug' | 'displayName'> & { mascot?: string | null } | null,
+  type: Pick<PublicAnimalType, 'id' | 'slug' | 'displayName'> | null,
   current: NavCurrent = null,
-  ctx?: PageContext,
+  data: WsPageData['data'] | null = null,
 ): string {
-  const caret = '<span class="ws-chip-caret" aria-hidden="true">▾</span>';
-  // React AnimalChip.tsx:27 과 같은 조건·톤: 선택된 타입이 있을 때만 sm 아바타(peach-soft). ctx 없으면 출력 0.
-  const avatar = type && ctx ? mascotAvatar(ctx, type.mascot, 'peach-soft', 'sm') : '';
   // K1(51 레인 A ③): 칩은 JS 없이도 정적 /pick(홈 A 부모 + L1 정적 본문). 하이드레이션 후엔 client AnimalChip 이 L1 을 연다.
   const chip = type
-    ? `<a data-ws-chip class="ws-chip ws-chip--selected" href="${PICK_PATH}">${avatar}<span class="ws-chip-name">${h(type.displayName)}</span> ${caret}</a>`
-    : `<a data-ws-chip class="ws-chip" href="${PICK_PATH}"><span class="ws-chip-name">${h(COPY.nav.chooseFriend)}</span> ${caret}</a>`;
+    ? `<a data-ws-chip class="ws-chip ws-chip--selected" href="${PICK_PATH}"><span class="ws-chip-name">${h(type.displayName)}</span></a>`
+    : `<a data-ws-chip class="ws-chip ws-btn ws-btn--fill" href="${PICK_PATH}"><span class="ws-chip-name">${h(COPY.nav.chooseFriend)}</span></a>`;
   return [
     '<header class="ws-header">',
     `<a class="ws-skip-link" href="#main">${h(COPY.nav.skipToMain)}</a>`,
     `<a class="ws-logo" href="/">${h(COPY.nav.logo)}</a>`,
-    chip,
-    '<nav class="ws-nav">',
-    `<a href="/supplies"${cur(current === 'supplies')}>${h(COPY.nav.supplies)}</a>`,
+    `<button type="button" class="ws-menu-btn" aria-expanded="false" aria-controls="${NAV_ID}">${h(COPY.nav.menu)}</button>`,
+    `<nav class="ws-nav" id="${NAV_ID}" aria-label="${a(COPY.nav.menuLabel)}">`,
+    `<a href="/supplies"${cur(current === 'supplies')}>${h(COPY.nav.menuSupplies)}</a>`,
+    `<a data-ws-nav="spec-check" href="${a(specCheckHref(type, data))}">${h(COPY.nav.menuSpecCheck)}</a>`,
     `<a href="/vet"${cur(current === 'vet')}>${h(COPY.nav.vet)}</a>`,
+    chip,
     '</nav>',
     '</header>',
   ].join('\n');
 }
 
-// 탭바 아이콘(디자인 리뷰 F7 — 보드 SVG, viewBox 0 0 24 24, stroke-width 2, 22px, currentColor, 장식). client TabBar.tsx 와 같은 마크업.
-const TAB_ICONS = {
-  home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
-  supplies: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>',
-  vet: '<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
-} as const;
-
-function tabIcon(k: keyof typeof TAB_ICONS): string {
-  return `<svg class="ws-tab-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" focusable="false">${TAB_ICONS[k]}</svg>`;
-}
-
-/** 스펙22 §2.3 — nav.ws-tabbar(≤767 표시): 홈(타입 페이지면 그 타입 홈)·용품·병원. */
-export function renderTabBar(type: Pick<PublicAnimalType, 'slug'> | null, current: NavCurrent): string {
-  const home = type ? hrefOf(`/${type.slug}`) : '/';
-  const tab = (k: keyof typeof TAB_ICONS, href: string, label: string): string =>
-    `<a class="ws-tab" href="${a(href)}"${cur(current === k)}>${tabIcon(k)}<span class="ws-tab-label">${h(label)}</span></a>`;
-  return [
-    '<nav class="ws-tabbar">',
-    tab('home', home, COPY.nav.tabHome),
-    tab('supplies', '/supplies', COPY.nav.tabSupplies),
-    tab('vet', '/vet', COPY.nav.tabVet),
-    '</nav>',
-  ].join('\n');
-}
-
-/** 스펙22 §2.19 — 크레딧 링크는 항상(R4 D6, C6). 처리방침 링크도 항상(계획 86 P8, compliance C9-PRIVACY). */
+/**
+ * 푸터(U2b·D3 최소 범위, R3 시안 v1b) — client shell/Footer.tsx 와 같은 마크업.
+ *   로고 · 한 줄 소개 · 처리방침(항상 — 계획 86 P8, compliance C9-PRIVACY) · 사진 출처(/credits 항상 — R4 D6, 불변식 ① 사용권 공개)
+ *   · 의료 고지(불변식 ⑤) · ©. 소개·문의 링크 없음(D3).
+ */
 export function renderFooter(): string {
   return [
     '<footer class="ws-footer">',
-    `<p>${h(COPY.footer.identity)}</p>`,
-    `<p>${h(COPY.footer.health)}</p>`,
-    `<p><a href="/privacy">${h(COPY.footer.privacy)}</a> · <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
+    `<p class="ws-footer-brand"><span class="ws-footer-logo">${h(COPY.nav.logo)}</span> <span class="ws-footer-tagline">${h(COPY.footer.tagline)}</span></p>`,
+    `<p class="ws-footer-links"><a href="/privacy">${h(COPY.footer.privacy)}</a> <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
+    `<p class="ws-footer-note">${h(COPY.footer.medical)}</p>`,
+    `<p class="ws-footer-copy">${h(COPY.footer.copyright)}</p>`,
     '</footer>',
   ].join('\n');
 }

@@ -140,3 +140,45 @@ test('홈 B 항목 카드 — 판정 뒤에도 derive 순서(케이지 → 쳇�
   const doc = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
   expect(doc.scroll, '문서 가로 넘침 0').toBeLessThanOrEqual(doc.client);
 });
+
+// U2b(Kenny D1·D2·D3 2026-11-14): 헤더 메뉴 — 탭바 0. 1280 = 메뉴 3 바로 보임·단추 숨김.
+//   390 = 「메뉴」 단추(aria-expanded) → 패널 펼침(첫 링크 포커스) · Esc 닫힘(단추 복귀). no-JS 390 = 단추 숨김 + 메뉴 링크 보임(scripting: none).
+test('U2b 헤더 메뉴 — 1280 메뉴 3 · 390 메뉴 단추 펼침/Esc · no-JS 링크 보임 · 탭바 0', async ({ page, newContext }) => {
+  const mobile = (page.viewportSize()?.width ?? 0) <= 767;
+  const menu = (p: typeof page) => p.locator('header.ws-header nav#ws-nav');
+  const links = (p: typeof page) => menu(p).locator('a:not([data-ws-chip])');
+  await gotoHydrated(page, '/');
+  await expect(page.locator('.ws-tabbar, .ws-tab')).toHaveCount(0);
+  await expect(links(page)).toHaveText(['준비물', '크기 확인', '병원']);
+  const btn = page.getByRole('button', { name: '메뉴' });
+  if (!mobile) {
+    await expect(btn).toBeHidden();
+    for (const a of await links(page).all()) await expect(a).toBeVisible();
+    await expect(menu(page).locator('a[data-ws-chip]')).toHaveText('친구 선택하기');
+  } else {
+    await expect(btn).toBeVisible();
+    await expect(menu(page)).toBeHidden();
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    await btn.click();
+    await expect(btn).toHaveAttribute('aria-expanded', 'true');
+    await expect(links(page).first()).toBeFocused();
+    for (const a of await links(page).all()) await expect(a).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    await expect(btn).toBeFocused();
+    await expect(menu(page)).toBeHidden();
+  }
+  await assertScreen(page, 'U2b 헤더');
+
+  const ctx = await newContext({ javaScriptEnabled: false });
+  const nojs = await ctx.newPage();
+  await nojs.goto('/');
+  await expect(nojs.getByRole('button', { name: '메뉴' })).toBeHidden();
+  for (const a of await links(nojs).all()) await expect(a).toBeVisible();
+  const [res] = await Promise.all([
+    nojs.waitForResponse((r) => new URL(r.url()).pathname === '/vet' && r.request().isNavigationRequest()),
+    links(nojs).filter({ hasText: '병원' }).click(),
+  ]);
+  expect(res.status()).toBe(200);
+  await expect(nojs.locator('.ws-tabbar, .ws-tab')).toHaveCount(0);
+});

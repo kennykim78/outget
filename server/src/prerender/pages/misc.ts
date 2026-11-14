@@ -18,7 +18,6 @@ import {
   renderFooter,
   renderHead,
   renderHeader,
-  renderTabBar,
   sortVets,
   vetCard,
   wsData,
@@ -51,14 +50,13 @@ function page(
   return {
     head: renderHead(ctx, { title: o.title, description: o.description, crumbs: o.crumbs }),
     body: [
-      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), ctx),
+      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), o.data),
       mainOpen(ctx, o.typeId, o.mainAttrs, o.mainClass),
       ...o.main,
       '</main>',
       o.aside ? `${SCRIM}
 ${o.aside}` : '',
       renderFooter(),
-      renderTabBar(o.header ? o.header.pub : null, navCurrent(ctx.route)),
     ]
       .filter((x) => x !== '')
       .join('\n'),

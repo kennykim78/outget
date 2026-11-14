@@ -1,4 +1,4 @@
-// app.css 정적 페이지 회귀 — 프리렌더 main.ws-page[data-ws-route] 직접 셀렉터, 푸터 모바일 padding 순서.
+// app.css 정적 페이지 회귀 — 프리렌더 main.ws-page[data-ws-route] 직접 셀렉터, 헤더 메뉴(U2b) 표시 규칙, 탭바 참조 0.
 import { describe, expect, it } from 'vitest';
 import appCss from './app.css?raw';
 import layersCss from './layers.css?raw';
@@ -8,22 +8,19 @@ describe('app.css static pages', () => {
     expect(appCss).not.toContain('ws-static-main >');
   });
 
-  it('WCAG 2.4.11: html scroll-padding-top(헤더)·모바일 scroll-padding-bottom(탭바)', () => {
+  it('WCAG 2.4.11: html scroll-padding-top(헤더) — 하단 탭바 없음(U2b·D2)이라 scroll-padding-bottom·탭바 높이 참조 0', () => {
     expect(appCss).toMatch(/scroll-padding-top:\s*var\(--ws-header-h\)/);
-    expect(appCss).toMatch(/scroll-padding-bottom:\s*calc\(var\(--ws-tabbar-h\)/);
+    const sheets = import.meta.glob(['../**/*.css', '!./tokens.css'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    for (const [file, css] of Object.entries(sheets)) expect(css, file).not.toMatch(/--ws-tabbar-h|\.ws-tabbar|\.ws-tab(?![\w-])/);
   });
 
-  it('정적 scrim(:not([data-ws-scrim]))은 모바일에서 하단을 탭바 높이만큼 비운다', () => {
+  it('U2b 헤더 메뉴: ≤767 패널은 단추 aria-expanded=true 일 때만 · 무JS(scripting: none)는 단추 숨김 + 메뉴 펼침 · ≥768 단추 숨김', () => {
+    expect(appCss).toMatch(/\.ws-nav\s*\{\s*display:\s*none;\s*\}/);
+    expect(appCss).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.ws-menu-btn\[aria-expanded='true'\] \+ \.ws-nav\s*\{[^}]*display:\s*flex;/);
     expect(appCss).toMatch(
-      /@media \(max-width: 767px\)\s*\{\s*\.ws-scrim:not\(\[data-ws-scrim\]\)\s*\{\s*bottom:\s*calc\(var\(--ws-tabbar-h\) \+ env\(safe-area-inset-bottom, 0px\)\);/,
+      /@media \(max-width: 767px\) and \(scripting: none\)\s*\{[\s\S]*?\.ws-menu-btn\s*\{\s*display:\s*none;\s*\}\s*\.ws-nav\s*\{\s*display:\s*flex;/,
     );
-  });
-
-  it('모바일 .ws-footer padding-bottom 은 기본 .ws-footer padding-block 뒤', () => {
-    const base = appCss.indexOf('padding-block: var(--ws-space-6)');
-    const mobile = appCss.lastIndexOf('@media (max-width: 767px)', appCss.indexOf('var(--ws-tabbar-h) + var(--ws-space-6)'));
-    expect(base).toBeGreaterThan(-1);
-    expect(mobile).toBeGreaterThan(base);
+    expect(appCss).toMatch(/@media \(min-width: 768px\)\s*\{[\s\S]*?\.ws-menu-btn\s*\{\s*display:\s*none;\s*\}/);
   });
 
   it('토큰 v2.0: 앱 CSS 는 색 리터럴 0(hex·rgb·hsl) — 색은 tokens.css 변수로만', () => {

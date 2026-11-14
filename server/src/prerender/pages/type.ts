@@ -22,7 +22,6 @@ import {
   renderFooter,
   renderHead,
   renderHeader,
-  renderTabBar,
   ruleText,
   railSection,
   sortVets,
@@ -489,21 +488,21 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     title = `${p.title}${COPY.site.titleSuffix}`;
     crumbs.push({ name: p.title, path: ctx.route.path });
   }
+  const data = typeData(m, t);
   const itemList = t.requirements
     .filter((r) => r.pub.priority === 'REQUIRED')
     .map((r) => ({ name: r.item.name, path: `${base(t)}/supplies/${r.item.id}` }));
   return {
     head: renderHead(ctx, { title, description, crumbs, itemList: layer ? undefined : itemList }),
     body: [
-      renderHeader(t.pub, navCurrent(ctx.route), ctx),
+      renderHeader(t.pub, navCurrent(ctx.route), data),
       typeMain(ctx, m, t),
       aside ? `${SCRIM}\n${aside}` : '',
       renderFooter(),
-      renderTabBar(t.pub, navCurrent(ctx.route)),
     ]
       .filter((x) => x !== '')
       .join('\n'),
-    data: wsData(ctx, typeData(m, t)),
+    data: wsData(ctx, data),
   };
 }
 
@@ -533,14 +532,14 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
       .filter((x) => x !== '')
       .join('\n'),
   );
+  const setupData = { ...typeData(m, t), products: [] };
   const body = [
-    renderHeader(t.pub, navCurrent(ctx.route), ctx),
+    renderHeader(t.pub, navCurrent(ctx.route), setupData),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.homeB.bundlesTitle)}</h1>`,
     ...cards,
     '</main>',
     renderFooter(),
-    renderTabBar(t.pub, navCurrent(ctx.route)),
   ].join('\n');
   return {
     head: renderHead(ctx, {
@@ -549,6 +548,6 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
       crumbs,
     }),
     body,
-    data: wsData(ctx, { ...typeData(m, t), products: [] }),
+    data: wsData(ctx, setupData),
   };
 }

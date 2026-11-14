@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { WS_DATA_KEYS, naverMapSearchUrl, type SeedBundle, type VetClinicSeedRec } from '../engine/index.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { COPY } from '../prerender/copy.js';
-import { renderHeader, type PageContext } from '../prerender/pages/common.js';
+import { renderHeader } from '../prerender/pages/common.js';
 import { TYPE_VETS_MAX } from '../prerender/pages/type.js';
 import { FIXTURE_AS_OF, patch, promoted, realSeed } from './fixtures/prerender-seed.js';
 
@@ -242,19 +242,24 @@ describe('PublicRequirement.requirementId(R5 계약 확장)', () => {
   });
 });
 
-// DR-4 NIT-1: 헤더 칩 sm 아바타(AnimalChip.tsx:27 과 같은 조건·톤)
-describe("renderHeader 칩 아바타", () => {
-  const ctx = { mascots: new Map([["golden-hamster", "<svg/>"]]) } as unknown as PageContext;
-  const t = { slug: "golden-hamster", displayName: "골든햄스터", mascot: "golden-hamster" };
-  it("선택 타입 + 자산 있음: sm peach-soft 아바타가 이름 앞", () => {
-    const h = renderHeader(t, null, ctx);
-    expect(h).toContain("ws-avatar ws-avatar--sm ws-avatar--peach-soft");
-    expect(h.indexOf("ws-avatar--sm")).toBeLessThan(h.indexOf("ws-chip-name"));
+// U2b(Kenny D1 2026-11-14): 헤더 칩 = CTA 자리. 미선택 「친구 선택하기」 채운 버튼, 선택 = 이름만(R4 시안 — 아바타·▾ 없음, DR-4 NIT-1 대체).
+describe("renderHeader 칩·크기 확인(U2b)", () => {
+  const t = { id: "hamster-golden", slug: "hamster/golden", displayName: "골든햄스터" };
+  it("선택: 이름만(아바타·▾ 0), 미선택: ws-btn--fill 「친구 선택하기」", () => {
+    const sel = renderHeader(t, null);
+    expect(sel).toContain('<a data-ws-chip class="ws-chip ws-chip--selected" href="/pick"><span class="ws-chip-name">골든햄스터</span></a>');
+    expect(sel).not.toMatch(/ws-avatar|ws-chip-caret|<img/);
+    expect(renderHeader(null, null)).toContain(`<a data-ws-chip class="ws-chip ws-btn ws-btn--fill" href="/pick"><span class="ws-chip-name">${COPY.nav.chooseFriend}</span></a>`);
   });
-  it("미선택·자산 없음·ctx 없음: 아바타 0", () => {
-    expect(renderHeader(null, null, ctx)).not.toContain("ws-avatar");
-    expect(renderHeader({ ...t, mascot: "nope" }, null, ctx)).not.toContain("<img");
-    expect(renderHeader(t)).not.toContain("ws-avatar");
+  it("크기 확인: 미선택 /pick · ws-data specCheckItemId → 규격 필드 첫 요구사항 → 타입 홈", () => {
+    const spec = (h: string) => /<a data-ws-nav="spec-check" href="([^"]*)">/.exec(h)?.[1];
+    expect(spec(renderHeader(null, null))).toBe("/pick");
+    expect(spec(renderHeader(t, null))).toBe("/hamster/golden");
+    const data = { types: [{ id: t.id, specCheckItemId: "wheel" }], requirements: [] } as unknown as Parameters<typeof renderHeader>[2];
+    expect(spec(renderHeader(t, null, data))).toBe("/hamster/golden/check/wheel");
+    const req = (id: string, fields: number) => ({ animalTypeId: t.id, supplyItemId: id, item: { specSchema: { fields: Array.from({ length: fields }, () => ({})) } } });
+    const data2 = { types: [{ id: t.id }], requirements: [req("bowl", 0), req("cage", 2)] } as unknown as Parameters<typeof renderHeader>[2];
+    expect(spec(renderHeader(t, null, data2))).toBe("/hamster/golden/check/cage");
   });
 });
 
