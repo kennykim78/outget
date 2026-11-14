@@ -3,7 +3,7 @@
 //   체크 표시: ✓(준비완료 GLYPH.ready) · △(확인 필요 GLYPH.check — 케이지 호환이 만든 것, 이유 줄이 함께 보인다) · 빈 원(미체크 — 체크박스 모양, 글리프 아님).
 //   글리프는 전역 Glyph 하나(R4-1 — 판정 △ 는 L5·L4·L7 과 같은 문자·색).
 //   상태는 표시 + 색 + 상태 문구(copy glyphLabel, 시각적으로 숨김) — 색만으로 말하지 않는다. 별도 상태칩·보유 알약 없음(286 U6).
-//   이유 한 줄 = 호환 이유(△) > NOT_NOW 이유(notNowReason) > 시드 why 첫 문장(D9 ① 기계적 절단, 창작 없음).
+//   이유 한 줄 = 호환 이유(△) > NOT_NOW 이유(notNowReason) > whyShort(D9 ②, 운영자 작성) > 시드 why 첫 문장(D9 ① 기계적 절단, 창작 없음).
 //   규격 요약 "{값}{단위} 이상" = 엔진 chipSpecText(스펙33 §0 F3) — 이름 옆 meta(NOT_NOW 행 제외). children = 행 아래 보조 줄(내 케이지 링크).
 //   카피는 @ws/copy 경로 조회 — 없으면 그 요소를 그리지 않는다(하드코딩 0).
 import type { MouseEvent, ReactNode } from 'react';
@@ -12,7 +12,7 @@ import { COPY } from '@ws/copy';
 import { copyAt, copyFmt } from '../ui/copyText';
 import Glyph from '../ui/Glyph';
 import type { ChecklistRow as RowView, ItemState } from './derive';
-import { firstSentence } from './reasonLine';
+import { reasonLine } from './reasonLine';
 
 /** 상태 문구 키(copy glyphLabel). 글리프는 READY ✓ · CHECK △ 만(FIRST·LATER 는 빈 원). */
 const LABEL_OF: Record<ItemState, 'ready' | 'first' | 'check' | 'later'> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
@@ -68,7 +68,7 @@ export default function ChecklistRow({ row, href, onToggle, onOpen, children }: 
   const notNow = r.priority === 'NOT_NOW';
   const spec = notNow ? null : rowSpecText(r);
   const compatReason = compatReasonOf(row.compat);
-  const reason = compatReason ? null : (notNow ? r.notNowReason : null) ?? firstSentence(r.why);
+  const reason = compatReason ? null : (notNow ? r.notNowReason : null) ?? reasonLine(r);
   const onMore = (e: MouseEvent<HTMLAnchorElement>) => {
     if (!onOpen || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();

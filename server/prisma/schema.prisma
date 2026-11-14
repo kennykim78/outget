@@ -160,6 +160,7 @@ model SupplyRequirement {
   minSpec         String // JSON {rules:[{key,op,value,reason}]}
   recommendedSpec String? // JSON {rules:[...]}
   why             String
+  whyShort        String? // D9 ②: 이유 한 줄(6~30자·한 문장, 선택). 없으면 NULL → 화면은 firstSentence(why) 폴백
   caution         String?
   avoid           String?
   searchKeyword   String?

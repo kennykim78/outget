@@ -77,11 +77,12 @@ const writeJson = (dir: string, name: string, v: unknown): string => {
 };
 
 describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mjs) ↔ seed-equivalence', () => {
-  it('필드 목록 같음(fact-fields.json 단일 출처), seed-equivalence FACT_FIELDS 25종 그대로', () => {
+  it('필드 목록 같음(fact-fields.json 단일 출처), seed-equivalence FACT_FIELDS 26종 그대로(D9 ② whyShort +1)', () => {
     expect([...mjsSig.FACT_FIELDS]).toEqual([...FACT_FIELDS]);
     expect([...equivMjs.FACT_FIELDS]).toEqual([...FACT_FIELDS]);
     expect([...mjsSig.SIGNATURE_FIELDS]).toEqual([...SIGNATURE_FIELDS]);
-    expect(FACT_FIELDS).toHaveLength(25);
+    expect(FACT_FIELDS).toHaveLength(26);
+    expect(FACT_FIELDS).toContain('whyShort');
     // 검수 메타·공개 상태는 해시 밖(재표기·게이트 G 가 서명을 깨지 않는다).
     for (const k of ['reviewStatus', 'reviewerType', 'verifiedBy', 'verifiedAt', 'reviewBasis', 'specVerifiedBy', 'specVerifiedAt', 'status', 'meetsMinSpec', 'glyph', 'slug']) {
       expect(SIGNATURE_FIELDS).not.toContain(k);

@@ -1,7 +1,7 @@
 {
   "v": 1,
   "factFields": [
-    "why", "caution", "avoid", "minSpec", "recommendedSpec", "notNowReason",
+    "why", "whyShort", "caution", "avoid", "minSpec", "recommendedSpec", "notNowReason",
     "facts", "careNotes", "legal", "scientificName", "koreanName",
     "rules", "expr", "message", "specValues", "targetSpecLabel",
     "description", "oneLiner", "purpose", "note", "estimatedRangeText",

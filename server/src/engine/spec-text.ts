@@ -141,3 +141,13 @@ export function firstSentence(text: string | null | undefined): string | null {
   const m = SENTENCE_END.exec(t);
   return m ? t.slice(0, m.index + 1) : t;
 }
+
+/**
+ * 이유 한 줄 단일 소스(D9 ②): 운영자가 쓴 whyShort(SupplyRequirement 소유, resolveRequirement 결과) 가 있으면 그것,
+ *   없으면(키 부재·null·공백) firstSentence(why) 폴백. NOT_NOW 행의 notNowReason 우선은 호출자가 그대로 둔다.
+ *   표시 전용 — 노출·순서·규격 판정에는 쓰지 않는다(불변식 ③).
+ */
+export function reasonLine(r: { why: string | null | undefined; whyShort?: string | null }): string | null {
+  const s = typeof r.whyShort === 'string' ? r.whyShort.trim() : '';
+  return s !== '' ? s : firstSentence(r.why);
+}

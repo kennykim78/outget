@@ -129,6 +129,11 @@ export interface RequirementOverride {
   orderHint?: OrderHint;
   notNowReason?: string | null;
   why?: string;
+  /**
+   * D9 ②: 이유 한 줄 override(문자열만, null 불허 — validate-refs). why 만 덮고 whyShort 를 주지 않으면
+   *   resolveRequirement 가 whyShort 를 null 로 둔다(옛 요약이 새 why 와 어긋나지 않게).
+   */
+  whyShort?: string;
   caution?: string | null;
   avoid?: string | null;
   searchKeyword?: string | null;
@@ -205,6 +210,11 @@ export interface SupplyRequirementRec extends ContentMeta {
   priority: Priority;
   orderHint: OrderHint;
   why: string;
+  /**
+   * D9 ②: 이유 한 줄(6~30자·한 문장, validate W01·W02). 선택 키 — 미작성이면 키 자체가 없다(null 불허, 서명 해시 안정).
+   *   SupplyRequirement 소유(동물별 이유) — SupplyItem 에는 두지 않는다(S08, 불변식 6). 표시 전용.
+   */
+  whyShort?: string;
   caution: string | null;
   avoid: string | null;
   minSpec: RuleSet;
@@ -363,6 +373,8 @@ export interface ResolvedRequirement {
   minSpec: RuleSet;
   recommendedSpec: RuleSet;
   why: string;
+  /** D9 ②: 최종 이유 한 줄(없으면 null → 화면은 reasonLine 폴백 firstSentence(why)). */
+  whyShort: string | null;
   caution: string | null;
   avoid: string | null;
   searchKeyword: string | null;

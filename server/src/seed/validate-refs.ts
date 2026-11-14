@@ -13,6 +13,8 @@ const OVERRIDE_KEYS: Record<string, 'priority' | 'orderHint' | 'text' | 'text?' 
   orderHint: 'orderHint',
   notNowReason: 'text?',
   why: 'text',
+  // D9 ②: 비어 있지 않은 문자열만(null 불허). 길이·문장·숫자 가드는 validate-why-short.ts W01·W02 가 override 에도 본다.
+  whyShort: 'text',
   caution: 'text?',
   avoid: 'text?',
   searchKeyword: 'text?',

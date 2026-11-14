@@ -1,0 +1,109 @@
+// D9 ② — 프리렌더 whyShort: 값이 있을 때만 ws-data·catalog 키, 이유 줄 = whyShort ?? firstSentence(why)(engine reasonLine).
+//   값이 하나도 없으면 산출물 바이트 동일(기준선 off-baseline·v1 은 prerender.affiliate-toggle 이 재생성 없이 비교한다).
+//   가짜 whyShort 는 메모리 픽스처(promotedTwo)에만 넣는다 — 실시드 파일 불변.
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { firstSentence, type SeedBundle } from '../engine/index.js';
+import { WS_WIRE_VERSION, decodeWsPage } from '../engine/ws-wire.js';
+import { buildSite, type SiteBuild } from '../prerender/site.js';
+import { BASELINE_FILE, baseOptions, hashFiles } from './fixtures/affiliate/baseline.js';
+import type { BaselineFile } from './fixtures/affiliate/gen-baseline.js';
+import { FIXTURE_AS_OF, SECOND, promotedTwo } from './fixtures/prerender-seed.js';
+
+const WS_RE = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/;
+const SHORT_CAGE = '바닥을 넓게 쓰는 동물이라 넓어야 해요.'; // 테스트 전용 가짜 값
+const SHORT_WHEEL = '등이 수평으로 달리는 지름이 필요해요.'; // 테스트 전용 가짜 값(override)
+
+type Rec = Record<string, unknown>;
+
+function seedWith(): SeedBundle {
+  const s = promotedTwo();
+  const cage = s.supplyRequirements.find((r) => r.id === 'req-syrian-cage')!;
+  cage.whyShort = SHORT_CAGE;
+  const golden = s.animalTypes.find((a) => a.id === 'hamster-golden')!;
+  golden.careOverrides = { requirements: { wheel: { whyShort: SHORT_WHEEL } } };
+  return s;
+}
+
+const build = (s: SeedBundle): SiteBuild => buildSite(s, baseOptions(FIXTURE_AS_OF));
+const typePage = (b: SiteBuild, typeId: string) => b.pages.find((p) => p.route.kind === 'TYPE' && p.route.typeId === typeId)!;
+const wireReqs = (html: string): Rec[] => ((JSON.parse(WS_RE.exec(html)![1]) as Rec).data as Rec).requirements as Rec[];
+const reqById = (rs: Rec[], id: string): Rec => rs.find((r) => r.requirementId === id)!;
+const nowReason = (html: string, item: string): string | null => {
+  const m = new RegExp(`<li class="ws-now-item" data-ws-item="${item}"[^>]*>[\\s\\S]*?<span class="ws-t-body ws-muted ws-now-reason">([^<]*)</span>`).exec(html);
+  return m ? m[1] : null;
+};
+
+const OFF = build(promotedTwo());
+const ON = build(seedWith());
+
+describe('값 없음 — 키 부재·바이트 기준선 그대로', () => {
+  it('어느 산출물에도 whyShort 문자열이 없다', () => {
+    for (const [f, c] of OFF.files) expect(c.includes('whyShort'), f).toBe(false);
+  });
+  it('promotedTwo 꺼짐 빌드 = off-baseline(재생성 0)', () => {
+    const baseline = JSON.parse(readFileSync(BASELINE_FILE, 'utf8')) as BaselineFile;
+    expect(hashFiles(OFF)).toEqual(baseline.cases.promotedTwo);
+  });
+  it('이유 줄 = firstSentence(why)(D9 ① 동작 보존)', () => {
+    const p = typePage(OFF, 'hamster-golden');
+    const cage = reqById(p.data.data.requirements as unknown as Rec[], 'req-syrian-cage');
+    expect(nowReason(p.html, 'cage')).toBe(firstSentence(cage.why as string));
+  });
+});
+
+describe('값 있음 — 있는 행만 키, 이유 줄 = whyShort', () => {
+  const golden = typePage(ON, 'hamster-golden');
+  const second = typePage(ON, SECOND.typeId);
+
+  it('ws-data: 기본 행 whyShort·override whyShort 는 키, 나머지 행·다른 타입은 키 부재', () => {
+    const rs = wireReqs(golden.html);
+    expect(reqById(rs, 'req-syrian-cage').whyShort).toBe(SHORT_CAGE);
+    expect(reqById(rs, 'req-syrian-wheel').whyShort).toBe(SHORT_WHEEL);
+    for (const r of rs.filter((x) => !['req-syrian-cage', 'req-syrian-wheel'].includes(x.requirementId as string))) {
+      expect(Object.prototype.hasOwnProperty.call(r, 'whyShort'), String(r.requirementId)).toBe(false);
+    }
+    for (const r of wireReqs(second.html)) expect(Object.prototype.hasOwnProperty.call(r, 'whyShort')).toBe(false);
+    // 키 순서: why 바로 뒤.
+    const keys = Object.keys(reqById(rs, 'req-syrian-cage'));
+    expect(keys[keys.indexOf('why') + 1]).toBe('whyShort');
+  });
+
+  it('와이어 버전 불변(v2) · decodeWsPage 가 whyShort 를 그대로 통과', () => {
+    const wire = JSON.parse(WS_RE.exec(golden.html)![1]) as Rec;
+    expect(wire.v).toBe(WS_WIRE_VERSION);
+    const page = decodeWsPage(wire)!;
+    expect(page).not.toBeNull();
+    const cage = page.data.requirements.find((r) => r.requirementId === 'req-syrian-cage')!;
+    expect(cage.whyShort).toBe(SHORT_CAGE);
+    expect(page).toEqual(golden.data);
+  });
+
+  it('홈 B 지금 필요한 것 카드: whyShort 행은 whyShort, 다른 타입(같은 why, whyShort 없음)은 firstSentence', () => {
+    expect(nowReason(golden.html, 'cage')).toBe(SHORT_CAGE);
+    expect(nowReason(golden.html, 'wheel')).toBe(SHORT_WHEEL);
+    const why = (reqById(second.data.data.requirements as unknown as Rec[], 'req-fixture-cage').why as string);
+    expect(nowReason(second.html, 'cage')).toBe(firstSentence(why));
+  });
+
+  it('catalog: 기본 행 whyShort 만 supplyRequirements 에, override 는 careOverrides 그대로', () => {
+    const cat = ON.catalog as unknown as { supplyRequirements: Rec[]; animalTypes: Rec[] };
+    expect(cat.supplyRequirements.find((r) => r.id === 'req-syrian-cage')!.whyShort).toBe(SHORT_CAGE);
+    expect(cat.supplyRequirements.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id)).toEqual(['req-syrian-cage']);
+    const g = cat.animalTypes.find((a) => a.id === 'hamster-golden')!;
+    expect(g.careOverrides).toEqual({ requirements: { wheel: { whyShort: SHORT_WHEEL } } });
+  });
+
+  it('승격 픽스처 기준선 변화(콘텐츠 단계에 기준선 재생성이 필요하다는 사실 고정): 카탈로그 해시·골든 타입 페이지가 바뀐다', () => {
+    const baseline = (JSON.parse(readFileSync(BASELINE_FILE, 'utf8')) as BaselineFile).cases.promotedTwo;
+    const now = hashFiles(ON);
+    const changed = Object.keys({ ...baseline, ...now }).filter((k) => baseline[k] !== now[k]);
+    expect(changed.length).toBeGreaterThan(0);
+    expect(ON.catalogFile).not.toBe(OFF.catalogFile);
+    expect(changed).toContain(golden.route.file);
+    // 이유 줄은 HTML 본문에도 바뀐다(ws-data 밖).
+    expect(golden.html.replace(WS_RE, '')).not.toBe(typePage(OFF, 'hamster-golden').html.replace(WS_RE, ''));
+    // 두 번째 타입 본문(ws-data 밖)은 그대로 — catalogUrl 만 ws-data 안에서 바뀐다.
+    expect(second.html.replace(WS_RE, '')).toBe(typePage(OFF, SECOND.typeId).html.replace(WS_RE, ''));
+  });
+});

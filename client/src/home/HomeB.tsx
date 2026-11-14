@@ -10,7 +10,7 @@
 //   서버 프리렌더 server/src/prerender/pages/type.ts typeMain 이 빈 저장소(L3 전·케이지 없음·미연결) 출력과 같은 태그·클래스·id·aria.
 //   route.typeId ≠ 저장된 ws.animalType 이면 저장 + species_selected{via:'url'} 1회(selection 이 같은 값이면 생략).
 import { useEffect, useMemo, useRef } from 'react';
-import { figureValueText, firstSentence, minSpecFigure, specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
+import { figureValueText, minSpecFigure, reasonLine, specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { COPY, formatCopy, objectParticle } from '@ws/copy';
 import { useAnimalSelection } from '../animal/selection';
 import { deriveChecklist, type ChecklistRow, type ItemState } from '../checklist/derive';
@@ -96,10 +96,10 @@ function StateTag({ state }: { state: NowState }) {
   );
 }
 
-/** 남은 필수 항목 카드(≥768 그리드 셀). 링크 /{slug}/supplies/{item} — 같은 문서면 layerLinks 가 L4 push. 이유 = 시드 why 첫 문장(D9 ①). */
+/** 남은 필수 항목 카드(≥768 그리드 셀). 링크 /{slug}/supplies/{item} — 같은 문서면 layerLinks 가 L4 push. 이유 = whyShort ?? 시드 why 첫 문장(D9 ①②, engine reasonLine — 프리렌더 type.ts 와 같은 함수). */
 function NowCard({ row, state, href }: { row: ChecklistRow; state: NowState; href: string }) {
   const r = row.requirement;
-  const reason = firstSentence(r.why);
+  const reason = reasonLine(r);
   return (
     <li className="ws-now-item" data-ws-item={r.supplyItemId} data-ws-id={`supplyRequirements#${r.requirementId}`}>
       <a className="ws-now-card" href={href} data-ws-state={state}>
@@ -270,7 +270,7 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
           <ul className="ws-later-list" role="list">
             {laterRows.map((row) => {
               const r = row.requirement;
-              const reason = r.notNowReason ?? firstSentence(r.why);
+              const reason = r.notNowReason ?? reasonLine(r);
               return (
                 <li key={r.supplyItemId} data-ws-item={r.supplyItemId} data-ws-id={`supplyRequirements#${r.requirementId}`}>
                   <span className="ws-t-cta ws-later-name">{r.item.name}</span>

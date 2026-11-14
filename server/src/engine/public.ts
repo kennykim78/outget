@@ -97,6 +97,11 @@ export interface PublicRequirement {
   minSpec: RuleSet;
   recommendedSpec: RuleSet;
   why: string;
+  /**
+   * D9 ②: 이유 한 줄(resolveRequirement 최종값). 값이 있을 때만 키 — 없으면 키 자체가 없다(null 을 싣지 않는다).
+   *   화면은 engine reasonLine(whyShort ?? firstSentence(why)). 와이어(ws-wire) 는 이 키를 그대로 통과(버전 불변).
+   */
+  whyShort?: string;
   caution: string | null;
   avoid: string | null;
   searchKeyword: string;

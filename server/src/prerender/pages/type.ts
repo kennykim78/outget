@@ -1,7 +1,7 @@
 // 타입 홈 B(R4 시안 home_selected 톤 + PRD US-003 섹션 — 컨텍스트 헤더 + 지금·나중·처음 준비·규격·준비물·병원·저장) · 구성안(/setup)
 //   · 레이어 L4/L5/L7(부모 페이지 + 레이어 본문, UX §2.2).
 //   D18: ① 은 L3 이전 상태 — 숫자 없이 "필수 준비를 먼저 확인해요" + REQUIRED 항목 카드(neutral).
-import { PICK_PATH, chipSpecText, figureValueText, firstSentence, minSpecFigure, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, splitLabel, visibleSpecFields, type MinSpecFigure, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
+import { PICK_PATH, chipSpecText, figureValueText, minSpecFigure, reasonLine, hasCompleteOptionLabels, isFieldOptionalForDisplay, optionLabel, splitLabel, visibleSpecFields, type MinSpecFigure, type PublicProduct, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { affiliateDisclosureOn, renderableSearchLinks } from '../affiliate.js';
 import { COPY, formatCopy, objectParticle } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
@@ -141,7 +141,8 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
   const later = t.requirements.filter((r) => r.pub.priority === 'NOT_NOW');
   const itemHref = (r: RequirementModel): string => hrefOf(`${base(t)}/supplies/${r.item.id}`);
   const nowCard = (r: RequirementModel): string => {
-    const reason = firstSentence(r.pub.why);
+    // D9 ②: 이유 한 줄 = whyShort ?? firstSentence(why) (engine reasonLine 단일 소스 — client HomeB 와 같은 함수).
+    const reason = reasonLine(r.pub);
     return [
       `<li class="ws-now-item" data-ws-item="${a(r.item.id)}" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
       `<a class="ws-now-card" href="${a(itemHref(r))}" data-ws-state="neutral">`,
@@ -182,7 +183,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
         homeSecHead('ws-sec-later-title', COPY.homeB.laterTitle),
         '<ul class="ws-later-list" role="list">',
         ...later.map((r) => {
-          const reason = r.pub.notNowReason ?? firstSentence(r.pub.why);
+          const reason = r.pub.notNowReason ?? reasonLine(r.pub);
           return `<li data-ws-item="${a(r.item.id)}" data-ws-id="supplyRequirements#${a(r.requirementId)}"><span class="ws-t-cta ws-later-name">${h(r.item.name)}</span>${
             reason ? `<span class="ws-t-body ws-muted ws-later-reason">${h(reason)}</span>` : ''
           }</li>`;

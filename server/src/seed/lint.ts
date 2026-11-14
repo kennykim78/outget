@@ -78,15 +78,24 @@ const NUMBER_GROUP_RE = /\d+(?:\.\d+)?(?:\s*[~×xX\-–]\s*\d+(?:\.\d+)?)*/g;
 
 /** 단위 없는 숫자 묶음 목록(순수). 예: "80×50 케이지" → ["80×50"]. */
 export function numbersWithoutUnit(text: string): string[] {
-  const out: string[] = [];
-  NUMBER_GROUP_RE.lastIndex = 0;
+  return numberTokens(text)
+    .filter((t) => t.unit === null)
+    .map((t) => t.group);
+}
+
+/**
+ * 숫자 묶음 + 뒤따르는 단위(없으면 null) 목록(순수, D9 ② W02 와 공용). 영문에 붙은 숫자(모델명 등)는 건너뛴다.
+ *   예: "가로 60×40cm 이상, 2 개" → [{group:'60×40', unit:'cm'}, {group:'2', unit:'개'}].
+ */
+export function numberTokens(text: string): Array<{ group: string; unit: string | null }> {
+  const out: Array<{ group: string; unit: string | null }> = [];
+  const re = new RegExp(NUMBER_GROUP_RE.source, 'g');
   let m: RegExpExecArray | null;
-  while ((m = NUMBER_GROUP_RE.exec(text)) !== null) {
+  while ((m = re.exec(text)) !== null) {
     const before = text.slice(0, m.index);
-    // 영문·숫자에 붙은 숫자(모델명 등)는 건너뛴다.
     if (/[A-Za-z_]$/.test(before)) continue;
-    const after = text.slice(m.index + m[0].length);
-    if (!UNIT_RE.test(after)) out.push(m[0]);
+    const u = UNIT_RE.exec(text.slice(m.index + m[0].length));
+    out.push({ group: m[0], unit: u ? u[0].trim() : null });
   }
   return out;
 }
@@ -126,6 +135,8 @@ function ruleReasons(out: TextField[], base: string, rs: unknown): void {
 function requirementTexts(out: TextField[], base: string, r: Rec): void {
   const p = base ? `${base}.` : '';
   push(out, `${p}why`, r.why, 'why');
+  // D9 ②: 이유 한 줄도 why 와 같은 린트(금지어 L01·어간 L02·자리표시자 L04·단위 없는 숫자 L03). 길이·문장·숫자 출처는 W01·W02.
+  push(out, `${p}whyShort`, r.whyShort, 'why');
   push(out, `${p}caution`, r.caution, 'caution');
   push(out, `${p}avoid`, r.avoid, 'prose');
   push(out, `${p}notNowReason`, r.notNowReason, 'prose');
