@@ -375,6 +375,11 @@
   color: var(--ws-ink-muted);
 }
 
+/* LOW-2: 「? 입력 필요」는 단의 색(△ 주황 등)을 이어받지 않는다 — 전역 규칙 unknown = ink-muted(app.css .ws-glyph). */
+.ws-verdict-line .ws-verdict-line-mark[data-ws-mark='unknown'] {
+  color: var(--ws-ink-muted);
+}
+
 .ws-verdict-gap {
   color: var(--ws-ink-body);
 }

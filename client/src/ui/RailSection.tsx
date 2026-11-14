@@ -1,7 +1,7 @@
 // 가로 레일 섹션(스펙22 §2.4). section[data-ws-section aria-labelledby] > 머리(h2 + 부제, 오른쪽 ‹ › + 전체 ›) + ul[role=list] 레일.
 //   가로 스크롤·스냅(CSS), 키보드: 레일 자체가 포커스 가능(화살표로 스크롤). ‹ › 는 ≥1024 에서 넘칠 때만(CSS + 상태), 끝이면 비활성.
 //   화살표 라벨·"전체" 문구는 호출부가 @ws/copy 에서 넘긴다(카피 단일 소스 D3).
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter';
 
@@ -50,6 +50,11 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
   const listRef = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
   const titleId = `ws-sec-${id}-title`;
+  // 사용자가 레일을 직접 움직이기 전(pinned)에는 시작(scrollLeft 0)에 고정한다.
+  //   원인(qa MED-1): 하이드레이션 뒤 칩이 재정렬되면(예: 케이지 호환 판정 대기 중 ✓ → 판정 후 △ 로 맨 앞 이동) Chrome 이
+  //   scroll-snap 재스냅으로 '이전에 스냅된 요소'(원래 첫 칩)를 따라가 레일이 끝까지 밀리고 새 첫 칩이 왼쪽으로 잘린다.
+  //   포인터·휠·터치·키보드·포커스·화살표 버튼 중 하나라도 있으면 해제(그 뒤 위치는 사용자 몫).
+  const pinnedRef = useRef(true);
 
   const measure = useCallback(() => {
     const el = listRef.current;
@@ -59,14 +64,31 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
     setEdges((p) => (p.overflow === next.overflow && p.atStart === next.atStart && p.atEnd === next.atEnd ? p : next));
   }, []);
 
+  // 매 렌더(children 재정렬 포함) 커밋 직후 — 페인트 전에 시작으로 되돌린다.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el && pinnedRef.current && el.scrollLeft !== 0) el.scrollLeft = 0;
+  });
+
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
+    const release = () => {
+      pinnedRef.current = false;
+    };
+    const onScroll = () => {
+      // 렌더 밖 레이아웃 변화(폰트·이미지 로드 등)로 인한 재스냅도 같은 이유로 되돌린다.
+      if (pinnedRef.current && el.scrollLeft !== 0) el.scrollLeft = 0;
+      measure();
+    };
+    const intents = ['pointerdown', 'wheel', 'touchstart', 'keydown', 'focusin'] as const;
     measure();
-    el.addEventListener('scroll', measure, { passive: true });
+    for (const t of intents) el.addEventListener(t, release, { passive: true });
+    el.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', measure);
     return () => {
-      el.removeEventListener('scroll', measure);
+      for (const t of intents) el.removeEventListener(t, release);
+      el.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', measure);
     };
   }, [measure]);
@@ -74,6 +96,7 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
   const scrollByPage = (dir: -1 | 1) => {
     const el = listRef.current;
     if (!el) return;
+    pinnedRef.current = false;
     el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 1), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   };
 

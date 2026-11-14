@@ -184,6 +184,11 @@
   color: var(--ws-brand-text);
 }
 
+/* LOW-4: 저장 링크가 다음 줄로 내려가면 기기 안내 뒤 가운뎃점을 숨긴다(폭은 유지 — 줄바꿈 순환 없음). */
+.ws-check-aux[data-ws-wrapped] .ws-check-sep {
+  visibility: hidden;
+}
+
 /* L3 */
 .ws-setupq {
   display: flex;

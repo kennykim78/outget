@@ -354,6 +354,8 @@ describe('L5 판정 — 경계값(제품 규격 단)', () => {
     expect(within(r).getByRole('heading', { name: COPY.verdict.productCheck })).toBeInTheDocument();
     expect(within(pline(r)).getByText(COPY.verdict.markInput)).toBeInTheDocument();
     expect(pline(r).querySelector('.ws-verdict-glyph')?.textContent).toBe('?');
+    // LOW-2: 「? 입력 필요」는 단의 △ 색을 이어받지 않는다 — data-ws-mark=unknown 이 ink-muted 규칙(speccheck.css)의 고리.
+    expect(pline(r).querySelector('.ws-verdict-line-mark')).toHaveAttribute('data-ws-mark', 'unknown');
 
     pick(d, '막힌 판');
     pick(d, '스탠드형');

@@ -126,6 +126,10 @@ describe('L2 + L3', () => {
     expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
     expect(within(d).getByRole('button', { name: COPY.checklist.resetSetup })).toBeInTheDocument();
     expect(d.querySelector('[data-ws-note="device-only"]')).not.toBeNull();
+    // LOW-4: 가운뎃점은 글자 끝이 아닌 별도 장식(aria-hidden) — 저장 링크가 줄바꿈되면 CSS 가 숨긴다(data-ws-wrapped). jsdom 은 레이아웃 0 → 표시 유지.
+    const sep = d.querySelector('[data-ws-note="device-only"] .ws-check-sep');
+    expect(sep).toHaveAttribute('aria-hidden', 'true');
+    expect(sep?.closest('.ws-check-aux')).not.toHaveAttribute('data-ws-wrapped');
     expect(within(d).getByRole('link', { name: new RegExp(COPY.checklist.saveAsk) })).toHaveAttribute('href', '/save');
   });
 

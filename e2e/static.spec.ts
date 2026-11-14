@@ -106,3 +106,32 @@ test('/privacy 390 — 표 폭 ≤ 부모 폭 · 문서 가로 넘침 0', async 
   }
   expect(m.doc.scroll, '문서 가로 넘침 0').toBeLessThanOrEqual(m.doc.client);
 });
+
+// qa MED-1: 홈 B 「지금 필요한 것」 칩이 하이드레이션 뒤 재정렬(케이지 체크 ✓ → 호환 판정 △ 로 맨 앞)되어도
+//   레일은 시작(scrollLeft 0)에 머문다 — Chrome scroll-snap 재스냅이 원래 첫 칩을 따라가 새 첫 칩이 왼쪽으로 잘리던 결함.
+test('홈 B 칩 레일 — 재정렬 뒤에도 첫 칩이 잘리지 않는다(390 · 1280)', async ({ page }) => {
+  await page.addInitScript((typeId) => {
+    if (sessionStorage.getItem('ws.e2e.seeded')) return;
+    sessionStorage.setItem('ws.e2e.seeded', '1');
+    const now = new Date().toISOString();
+    localStorage.setItem('ws.animalType', typeId);
+    localStorage.setItem(
+      `ws.setup.${typeId}`,
+      JSON.stringify({ v: 3, firstTime: true, owned: [], answeredAt: now, startedAt: now, checks: { cage: { source: 'OWNED', at: now } }, uncheckedAt: {}, reached100At: null, updatedAt: now }),
+    );
+    localStorage.setItem(`ws.context.${typeId}.cage`, JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: now }));
+  }, TYPE.id);
+  await gotoHydrated(page, TYPE.home);
+  const rail = page.locator('section[data-ws-section="now"] ul.ws-chips');
+  // 호환 판정 뒤 △ 케이지가 맨 앞(재정렬 완료).
+  await expect(rail.locator('li').first()).toHaveAttribute('data-ws-item', 'cage');
+  await expect(rail.locator('li').first().locator('a.ws-need')).toHaveAttribute('data-ws-state', 'check');
+  await page.waitForTimeout(300); // 재스냅(스크롤 이벤트) 한 바퀴
+  const m = await rail.evaluate((ul) => {
+    const pad = parseFloat(getComputedStyle(ul).paddingLeft) || 0;
+    const first = ul.querySelector('li')!.getBoundingClientRect().left;
+    return { scrollLeft: ul.scrollLeft, first, start: ul.getBoundingClientRect().left + pad };
+  });
+  expect(m.scrollLeft, '레일 시작 고정').toBe(0);
+  expect(m.first, '첫 칩 왼쪽 ≥ 레일 안쪽 시작').toBeGreaterThanOrEqual(m.start - 0.5);
+});

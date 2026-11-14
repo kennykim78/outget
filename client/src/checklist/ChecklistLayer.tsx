@@ -7,7 +7,7 @@
 //     진행 막대·요약 눈썹·접힘 없음 — 모든 그룹 항상 펼침. 권장·선택 그룹은 현 노출 규칙 유지(D8 ①, US-005 범위 불변).
 //     꼬리 = 주 버튼 「남은 준비물 살펴보기」(D15 ① 첫 미완료 필수 항목의 L4) + 보조 텍스트(다시 설정 · 기기 안내 · 저장 링크).
 //   - 데이터는 ws-data PublicRequirement 그대로(재판정 없음, 불변식 ⑥). 저장·이벤트에 좌표·이메일 0(⑧).
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import type { PublicRequirement } from '@ws/engine';
 import { COPY } from '@ws/copy';
 import { useLayerPage } from '../app/layerPage';
@@ -103,6 +103,28 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
   // L6: 같은 URL 에 L2 + step 'L6' push(C-R5-5) — 뒤로 = 지금 필요한 것.
   const openCage = useCallback(() => layer.open('L2', { ...props, step: 'L6' }), [layer, props]);
   const backFromCage = useCallback(() => layerStore.back(), []);
+
+  // LOW-4: 기기 안내 뒤 가운뎃점은 저장 링크가 같은 줄에 있을 때만 보인다(줄바꿈되면 줄 끝에 점이 남지 않게).
+  //   조기 반환(빈 상태·L6·L3) 앞에 둬 훅 순서를 지킨다 — 꼬리가 없는 단계에서는 auxRef 가 null 이라 아무것도 안 한다. 매 렌더 다시 잰다.
+  //   visibility 로만 숨겨 폭이 그대로 — 숨김이 줄바꿈을 되돌려 깜박이는 순환이 없다.
+  const auxRef = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const p = auxRef.current;
+    if (!p) return;
+    const sync = () => {
+      const note = p.querySelector('[data-ws-note]');
+      const link = p.querySelector('.ws-check-save');
+      if (note === null || link === null) return;
+      const n = note.getBoundingClientRect();
+      // 레이아웃이 없으면(높이 0) 판단하지 않는다 — 점은 보이는 쪽이 기본.
+      p.toggleAttribute('data-ws-wrapped', n.height > 0 && link.getBoundingClientRect().top >= n.bottom - 1);
+    };
+    sync();
+    if (typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver(sync);
+    ro.observe(p);
+    return () => ro.disconnect();
+  });
 
   if (!type || reqs.length === 0) {
     return (
@@ -214,11 +236,18 @@ export default function ChecklistLayer({ props }: { props: LayerProps; close(): 
               {COPY.checklist.nextCta}
             </a>
           ) : null}
-          <p className="ws-t-meta ws-check-muted ws-check-aux">
+          <p ref={auxRef} className="ws-t-meta ws-check-muted ws-check-aux">
             <button type="button" className="ws-check-link" onClick={() => setEditing(true)}>
               {COPY.checklist.resetSetup}
             </button>
-            {deviceLine ? <span data-ws-note={notice ? 'storage-unavailable' : 'device-only'}>{`${deviceLine} · `}</span> : null}
+            {deviceLine ? (
+              <span data-ws-note={notice ? 'storage-unavailable' : 'device-only'}>
+                {deviceLine}
+                <span className="ws-check-sep" aria-hidden="true">
+                  {' ·'}
+                </span>
+              </span>
+            ) : null}
             <a className="ws-check-save" href="/save" onClick={onSave}>{linked ? COPY.checklist.saveLinked : `${COPY.checklist.saveAsk} ›`}</a>
           </p>
         </div>

@@ -83,7 +83,7 @@ function Reasons({ messages }: { messages: string[] }) {
 
 function Mark({ mark }: { mark: VerdictMark }) {
   return (
-    <p className="ws-verdict-line-mark">
+    <p className="ws-verdict-line-mark" data-ws-mark={mark.kind}>
       <Glyph kind={mark.kind} className="ws-verdict-glyph" />
       <span className="ws-t-cta">{mark.label}</span>
     </p>
