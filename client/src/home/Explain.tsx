@@ -144,7 +144,7 @@ export default function Explain({ page }: { page: WsPageData }) {
             <ul className="ws-vet-rows" role="list">
               {rows.map((row) => (
                 <li key={row.group} data-ws-group={row.group}>
-                  <span className="ws-t-cta ws-vet-row-name">{formatCopy(COPY.homeA.vetRow, { name: COPY.groups[row.group] })}</span>
+                  <span className="ws-t-cta ws-vet-row-name">{formatCopy(COPY.homeA.vetRow, { name: COPY.homeA.vetGroups[row.group] })}</span>
                   <span className="ws-t-body ws-muted ws-vet-row-types">{row.types.map((t) => t.displayName).join(' · ')}</span>
                 </li>
               ))}

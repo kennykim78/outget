@@ -365,7 +365,7 @@ describe('홈 A 설명 섹션(286 U3c·U3d·U3e)', () => {
     const { unmount } = render(<App page={full({ vets: [vet] })} captured={NO_CAPTURE} />);
     let sec = document.querySelector('[data-ws-section="vet-split"]') as HTMLElement;
     const row = sec.querySelector('li[data-ws-group="SMALL_MAMMAL"]') as HTMLElement;
-    expect(row.querySelector('.ws-vet-row-name')).toHaveTextContent(COPY.homeA.vetRow.replace('{name}', COPY.groups.SMALL_MAMMAL));
+    expect(row.querySelector('.ws-vet-row-name')).toHaveTextContent(COPY.homeA.vetRow.replace('{name}', COPY.homeA.vetGroups.SMALL_MAMMAL));
     expect(row.querySelector('.ws-vet-row-types')).toHaveTextContent(golden.displayName);
     for (const x of [vet.name, vet.address, vet.region]) expect(sec.textContent ?? '').not.toContain(x);
     expect(sec.querySelector('img, iframe')).toBeNull();
@@ -375,6 +375,28 @@ describe('홈 A 설명 섹션(286 U3c·U3d·U3e)', () => {
     sec = document.querySelector('[data-ws-section="vet-split"]') as HTMLElement;
     expect(sec.querySelector('li[data-ws-group]')).toBeNull();
     expect(sec).toHaveTextContent(COPY.homeB.vetEmpty);
+  });
+
+  it('287 S4: 합성 PARROT 타입 노출 + 그 타입 진료 병원 → 병원 행 이름 「조류 진료 병원」, 같은 페이지 L1 그룹 머리는 「앵무새」', () => {
+    // 합성 시드(실제 데이터 아님, 앵무새 사실 창작 없음 — 그룹·표시명만).
+    const parrot = { ...golden, id: 'fixture-parrot', slug: 'parrot/fixture', group: 'PARROT' as const, displayName: '픽스처앵무', aliases: [], careProfileId: 'cp-fixture-parrot' };
+    const pVet = { ...vet, id: 'v2', treats: [parrot.id] };
+    render(<App page={home({ types: [{ ...golden, homeExplain: explain }, parrot], vets: [vet, pVet] })} captured={NO_CAPTURE} />);
+    const sec = document.querySelector('[data-ws-section="vet-split"]') as HTMLElement;
+    const row = sec.querySelector('li[data-ws-group="PARROT"]') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(COPY.homeA.vetGroups.PARROT).toBe('조류');
+    expect(row.querySelector('.ws-vet-row-name')?.textContent).toBe('조류 진료 병원');
+    expect(row.querySelector('.ws-vet-row-types')).toHaveTextContent(parrot.displayName);
+    expect(sec.querySelector('li[data-ws-group="SMALL_MAMMAL"] .ws-vet-row-name')?.textContent).toBe('소동물 진료 병원');
+    expect(sec.textContent ?? '').not.toContain(COPY.groups.PARROT);
+    // L1(AnimalPicker) 그룹 머리는 COPY.groups 「앵무새」 그대로(F3).
+    fireEvent.click(document.querySelector('[data-ws-section="hero"] a.ws-pick-bar') as Element);
+    const d = screen.getByRole('dialog');
+    const head = d.querySelector('[data-ws-group="PARROT"] [data-ws-name]') as HTMLElement;
+    expect(COPY.groups.PARROT).toBe('앵무새');
+    expect(head.textContent).toBe('앵무새');
+    expect(d.textContent ?? '').not.toContain('조류');
   });
 
   it('금지어 0 · 채운 버튼은 하단 CTA 1개뿐', () => {

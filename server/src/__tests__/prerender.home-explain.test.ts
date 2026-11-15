@@ -116,7 +116,7 @@ describe('승격 골든(promoted): 숫자 · 함께 살 집 · 병원(1곳) — 
     expect(vets.length).toBeGreaterThan(0);
     const sec = sectionHtml(main, 'vet-split');
     expect(sec).toContain(
-      `<li data-ws-group="SMALL_MAMMAL"><span class="ws-t-cta ws-vet-row-name">${formatCopy(COPY.homeA.vetRow, { name: COPY.groups.SMALL_MAMMAL })}</span><span class="ws-t-body ws-muted ws-vet-row-types">${dataOf(b, '/').types[0].displayName}</span></li>`,
+      `<li data-ws-group="SMALL_MAMMAL"><span class="ws-t-cta ws-vet-row-name">${formatCopy(COPY.homeA.vetRow, { name: COPY.homeA.vetGroups.SMALL_MAMMAL })}</span><span class="ws-t-body ws-muted ws-vet-row-types">${dataOf(b, '/').types[0].displayName}</span></li>`,
     );
     expect(sec).not.toContain('data-ws-group="PARROT"');
     expect(sec).not.toContain(COPY.homeB.vetEmpty);

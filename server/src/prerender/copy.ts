@@ -3,6 +3,8 @@
 // 금지어(불변식 5)·브리프 금지 표현·의료 단정 0 은 prerender.primitives.test.ts 가 lintText 로 강제.
 // 빈 상태 문구는 오케스트레이터 결정(결정 매트릭스) — `_workspace/19_backend_r3_laneF1.md` 표.
 
+import type { AnimalGroup } from '../engine/domain.js';
+
 const SENTENCES = new Set<string>();
 /** 문장형 문구 등록("~요" 존댓말 검사 대상). 값은 그대로 돌려준다. */
 function sent<T extends string>(s: T): T {
@@ -89,8 +91,13 @@ export const COPY = deepFreeze({
     habitatsLead: sent('먹고, 쉬고, 움직이는 공간이에요.'),
     vetTitle: sent('진료하는 병원만 보여 드려요'),
     vetSub: sent('우리 친구를 진료하는 곳을 찾아요.'),
-    /** {name} = groups.* 표시명. 행 오른쪽 = 그 그룹 노출 타입 중 노출 병원이 진료하는 것(이름 · 구분). */
+    /** {name} = vetGroups.* 표시명. 행 오른쪽 = 그 그룹 노출 타입 중 노출 병원이 진료하는 것(이름 · 구분). */
     vetRow: '{name} 진료 병원',
+    /**
+     * 287 S4(Kenny 2026-11-16 결정 4) — 병원 행 그룹명 전용. 진료 구분은 「조류」(앵무새 외 조류 진료와 같은 말).
+     *   L1·404·그룹 페이지는 COPY.groups(「앵무새」) 그대로(F3 — 범위 밖). AnimalGroup 누락 = 타입 오류.
+     */
+    vetGroups: { SMALL_MAMMAL: '소동물', PARROT: '조류' } satisfies Record<AnimalGroup, string>,
     popularTitle: '요즘 많이 찾는 준비',
     /** R4 C1 — 클라이언트 전용(프리렌더 미사용). */
     continueLink: '이어서: {animal}',
