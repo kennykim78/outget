@@ -207,6 +207,18 @@ describe('W02 — 같은 행 원문에 없는 숫자·단위', () => {
     expect(whyShortNumberProblems('가로 40cm 이상이에요.', ['가로·세로 60×40cm 이상'])).toEqual([]);
     expect(whyShortNumberProblems('가로 60cm 이상이에요.', ['가로·세로 60x40cm 이상'])).toEqual([]);
   });
+  it('QA G1: 범위 구분자 〜(U+301C)·−(U+2212)·—(U+2014)도 범위 — 한쪽 숫자만 쓰면 W02, 전체 일치는 통과', () => {
+    const wave = String.fromCodePoint(0x301c);
+    const minus = String.fromCodePoint(0x2212);
+    const em = String.fromCodePoint(0x2014);
+    const T = (sep: string) => [`온도는 18${sep}26℃로 맞춰요.`];
+    expect(whyShortNumberProblems('온도는 26℃까지예요.', T(wave))).toHaveLength(1);
+    expect(whyShortNumberProblems('온도는 18℃ 이상이에요.', T(minus))).toHaveLength(1);
+    expect(whyShortNumberProblems('온도는 26℃까지예요.', T(em))).toHaveLength(1);
+    for (const sep of [wave, minus, em]) {
+      expect(whyShortNumberProblems(`온도는 18${sep}26℃로 맞춰요.`, T(sep))).toEqual([]);
+    }
+  });
   it('결정 6 실시드: 숫자 whyShort 3행(req-dwarf-cage 20cm · req-dwarf-hideout 3곳 · req-gerbil-thermo 20~24℃) W02 0', () => {
     const res = run(fresh());
     for (const id of ['req-dwarf-cage', 'req-dwarf-hideout', 'req-gerbil-thermo']) {

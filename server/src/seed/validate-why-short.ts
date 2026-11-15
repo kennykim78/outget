@@ -46,8 +46,8 @@ const squash = (s: string): string => s.normalize('NFKC').replace(/\s+/g, '');
 
 /** 숫자 묶음의 구성 숫자("60 × 40" → ['60','40']). */
 const partsOf = (group: string): string[] => group.split(/[^\d.]+/).filter((x) => x !== '');
-/** 범위 구분자(물결·하이픈·en dash) — NUMBER_GROUP_RE 의 묶음 구분자 중 곱(× x X)을 뺀 것. */
-const RANGE_SEP_RE = /[~\-–]/;
+/** 범위 구분자(물결·하이픈·en dash·파동 대시 〜 U+301C·수학 빼기 − U+2212·em dash — U+2014) — NUMBER_GROUP_RE 의 묶음 구분자 중 곱(× x X)을 뺀 것. */
+const RANGE_SEP_RE = /[~\-–\u301C\u2212\u2014]/;
 
 /**
  * W02 — 원문(같은 행 텍스트들)에 없는 숫자·단위·단위 없는 숫자 목록(없으면 []).

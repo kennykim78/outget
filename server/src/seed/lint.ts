@@ -87,7 +87,7 @@ export function strictSentenceCount(text: string): number {
 const UNIT_RE =
   /^\s?(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|℃|°C|°|원|만|천|개월|개|마리|회|번|년|일|주|시간|분|초|층|종|가지|단계|세|살|배|명|월|호|차|박|칸|장|쌍|곳)/;
 // 숫자 묶음: 18~26, 60×40, 1.5, 15-20
-const NUMBER_GROUP_RE = /\d+(?:\.\d+)?(?:\s*[~×xX\-–]\s*\d+(?:\.\d+)?)*/g;
+const NUMBER_GROUP_RE = /\d+(?:\.\d+)?(?:\s*[~×xX\-–\u301C\u2212\u2014]\s*\d+(?:\.\d+)?)*/g;
 
 /** 단위 없는 숫자 묶음 목록(순수). 예: "80×50 케이지" → ["80×50"]. */
 export function numbersWithoutUnit(text: string): string[] {
