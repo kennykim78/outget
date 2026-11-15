@@ -2,7 +2,7 @@
 //   W01 ERROR: 6~30자(grapheme, K2 2026-11-14)·정확히 한 문장(strictSentenceCount — 마침표 뒤 공백 없음·전각 ．도 경계)·
 //              개행 없음(CR·LF·VT·FF·NEL·U+2028·U+2029)·제로폭·방향 제어 문자 없음(이모지 ZWJ 결합만 허용)·앞뒤 공백 없음.
 //   W02 ERROR: 같은 행 원문(why·caution·notNowReason — override 는 resolve 후 값)에 없는 숫자·단위 도입, 단위 없는 숫자,
-//              숫자 표기 우회(NFKC 뒤 비ASCII 숫자·한글 수사+측정 단위 — lint.disguisedNumbers).
+//              숫자 표기 우회(정규화 전 원문의 호환 숫자 — lint.compatDigits, NFKC 뒤 한글 수사+측정 단위 — lint.disguisedNumbers).
 //   W03 WARN : whyShort 가 firstSentence(why) 와 같다(폴백과 중복 — 쓸 이유가 없다).
 //   W04 ERROR: FOOD/HEALTH 행 whyShort — 첫 라운드 제외(K3 2026-11-14, 의료 인접 불변식 5). 해제는 Kenny 결정 뒤 이 상수만.
 //   금지어·의료 표현 린트(L01~L04)는 lint.ts 가 why 와 같은 역할로 본다. 타입(string, null 불허)은 S03·R03.
@@ -10,7 +10,7 @@
 import { firstSentence } from '../engine/spec-text.js';
 import { asRec, has, isNonEmptyStr, type Rec } from './common.js';
 import type { Ctx } from './context.js';
-import { disguisedNumbers, numberTokens, strictSentenceCount } from './lint.js';
+import { compatDigits, disguisedNumbers, numberTokens, strictSentenceCount } from './lint.js';
 
 export const WHY_SHORT_MIN = 6;
 export const WHY_SHORT_MAX = 30;
@@ -56,7 +56,14 @@ export function whyShortNumberProblems(v: string, sourceTexts: ReadonlyArray<str
   const src = numberTokens(sourceTexts.filter((t): t is string => typeof t === 'string').join('\n'))
     .filter((t) => t.unit !== null)
     .map((t) => ({ whole: squash(`${t.group}${t.unit}`), unit: t.unit as string, parts: partsOf(t.group) }));
-  const out: string[] = disguisedNumbers(v).map((d) => `숫자 표기 우회 "${d}" — ASCII 숫자로`);
+  // 정규화 전 원문의 호환 숫자(전각 ６０·𝟔𝟎·①·٩ 등) — 값이 원문과 같아도 표기 자체가 W02(lint.compatDigits, L07 과 같은 판정).
+  //   disguisedNumbers 의 비ASCII 숫자 묶음은 compatDigits 에 포함되므로 중복 보고하지 않고, 한글 수사+단위만 남긴다.
+  const out: string[] = [
+    ...compatDigits(v).map((d) => `숫자 표기 우회(호환 숫자) "${d}" — ASCII 숫자로`),
+    ...disguisedNumbers(v)
+      .filter((d) => compatDigits(d).length === 0)
+      .map((d) => `숫자 표기 우회 "${d}" — ASCII 숫자로`),
+  ];
   for (const t of numberTokens(v)) {
     if (t.unit === null) {
       out.push(`단위 없는 숫자 "${t.group}"`);

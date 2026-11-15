@@ -1,5 +1,6 @@
 // 콘텐츠 린트(불변식 5) — 금지어 정확 일치 = ERROR(L01), 어간 = WARN(L02),
-//   문체(L03)·자리표시자(L04)·검색어 토큰(L05)·공백 제거 후에만 걸리는 짧은 금지어 = WARN(L06).
+//   문체(L03)·자리표시자(L04)·검색어 토큰(L05)·공백 제거 후에만 걸리는 짧은 금지어 = WARN(L06),
+//   호환 숫자 표기(정규화 전 원문, compatDigits) = ERROR(L07, 후기 quote 는 WARN).
 //   금지어 목록 단일 소스: banned-words.json (scripts/ compliance-scan 과 패리티 테스트로 묶임).
 import { asRec, isSlotRow, type Collector, type Rec, type SeedKey } from './common.js';
 import data from './banned-words.json' with { type: 'json' };
@@ -133,6 +134,34 @@ export function disguisedNumbers(raw: string): string[] {
   return [...(text.match(NON_ASCII_NUMBER_RE) ?? []), ...(text.match(HANGUL_NUMERAL_UNIT_RE) ?? [])];
 }
 
+/** 호환 숫자 한 글자(정규화 전 원문 기준) — NFKC 로 ASCII 숫자가 생기거나(전각 ０·①·⑴·⒈·㉑·⓪·𝟎·²·½·㎡ 등), 그 자체가 비ASCII 숫자(\p{N}: ❶·⓵·٩·〇 등). */
+function isCompatDigit(ch: string): boolean {
+  if (/[0-9]/.test(ch)) return false;
+  const n = ch.normalize('NFKC');
+  if (n !== ch && /[0-9]/.test(n)) return true;
+  return /\p{N}/u.test(ch);
+}
+
+/**
+ * 호환 숫자 표기 목록(순수, L07·W02 공용) — **정규화 전 원문**에서 이어진 호환 숫자 글자 묶음.
+ *   numberTokens·disguisedNumbers 는 NFKC 뒤 값 대조라 전각 ６０ 을 60 으로 펴 통과시킨다. 이 함수는 표기 자체를 막는다.
+ *   NFKC 로 바뀌어도 숫자가 안 생기는 문자(℃·ㆍ·…·한글 음절·호환 자모·㈀·㉠)는 대상 아님. normalizeLintText 와 무관(lint-parity 불변).
+ *   한계: 한글 채움 문자(U+3164 등)로 금지어를 쪼개는 우회는 normalizeLintText 범위라 여기서 다루지 않는다.
+ */
+export function compatDigits(raw: string): string[] {
+  const out: string[] = [];
+  let run = '';
+  for (const ch of raw) {
+    if (isCompatDigit(ch)) run += ch;
+    else if (run !== '') {
+      out.push(run);
+      run = '';
+    }
+  }
+  if (run !== '') out.push(run);
+  return out;
+}
+
 const PLACEHOLDERS = new Set(['', '—', '–', '-', 'TODO', 'TBD', 'N/A']);
 
 export function isPlaceholder(text: string): boolean {
@@ -263,6 +292,13 @@ export function lintRecord(key: SeedKey, id: string, r: Rec, out: Collector): vo
       if (bare.length > 0) out.warn('L03', key, id, f.path, `단위 없는 숫자: ${bare.join(', ')}`);
       const odd = disguisedNumbers(f.text);
       if (odd.length > 0) out.warn('L03', key, id, f.path, `숫자 표기 우회(비ASCII 숫자·한글 수사+단위): ${odd.join(', ')} — ASCII 숫자로`);
+    }
+    const compat = compatDigits(f.text);
+    if (compat.length > 0) {
+      // 후기 원문(quote)은 원문 보존 원칙이라 WARN, 나머지 역할은 ERROR(불변식 5·7 — 숫자 표기 우회로 값 대조를 비켜 가지 않게).
+      const msg = `호환 숫자 표기: ${compat.join(', ')} — ASCII 숫자로`;
+      if (f.role === 'quote') out.warn('L07', key, id, f.path, msg);
+      else out.error('L07', key, id, f.path, msg);
     }
     if (f.role === 'keyword' && f.text.trim() !== '' && !f.text.includes('{animal}')) {
       out.warn('L05', key, id, f.path, 'searchKeyword override 에 {animal} 토큰 없음 — 동물명이 붙지 않는다');

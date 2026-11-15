@@ -197,9 +197,16 @@ describe('W02 · L03 — 비ASCII 숫자·한글 수사 우회(NFKC 뒤 판정)'
   it.each(BYPASS)('원문에 없는 숫자 우회 "%s" → W02(순수 함수)', (v) => {
     expect(whyShortNumberProblems(v, SRC).length).toBeGreaterThan(0);
   });
-  it('NFKC 로 펴지는 표기(전각·수학 굵은·원문자)는 원문 대조로, 남는 비ASCII 숫자·한글 수사는 그 자체로 W02', () => {
-    expect(whyShortNumberProblems('가로 ６０cm 이상이에요.', SRC)).toEqual([]);
-    expect(whyShortNumberProblems('가로 𝟔𝟎cm 이상이에요.', SRC)).toEqual([]);
+  it('Kenny 2026-11-16 결정 5(의도된 강화): NFKC 로 펴지는 표기(전각·수학 굵은)도 값이 원문과 같아도 표기 자체로 W02, 남는 비ASCII 숫자·한글 수사도 W02', () => {
+    // 이전엔 「６０cm」「𝟔𝟎cm」가 원문 60 과 값 대조로 통과했다 — 이제 정규화 전 원문 기준 호환 숫자(compatDigits)로 막는다.
+    const fw = whyShortNumberProblems('가로 ６０cm 이상이에요.', SRC);
+    expect(fw).toHaveLength(1);
+    expect(fw[0]).toContain('숫자 표기 우회(호환 숫자) "６０"');
+    const bold = whyShortNumberProblems('가로 𝟔𝟎cm 이상이에요.', SRC);
+    expect(bold).toHaveLength(1);
+    expect(bold[0]).toContain('호환 숫자');
+    // 비ASCII 숫자는 compatDigits 와 disguisedNumbers 양쪽 대상이지만 한 번만 보고.
+    expect(whyShortNumberProblems('가로 ٦٠cm 이상이에요.', SRC).filter((p) => p.includes('숫자 표기 우회'))).toHaveLength(1);
     expect(whyShortNumberProblems('가로 ٦٠cm 이상이에요.', SRC)[0]).toContain('숫자 표기 우회');
     expect(whyShortNumberProblems('가로 예순cm 이상이에요.', SRC)[0]).toContain('숫자 표기 우회');
   });
@@ -213,7 +220,16 @@ describe('W02 · L03 — 비ASCII 숫자·한글 수사 우회(NFKC 뒤 판정)'
   });
   it('validate: whyShort 우회 → W02 error, why 우회 → L03 warning(오류 아님)', () => {
     expect(of(withShort('req-syrian-cage', '가로는 아흔cm 넘게 봐요.'), 'W02')).toHaveLength(1);
-    expect(of(withShort('req-syrian-cage', '가로는 ９９cm 넘게 봐요.'), 'W02')).toHaveLength(1);
+    // 전각 ９９ = 표기(호환 숫자) + 값(원문에 없는 99cm) 두 문제 → W02 2건(결정 5 전엔 값 1건).
+    expect(of(withShort('req-syrian-cage', '가로는 ９９cm 넘게 봐요.'), 'W02').map((i) => i.message)).toEqual([
+      expect.stringMatching(/^숫자 표기 우회\(호환 숫자\)/),
+      expect.stringMatching(/^원문에 없는 숫자·단위/),
+    ]);
+    // 원문(caution)과 같은 값 1cm 를 전각으로 → 표기만 W02 1건, whyShort 도 lint 대상이라 L07 ERROR 도 함께.
+    const fw1 = withShort('req-syrian-cage', '철망 간격은 １cm 미만으로 봐요.');
+    expect(of(fw1, 'W02').map((i) => i.message)).toEqual([expect.stringContaining('호환 숫자')]);
+    expect(of(fw1, 'L07').map((i) => i.path)).toEqual(['whyShort']);
+    expect(withShort('req-syrian-cage', '철망 간격은 1cm 미만으로 봐요.').errors).toEqual([]);
     const s = fresh();
     const cage = row(s, 'supplyRequirements', 'req-syrian-cage');
     cage.why = `${cage.why as string} 가로는 ٩٩cm 넘게 봐요.`;
