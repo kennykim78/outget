@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 제품 | **WithSmall(위드스몰)** — 소동물 사육 준비·구매·관리 오케스트레이션 |
-| 버전 | **v1.4.1** (2026-11-14 총괄 승인 부수정 — 구현 확인분 정정: US-013 지역 링크·목록|지도 폭, US-025 문구·점 위치, US-005 NOT_NOW 항상 펼침, US-003 시각 비중, US-026 구현 현황) · v1.4 (UX v2.4 연동 — 판정 글리프 ○ △ ✕ — ?·레이어 모달 720(드로어 폐기)·DS v2.0·선택 홈 컨텍스트 헤더+7섹션·미선택 홈 히어로+시작 카드·후기 L5 아래 1건·탭바 폐기) |
+| 버전 | **v1.4.2** (2026-11-15 D9 ② 이유 한 줄 `whyShort` — US-005 1줄, 부록 B-1) · v1.4.1 (2026-11-14 총괄 승인 부수정 — 구현 확인분 정정: US-013 지역 링크·목록|지도 폭, US-025 문구·점 위치, US-005 NOT_NOW 항상 펼침, US-003 시각 비중, US-026 구현 현황) · v1.4 (UX v2.4 연동 — 판정 글리프 ○ △ ✕ — ?·레이어 모달 720(드로어 폐기)·DS v2.0·선택 홈 컨텍스트 헤더+7섹션·미선택 홈 히어로+시작 카드·후기 L5 아래 1건·탭바 폐기) |
 | 상태 | Confirmed — 개발 착수 기준. 변경은 §14 규칙으로만 |
 | 최종수정 | 2026-11-14 |
 | 입력 캐논 | [WithSmall-제품기획-v0.2.md](../WithSmall-제품기획-v0.2.md) v0.2.3 (동결) — 제품 정의·불변식·데이터 모델·백로그의 권위. 본 PRD는 그것을 스토리·수용 기준·QA 기준으로 내린 문서 |
@@ -125,6 +125,7 @@ As 사용자, I want 홈에서 내 동물 기준으로 "지금 필요한 것 →
 - [ ] 체크리스트는 홈 섹션이 아니라 **레이어**다(모바일 바텀시트 / PC 모달). 홈 ①의 요약 카드·남은 필수 항목이 이 레이어의 창이다.
 - [ ] 항목은 SupplyRequirement(CareProfile × SupplyItem)에서 파생. **최종값 계산 순서 고정: `SupplyItem 기본값 → SupplyRequirement(CareProfile) → AnimalType.careOverrides` — 뒤가 앞을 덮는다.** `resolveRequirement(animalTypeId, supplyItemId)` 순수 함수 1곳에서만 계산.
 - [ ] **priority · minSpec · recommendedSpec · notNowReason · orderHint · searchKeyword는 SupplyRequirement가 소유.** SupplyItem에는 이 필드를 두지 않는다(용품 자체는 동물 무관).
+- [ ] **이유 한 줄 `whyShort`(선택)는 SupplyRequirement가 소유**(동물별 이유 — SupplyItem 금지). `AnimalType.careOverrides.requirements[*].whyShort`로 덮을 수 있고 최종값은 `resolveRequirement` 한 곳에서 정한다: override whyShort > (override가 why를 바꿨으면) 없음 > 기본 행 whyShort > 없음. 화면 이유 줄 = `whyShort ?? why 첫 문장`(NOT_NOW 행은 `notNowReason` 우선 그대로). 표시 전용 — 노출·순서·규격 판정에 쓰지 않는다(불변식 ③).
 - [ ] 4그룹: `필수(REQUIRED)` · `권장(RECOMMENDED)` · `선택(OPTIONAL)` · `지금 필요 없음(NOT_NOW)`. NOT_NOW는 `notNowReason` 한 줄과 함께 **항상 펼친 채로** 노출(접힘·토글 없음, UX v2.4와 일치).
 - [ ] 항목 상태 4종: `✓ 준비완료` · `! 먼저 준비`(REQUIRED 미완료) · `△ 확인 필요`(호환 CHECK 또는 규격 미달) · 나중에(OPTIONAL/NOT_NOW 미완료, 글리프 없이 단어만). 판정 글리프: `○ 기준 충족` · `△ 확인 필요` · `✕ 미달` · `— 기준 없음` · `? 입력 필요`(UX §5.1).
 - [ ] 보유품으로 답한 항목은 자동 `✓`. 구매 대상 집계에서 제외.
@@ -364,9 +365,24 @@ Phase 0에 어드민 UI는 없다. 콘텐츠는 레포의 시드 JSON을 PR로 �
   "contentKind": "SPEC" }
 ```
 
+### B-1. SupplyRequirement 이유 한 줄
+```jsonc
+// SupplyRequirement 선택 필드(D9 ②). 미작성이면 키 자체를 두지 않는다(null 금지 — 서명 해시 안정).
+{ "why": "바닥을 넓게 쓰는 동물이에요. …", "whyShort": "…(6~30자, 한 문장)" }
+```
+- 형식(seed:validate W01, ERROR): grapheme 6~30자(K2) · 정확히 한 문장 · 개행·앞뒤 공백 없음.
+- 사실 가드(W02, ERROR): 같은 행 `why`·`caution`·`notNowReason`(override 는 resolve 후 값)에 없는 숫자·단위를 새로 쓰지 않는다. 단위 없는 숫자도 금지.
+- 중복(W03, WARN): `whyShort` = why 첫 문장이면 키를 빼도 된다는 안내.
+- 의료 인접(W04, ERROR): `contentKind` FOOD·HEALTH 행은 첫 라운드 whyShort 제외(K3). 해제는 Kenny 결정 뒤 상수 1곳.
+- 린트: 금지어(L01)·어간(L02)·자리표시자(L04)·단위 없는 숫자(L03)를 why 와 같이 적용.
+- 검수: 별도 상태 칸 없이 같은 행의 부록 B 메타를 따른다(contentKind별 최소 등급 그대로, `AI_DRAFT`는 VERIFIED 불가 — V01). `whyShort`는 서명 사실 필드(fact-fields.json)라 서명 뒤 고치면 G05로 재서명.
+- 문장 출처(K1): whyShort가 같은 행 why·notNowReason의 부분 문자열이 아니면 서명 시 행별 확인(ROW_CHECKED) 필수, 일괄 승인이면 V10.
+- 소유 금지(S08): SupplyItem 에 `whyShort` 키가 있으면 ERROR.
+
 ## 변경 이력
 | 날짜 | 변경 |
 |---|---|
+| 2026-11-15 | **v1.4.2** — D9 ② 이유 한 줄 `whyShort`: US-005 소유·결합 규칙·화면 폴백 1줄, 부록 B-1(형식 W01·숫자 W02·중복 W03·FOOD/HEALTH 제외 W04·린트·서명 사실 필드·문장 출처 ROW_CHECKED). Kenny K2·K3·K5·K6(2026-11-14), 문서 개정 승인 2026-11-15 |
 | 2026-11-14 | **v1.4.1** — 총괄 승인 부수정(문서만): US-013 지역 선택을 선택 상자 서술에서 지역 링크 목록으로 정정·목록|지도 폭 ≥1024(≤1023 탭), US-025 버튼 「저장 링크 받기」·입력 라벨·재전송 문구를 현 코드 원문으로·헤더 점 위치(칩 안 이름 뒤), US-005 NOT_NOW 항상 펼침, US-003 시각 비중에서 마스코트 제외, US-026 홈 A 설명 섹션·L5 후기 구현 완료 반영 |
 | 2026-11-14 | **v1.4** — UX v2.4·디자인-브리프 v2.4 연동(Kenny 승인): 판정 글리프 `○ 기준 충족`(✓→○)·`△`·`✕`·`—`·`?`, 「나중에」 글리프 폐기, 레이어 모달 600/720(드로어 폐기)·DS v2.0, 선택 홈 컨텍스트 헤더+7섹션·연결 서술(US-003), 미선택 홈 히어로+시작 카드(후기·소개·기능 칩 폐기), Testimonial 홈 사다리·마퀴 삭제→L5 결과 아래 1건(미구현), 마스코트 동물 선택·빈 상태·완료에만, D14 홈 사진 생성 이미지 임시, 하단 탭 폐기(병원 진입=헤더 메뉴) |
 | 2026-11-02 | **v1.3.2** — US-012: 검색 딥링크를 공급자 공식 제휴 링크(현재 쿠팡, 운영자 수동 링크)로 바꾸는 범위·고지(A 검색 블록 안·B 본문 첫 요소)·불변식 3 on/off 바이트 시험, 검색 블록 전부 펼침(L5 펼침 버튼·L7 펼침 제거, 제휴 무관). §1 범위·제외를 「상품 단위 제휴」로 좁힘. US-022 L7 정합. US-013 제보 보존 180일. US-021 Phase 0 운영자 경로 외부 404(Kenny 결정 2026-10-27·2026-11-02) |
