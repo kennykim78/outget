@@ -84,7 +84,7 @@ export function strictSentenceCount(text: string): number {
 
 // 숫자 뒤에 와야 하는 단위·수량사. 긴 것 먼저.
 const UNIT_RE =
-  /^\s?(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|℃|°C|°|원|만|천|개월|개|마리|회|번|년|일|주|시간|분|초|층|종|가지|단계|세|살|배|명|월|호|차|박|칸|장|쌍)/;
+  /^\s?(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|℃|°C|°|원|만|천|개월|개|마리|회|번|년|일|주|시간|분|초|층|종|가지|단계|세|살|배|명|월|호|차|박|칸|장|쌍|곳)/;
 // 숫자 묶음: 18~26, 60×40, 1.5, 15-20
 const NUMBER_GROUP_RE = /\d+(?:\.\d+)?(?:\s*[~×xX\-–]\s*\d+(?:\.\d+)?)*/g;
 

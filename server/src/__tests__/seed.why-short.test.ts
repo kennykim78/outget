@@ -1,6 +1,8 @@
 // D9 ② — whyShort 시드 검사: S03(타입·null 불허) · S08(SupplyItem 금지) · R03(override) · W01(6~30자·한 문장) ·
 //   W02(원문에 없는 숫자·단위) · W03(첫 문장 중복 WARN) · W04(FOOD/HEALTH 첫 라운드 제외, K3) · L01(금지어) · V01(AI_DRAFT) · G05(서명 뒤 수정).
-//   실시드는 디스크 그대로 읽고, 가짜 whyShort 는 메모리 사본에만 주입한다(실시드 파일 불변 — 콘텐츠는 Kenny 채택 뒤 별도 단계).
+//   실시드는 디스크 그대로 읽고, 가짜 whyShort 는 메모리 사본에만 주입한다(실시드 파일 불변).
+//   실시드 whyShort 17건 = Kenny 2026-11-15 채택분 14(ORDERS §14:0x 결정 2) + req-dwarf-hideout(총괄 14:1x 「곳」 셈 단위 판정 뒤 입력)
+//   + req-dwarf-saucer(NOT_NOW, 재서술)·req-gerbil-thermo(원문 발췌)(Kenny 결정 뒤 PM 입력) — 전부 DRAFT·AI_DRAFT 라 공개 0.
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +12,9 @@ import { factHash } from '../seed/signatures.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import { disguisedNumbers, numbersWithoutUnit, sentenceCount, strictSentenceCount } from '../seed/lint.js';
 import { graphemeLength, whyShortFormProblem, whyShortNumberProblems } from '../seed/validate-why-short.js';
-import { DWARF_PREVIEW_AS_OF, dwarfSignedWith } from './fixtures/prerender-seed.js';
+import { buildSite } from '../prerender/site.js';
+import { REAL_AS_OF, baseOptions } from './fixtures/affiliate/baseline.js';
+import { DWARF_PREVIEW_AS_OF, dwarfSignedWith, realSeed } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const NOW = '2026-11-03';
@@ -34,13 +38,49 @@ function withShort(id: string, v: unknown, mut?: (s: Required<RawSeed>) => void)
   return run(s);
 }
 
-describe('실시드(코드 단계) — whyShort 0건, 새 규칙 오탐 0', () => {
-  it('server/seed · seed-draft: whyShort 키 0, W01~W04 0, errors 0', () => {
+/** 2026-11-15 채택 whyShort 행(요구사항 17행 = 14 + hideout(「곳」 판정 뒤) + saucer·gerbil-thermo(PM 입력), override 0). 시드 파일 순서. */
+const ADOPTED = [
+  'req-syrian-wheel',
+  'req-syrian-food-bowl',
+  'req-dwarf-cage',
+  'req-dwarf-wheel',
+  'req-dwarf-saucer',
+  'req-dwarf-bedding',
+  'req-dwarf-hideout',
+  'req-dwarf-sand-bath',
+  'req-dwarf-sand-bath-box',
+  'req-dwarf-carrier',
+  'req-dwarf-thermo',
+  'req-guineapig-playpen',
+  'req-gerbil-cage',
+  'req-gerbil-bedding',
+  'req-gerbil-food-bowl',
+  'req-gerbil-hideout',
+  'req-gerbil-thermo',
+];
+
+describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 판정 뒤 hideout + saucer·gerbil-thermo), 새 규칙 오탐 0, 공개 0(DRAFT)', () => {
+  it('server/seed · seed-draft: whyShort 17건(같은 값), W01~W04 0, errors 0', () => {
+    const shorts = (raw: RawSeed): Array<[unknown, unknown]> =>
+      (raw.supplyRequirements as Rec[]).filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => [r.id, r.whyShort]);
+    expect(shorts(BASE).map(([id]) => id)).toEqual(ADOPTED);
+    expect(shorts(DRAFT_BASE)).toEqual(shorts(BASE));
     for (const raw of [BASE, DRAFT_BASE]) {
-      expect((raw.supplyRequirements as Rec[]).filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort'))).toEqual([]);
+      for (const a of raw.animalTypes as Rec[]) expect(JSON.stringify(a.careOverrides ?? null).includes('whyShort'), String(a.id)).toBe(false);
       const res = validateSeed(structuredClone(raw), { now: NOW });
       expect(res.errors).toEqual([]);
       for (const rule of W_RULES) expect([...of(res, rule), ...of(res, rule, 'warnings')]).toEqual([]);
+    }
+  });
+  it('17행 전부 DRAFT·AI_DRAFT(서명 0) — 공개 산출물(프리렌더 전 파일)에 whyShort 키·값 0', () => {
+    for (const id of ADOPTED) {
+      expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, reviewBasis: null });
+    }
+    const b = buildSite(realSeed(), baseOptions(REAL_AS_OF));
+    const values = ADOPTED.map((id) => row(BASE, 'supplyRequirements', id).whyShort as string);
+    for (const [f, c] of b.files) {
+      expect(c.includes('whyShort'), f).toBe(false);
+      for (const v of values) expect(c.includes(v), `${f} ⊃ ${v}`).toBe(false);
     }
   });
 });
@@ -110,6 +150,11 @@ describe('W02 — 같은 행 원문에 없는 숫자·단위', () => {
     // 원문에 숫자가 없으니 어떤 숫자든 W02.
     expect(of(withShort('req-syrian-saucer', '쳇바퀴 뒤 1개 더 봐요.'), 'W02')).toHaveLength(1);
     expect(withShort('req-syrian-saucer', '쳇바퀴를 먼저 갖춰요.').errors).toEqual([]);
+  });
+  it('총괄 2026-11-15: 「곳」은 셈 단위 — 원문의 「3곳」을 인용하면 통과, 「3」 단독은 여전히 W02', () => {
+    expect(of(withShort('req-dwarf-hideout', '드워프에겐 숨을 곳이 적어도 3곳 필요해요.'), 'W02')).toEqual([]);
+    expect(of(withShort('req-dwarf-hideout', '드워프에겐 숨을 곳이 적어도 3 필요해요.'), 'W02')).toHaveLength(1);
+    expect(of(withShort('req-dwarf-hideout', '드워프에겐 숨을 곳이 적어도 4곳 필요해요.'), 'W02')).toHaveLength(1);
   });
   it('notNowReason 에만 있는 숫자를 whyShort 가 인용 → 통과(출처에서 notNowReason 을 빼면 W02 — 변이 고정)', () => {
     const setReason = (s: Required<RawSeed>) => {
@@ -261,14 +306,20 @@ describe('V01 · G05 — 검수 메타는 행 것을 따른다', () => {
     expect(factHash('supply-requirements.json', structuredClone(r))).toBe(h0);
     expect(factHash('supply-requirements.json', { ...r, whyShort: '바닥을 넓게 쓰는 동물이라 넓어야 해요.' })).not.toBe(h0);
   });
-  it('서명 뒤 whyShort 추가 → G05(재서명 요구)', () => {
+  it('서명 뒤 whyShort 추가(키 없던 행)·변경(채택 값 있던 행) → G05(재서명 요구)', () => {
     const { seed, manifest } = dwarfSignedWith();
-    const raw = structuredClone(seed) as unknown as RawSeed;
     const sig = { missing: false as const, data: structuredClone(manifest) };
-    expect(validateSeed(raw, { now: DWARF_PREVIEW_AS_OF, signatures: sig }).errors).toEqual([]);
-    row(raw, 'supplyRequirements', 'req-dwarf-cage').whyShort = '바닥이 넓고 높이가 필요해요.';
-    const res = validateSeed(raw, { now: DWARF_PREVIEW_AS_OF, signatures: sig });
-    expect([...new Set(res.errors.map((i) => i.rule))]).toEqual(['G05']);
-    expect(of(res, 'G05').map((i) => i.id)).toEqual(['req-dwarf-cage']);
+    const base = structuredClone(seed) as unknown as RawSeed;
+    expect(validateSeed(base, { now: DWARF_PREVIEW_AS_OF, signatures: sig }).errors).toEqual([]);
+    for (const [id, hadKey] of [['req-dwarf-tubes', false], ['req-dwarf-cage', true]] as const) {
+      const raw = structuredClone(base);
+      const r = row(raw, 'supplyRequirements', id);
+      expect([id, Object.prototype.hasOwnProperty.call(r, 'whyShort')]).toEqual([id, hadKey]);
+      expect(r.reviewBasis).toBe('ROW_CHECKED'); // 최소 규격 행 — 재서술 whyShort 여도 V10 아님(G05 만 남게)
+      r.whyShort = '바닥이 넓고 높이가 필요해요.';
+      const res = validateSeed(raw, { now: DWARF_PREVIEW_AS_OF, signatures: sig });
+      expect([...new Set(res.errors.map((i) => i.rule))]).toEqual(['G05']);
+      expect(of(res, 'G05').map((i) => i.id)).toEqual([id]);
+    }
   });
 });

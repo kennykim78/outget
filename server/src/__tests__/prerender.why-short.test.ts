@@ -1,6 +1,7 @@
 // D9 ② — 프리렌더 whyShort: 값이 있을 때만 ws-data·catalog 키, 이유 줄 = whyShort ?? firstSentence(why)(engine reasonLine).
-//   값이 하나도 없으면 산출물 바이트 동일(기준선 off-baseline·v1 은 prerender.affiliate-toggle 이 재생성 없이 비교한다).
-//   가짜 whyShort 는 메모리 픽스처(promotedTwo)에만 넣는다 — 실시드 파일 불변.
+//   값이 하나도 없으면 whyShort 이전 산출물과 바이트 동일(그 상태는 실시드에서 whyShort 만 뺀 승격 픽스처로 재현).
+//   실시드 whyShort 17건(2026-11-15 채택, DRAFT)은 승격 픽스처(promotedTwo — req-syrian-wheel)에서만 산출물에 나온다 → 기준선은 재생성했다(off-baseline·v1).
+//   가짜 whyShort 는 메모리 픽스처에만 넣는다 — 실시드 파일 불변.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { firstSentence, type SeedBundle } from '../engine/index.js';
@@ -8,7 +9,7 @@ import { WS_WIRE_VERSION, decodeWsPage } from '../engine/ws-wire.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { BASELINE_FILE, baseOptions, hashFiles } from './fixtures/affiliate/baseline.js';
 import type { BaselineFile } from './fixtures/affiliate/gen-baseline.js';
-import { FIXTURE_AS_OF, SECOND, V, labelEnums, patch, promotedTwo } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, SECOND, V, labelEnums, patch, promotedTwo, realSeed, withoutWhyShort } from './fixtures/prerender-seed.js';
 
 const WS_RE = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/;
 const SHORT_CAGE = '바닥을 넓게 쓰는 동물이라 넓어야 해요.'; // 테스트 전용 가짜 값
@@ -16,8 +17,11 @@ const SHORT_WHEEL = '등이 수평으로 달리는 지름이 필요해요.'; // 
 
 type Rec = Record<string, unknown>;
 
+/** 실시드에서 whyShort 만 뺀 승격 2타입 픽스처(= whyShort 0건 상태). */
+const promotedTwoNoShort = (): SeedBundle => promotedTwo({ base: withoutWhyShort(realSeed()) });
+
 function seedWith(): SeedBundle {
-  const s = promotedTwo();
+  const s = promotedTwoNoShort();
   const cage = s.supplyRequirements.find((r) => r.id === 'req-syrian-cage')!;
   cage.whyShort = SHORT_CAGE;
   const golden = s.animalTypes.find((a) => a.id === 'hamster-golden')!;
@@ -39,16 +43,29 @@ const laterReason = (html: string, item: string): string | null => {
   return m ? m[1] : null;
 };
 
-const OFF = build(promotedTwo());
+const OFF = build(promotedTwoNoShort());
 const ON = build(seedWith());
+const REAL = build(promotedTwo()); // 실시드 whyShort 그대로(승격 행 중 req-syrian-wheel·복제 req-fixture-wheel 에 값)
 
-describe('값 없음 — 키 부재·바이트 기준선 그대로', () => {
+describe('값 없음 — 키 부재(실시드에서 whyShort 만 뺀 승격 픽스처)', () => {
   it('어느 산출물에도 whyShort 문자열이 없다', () => {
     for (const [f, c] of OFF.files) expect(c.includes('whyShort'), f).toBe(false);
   });
-  it('promotedTwo 꺼짐 빌드 = off-baseline(재생성 0)', () => {
+  it('기준선(off-baseline promotedTwo) = 실시드 whyShort 그대로 빌드, whyShort 만 빼면 카탈로그는 whyShort 키만 다르다', () => {
     const baseline = JSON.parse(readFileSync(BASELINE_FILE, 'utf8')) as BaselineFile;
-    expect(hashFiles(OFF)).toEqual(baseline.cases.promotedTwo);
+    expect(hashFiles(REAL)).toEqual(baseline.cases.promotedTwo);
+    expect(OFF.catalogFile).not.toBe(REAL.catalogFile);
+    const drop = (x: unknown): unknown =>
+      Array.isArray(x) ? x.map(drop) : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x as Rec).filter(([k]) => k !== 'whyShort').map(([k, v]) => [k, drop(v)])) : x;
+    expect(drop(REAL.catalog)).toEqual(OFF.catalog);
+    const withKey = (REAL.catalog as unknown as { supplyRequirements: Rec[] }).supplyRequirements.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id);
+    expect(withKey).toEqual(['req-syrian-wheel', SECOND.requirementIds[1]]);
+  });
+  it('실시드 값(채택 whyShort, 승격 메모리 사본)은 이유 줄에 그대로 — 골든 쳇바퀴', () => {
+    const wheel = realSeed().supplyRequirements.find((r) => r.id === 'req-syrian-wheel')!;
+    expect(typeof wheel.whyShort).toBe('string');
+    expect(nowReason(typePage(REAL, 'hamster-golden').html, 'wheel')).toBe(wheel.whyShort);
+    expect(nowReason(typePage(OFF, 'hamster-golden').html, 'wheel')).toBe(firstSentence(wheel.why));
   });
   it('이유 줄 = firstSentence(why)(D9 ① 동작 보존)', () => {
     const p = typePage(OFF, 'hamster-golden');

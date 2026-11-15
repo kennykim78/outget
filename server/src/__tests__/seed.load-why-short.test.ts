@@ -53,8 +53,10 @@ const plan = (b: SeedBundle) => {
 };
 
 describe('map — SupplyRequirement.whyShort', () => {
-  it('실시드 전 행: 키 부재 → whyShort NULL', () => {
-    for (const r of readSeedDir(DEFAULT_SEED_DIR).supplyRequirements) expect(mapSupplyRequirement(r).whyShort).toBeNull();
+  it('실시드 전 행: 키 부재 → whyShort NULL, 키 있음(2026-11-15 채택 17건 — 14 + hideout + saucer·gerbil-thermo) → 값 그대로', () => {
+    const rs = readSeedDir(DEFAULT_SEED_DIR).supplyRequirements;
+    for (const r of rs) expect([r.id, mapSupplyRequirement(r).whyShort]).toEqual([r.id, r.whyShort ?? null]);
+    expect(rs.filter((r) => r.whyShort !== undefined)).toHaveLength(17);
   });
   it('값이 있으면 그대로', () => {
     const r = readSeedDir(DEFAULT_SEED_DIR).supplyRequirements[0];
@@ -63,7 +65,7 @@ describe('map — SupplyRequirement.whyShort', () => {
 });
 
 describe('SQLite 왕복 — 마이그레이션 20261115000000_requirement_why_short 적용', () => {
-  it('whyShort 열(TEXT, nullable)이 있고 시드 적재 후 값 1행·NULL 나머지', async () => {
+  it('whyShort 열(TEXT, nullable)이 있고 시드 적재 후 값 = 실시드 17행 + 주입 1행, NULL 나머지', async () => {
     const db = await freshDb();
     const cols = (await db.$queryRawUnsafe('PRAGMA table_info("SupplyRequirement")')) as Array<{ name: string; type: string; notnull: number | bigint }>;
     const col = cols.find((c) => c.name === 'whyShort');
@@ -72,10 +74,15 @@ describe('SQLite 왕복 — 마이그레이션 20261115000000_requirement_why_sh
     expect(Number(col!.notnull)).toBe(0);
 
     const b = readSeedDir(DEFAULT_SEED_DIR);
-    b.supplyRequirements.find((r) => r.id === 'req-syrian-cage')!.whyShort = SHORT;
+    const cage = b.supplyRequirements.find((r) => r.id === 'req-syrian-cage')!;
+    expect(cage.whyShort).toBeUndefined();
+    cage.whyShort = SHORT;
     await applyWrites(db, plan(b));
     const rows = await db.supplyRequirement.findMany({ select: { id: true, whyShort: true } });
     expect(rows).toHaveLength(b.supplyRequirements.length);
-    expect(rows.filter((r) => r.whyShort !== null)).toEqual([{ id: 'req-syrian-cage', whyShort: SHORT }]);
+    const expected = b.supplyRequirements.filter((r) => r.whyShort !== undefined).map((r) => ({ id: r.id, whyShort: r.whyShort }));
+    expect(expected).toHaveLength(18);
+    const byId = (a: { id: string }, z: { id: string }) => a.id.localeCompare(z.id);
+    expect(rows.filter((r) => r.whyShort !== null).sort(byId)).toEqual(expected.sort(byId));
   });
 });

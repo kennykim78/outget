@@ -4,9 +4,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { SeedBundle } from '../../engine/index.js';
-import { CONTENT_KEYS, SEED_FILES } from '../../seed/common.js';
+import { CONTENT_KEYS, SEED_FILES, type SeedKey } from '../../seed/common.js';
 import { readSeedDir } from '../../seed/read.js';
-import { factHash, SIGNATURE_FILE, type SignatureEntry } from '../../seed/signatures.js';
+import { factHash, requiredBasis, SIGNATURE_FILE, type SignatureEntry } from '../../seed/signatures.js';
 
 export const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'seed');
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -34,7 +34,45 @@ export interface DwarfPacket {
   bulk: { item: string; rows: Array<{ file: string; id: string }> };
 }
 export const DWARF_PACKET_PATH = join(REPO_ROOT, 'scripts', 'review-packets', 'hamster-dwarf-core.json');
+/** 실패킷 파일 그대로(확인표 문서와 1:1 — 구성 시험용). 가짜 전 ☑ 서명에는 dwarfPacketK1() 을 쓴다. */
 export const dwarfPacket = (): DwarfPacket => JSON.parse(readFileSync(DWARF_PACKET_PATH, 'utf8')) as DwarfPacket;
+
+/** K1 사본의 행별 확인 항목 이름(테스트 전용) — 원문 발췌가 아닌 whyShort 행 1개당 1항목. */
+export const k1ItemOf = (id: string): string => `WS-${id}`;
+
+/**
+ * K1 하위 결정(2026-11-15) 반영 패킷 사본(메모리, 테스트 전용 — 실패킷 파일은 바꾸지 않는다).
+ *   bulk(C 일괄) 행 중 requiredBasis(signatures.ts — 규칙 그대로)가 ROW_CHECKED 인 행(= 원문 발췌가 아닌 whyShort 행)을
+ *   rowChecked 로 옮기고 행별 확인 항목 k1ItemOf(id) 를 붙인다. 일괄 서명으로 재서술 whyShort 를 VERIFIED 로 만들지 않는다(불변식 7).
+ *   실시드에 그런 행이 없으면 입력과 같은 패킷. 실패킷·확인표 문서의 갱신은 콘텐츠 단계(PM) 몫.
+ */
+export function k1Packet<P extends DwarfPacket>(packet: P, seed: SeedBundle = realSeed()): P {
+  const keyOf = new Map<string, SeedKey>(CONTENT_KEYS.map((k) => [SEED_FILES[k], k]));
+  const needsRow = (r: { file: string; id: string }): boolean => {
+    const key = keyOf.get(r.file);
+    const row = key ? (seed[key as keyof SeedBundle] as unknown as Row[]).find((x) => x.id === r.id) : undefined;
+    return key !== undefined && row !== undefined && requiredBasis(key, row) === 'ROW_CHECKED';
+  };
+  const moved = packet.bulk.rows.filter(needsRow);
+  return {
+    ...packet,
+    rowChecked: [...packet.rowChecked, ...moved.map((r) => ({ file: r.file, id: r.id, items: [k1ItemOf(r.id)] }))],
+    bulk: { ...packet.bulk, rows: packet.bulk.rows.filter((r) => !needsRow(r)) },
+  };
+}
+/** 드워프 실패킷의 K1 사본(가짜 전 ☑ 서명용). */
+export const dwarfPacketK1 = (): DwarfPacket => k1Packet(dwarfPacket());
+
+/** 시드 사본에서 whyShort 키(요구사항 행·AnimalType override)를 전부 뺀다(메모리 — whyShort 0건 상태 재현용). */
+export function withoutWhyShort(seed: SeedBundle): SeedBundle {
+  const s = clone(seed);
+  for (const r of s.supplyRequirements as unknown as Row[]) delete r.whyShort;
+  for (const a of s.animalTypes as unknown as Row[]) {
+    const reqs = (a.careOverrides as Row | null | undefined)?.requirements as Record<string, Row | null> | undefined;
+    if (reqs) for (const o of Object.values(reqs)) if (o && typeof o === 'object') delete o.whyShort;
+  }
+  return s;
+}
 
 const FIXTURE_SOURCE = [{ url: 'https://example.org/fixture-source', title: 'fixture source', accessedAt: '2026-09-30' }];
 
@@ -159,9 +197,11 @@ export function demoteUnpromotedRequired(seed: SeedBundle, careProfileId: string
 export const DWARF_SIGNED_AT = '2026-10-24';
 export const DWARF_PREVIEW_AS_OF = '2026-11-03';
 
-/** 드워프 패킷 전 항목 ☑(A·B·D) + C 서명(가짜 확인표 결과 — 테스트 전용, 날짜 기본 DWARF_SIGNED_AT). */
-export function dwarfAllCheckedResult(signedAt: string = DWARF_SIGNED_AT): Record<string, unknown> {
-  const p = dwarfPacket();
+/**
+ * 드워프 패킷 전 항목 ☑(A·B·D + K1 행별 확인) + C 서명(가짜 확인표 결과 — 테스트 전용, 날짜 기본 DWARF_SIGNED_AT).
+ *   packet 기본 = dwarfPacketK1()(재서술 whyShort 행은 ROW_CHECKED). 실패킷 그대로 쓰려면 dwarfPacket() 을 넘긴다.
+ */
+export function dwarfAllCheckedResult(signedAt: string = DWARF_SIGNED_AT, p: DwarfPacket = dwarfPacketK1()): Record<string, unknown> {
   return {
     format: applyMjs.RESULT_FORMAT,
     packet: p.packet,
@@ -179,11 +219,14 @@ export function filesOf(seed: SeedBundle): Record<string, unknown[]> {
 
 /**
  * 실시드 + 드워프 확인표 결과를 메모리에서 적용(applySignatures 그대로 — 디스크는 바꾸지 않는다).
- *   result 생략 = 전 항목 ☑·C 서명(가짜). 반환 seed·매니페스트.
+ *   result 생략 = 전 항목 ☑·C 서명(가짜). packet 생략 = dwarfPacketK1()(K1: 재서술 whyShort 행은 행별 확인). 반환 seed·매니페스트.
  */
-export function dwarfSignedWith(result: Record<string, unknown> = dwarfAllCheckedResult()): { seed: SeedBundle; manifest: SignatureEntry[] } {
+export function dwarfSignedWith(
+  result: Record<string, unknown> = dwarfAllCheckedResult(),
+  packet: DwarfPacket = dwarfPacketK1(),
+): { seed: SeedBundle; manifest: SignatureEntry[] } {
   const s = clone(realSeed());
-  const res = applyMjs.applySignatures(filesOf(s), [], dwarfPacket(), result, { now: DWARF_PREVIEW_AS_OF });
+  const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: DWARF_PREVIEW_AS_OF });
   for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
   return { seed: s, manifest: res.manifest };
 }

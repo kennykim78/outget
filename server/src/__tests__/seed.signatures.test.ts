@@ -12,14 +12,16 @@ import { readSeedDirRaw } from '../seed/read.js';
 import { factHash, FACT_FIELDS, requiredBasis, SIGNATURE_FIELDS, SIGNATURE_FILE, whyShortIsRephrased, type SignatureEntry } from '../seed/signatures.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import {
-  DWARF_PACKET_PATH,
   DWARF_PREVIEW_AS_OF,
   SEED_DIR,
   applyMjs,
   dwarfAllCheckedResult,
   dwarfPacket,
+  dwarfPacketK1,
   dwarfSignedWith,
   filesOf,
+  k1ItemOf,
+  k1Packet,
   realSeed,
   type DwarfPacket,
 } from './fixtures/prerender-seed.js';
@@ -75,6 +77,15 @@ const writeJson = (dir: string, name: string, v: unknown): string => {
   writeFileSync(p, JSON.stringify(v, null, 2));
   return p;
 };
+/** 패킷 사본(K1 — fixtures k1Packet)을 임시 파일로(CLI --packet 용). 실패킷 파일은 바꾸지 않는다. */
+const packetFile = (packet: unknown, name: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'withsmall-sigpk-'));
+  temps.push(dir);
+  return writeJson(dir, name, packet);
+};
+/** 원문 발췌가 아닌 whyShort 행 중 실패킷 C 일괄에 있던 행(K1 — 행별 확인 필요, 일괄 승인 불가). 실패킷 bulk 순서. 2026-11-15 whyShort 17건 기준(총괄 14:1x 「곳」 판정 뒤 hideout +1, PM 입력 saucer(재서술·NOT_NOW) +1 · gerbil-thermo 는 원문 발췌라 해당 없음). */
+const DWARF_K1_ROWS = ['req-dwarf-saucer', 'req-dwarf-hideout', 'req-dwarf-sand-bath', 'req-dwarf-sand-bath-box'];
+const GP_K1_ROWS = ['req-guineapig-playpen'];
 
 describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mjs) ↔ seed-equivalence', () => {
   it('필드 목록 같음(fact-fields.json 단일 출처), seed-equivalence FACT_FIELDS 26종 그대로(D9 ② whyShort +1)', () => {
@@ -270,7 +281,7 @@ describe('V09·V10 — reviewBasis 행 규칙(매니페스트 없이도)', () =>
     const raw = base();
     rowOf(raw, 'curatedProducts', 'cp-dw-012').reviewBasis = 'AI_RESEARCH_BULK';
     rowOf(raw, 'supplyRequirements', 'req-dwarf-wheel').reviewBasis = 'AI_RESEARCH_BULK';
-    rowOf(raw, 'supplyRequirements', 'req-dwarf-hideout').reviewBasis = 'ROW_CHECKED'; // 최소 규격 없는 행은 둘 다 허용
+    rowOf(raw, 'supplyRequirements', 'req-dwarf-hideout').reviewBasis = 'ROW_CHECKED'; // ROW_CHECKED 는 어느 행이든 허용(hideout 은 2026-11-15 재서술 whyShort 로 ROW_CHECKED 만)
     expect(errsOf(v(raw), 'V10').map((i) => i.id).sort()).toEqual(['cp-dw-012', 'req-dwarf-wheel']);
   });
 });
@@ -341,18 +352,27 @@ describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 �
     expect(v10(at({ why, whyShort: REPHRASE }))).toEqual(['hamster-dwarf']);
     expect(v10(at({ whyShort: EXCERPT }))).toEqual(['hamster-dwarf']);
   });
-  it('whyShort 키 없는 행: requiredBasis 는 변경 전 정책과 같다(실시드·서명 픽스처 전 행)', () => {
+  it('requiredBasis = 변경 전 정책 ∪ (재서술 whyShort 면 ROW_CHECKED) — whyShort 키 없는 행은 변경 전 정책 그대로(실시드·서명 픽스처 전 행)', () => {
     let n = 0;
+    let withKey = 0;
+    const added: string[] = [];
     for (const s of [realSeed(), dwarfSignedWith().seed]) {
       for (const k of CONTENT_KEYS) {
         for (const r of s[k as keyof SeedBundle] as unknown as Row[]) {
-          expect(Object.prototype.hasOwnProperty.call(r, 'whyShort')).toBe(false);
-          expect([r.id, requiredBasis(k, r)]).toEqual([r.id, oldPolicy(k, r)]);
+          const has = Object.prototype.hasOwnProperty.call(r, 'whyShort');
+          if (has) withKey++;
+          const expected = oldPolicy(k, r) ?? (has && whyShortIsRephrased(r) ? 'ROW_CHECKED' : null);
+          expect([r.id, requiredBasis(k, r)]).toEqual([r.id, expected]);
+          if (oldPolicy(k, r) === null && expected !== null) added.push(String(r.id));
           n++;
         }
       }
     }
     expect(n).toBe(2 * 149);
+    expect(withKey).toBe(2 * 17); // 2026-11-15 whyShort 17건(채택 14 + 드워프 hideout + 드워프 saucer·저빌 thermo)(요구사항 행만, override 0)
+    // 새 정책이 일괄 승인을 막는 행 = 최소 규격 없는 재서술 whyShort 행(시드 2벌 × 5행 — 드워프 saucer·hideout·모래 목욕 2 + 기니피그 놀이 울타리). 저빌 thermo 는 원문 발췌라 빠짐.
+    expect([...new Set(added)].sort()).toEqual([...DWARF_K1_ROWS, ...GP_K1_ROWS].sort());
+    expect(added).toHaveLength(2 * 5);
   });
   it('서명 검증: 재서술 whyShort 를 재서명(해시 갱신)해도 BULK 면 V10, ROW_CHECKED 서명이면 errors 0, 이후 whyShort 수정 → G05', () => {
     const { seed, manifest: m0 } = dwarfSignedWith();
@@ -362,7 +382,8 @@ describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 �
     const r = rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier');
     const e = manifest.find((x) => x.file === file && x.id === 'req-dwarf-carrier');
     if (!e) throw new Error('서명 항목 없음');
-    // G05 유지: 서명 뒤 whyShort 추가 → 재서명 요구.
+    // G05 유지: 서명 뒤 whyShort 변경(실시드 값 → 다른 발췌) → 재서명 요구.
+    expect(r.whyShort).toBe('잠깐 옮겨 둘 곳이 필요해요.');
     r.whyShort = EXCERPT;
     expect(rules(run(raw, manifest))).toEqual(['G05']);
     // 발췌 + 재서명(BULK) → errors 0.
@@ -384,7 +405,8 @@ describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 �
 
 describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페스트', () => {
   const NOW_ARGS = ['--now', NOW];
-  const packetArgs = ['--packet', DWARF_PACKET_PATH];
+  /** 가짜 전 ☑ 결과(dwarfAllCheckedResult = K1 사본 항목)와 짝인 K1 패킷 사본 파일. 실패킷 그대로는 「실패킷 그대로」 시험. */
+  const packetArgs = ['--packet', packetFile(dwarfPacketK1(), 'hamster-dwarf-core.k1.json')];
   const pair = (): { seed: string; draft: string } => ({ seed: tempCopy(SEED_DIR), draft: tempCopy(DRAFT_DIR) });
   const bytes = (dir: string): Record<string, string> =>
     Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
@@ -396,7 +418,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     temps.push(resDir);
     const all = writeJson(resDir, 'all.json', dwarfAllCheckedResult(NOW));
     const a = applyCli([...packetArgs, '--result', all, '--seed', seed, '--draft', draft, ...NOW_ARGS]);
-    expect(a.out.join('\n')).toContain('ROW_CHECKED 22 · AI_RESEARCH_BULK 30'); // 245: req-dwarf-tubes 일괄 → A11
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 26 · AI_RESEARCH_BULK 26'); // 245: req-dwarf-tubes 일괄 → A11 · K1: 재서술 whyShort 4행(saucer·hideout·모래 목욕 2) 일괄 → 행별 확인
     expect(a.code).toBe(0);
     const m = JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')) as SignatureEntry[];
     expect(m).toHaveLength(52);
@@ -416,6 +438,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(m.find((e) => e.id === 'req-dwarf-food')).toMatchObject({ file: 'supply-requirements.json', basis: 'ROW_CHECKED', signedBy: 'kenny', signedAt: NOW });
     expect(reqs.filter((r) => r.reviewStatus === 'VERIFIED' && r.id !== 'req-dwarf-food').every((r) => r.reviewerType === 'EXPERIENCED_KEEPER')).toBe(true);
     expect(reqs.find((r) => r.id === 'req-dwarf-scale')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT' }); // 저울은 패킷 밖
+    for (const id of DWARF_K1_ROWS) expect(m.find((e) => e.id === id)).toMatchObject({ basis: 'ROW_CHECKED' }); // K1: 재서술 whyShort 행은 행별 확인
 
     const unsigned = join(ROOT, 'scripts', 'review-packets', 'hamster-dwarf-core.result.unsigned.json');
     expect(applyCli([...packetArgs, '--result', unsigned, '--seed', seed, '--draft', draft, ...NOW_ARGS]).code).toBe(0);
@@ -434,9 +457,10 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(run(rawOf(seed), manifest).errors).toEqual([]);
   });
 
-  it('C 만 서명 → 30행 AI_RESEARCH_BULK(BE92: 용품 사료 포함, 245: 터널은 최소 규격 행이라 빠짐), 상품·최소 규격 행은 DRAFT', () => {
+  it('C 만 서명 → 26행 AI_RESEARCH_BULK(BE92: 용품 사료 포함, 245: 터널은 최소 규격 행이라 빠짐, K1: 재서술 whyShort 4행 빠짐), 상품·최소 규격·재서술 whyShort 행은 DRAFT', () => {
     const { seed, manifest } = dwarfSignedWith({ ...dwarfAllCheckedResult(NOW), checked: [], checkedAt: null });
-    expect(manifest).toHaveLength(30);
+    expect(manifest).toHaveLength(26);
+    for (const id of DWARF_K1_ROWS) expect(rowOf(seed, 'supplyRequirements', id).reviewStatus).toBe('DRAFT');
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-tubes').reviewStatus).toBe('DRAFT');
     expect(manifest.every((e) => e.basis === 'AI_RESEARCH_BULK')).toBe(true);
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-bedding').reviewStatus).toBe('DRAFT');
@@ -454,7 +478,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     };
     /** BE92 이전 패킷(SupplyItem food 가 C 일괄 밖) 사본 — 오케스트레이터 90 Q1 결정으로 실패킷은 food 를 포함한다. */
     const packetWithoutFoodItem = (): DwarfPacket => {
-      const p = dwarfPacket();
+      const p = dwarfPacketK1();
       return { ...p, bulk: { ...p.bulk, rows: p.bulk.rows.filter((r) => !(r.file === 'supply-items.json' && r.id === 'food')) } };
     };
     const signWith = (packet: DwarfPacket, result: Record<string, unknown>): { seed: SeedBundle; manifest: SignatureEntry[] } => {
@@ -475,7 +499,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     });
 
     it('D1 ☑ 인데 행 reviewerType 을 EXPERIENCED_KEEPER 로 내리면 → V03(FOOD 최소 VET_PUBLISHED_SOURCE)', () => {
-      const p = dwarfPacket();
+      const p = dwarfPacketK1();
       const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-dwarf-food' ? { ...r, reviewerType: 'EXPERIENCED_KEEPER' } : r)) };
       const { seed, manifest } = signWith(q, allOk());
       expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['req-dwarf-food']);
@@ -490,7 +514,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     });
 
     it('패킷 행 reviewerType 형식: AI_DRAFT·알 수 없는 값·알 수 없는 키 → 입력 거부', () => {
-      const p = dwarfPacket();
+      const p = dwarfPacketK1();
       const bad = (patchRow: Record<string, unknown>) => ({ ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-dwarf-food' ? { ...r, ...patchRow } : r)) });
       for (const q of [bad({ reviewerType: 'AI_DRAFT' }), bad({ reviewerType: 'DOCTOR' }), bad({ basis: 'ROW_CHECKED' })]) {
         expect(() => signWith(q as DwarfPacket, allOk())).toThrow(/패킷 오류/);
@@ -515,8 +539,8 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
       expect(errsOf(validateSeed(previewOf(seed), { now: NOW }), 'X01').map((i) => i.path)).toEqual(['requirements.food']);
     });
 
-    it('D1 ☑ + 실패킷(SupplyItem food C 일괄, 90 Q1 반영) → 미리보기 ACTIVE 사본 errors 0(X01 해소), 매니페스트 포함 실시드 상태도 errors 0', () => {
-      const { seed, manifest } = signWith(dwarfPacket(), allOk());
+    it('D1 ☑ + 실패킷 K1 사본(SupplyItem food C 일괄, 90 Q1 반영) → 미리보기 ACTIVE 사본 errors 0(X01 해소), 매니페스트 포함 실시드 상태도 errors 0', () => {
+      const { seed, manifest } = signWith(dwarfPacketK1(), allOk());
       expect(rowOf(seed, 'supplyItems', 'food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', reviewBasis: 'AI_RESEARCH_BULK' });
       expect(run(rawOf(seed), manifest).errors).toEqual([]);
       expect(validateSeed(previewOf(seed), { now: NOW }).errors).toEqual([]);
@@ -526,7 +550,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
   it('--stage review: 서명 대상은 NEEDS_REVIEW·EXPERIENCED_KEEPER(검수자·basis null), 매니페스트 0 → validate 0', () => {
     const s = clone(realSeed());
     const files = Object.fromEntries(CONTENT_KEYS.map((k) => [SEED_FILES[k], s[k as keyof SeedBundle] as unknown[]]));
-    const res = applyMjs.applySignatures(files, [], dwarfPacket(), dwarfAllCheckedResult(NOW), { now: NOW, stage: 'review' });
+    const res = applyMjs.applySignatures(files, [], dwarfPacketK1(), dwarfAllCheckedResult(NOW), { now: NOW, stage: 'review' });
     expect(res.manifest).toEqual([]);
     expect(res.summary.needsReview).toBe(52);
     const raw = rawOf(s);
@@ -572,6 +596,21 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     const p = writeJson(resDir, 'all.json', dwarfAllCheckedResult(NOW));
     expect(applyCli([...packetArgs, '--result', p, '--seed', seed, '--draft', draft, ...NOW_ARGS]).code).toBe(1);
     expect(bytes(seed)).toEqual(before);
+  });
+
+  it('실패킷 그대로 전 ☑·C(K1 행별 확인 항목 없음) → V10 은 재서술 whyShort 행(일괄 C)만 — 실패킷·확인표 갱신 전까지 fail-closed', () => {
+    const raw = dwarfPacket();
+    const { seed, manifest } = dwarfSignedWith(dwarfAllCheckedResult(NOW, raw), raw);
+    expect(manifest).toHaveLength(52);
+    const res = run(rawOf(seed), manifest);
+    expect(rules(res)).toEqual(['V10']);
+    expect(errsOf(res, 'V10').map((i) => i.id).sort()).toEqual([...DWARF_K1_ROWS].sort());
+    expect(errsOf(res, 'V10').every((i) => i.message.includes('원문 발췌가 아닌 whyShort 행'))).toBe(true);
+    // K1 사본 = 실패킷에서 그 행들만 bulk → rowChecked(항목 WS-<id>), 나머지 동일.
+    const k1 = dwarfPacketK1();
+    expect(k1.rowChecked.slice(raw.rowChecked.length)).toEqual(DWARF_K1_ROWS.map((id) => ({ file: 'supply-requirements.json', id, items: [k1ItemOf(id)] })));
+    expect(k1.rowChecked.slice(0, raw.rowChecked.length)).toEqual(raw.rowChecked);
+    expect(k1.bulk.rows).toEqual(raw.bulk.rows.filter((r) => !DWARF_K1_ROWS.includes(r.id)));
   });
 
   it('패킷 = 2026-10-24 착지 VERIFIED 50행 + 사료 D1(ROW_CHECKED 대상 22 = 최소 규격 4(245: 터널 A11) + 사료 1 + 상품 17, 일괄 30 = 29 + 용품 사료(90 Q1)), 최소 규격 행 대응 A 항목', () => {
@@ -675,14 +714,16 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
   const GP_UNSIGNED_PATH = join(PACKETS_DIR, 'guinea-pig-core.result.unsigned.json');
   const gpPacket = (): Packet => JSON.parse(readFileSync(GP_PACKET_PATH, 'utf8')) as Packet;
   const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '기니피그-핵심행-확인표.md'), 'utf8');
-  const signGp = (result: Record<string, unknown>, packet: Packet = gpPacket()) => {
+  /** K1 사본(재서술 whyShort 행은 행별 확인) — 가짜 전 ☑ 서명용. 실패킷 구성 시험은 gpPacket(). */
+  const gpPacketK1 = (): Packet => k1Packet(gpPacket());
+  const signGp = (result: Record<string, unknown>, packet: Packet = gpPacketK1()) => {
     const s = clone(realSeed());
     const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
     for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
     return { seed: s, manifest: res.manifest };
   };
   const allChecked = (): Record<string, unknown> => {
-    const p = gpPacket();
+    const p = gpPacketK1();
     return { format: applyMjs.RESULT_FORMAT, packet: p.packet, signedBy: 'kenny', checkedAt: NOW, checked: [...new Set(p.rowChecked.flatMap((r) => r.items))], bulkSignedAt: NOW };
   };
   const bytes = (dir: string): Record<string, string> =>
@@ -743,10 +784,10 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
     expect(seed).toEqual(realSeed());
   });
 
-  it('전 ☑·C·D1·D2(가짜 결과, 메모리) → 22행 VERIFIED(ROW_CHECKED 5 · AI_RESEARCH_BULK 17), 건초·펠릿만 VET_PUBLISHED_SOURCE, validate errors 0 — Taxon·저울·기존 용품 DRAFT', () => {
+  it('전 ☑·C·D1·D2(가짜 결과, 메모리, K1 사본) → 22행 VERIFIED(ROW_CHECKED 6 · AI_RESEARCH_BULK 16 — K1: 재서술 whyShort 놀이 울타리는 행별 확인), 건초·펠릿만 VET_PUBLISHED_SOURCE, validate errors 0 — Taxon·저울·기존 용품 DRAFT', () => {
     const { seed, manifest } = signGp(allChecked());
     expect(manifest).toHaveLength(22);
-    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(['req-guineapig-bedding', 'req-guineapig-cage', 'req-guineapig-chew', 'req-guineapig-food', 'req-guineapig-hay']);
+    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(['req-guineapig-bedding', 'req-guineapig-cage', 'req-guineapig-chew', 'req-guineapig-food', 'req-guineapig-hay', 'req-guineapig-playpen']);
     for (const id of ['req-guineapig-hay', 'req-guineapig-food']) {
       const r = rowOf(seed, 'supplyRequirements', id);
       expect(r).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', reviewBasis: 'ROW_CHECKED', contentKind: 'FOOD' });
@@ -767,8 +808,18 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
     for (const id of ['req-guineapig-chew', 'req-guineapig-hay']) expect([id, rowOf(seed, 'supplyRequirements', id).reviewStatus]).toEqual([id, 'VERIFIED']);
   });
 
+  it('실패킷 그대로 전 ☑·C → V10 은 재서술 whyShort 행(놀이 울타리, 일괄 C)만 — 실패킷·확인표 갱신 전까지 fail-closed', () => {
+    const raw = gpPacket();
+    const all = { ...allChecked(), checked: [...new Set(raw.rowChecked.flatMap((r) => r.items))] };
+    const { seed, manifest } = signGp(all, raw);
+    const res = run(rawOf(seed), manifest);
+    expect(rules(res)).toEqual(['V10']);
+    expect(errsOf(res, 'V10').map((i) => i.id)).toEqual(GP_K1_ROWS);
+    expect(gpPacketK1().bulk.rows).toEqual(raw.bulk.rows.filter((r) => !GP_K1_ROWS.includes(r.id)));
+  });
+
   it('D1 ☑ 인데 건초 행 reviewerType 을 EXPERIENCED_KEEPER 로 내리면 → V03(FOOD 최소 VET_PUBLISHED_SOURCE)', () => {
-    const p = gpPacket();
+    const p = gpPacketK1();
     const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-guineapig-hay' ? { ...r, reviewerType: 'EXPERIENCED_KEEPER' } : r)) };
     const { seed, manifest } = signGp(allChecked(), q);
     expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['req-guineapig-hay']);
@@ -782,9 +833,9 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
     const resDir = mkdtempSync(join(tmpdir(), 'withsmall-sigres-'));
     temps.push(resDir);
     const all = writeJson(resDir, 'gp-all.json', allChecked());
-    const args = ['--packet', GP_PACKET_PATH, '--seed', seed, '--draft', draft, '--now', NOW];
+    const args = ['--packet', packetFile(gpPacketK1(), 'guinea-pig-core.k1.json'), '--seed', seed, '--draft', draft, '--now', NOW];
     const a = applyCli([...args, '--result', all]);
-    expect(a.out.join('\n')).toContain('ROW_CHECKED 5 · AI_RESEARCH_BULK 17');
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 6 · AI_RESEARCH_BULK 16');
     expect(a.code).toBe(0);
     expect(JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8'))).toHaveLength(22);
     const v = await validateCli(seed);
