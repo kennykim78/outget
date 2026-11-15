@@ -44,7 +44,7 @@ export const MAGIC_MAIL_SUBJECT = '위드스몰 저장 연결 링크';
 export function magicMailText(link: string): string {
   return [
     '위드스몰에서 준비 상태 저장 연결을 요청했어요.',
-    '아래 링크를 15분 안에 한 번 열면 이 기기와 연결돼요.',
+    '아래 링크를 15분 안에 열고 「이 기기 연결하기」를 누르면 그 기기와 연결돼요. 링크는 한 번만 쓸 수 있어요.',
     '',
     link,
     '',
