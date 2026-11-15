@@ -374,6 +374,17 @@ ul.ws-figure-list {
   font-weight: var(--ws-type-title-weight);
 }
 
+/* ≤767 — 첫 숫자(예: 100×50×50)는 화면 폭에 맞춰 상한, 단위·「이상」은 한 덩어리. 320 등 극소 폭은 flex-wrap 으로 줄바꿈 허용. */
+@media (max-width: 767px) {
+  .ws-figure:first-child .ws-figure-value {
+    font-size: min(calc(var(--ws-type-display-size) * 1.5), 11vw);
+    line-height: min(calc(var(--ws-type-display-lh) * 1.5), 13vw);
+  }
+  .ws-figure-unit {
+    white-space: nowrap;
+  }
+}
+
 /* 함께 살 집 — 시작 카드와 같은 카드(grid3), 머리는 display 제목 + 리드(≥768 리드 오른쪽). */
 .ws-home-a .ws-habitats-sec .ws-home-sec-lead {
   margin-top: var(--ws-space-2);
