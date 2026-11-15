@@ -13,7 +13,7 @@
 #   (Dependabot docker 생태계가 주 1회 갱신 PR — .github/dependabot.yml). 세 단계가 같은 다이제스트여야 한다(deploy-config.test.mjs).
 
 # ── 1) client 빌드 (vite → client/dist) ──────────────────────────────────────
-FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS client-build
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS client-build
 WORKDIR /app
 # 워크스페이스 설치를 위해 루트 + client 매니페스트 복사 후 client 의존성 설치.
 COPY package.json package-lock.json ./
@@ -29,7 +29,7 @@ ENV VITE_NAVER_MAP_CLIENT_ID=${VITE_NAVER_MAP_CLIENT_ID}
 RUN npm run build --workspace client
 
 # ── 2) server 빌드 (prisma generate + tsc → dist) ────────────────────────────
-FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS server-build
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS server-build
 WORKDIR /app
 # Prisma 엔진은 libssl 버전을 감지해 고른다 — alpine 기본 이미지엔 openssl 이 없어 openssl-1.1 엔진으로 잘못 떨어지고
 #   런타임 migrate deploy 가 "Could not parse schema engine response" 로 실패했다(R6 A2 컨테이너 검증에서 재현). generate·runtime 모두 설치.
@@ -61,7 +61,7 @@ RUN NODE_ENV=production node scripts/prerender.mjs \
  && node scripts/compliance-scan.mjs --require-output
 
 # ── 3) runtime (prod 의존성 + dist + prisma + client/dist) ───────────────────
-FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runtime
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS runtime
 # SQLITE_TMPDIR(QA148 MED-1): SQLite 임시 파일(VACUUM 은 살아 있는 데이터 크기만큼)을 /data 볼륨 안에 둔다 — read_only 루트에서는
 #   /var/tmp 가 쓰기 불가라 tmpfs /tmp(64m)로 떨어져 DB 가 약 64MB 를 넘으면 VACUUM 이 "database or disk is full" 로 실패했다.
 #   엔트리포인트가 0700 으로 만든다. /data/backup(정리 대상)·erasures.jsonl 과 겹치지 않는 숨김 폴더.
