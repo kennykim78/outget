@@ -1,5 +1,5 @@
-// 287 S4(Kenny 2026-11-16 결정 4) — 홈 A 병원 행 그룹명은 COPY.homeA.vetGroups(PARROT = 「조류」),
-//   L1(/pick 정적 본문) 그룹 머리는 COPY.groups(「앵무새」) 그대로(F3 — 결정 범위 밖).
+// 287 S4(Kenny 2026-11-16 결정 4 · ORDERS 11/16 O3) — PARROT 그룹명은 COPY.groups 「조류」 단일 출처:
+//   홈 A 병원 행과 L1(/pick 정적 본문) 그룹 머리가 같은 키를 쓴다(병원 전용 키 homeA.vetGroups 는 합쳐 없앰).
 //   합성 시드: promotedTwo() 의 합성 두 번째 타입을 PARROT 그룹으로 옮기고 VERIFIED 병원이 그 타입을 진료하게 한다(메모리 전용, 앵무 사실값 0).
 import { describe, expect, it } from 'vitest';
 import type { SeedBundle } from '../engine/index.js';
@@ -32,7 +32,7 @@ function parrotSeed(): SeedBundle {
   return s;
 }
 
-describe('287 S4 — 병원 행 「조류」 · L1 그룹 머리 「앵무새」', () => {
+describe('287 S4 — 병원 행 「조류」 · L1 그룹 머리도 「조류」', () => {
   const s = parrotSeed();
   const b = build(s);
   const second = b.model.types.find((t) => t.pub.id === SECOND.typeId);
@@ -43,24 +43,25 @@ describe('287 S4 — 병원 행 「조류」 · L1 그룹 머리 「앵무새」
   });
 
   it('홈 A 병원 행 이름 = 「조류 진료 병원」(PARROT), 「소동물 진료 병원」(SMALL_MAMMAL)', () => {
-    expect(COPY.homeA.vetGroups).toEqual({ SMALL_MAMMAL: '소동물', PARROT: '조류' });
+    expect(COPY.groups).toEqual({ SMALL_MAMMAL: '소동물', PARROT: '조류' });
+    expect('vetGroups' in COPY.homeA).toBe(false);
     const sec = sectionHtml(mainOf(b, '/'), 'vet-split');
-    expect(formatCopy(COPY.homeA.vetRow, { name: COPY.homeA.vetGroups.PARROT })).toBe('조류 진료 병원');
+    expect(formatCopy(COPY.homeA.vetRow, { name: COPY.groups.PARROT })).toBe('조류 진료 병원');
     expect(sec).toContain(
       `<li data-ws-group="PARROT"><span class="ws-t-cta ws-vet-row-name">조류 진료 병원</span><span class="ws-t-body ws-muted ws-vet-row-types">${second?.pub.displayName}</span></li>`,
     );
     expect(sec).toContain('<li data-ws-group="SMALL_MAMMAL"><span class="ws-t-cta ws-vet-row-name">소동물 진료 병원</span>');
-    expect(sec).not.toContain(COPY.groups.PARROT);
+    expect(sec).not.toContain('앵무새');
   });
 
-  it('같은 시드의 L1(/pick 정적) PARROT 그룹 머리 = 「앵무새」', () => {
-    expect(COPY.groups.PARROT).toBe('앵무새');
+  it('같은 시드의 L1(/pick 정적) PARROT 그룹 머리 = 「조류」', () => {
+    expect(COPY.groups.PARROT).toBe('조류');
     const html = b.pages.find((x) => x.route.path === '/pick')?.html ?? '';
-    const head = '<section class="ws-picker-group" data-ws-group="PARROT"><h3 class="ws-t-section">앵무새</h3>';
+    const head = '<section class="ws-picker-group" data-ws-group="PARROT"><h3 class="ws-t-section">조류</h3>';
     expect(html.split(head)).toHaveLength(2);
     const at = html.indexOf(head);
     const pickSec = html.slice(at, html.indexOf('</section>', at));
     expect(pickSec).toContain(String(second?.pub.displayName));
-    expect(pickSec).not.toContain('조류');
+    expect(pickSec).not.toContain('앵무새');
   });
 });

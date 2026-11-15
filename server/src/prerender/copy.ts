@@ -91,13 +91,8 @@ export const COPY = deepFreeze({
     habitatsLead: sent('먹고, 쉬고, 움직이는 공간이에요.'),
     vetTitle: sent('진료하는 병원만 보여 드려요'),
     vetSub: sent('우리 친구를 진료하는 곳을 찾아요.'),
-    /** {name} = vetGroups.* 표시명. 행 오른쪽 = 그 그룹 노출 타입 중 노출 병원이 진료하는 것(이름 · 구분). */
+    /** {name} = COPY.groups.* 표시명(287 S4 — 병원 행도 L1 과 같은 그룹명). 행 오른쪽 = 그 그룹 노출 타입 중 노출 병원이 진료하는 것(이름 · 구분). */
     vetRow: '{name} 진료 병원',
-    /**
-     * 287 S4(Kenny 2026-11-16 결정 4) — 병원 행 그룹명 전용. 진료 구분은 「조류」(앵무새 외 조류 진료와 같은 말).
-     *   L1·404·그룹 페이지는 COPY.groups(「앵무새」) 그대로(F3 — 범위 밖). AnimalGroup 누락 = 타입 오류.
-     */
-    vetGroups: { SMALL_MAMMAL: '소동물', PARROT: '조류' } satisfies Record<AnimalGroup, string>,
     popularTitle: '요즘 많이 찾는 준비',
     /** R4 C1 — 클라이언트 전용(프리렌더 미사용). */
     continueLink: '이어서: {animal}',
@@ -566,7 +561,7 @@ export const COPY = deepFreeze({
     body: sent('주소가 바뀌었거나 아직 준비 중인 페이지예요'),
     cta: PICK_QUESTION,
     groupSmall: '소동물',
-    groupParrot: '앵무새',
+    groupParrot: '조류',
     home: '홈으로',
     /** 레인 0(51_architect_persona_fix) — 404에서 병원 페이지로 잇는 링크 라벨. */
     vetLink: '동네 병원 찾기',
@@ -607,8 +602,11 @@ export const COPY = deepFreeze({
       AFFILIATE: '제휴 이미지',
     },
   },
-  /** PRD US-001 그룹, US-008 카테고리 그리드(SupplyCategory 순서). */
-  groups: { SMALL_MAMMAL: '소동물', PARROT: '앵무새' },
+  /**
+   * PRD US-001 그룹, US-008 카테고리 그리드(SupplyCategory 순서).
+   * 287 S4(Kenny 2026-11-16 결정 4 · ORDERS 11/16 O3) — PARROT 그룹명 「조류」 단일 출처(L1·홈 A 병원 행 공용). AnimalGroup 누락 = 타입 오류.
+   */
+  groups: { SMALL_MAMMAL: '소동물', PARROT: '조류' } satisfies Record<AnimalGroup, string>,
   categories: {
     CAGE: '케이지',
     WHEEL: '쳇바퀴',
@@ -660,7 +658,7 @@ export const COPY = deepFreeze({
   group: {
     intro: sent('어떤 친구인지 골라 주세요. 지금 준비를 도와드릴 수 있는 친구만 보여 드려요'),
     /** 그룹 표시명(slug 첫 세그먼트 키) — 56 G3 D1. */
-    names: { hamster: '햄스터', parrot: '앵무새' },
+    names: { hamster: '햄스터', parrot: '조류' },
   },
 });
 

@@ -252,7 +252,7 @@ function homeExplain(data: WsPageData['data']): string[] {
             .map(
               (row) =>
                 `<li data-ws-group="${a(row.group)}"><span class="ws-t-cta ws-vet-row-name">${h(
-                  formatCopy(COPY.homeA.vetRow, { name: COPY.homeA.vetGroups[row.group] }),
+                  formatCopy(COPY.homeA.vetRow, { name: COPY.groups[row.group] }),
                 )}</span><span class="ws-t-body ws-muted ws-vet-row-types">${h(row.types.map((t) => t.displayName).join(' · '))}</span></li>`,
             )
             .join('')}</ul>`
