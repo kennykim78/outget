@@ -2,7 +2,7 @@
   "v": 1,
   "packet": "guinea-pig-core-2026-10",
   "doc": "docs/planning-artifacts/기니피그-핵심행-확인표.md",
-  "note": "확인표 A·D(☑) → ROW_CHECKED(건초 D1·펠릿 D2 행은 reviewerType VET_PUBLISHED_SOURCE), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-27 조사 _workspace/105_research_guineapig.md(인용 원문 그대로). 케이지 최소 106×61×46cm 막힌 바닥 = 1마리 기준(Kenny 2026-10-27 결정, 값별 하한 2도메인 이상 — decisions.md be-gp-s9 수용). 최소 규격 행(케이지·베딩·갉기 거리)은 연결된 A 항목이 전부 ☑일 때만 서명된다. 패킷 밖(DRAFT 유지): Taxon cavia-porcellus(노출 조건 밖, 확인표에 초안 기록만), 저울 req-guineapig-scale(HEALTH, 국내 출처 없음 V08 — 햄스터 2종과 같이 비노출), 기존 용품 설명 supply-items(cage·bedding·food 등 — 드워프 C 일괄에서 서명, 여기 넣으면 미서명 시 DRAFT로 되돌린다). 새 용품 5종(playpen·hay·hay-rack·nail-clipper·brush)은 C 일괄. 상품(B)은 기니피그 상품이 없어 없음.",
+  "note": "확인표 A·D(☑) → ROW_CHECKED(건초 D1·펠릿 D2 행은 reviewerType VET_PUBLISHED_SOURCE), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-27 조사 _workspace/105_research_guineapig.md(인용 원문 그대로). 케이지 최소 106×61×46cm 막힌 바닥 = 1마리 기준(Kenny 2026-10-27 결정, 값별 하한 2도메인 이상 — decisions.md be-gp-s9 수용). 최소 규격 행(케이지·베딩·갉기 거리)은 연결된 A 항목이 전부 ☑일 때만 서명된다. 패킷 밖(DRAFT 유지): Taxon cavia-porcellus(노출 조건 밖, 확인표에 초안 기록만), 저울 req-guineapig-scale(HEALTH, 국내 출처 없음 V08 — 햄스터 2종과 같이 비노출), 기존 용품 설명 supply-items(cage·bedding·food 등 — 드워프 C 일괄에서 서명, 여기 넣으면 미서명 시 DRAFT로 되돌린다). 새 용품 5종(playpen·hay·hay-rack·nail-clipper·brush)은 C 일괄. 상품(B)은 기니피그 상품이 없어 없음. 2026-11-15 K1 하위 결정(원문 발췌가 아닌 whyShort 행은 ROW_CHECKED만, V10): 재서술 whyShort 행마다 확인표 W절 행별 확인 항목 WS-<행 id>를 붙였다 — C 일괄에 있던 행(최소 규격 없음)은 rowChecked로 옮기고, 이미 rowChecked인 최소 규격 행은 A 항목에 WS 항목을 더했다(A와 WS가 모두 ☑일 때만 서명).",
   "reviewerType": "EXPERIENCED_KEEPER",
   "rowChecked": [
     {
@@ -49,6 +49,13 @@
         "D2"
       ],
       "reviewerType": "VET_PUBLISHED_SOURCE"
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-guineapig-playpen",
+      "items": [
+        "WS-req-guineapig-playpen"
+      ]
     }
   ],
   "bulk": {
@@ -81,10 +88,6 @@
       {
         "file": "supply-items.json",
         "id": "brush"
-      },
-      {
-        "file": "supply-requirements.json",
-        "id": "req-guineapig-playpen"
       },
       {
         "file": "supply-requirements.json",

@@ -2,7 +2,7 @@
   "v": 1,
   "packet": "gerbil-mongolian-core-2026-10",
   "doc": "docs/planning-artifacts/저빌-핵심행-확인표.md",
-  "note": "확인표 A(☑) → ROW_CHECKED(법 정보 Taxon meriones-unguiculatus 행은 reviewerType OFFICIAL_SOURCE — LEGAL 최소 등급), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-27 조사 _workspace/104_research_gerbil.md · 125_research_gerbil_legal.md(인용 원문 그대로). 케이지 최소 100×50×50cm 막힌 바닥·철망형 제외 = 2마리 기준(Kenny 2026-10-27, 넓히기는 주의 문장만). 법 안내 한 줄(Taxon legal.note)은 Kenny 2026-10-27 결정 — VERIFIED Taxon 일 때만 공개된다. 최소 규격 행(케이지·베딩·은신처·쳇바퀴·터널)은 연결된 A 항목이 전부 ☑일 때만 서명된다. 쳇바퀴 지름 30cm(A16)는 권장 수치, 베딩 솜류 둥지재(A11)는 피할 것 문장이다 — 둘 다 최소 규칙 아님(curator135 #2·#3, 서로 독립인 출처 2개일 때만 최소). 패킷 밖(DRAFT 유지): 사료 req-gerbil-food(FOOD — 국내 .kr 수의 출처가 없어 서명하면 V08 로 검증 실패, 확인표 D 참고), 기존 용품 설명 supply-items(드워프 C 일괄 소유 — 사료 대상 동물 저빌용 선택지 포함). 새 용품 0. 상품(B)·구성안은 저빌 것이 없어 없음.",
+  "note": "확인표 A(☑) → ROW_CHECKED(법 정보 Taxon meriones-unguiculatus 행은 reviewerType OFFICIAL_SOURCE — LEGAL 최소 등급), C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 근거는 2026-10-27 조사 _workspace/104_research_gerbil.md · 125_research_gerbil_legal.md(인용 원문 그대로). 케이지 최소 100×50×50cm 막힌 바닥·철망형 제외 = 2마리 기준(Kenny 2026-10-27, 넓히기는 주의 문장만). 법 안내 한 줄(Taxon legal.note)은 Kenny 2026-10-27 결정 — VERIFIED Taxon 일 때만 공개된다. 최소 규격 행(케이지·베딩·은신처·쳇바퀴·터널)은 연결된 A 항목이 전부 ☑일 때만 서명된다. 쳇바퀴 지름 30cm(A16)는 권장 수치, 베딩 솜류 둥지재(A11)는 피할 것 문장이다 — 둘 다 최소 규칙 아님(curator135 #2·#3, 서로 독립인 출처 2개일 때만 최소). 패킷 밖(DRAFT 유지): 사료 req-gerbil-food(FOOD — 국내 .kr 수의 출처가 없어 서명하면 V08 로 검증 실패, 확인표 D 참고), 기존 용품 설명 supply-items(드워프 C 일괄 소유 — 사료 대상 동물 저빌용 선택지 포함). 새 용품 0. 상품(B)·구성안은 저빌 것이 없어 없음. 2026-11-15 K1 하위 결정(원문 발췌가 아닌 whyShort 행은 ROW_CHECKED만, V10): 재서술 whyShort 행마다 확인표 W절 행별 확인 항목 WS-<행 id>를 붙였다 — C 일괄에 있던 행(최소 규격 없음)은 rowChecked로 옮기고, 이미 rowChecked인 최소 규격 행은 A 항목에 WS 항목을 더했다(A와 WS가 모두 ☑일 때만 서명).",
   "reviewerType": "EXPERIENCED_KEEPER",
   "rowChecked": [
     {
@@ -24,7 +24,8 @@
         "A6",
         "A7",
         "A8",
-        "A9"
+        "A9",
+        "WS-req-gerbil-cage"
       ]
     },
     {
@@ -33,7 +34,8 @@
       "items": [
         "A10",
         "A11",
-        "A12"
+        "A12",
+        "WS-req-gerbil-bedding"
       ]
     },
     {
@@ -41,7 +43,8 @@
       "id": "req-gerbil-hideout",
       "items": [
         "A13",
-        "A14"
+        "A14",
+        "WS-req-gerbil-hideout"
       ]
     },
     {

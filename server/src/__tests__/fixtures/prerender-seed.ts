@@ -34,17 +34,18 @@ export interface DwarfPacket {
   bulk: { item: string; rows: Array<{ file: string; id: string }> };
 }
 export const DWARF_PACKET_PATH = join(REPO_ROOT, 'scripts', 'review-packets', 'hamster-dwarf-core.json');
-/** 실패킷 파일 그대로(확인표 문서와 1:1 — 구성 시험용). 가짜 전 ☑ 서명에는 dwarfPacketK1() 을 쓴다. */
+/** 실패킷 파일 그대로(확인표 문서와 1:1). 2026-11-15 K1 반영 뒤 dwarfPacketK1() 과 같다(seed.signatures.test 「K1 사본 = 실패킷」). */
 export const dwarfPacket = (): DwarfPacket => JSON.parse(readFileSync(DWARF_PACKET_PATH, 'utf8')) as DwarfPacket;
 
-/** K1 사본의 행별 확인 항목 이름(테스트 전용) — 원문 발췌가 아닌 whyShort 행 1개당 1항목. */
+/** 행별 확인 항목 이름 — 원문 발췌가 아닌 whyShort 행 1개당 1항목. 실패킷·확인표 W 절도 같은 이름(WS-<행 id>)을 쓴다. */
 export const k1ItemOf = (id: string): string => `WS-${id}`;
 
 /**
  * K1 하위 결정(2026-11-15) 반영 패킷 사본(메모리, 테스트 전용 — 실패킷 파일은 바꾸지 않는다).
  *   bulk(C 일괄) 행 중 requiredBasis(signatures.ts — 규칙 그대로)가 ROW_CHECKED 인 행(= 원문 발췌가 아닌 whyShort 행)을
  *   rowChecked 로 옮기고 행별 확인 항목 k1ItemOf(id) 를 붙인다. 일괄 서명으로 재서술 whyShort 를 VERIFIED 로 만들지 않는다(불변식 7).
- *   실시드에 그런 행이 없으면 입력과 같은 패킷. 실패킷·확인표 문서의 갱신은 콘텐츠 단계(PM) 몫.
+ *   실시드에 그런 행이 없으면 입력과 같은 패킷. 실패킷 4종은 2026-11-15 이 규칙대로 갱신됐다(k1Packet(실패킷) = 실패킷 —
+ *   seed.signatures.test 「K1 실패킷 ↔ 확인표 W 절」). 남은 용도: 시드·패킷이 다시 어긋났을 때의 사본 생성.
  */
 export function k1Packet<P extends DwarfPacket>(packet: P, seed: SeedBundle = realSeed()): P {
   const keyOf = new Map<string, SeedKey>(CONTENT_KEYS.map((k) => [SEED_FILES[k], k]));
