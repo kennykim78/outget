@@ -911,6 +911,10 @@ export default function SaveLayer({ close }: LayerContentProps) {
                 {errorText}
               </p>
             ) : null}
+            {/* 287 S2(Kenny 2026-11-16): 이메일 칸 아래 링크 안내 한 줄(시안 l8_email 자리). */}
+            <p className="ws-t-meta ws-save-muted" data-ws-save-note="link">
+              {COPY.save.linkNote}
+            </p>
           </form>
           {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
           {sending ? null : manageLinks('input')}

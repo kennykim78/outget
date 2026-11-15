@@ -775,6 +775,36 @@ describe('P1 MAJOR-1 빈 기기 연결 · 보냄 화면 안내', () => {
     expect(body.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expectNoBanned(d);
   });
+
+  it('287 S2: 입력 화면 — 이메일 칸 아래 linkNote 한 줄(meta), 1회', async () => {
+    mount();
+    const d = await openFromHome();
+    const notes = d.querySelectorAll('[data-ws-save-note="link"]');
+    expect(notes).toHaveLength(1);
+    const note = notes[0] as HTMLElement;
+    expect(note).toHaveTextContent(COPY.save.linkNote);
+    expect(note).toHaveClass('ws-t-meta');
+    expect(d.textContent?.split(COPY.save.linkNote).length).toBe(2);
+    const input = screen.getByLabelText(COPY.save.emailLabel);
+    expect(input.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 폼 안(요약보다 앞) — 시안 l8_email 자리.
+    expect(note.closest('form')).not.toBeNull();
+    const summary = d.querySelector('[data-ws-save="summary"]');
+    if (summary) expect(note.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expectNoBanned(d);
+  });
+
+  it('287 S2: 보냄 화면 sentBody 는 실제 버튼 문구 connectCta 를 글자 그대로 담고 「저장이 끝나요」 없음', async () => {
+    expect(COPY.save.sentBody).toContain(`「${COPY.save.connectCta}」`);
+    expect(COPY.save.sentBody).not.toContain('저장이 끝나요');
+    mount();
+    await openFromHome();
+    fireEvent.change(screen.getByLabelText(COPY.save.emailLabel), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: COPY.save.submit }));
+    const d = await screen.findByRole('dialog', { name: COPY.save.sentTitle });
+    expect(d).toHaveTextContent(COPY.save.sentBody);
+    expect(d.querySelector('[data-ws-save-note="link"]')).toBeNull();
+  });
 });
 
 describe('P1 MAJOR-2 요약 개수 = 홈 B(케이지 △ 반영)', () => {
