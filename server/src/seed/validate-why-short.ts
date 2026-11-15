@@ -46,16 +46,25 @@ const squash = (s: string): string => s.normalize('NFKC').replace(/\s+/g, '');
 
 /** 숫자 묶음의 구성 숫자("60 × 40" → ['60','40']). */
 const partsOf = (group: string): string[] => group.split(/[^\d.]+/).filter((x) => x !== '');
+/** 범위 구분자(물결·하이픈·en dash) — NUMBER_GROUP_RE 의 묶음 구분자 중 곱(× x X)을 뺀 것. */
+const RANGE_SEP_RE = /[~\-–]/;
 
 /**
  * W02 — 원문(같은 행 텍스트들)에 없는 숫자·단위·단위 없는 숫자 목록(없으면 []).
  *   비교는 토큰 단위(부분 문자열 아님 — "2.5배" 원문이 "5배" 를 허용하지 않는다): 원문 숫자 묶음+단위와 같거나,
- *   단일 숫자면 같은 단위의 원문 묶음 구성 숫자 중 하나("60×40cm" 원문 → "60cm" 허용).
+ *   단일 숫자면 같은 단위의 원문 곱 묶음 구성 숫자 중 하나("60×40cm" 원문 → "60cm" 허용). 범위 묶음("18~26℃")은 전체 일치만.
  */
 export function whyShortNumberProblems(v: string, sourceTexts: ReadonlyArray<string | null | undefined>): string[] {
   const src = numberTokens(sourceTexts.filter((t): t is string => typeof t === 'string').join('\n'))
     .filter((t) => t.unit !== null)
-    .map((t) => ({ whole: squash(`${t.group}${t.unit}`), unit: t.unit as string, parts: partsOf(t.group) }));
+    .map((t) => ({
+      whole: squash(`${t.group}${t.unit}`),
+      unit: t.unit as string,
+      parts: partsOf(t.group),
+      // 결정 6(Kenny 2026-11-16): 범위 묶음(~ - – , numberTokens 가 NFKC 라 전각 물결 ～ 도 ~)은 단일 숫자 부분 일치 금지 —
+      //   「18~26℃」 원문으로 「18℃ 이상」을 만들면 사실 축약(불변식 7). 곱(× x X) 묶음 부분 일치(「60×40cm」→「60cm」)는 유지.
+      isRange: RANGE_SEP_RE.test(t.group),
+    }));
   // 정규화 전 원문의 호환 숫자(전각 ６０·𝟔𝟎·①·٩ 등) — 값이 원문과 같아도 표기 자체가 W02(lint.compatDigits, L07 과 같은 판정).
   //   disguisedNumbers 의 비ASCII 숫자 묶음은 compatDigits 에 포함되므로 중복 보고하지 않고, 한글 수사+단위만 남긴다.
   const out: string[] = [
@@ -71,7 +80,9 @@ export function whyShortNumberProblems(v: string, sourceTexts: ReadonlyArray<str
     }
     const whole = squash(`${t.group}${t.unit}`);
     const parts = partsOf(t.group);
-    const ok = src.some((s) => s.whole === whole || (parts.length === 1 && s.unit === t.unit && s.parts.includes(parts[0])));
+    const ok = src.some(
+      (s) => s.whole === whole || (parts.length === 1 && !s.isRange && s.unit === t.unit && s.parts.includes(parts[0])),
+    );
     if (!ok) out.push(`원문에 없는 숫자·단위 "${t.group}${t.unit}"`);
   }
   return out;

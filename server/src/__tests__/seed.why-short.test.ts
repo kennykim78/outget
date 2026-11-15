@@ -189,6 +189,33 @@ describe('W02 — 같은 행 원문에 없는 숫자·단위', () => {
     expect(whyShortNumberProblems('가로 60cm 이상이에요.', ['가로·세로 60×40cm 이상'])).toEqual([]);
     expect(whyShortNumberProblems('가로 60mm 이상이에요.', ['가로·세로 60×40cm 이상'])).toHaveLength(1);
   });
+  it('Kenny 2026-11-16 결정 6: 범위 묶음(~ - – ～)은 단일 숫자 부분 일치 금지 — 범위 전체 일치만, 곱 묶음은 부분 일치 유지', () => {
+    const SRC_T = ['온도는 18~26℃로 맞춰요.'];
+    // (메시지 단위는 NFKC 뒤 값이라 ℃ → °C)
+    expect(whyShortNumberProblems('온도는 18℃ 이상이에요.', SRC_T)).toEqual(['원문에 없는 숫자·단위 "18°C"']);
+    expect(whyShortNumberProblems('온도는 26℃까지예요.', SRC_T)).toHaveLength(1);
+    expect(whyShortNumberProblems('온도는 18~26℃로 맞춰요.', SRC_T)).toEqual([]);
+    expect(whyShortNumberProblems('온도는 18 ~ 26℃로 맞춰요.', SRC_T)).toEqual([]);
+    expect(whyShortNumberProblems('베딩은 15cm 이상이에요.', ['베딩은 15-20cm 깔아요.'])).toHaveLength(1);
+    expect(whyShortNumberProblems('베딩은 20cm 깔아요.', ['베딩은 15–20cm 깔아요.'])).toHaveLength(1);
+    expect(whyShortNumberProblems('베딩은 15-20cm 깔아요.', ['베딩은 15-20cm 깔아요.'])).toEqual([]);
+    // 전각 물결은 NFKC 로 ~ — 원문 쪽 범위도 부분 일치 금지.
+    expect(whyShortNumberProblems('온도는 18℃ 이상이에요.', [`온도는 18${String.fromCodePoint(0xff5e)}26℃로 맞춰요.`])).toHaveLength(1);
+    // 같은 숫자가 원문에 단독으로도 있으면 그 토큰으로 통과(범위 규칙은 범위 묶음에서만 부분 일치를 끈다).
+    expect(whyShortNumberProblems('온도는 18℃ 이상이에요.', ['18~26℃, 겨울엔 18℃ 이상'])).toEqual([]);
+    // 곱 묶음 부분 일치 유지.
+    expect(whyShortNumberProblems('가로 40cm 이상이에요.', ['가로·세로 60×40cm 이상'])).toEqual([]);
+    expect(whyShortNumberProblems('가로 60cm 이상이에요.', ['가로·세로 60x40cm 이상'])).toEqual([]);
+  });
+  it('결정 6 실시드: 숫자 whyShort 3행(req-dwarf-cage 20cm · req-dwarf-hideout 3곳 · req-gerbil-thermo 20~24℃) W02 0', () => {
+    const res = run(fresh());
+    for (const id of ['req-dwarf-cage', 'req-dwarf-hideout', 'req-gerbil-thermo']) {
+      const r = row(BASE, 'supplyRequirements', id);
+      expect(/\d/.test(r.whyShort as string), id).toBe(true);
+      expect(whyShortNumberProblems(r.whyShort as string, [r.why as string, r.caution as string | null, r.notNowReason as string | null]), id).toEqual([]);
+      expect(of(res, 'W02').filter((i) => i.id === id), id).toEqual([]);
+    }
+  });
 });
 
 describe('W02 · L03 — 비ASCII 숫자·한글 수사 우회(NFKC 뒤 판정)', () => {
