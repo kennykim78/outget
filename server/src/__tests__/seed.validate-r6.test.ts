@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
+import { unsignRaw } from './fixtures/prerender-seed.js';
 import { validateSeed } from '../seed/validate.js';
 import { PROTO_KEYS, reservedIdProblem } from '../seed/validate-structure.js';
 import { FORBIDDEN_KEY_LIST } from '../shared/forbidden-keys.js';
@@ -11,8 +12,12 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03';
-const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const DISK_READ = readSeedDirRaw(SEED_DIR);
+const DISK: RawSeed = DISK_READ.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리 — 주입 시험 의미 보존). */
+const BASE: RawSeed = unsignRaw(DISK);
 
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
 
@@ -46,10 +51,10 @@ describe('S10 reservedIdProblem', () => {
 });
 
 describe('S10 seed:validate', () => {
-  it('실제 시드: S10 0, errors 0', () => {
-    const res = validateSeed(BASE, { now: NOW });
+  it('실제 시드(디스크, 서명 후): S10 0, errors 0', () => {
+    const res = validateSeed(DISK, { now: NOW, signatures: DISK_READ.signatures });
     expect(res.errors).toEqual([]);
-    expect(s10(BASE)).toEqual([]);
+    expect(s10(DISK)).toEqual([]);
   });
 
   const cases: Array<{ name: string; inject: (s: Required<RawSeed>) => void; file: string; path: string }> = [
@@ -104,7 +109,7 @@ describe('M6 R01b — ACTIVE AnimalType.taxonId ∈ CareProfile.taxonIds (K-1 �
   };
 
   it('실제 시드: R01b 0', () => {
-    expect(issuesOf(BASE, 'R01b')).toEqual({ errors: [], warnings: [], allErrors: [] });
+    expect(issuesOf(DISK, 'R01b')).toEqual({ errors: [], warnings: [], allErrors: [] });
   });
 
   it('FAIL: 대표 종이 프로필 taxonIds 밖 → ERROR', () => {
@@ -137,7 +142,7 @@ describe('M6 R07b — careProfileId 없는 호환 규칙(동물명 문구 ERROR 
   const rules = (s: RawSeed, id: string) => row(s, 'compatibilityRules', id).rules as Array<Record<string, unknown>>;
 
   it('실제 시드(M5 후): R07b 0', () => {
-    expect(issuesOf(BASE, 'R07b')).toEqual({ errors: [], warnings: [], allErrors: [] });
+    expect(issuesOf(DISK, 'R07b')).toEqual({ errors: [], warnings: [], allErrors: [] });
   });
 
   // BE92: 범위 없는 규칙(cr-wheel-cage·cr-water-cage)·cr-tubes-cage 삭제(85 근거 없음) → 실시드에 범위 없는 규칙이 없다.
@@ -206,7 +211,7 @@ describe('M6 P03b — 다프로필 상품의 프로필별 판정 불일치 WARN'
   };
 
   it('실제 시드: P03b 0', () => {
-    expect(issuesOf(BASE, 'P03b')).toEqual({ errors: [], warnings: [], allErrors: [] });
+    expect(issuesOf(DISK, 'P03b')).toEqual({ errors: [], warnings: [], allErrors: [] });
   });
 
   it('WARN: 골든 충족·B 미달(AND=false, P01 일치) → P03b 1, 오류 0', () => {

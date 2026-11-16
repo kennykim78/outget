@@ -30,9 +30,10 @@ const ITEMS_SEED_ORDER = ['cage', 'wheel', 'saucer', 'bedding', 'water', 'food-b
 const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '010', '011', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
 
 describe('디스크 시드 — 드워프 PLANNED 라 실노출 0', () => {
-  it('projectSite(실시드) 타입 0', () => {
-    expect(realSeed().animalTypes.find((t) => t.id === D)?.status).toBe('PLANNED');
-    expect(projectSite(realSeed(), DWARF_PREVIEW_AS_OF).types).toEqual([]);
+  it('projectSite(실시드, 2026-11-16 서명 후) 타입 = 골든 1 — 드워프는 서명(VERIFIED)돼도 PLANNED 라 0', () => {
+    const at = realSeed().animalTypes.find((t) => t.id === D);
+    expect([at?.status, at?.reviewStatus]).toEqual(['PLANNED', 'VERIFIED']);
+    expect(projectSite(realSeed(), DWARF_PREVIEW_AS_OF).types.map((t) => t.id)).toEqual(['hamster-golden']);
   });
 });
 

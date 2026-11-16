@@ -138,14 +138,22 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
   });
 });
 
-describe('실시드(2026-11-16 확인표 5종 서명 — review 단계, PR-A) — NEEDS_REVIEW 107·VERIFIED 0·매니페스트 []·errors 0', () => {
+describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매니페스트 107·errors 0', () => {
   /** 4 실패킷 + 실서명 결과 파일(scripts/review-packets/*.result.signed.json). */
   const signedResult = (n: (typeof REAL_PACKETS)[number]): string => join(ROOT, 'scripts', 'review-packets', `${n}.result.signed.json`);
   const bytesOf = (dir: string): Record<string, string> =>
     Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
 
-  it('server/seed 와 seed-draft 의 review-signatures.json = [] (바이트 동일 — review 단계는 매니페스트를 만들지 않는다)', () => {
-    for (const d of [SEED_DIR, DRAFT_DIR]) expect(readFileSync(join(d, SIGNATURE_FILE), 'utf8')).toBe('[]');
+  it('server/seed 와 seed-draft 의 review-signatures.json 바이트 동일 · 107항목 = 4 패킷 대상(kenny·2026-11-16·패킷 basis)', () => {
+    const t = readFileSync(join(SEED_DIR, SIGNATURE_FILE), 'utf8');
+    expect(readFileSync(join(DRAFT_DIR, SIGNATURE_FILE), 'utf8')).toBe(t);
+    const m = JSON.parse(t) as SignatureEntry[];
+    const targets = realSignedTargets();
+    expect(m).toHaveLength(107);
+    expect(m.map((e) => `${e.file}#${e.id}`).sort()).toEqual([...targets.keys()].sort());
+    for (const e of m) expect([e.id, e.signedBy, e.signedAt, e.basis]).toEqual([e.id, 'kenny', REAL_SIGNED_AT, targets.get(`${e.file}#${e.id}`)?.basis]);
+    expect(m.filter((e) => e.basis === 'ROW_CHECKED')).toHaveLength(42);
+    expect(m.filter((e) => e.basis === 'AI_RESEARCH_BULK')).toHaveLength(65);
   });
   it('seed:validate CLI(매니페스트 포함) errors 0 — server/seed·seed-draft', async () => {
     for (const d of [SEED_DIR, DRAFT_DIR]) {
@@ -154,9 +162,57 @@ describe('실시드(2026-11-16 확인표 5종 서명 — review 단계, PR-A) �
       expect(r.code).toBe(0);
     }
   });
-  it('모든 콘텐츠 행에 reviewBasis 키(null)', () => {
+  it('검수 표기: VERIFIED 107(AI_DRAFT 0) — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1(저빌 Taxon), 나머지 42행 DRAFT·AI_DRAFT·reviewBasis null', () => {
     const { raw } = readSeedDirRaw(SEED_DIR);
-    for (const k of CONTENT_KEYS) for (const r of raw[k] as Row[]) expect([r.id, Object.prototype.hasOwnProperty.call(r, 'reviewBasis'), r.reviewBasis]).toEqual([r.id, true, null]);
+    const rows = CONTENT_KEYS.flatMap((k) => (raw[k] as Row[]).map((r) => ({ k, r })));
+    for (const { r } of rows) expect([r.id, Object.prototype.hasOwnProperty.call(r, 'reviewBasis')]).toEqual([r.id, true]);
+    const v = rows.filter(({ r }) => r.reviewStatus === 'VERIFIED').map(({ r }) => r);
+    expect(v).toHaveLength(107);
+    expect(v.filter((r) => r.reviewerType === 'AI_DRAFT')).toEqual([]);
+    const byType: Record<string, number> = {};
+    for (const r of v) byType[String(r.reviewerType)] = (byType[String(r.reviewerType)] ?? 0) + 1;
+    expect(byType).toEqual({ EXPERIENCED_KEEPER: 102, VET_PUBLISHED_SOURCE: 4, OFFICIAL_SOURCE: 1 });
+    expect(v.filter((r) => r.reviewerType === 'VET_PUBLISHED_SOURCE').map((r) => [r.id, r.contentKind]).sort()).toEqual([
+      ['req-dwarf-food', 'FOOD'], ['req-guineapig-food', 'FOOD'], ['req-guineapig-hay', 'FOOD'], ['req-syrian-food', 'FOOD'],
+    ]);
+    // FOOD/HEALTH VERIFIED 는 출처 2개 이상(불변식 7) — 패킷 밖 저울(HEALTH)·저빌 사료는 DRAFT.
+    for (const r of v.filter((x) => x.contentKind === 'FOOD' || x.contentKind === 'HEALTH')) expect([r.id, (r.source as unknown[]).length >= 2]).toEqual([r.id, true]);
+    const rest = rows.filter(({ r }) => r.reviewStatus !== 'VERIFIED').map(({ r }) => r);
+    expect(rest).toHaveLength(149 - 107);
+    for (const r of rest) expect([r.id, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
+    for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale', 'req-gerbil-food']) expect(rest.map((r) => r.id)).toContain(id);
+  });
+  it('재현: 서명 전 기준 사본 + 실서명 결과 4개(--stage review 4회 → --stage final 4회) = 디스크 바이트 동일, review 단계는 NEEDS_REVIEW 107·매니페스트 []·validate 0', async () => {
+    const seed = unsignedCopy(SEED_DIR);
+    const draft = unsignedCopy(DRAFT_DIR);
+    const apply = (stage: 'review' | 'final'): void => {
+      for (const n of REAL_PACKETS) {
+        const r = applyCli(['--packet', realPacketPath(n), '--result', signedResult(n), '--seed', seed, '--draft', draft, '--stage', stage, '--now', REAL_SIGNED_AT]);
+        expect([n, stage, r.code]).toEqual([n, stage, 0]);
+      }
+    };
+    apply('review');
+    expect(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')).toBe('[]');
+    const { raw: rv } = readSeedDirRaw(seed);
+    const rvRows = CONTENT_KEYS.flatMap((k) => rv[k] as Row[]);
+    expect(rvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW')).toHaveLength(107);
+    expect(rvRows.filter((r) => r.reviewStatus === 'VERIFIED')).toEqual([]);
+    expect(rvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
+    const vr = await validateCli(seed);
+    expect(vr.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
+    expect(vr.code).toBe(0);
+    expect(bytesOf(draft)).toEqual(bytesOf(seed));
+    apply('final');
+    expect(bytesOf(seed)).toEqual(bytesOf(SEED_DIR));
+    expect(bytesOf(draft)).toEqual(bytesOf(DRAFT_DIR));
+  });
+  it('실서명 결과 파일 형식: signedBy kenny · checkedAt/bulkSignedAt 2026-11-16 · checked = 패킷 rowChecked 항목 합집합(중복 없음)', () => {
+    for (const n of REAL_PACKETS) {
+      const r = JSON.parse(readFileSync(signedResult(n), 'utf8')) as Record<string, unknown>;
+      const p = realPacket(n);
+      expect([n, r.format, r.packet, r.signedBy, r.checkedAt, r.bulkSignedAt]).toEqual([n, applyMjs.RESULT_FORMAT, p.packet, 'kenny', REAL_SIGNED_AT, REAL_SIGNED_AT]);
+      expect([n, r.checked]).toEqual([n, [...new Set(p.rowChecked.flatMap((x) => x.items))]]);
+    }
   });
   it('검수 표기: NEEDS_REVIEW 107 = 4 패킷 대상 정확히(reviewerType = 패킷/행 값, AI_DRAFT 0 — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1), VERIFIED 0, 나머지 42행 DRAFT·AI_DRAFT, 전 행 verifiedBy/At·reviewBasis null', () => {
     const { raw } = readSeedDirRaw(SEED_DIR);

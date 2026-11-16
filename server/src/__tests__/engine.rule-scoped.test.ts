@@ -20,7 +20,7 @@ import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { readSeedDirRaw } from '../seed/read.js';
 import { validateSeed } from '../seed/validate.js';
 import type { Rec } from '../seed/common.js';
-import { DWARF_PREVIEW_AS_OF, SEED_DIR, dwarfPreview, realSeed } from './fixtures/prerender-seed.js';
+import { DWARF_PREVIEW_AS_OF, SEED_DIR, dwarfPreview, realSeed, unsignRaw } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = readFileSync(join(here, '..', '..', '..', 'client', 'index.html'), 'utf8');
@@ -227,8 +227,11 @@ describe("isFieldOptionalForDisplay(field, minSpec) — '· 선택' 표시", () 
 });
 
 describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
-  const NOW = '2026-11-03';
-  const fresh = () => structuredClone(readSeedDirRaw(SEED_DIR).raw);
+  const NOW = '2026-11-16'; // 실서명일 이상(옛 값 2026-11-03)
+  /** 메커니즘 주입 바탕 = 서명 전 기준(메모리). */
+  const fresh = () => unsignRaw(readSeedDirRaw(SEED_DIR).raw);
+  /** 디스크 그대로(2026-11-16 서명 후). */
+  const disk = () => structuredClone(readSeedDirRaw(SEED_DIR));
   const find = (arr: unknown[] | undefined, id: string): Rec => {
     const r = (arr ?? []).find((x) => (x as Rec).id === id);
     if (!r) throw new Error(`fixture: ${id} 없음`);
@@ -244,8 +247,10 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     validateSeed(raw, { now: NOW }).warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`);
 
   it('실시드: S9 요구사항 착지 후 playpen.floorType + 271 bird-food.forSize(앵무 요구사항 행 0) 2필드만 WARN(ERROR 아님)', () => {
-    const res = validateSeed(fresh(), { now: NOW });
+    const d = disk();
+    const res = validateSeed(d.raw, { now: NOW, signatures: d.signatures });
     expect(res.errors).toEqual([]);
+    expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`)).toEqual(['playpen.specSchema.floorType', 'bird-food.specSchema.forSize']);
     expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType', 'bird-food.specSchema.forSize']);
   });
   it('기니피그·저빌 요구사항을 빼면 9필드 전부 WARN(S9 가 6필드 경고를 해소한 출처, 154 food.coversThisAnimal +1, 271 bird-food.forSize +1)', () => {

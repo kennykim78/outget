@@ -7,7 +7,7 @@ import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runPrerenderCli, SHELL_FILE, type PrerenderIo } from '../prerender/cli.js';
 import { seedDigest } from '../prerender/digest.js';
-import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, patch, promoted, SEED_DIR, writeSeedDir } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, patch, promoted, SEED_DIR, writeSeedDir, writeUnsignedSeedDir } from './fixtures/prerender-seed.js';
 
 const ROOT = join(SEED_DIR, '..', '..');
 const TEMPLATE = readFileSync(join(ROOT, 'client', 'index.html'), 'utf8');
@@ -75,12 +75,19 @@ describe('seedDigest — lane E 구현과 동일', () => {
 });
 
 describe('prerender CLI', () => {
-  it('실시드: 요약 한 줄, 파일 생성, 2회 실행 트리 동일, 셸 보존', async () => {
+  it('실시드(2026-11-16 서명 후): 요약 한 줄(골든 1타입), 파일 생성, 2회 실행 트리 동일, 셸 보존 · 서명 전 기준은 types 0', async () => {
+    const pre = outDir();
+    const pr = await run(['--out', pre, '--public-dir', tmp('pub'), '--seed-dir', writeUnsignedSeedDir(tmp('seed-unsigned'))]);
+    expect([pr.code, pr.out]).toEqual([0, ['prerender — pages 7 (+404), indexable 2, types 0']]);
+    expect(existsSync(join(pre, 'hamster'))).toBe(false);
     const out = outDir();
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 7 (+404), indexable 2, types 0']);
+    expect(r1.out).toEqual(['prerender — pages 61 (+404), indexable 44, types 1']);
+    // 노출은 ACTIVE 골든뿐 — PLANNED 드워프·저빌·기니피그(서명됐어도) 경로 0.
+    for (const f of ['hamster/index.html', 'hamster/golden/index.html', 'hamster/golden/supplies/cage/index.html', 'hamster/golden/check/wheel/index.html']) expect(existsSync(join(out, f)), f).toBe(true);
+    for (const f of ['hamster/dwarf', 'gerbil', 'guinea-pig', 'parrot']) expect(existsSync(join(out, f)), f).toBe(false);
     for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', 'credits/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
       expect(existsSync(join(out, f)), f).toBe(true);
     }
@@ -123,7 +130,7 @@ describe('prerender CLI', () => {
     expect(readFileSync(join(off, 'vet', 'index.html'), 'utf8')).not.toContain('ws-vet-map');
   });
 
-  it('승격 시드 → types 1, 이어서 실시드로 재실행하면 이전 타입 페이지가 남지 않는다', async () => {
+  it('승격 시드 → types 1, 이어서 노출 0 시드(서명 전 기준)로 재실행하면 이전 타입 페이지가 남지 않는다', async () => {
     const out = outDir();
     const seedDir = tmp('seed');
     writeSeedDir(seedDir, promoted({ publishable: true }));
@@ -132,9 +139,12 @@ describe('prerender CLI', () => {
     expect(r.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
     expect(existsSync(join(out, 'hamster', 'golden', 'supplies', 'cage', 'index.html'))).toBe(true);
     expect(existsSync(join(out, 'vet', '서울-마포구', 'index.html'))).toBe(true);
-    const r2 = await run(['--out', out]);
+    // 이어서 노출 0 시드(서명 전 기준 디렉터리)로 재실행 — 이전 타입 페이지가 남지 않는다(디스크 실시드는 2026-11-16 서명 뒤 골든을 노출하므로 빈 상태 기준으로 본다).
+    const r2 = await run(['--out', out, '--seed-dir', writeUnsignedSeedDir(tmp('seed-unsigned'))]);
     expect(r2.code).toBe(0);
+    expect(r2.out).toEqual(['prerender — pages 7 (+404), indexable 2, types 0']);
     expect(existsSync(join(out, 'hamster', 'golden', 'index.html'))).toBe(false);
+    expect(existsSync(join(out, 'vet', '서울-마포구', 'index.html'))).toBe(false);
     expect(existsSync(join(out, 'credits', 'index.html'))).toBe(true); // R4 D6: 항상(빈 상태)
     expect(readFileSync(join(out, 'credits', 'index.html'), 'utf8')).not.toContain('Fixture Author');
     expect(readdirSync(join(out, 'data'))).toHaveLength(1);

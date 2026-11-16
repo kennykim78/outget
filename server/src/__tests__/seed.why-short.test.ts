@@ -2,8 +2,8 @@
 //   W02(원문에 없는 숫자·단위) · W03(첫 문장 중복 WARN) · W04(FOOD/HEALTH 첫 라운드 제외, K3) · L01(금지어) · V01(AI_DRAFT) · G05(서명 뒤 수정).
 //   실시드는 디스크 그대로 읽고, 가짜 whyShort 는 메모리 사본에만 주입한다(실시드 파일 불변).
 //   실시드 whyShort 17건 = Kenny 2026-11-15 채택분 14(ORDERS §14:0x 결정 2) + req-dwarf-hideout(총괄 14:1x 「곳」 셈 단위 판정 뒤 입력)
-//   + req-dwarf-saucer(NOT_NOW, 재서술)·req-gerbil-thermo(원문 발췌)(Kenny 결정 뒤 PM 입력). 2026-11-16 확인표 5종 서명의 review 단계라
-//   17행 전부 NEEDS_REVIEW(패킷 대상, VERIFIED 아님) — 공개 0.
+//   + req-dwarf-saucer(NOT_NOW, 재서술)·req-gerbil-thermo(원문 발췌)(Kenny 결정 뒤 PM 입력). 2026-11-16 확인표 5종 서명으로 17행 전부 VERIFIED —
+//   노출은 ACTIVE 타입(골든)의 2행뿐(드워프·저빌·기니피그는 PLANNED). 주입 시험의 바탕은 서명 전 기준(unsignRaw, 메모리).
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,13 +15,18 @@ import { disguisedNumbers, numbersWithoutUnit, sentenceCount, strictSentenceCoun
 import { graphemeLength, whyShortFormProblem, whyShortNumberProblems } from '../seed/validate-why-short.js';
 import { buildSite } from '../prerender/site.js';
 import { REAL_AS_OF, baseOptions } from './fixtures/affiliate/baseline.js';
-import { DWARF_PREVIEW_AS_OF, dwarfSignedWith, realSeed, realSignedTargets } from './fixtures/prerender-seed.js';
+import { DWARF_PREVIEW_AS_OF, REAL_SIGNED_AT, dwarfSignedWith, realSeed, realSignedTargets, unsignRaw, unsignedRealSeed } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const NOW = '2026-11-03';
-const BASE = readSeedDirRaw(join(here, '..', '..', 'seed')).raw;
-const DRAFT_BASE = readSeedDirRaw(join(here, '..', '..', '..', 'docs', 'planning-artifacts', 'seed-draft')).raw;
-const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
+const NOW = '2026-11-16'; // 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지
+const DISK_READ = readSeedDirRaw(join(here, '..', '..', 'seed'));
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const BASE = DISK_READ.raw;
+const DRAFT_READ = readSeedDirRaw(join(here, '..', '..', '..', 'docs', 'planning-artifacts', 'seed-draft'));
+const DRAFT_BASE = DRAFT_READ.raw;
+/** 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리) — 주입 시험 의미 보존. */
+const INJECT_BASE = unsignRaw(BASE);
+const fresh = (): Required<RawSeed> => structuredClone(INJECT_BASE) as Required<RawSeed>;
 const row = (s: RawSeed, key: SeedKey, id: string): Rec => {
   const r = (s[key] ?? []).find((x) => (x as Rec).id === id);
   if (!r) throw new Error(`fixture: ${key}#${id} 없음`);
@@ -60,31 +65,51 @@ const ADOPTED = [
   'req-gerbil-thermo',
 ];
 
-describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 판정 뒤 hideout + saucer·gerbil-thermo), 새 규칙 오탐 0, 공개 0(review 단계 NEEDS_REVIEW)', () => {
+describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 판정 뒤 hideout + saucer·gerbil-thermo), 새 규칙 오탐 0, 2026-11-16 서명 후 공개는 골든 2행만', () => {
   it('server/seed · seed-draft: whyShort 17건(같은 값), W01~W04 0, errors 0', () => {
     const shorts = (raw: RawSeed): Array<[unknown, unknown]> =>
       (raw.supplyRequirements as Rec[]).filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => [r.id, r.whyShort]);
     expect(shorts(BASE).map(([id]) => id)).toEqual(ADOPTED);
     expect(shorts(DRAFT_BASE)).toEqual(shorts(BASE));
-    for (const raw of [BASE, DRAFT_BASE]) {
+    for (const [raw, signatures] of [[BASE, DISK_READ.signatures], [DRAFT_BASE, DRAFT_READ.signatures]] as const) {
       for (const a of raw.animalTypes as Rec[]) expect(JSON.stringify(a.careOverrides ?? null).includes('whyShort'), String(a.id)).toBe(false);
-      const res = validateSeed(structuredClone(raw), { now: NOW });
+      const res = validateSeed(structuredClone(raw), { now: NOW, signatures });
       expect(res.errors).toEqual([]);
       for (const rule of W_RULES) expect([...of(res, rule), ...of(res, rule, 'warnings')]).toEqual([]);
     }
   });
-  it('17행 전부 NEEDS_REVIEW(4 패킷 대상, 패킷/행 reviewerType, 검수자·날짜·basis null — VERIFIED 0) — 공개 산출물(프리렌더 전 파일)에 whyShort 키·값 0', () => {
+  it('17행 전부 2026-11-16 서명(VERIFIED·kenny·패킷 basis, 재서술은 ROW_CHECKED) — 공개 산출물엔 노출 타입(골든) 2행 값만, PLANNED 종(드워프·저빌·기니피그) 행 값 0(원문 발췌가 공개 용품 설명과 같은 2행 제외)', () => {
     const targets = realSignedTargets();
     for (const id of ADOPTED) {
       const t = targets.get(`supply-requirements.json#${id}`);
       expect([id, t !== undefined]).toEqual([id, true]);
-      expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'NEEDS_REVIEW', reviewerType: t?.reviewerType, verifiedBy: null, verifiedAt: null, reviewBasis: null });
+      expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: t?.reviewerType, verifiedBy: 'kenny', verifiedAt: REAL_SIGNED_AT, reviewBasis: t?.basis });
     }
     const b = buildSite(realSeed(), baseOptions(REAL_AS_OF));
-    const values = ADOPTED.map((id) => row(BASE, 'supplyRequirements', id).whyShort as string);
-    for (const [f, c] of b.files) {
+    const golden = ['req-syrian-wheel', 'req-syrian-food-bowl'];
+    const all = [...b.files.values()].join('\n');
+    for (const id of golden) expect([id, all.includes(row(BASE, 'supplyRequirements', id).whyShort as string)]).toEqual([id, true]);
+    // 공개 카탈로그: whyShort 를 가진 요구사항 = 노출 타입(골든) 2행뿐.
+    const catReqs = b.catalog.supplyRequirements as unknown as Rec[];
+    expect(catReqs.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id).sort()).toEqual([...golden].sort());
+    expect(catReqs.every((r) => String(r.careProfileId) === 'cp-hamster-syrian')).toBe(true);
+    // 나머지 15행 값: 원문 발췌라 같은 문장이 동물 무관 SupplyItem 설명(골든 노출로 공개)에 들어 있는 행만 산출물에 문자열로 보인다 —
+    //   그 행은 출처가 정확히 공개된 용품 설명임을 단언하고, 그 밖의 행 값은 어떤 산출물에도 없어야 한다.
+    const itemDescs = (b.catalog.supplyItems as unknown as Rec[]).map((i) => String(i.description ?? ''));
+    const hidden = ADOPTED.filter((id) => !golden.includes(id));
+    expect(hidden).toHaveLength(15);
+    const viaItem = hidden.filter((id) => itemDescs.some((d) => d.includes(row(BASE, 'supplyRequirements', id).whyShort as string)));
+    expect(viaItem).toEqual(['req-dwarf-carrier', 'req-dwarf-thermo']);
+    for (const id of viaItem) expect([id, row(BASE, 'supplyRequirements', id).reviewBasis]).toEqual([id, 'AI_RESEARCH_BULK']); // 원문 발췌(일괄 허용)
+    for (const id of hidden.filter((x) => !viaItem.includes(x))) {
+      const v = row(BASE, 'supplyRequirements', id).whyShort as string;
+      for (const [f, c] of b.files) expect(c.includes(v), `${f} ⊃ ${id} ${v}`).toBe(false);
+    }
+    // 서명 전 기준(메모리)은 공개 0 그대로: 키·값 모두 산출물에 없다.
+    const pre = buildSite(unsignedRealSeed(), baseOptions(REAL_AS_OF));
+    for (const [f, c] of pre.files) {
       expect(c.includes('whyShort'), f).toBe(false);
-      for (const v of values) expect(c.includes(v), `${f} ⊃ ${v}`).toBe(false);
+      for (const id of ADOPTED) expect(c.includes(row(BASE, 'supplyRequirements', id).whyShort as string), `${f} ⊃ ${id}`).toBe(false);
     }
   });
 });

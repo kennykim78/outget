@@ -4,14 +4,19 @@ import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
+import { unsignRaw } from './fixtures/prerender-seed.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import { registrableDomain, registrableDomainOfUrl } from '../seed/hostname.js';
 import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03';
-const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const DISK_READ = readSeedDirRaw(SEED_DIR);
+const DISK: RawSeed = DISK_READ.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리 — 주입 시험 의미 보존). */
+const BASE: RawSeed = unsignRaw(DISK);
 
 function fresh(): Required<RawSeed> {
   return structuredClone(BASE) as Required<RawSeed>;
@@ -28,7 +33,7 @@ const NEW_RULES = ['SL00', 'SL01', 'SL02', 'SL03', 'SL04', 'SL05', 'VC03', 'P05'
 
 describe('R3 C1 — 실제 시드 slug', () => {
   it('9행 slug 라벨(결정 로그 값, 271 로보 hamster/robo — 결정 ⑤)', () => {
-    const slugs = Object.fromEntries((BASE.animalTypes as Rec[]).map((r) => [r.id, r.slug]));
+    const slugs = Object.fromEntries((DISK.animalTypes as Rec[]).map((r) => [r.id, r.slug]));
     expect(slugs).toEqual({
       'hamster-golden': 'hamster/golden',
       'hamster-dwarf': 'hamster/dwarf',
@@ -42,8 +47,8 @@ describe('R3 C1 — 실제 시드 slug', () => {
     });
   });
 
-  it('실제 시드: errors 0, 신규 규칙 0, S08 0, W-SLUG 제거', () => {
-    const res = validateSeed(BASE, { now: NOW });
+  it('실제 시드(디스크, 서명 후): errors 0, 신규 규칙 0, S08 0, W-SLUG 제거', () => {
+    const res = validateSeed(DISK, { now: NOW, signatures: DISK_READ.signatures });
     expect(res.errors).toEqual([]);
     const all = [...res.errors, ...res.warnings].map((i) => i.rule);
     for (const r of [...NEW_RULES, 'S08', 'W-SLUG']) expect(all).not.toContain(r);

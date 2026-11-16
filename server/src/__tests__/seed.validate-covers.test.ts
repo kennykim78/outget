@@ -4,13 +4,18 @@ import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
+import { unsignRaw } from './fixtures/prerender-seed.js';
 import { validateSeed } from '../seed/validate.js';
 import type { RawSeed, Rec } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03'; // 277: 10-29 → 11-03(실시드 Taxon 출처 접근일 2026-11-02 이상 — S07 미래 날짜 방지)
-const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const DISK_READ = readSeedDirRaw(SEED_DIR);
+const DISK: RawSeed = DISK_READ.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리 — 주입 시험 의미 보존). */
+const BASE: RawSeed = unsignRaw(DISK);
 const GERBIL_CP = 'cp-gerbil-mongolian';
 const SRC = [{ url: 'https://example.com/package-label', title: '포장 표기 원문 사진 — 운영자 확인', accessedAt: '2026-10-28' }];
 
@@ -60,8 +65,11 @@ function withProduct(p: Rec, mutate?: (s: Required<RawSeed>) => void): Required<
 const HIT = [{ id: 'cp-test-covers', path: 'specValues.coversThisAnimal' }];
 
 describe('P06 실제 시드', () => {
-  it('errors 0, P06 오류·경고 0(대상 행 0)', () => {
-    const r = p06(BASE);
+  it('errors 0, P06 오류·경고 0(대상 행 0) — 디스크(서명 후)·서명 전 기준 둘 다', () => {
+    const pre = p06(BASE);
+    expect(pre.allErrors).toEqual([]);
+    expect([pre.errors, pre.warnings]).toEqual([[], []]);
+    const r = p06(DISK);
     expect(r.allErrors).toEqual([]);
     expect([r.errors, r.warnings]).toEqual([[], []]);
   });

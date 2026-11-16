@@ -8,13 +8,17 @@ import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import { isPhotoUsable } from '../engine/index.js';
 import { lintText, numbersWithoutUnit, sentenceCount } from '../seed/lint.js';
 import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
+import { unsignRaw } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03';
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03)
 
 const loaded = readSeedDirRaw(SEED_DIR);
-const BASE: RawSeed = loaded.raw;
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후 — 4 패킷 107행 VERIFIED). */
+const DISK: RawSeed = loaded.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명 — 주입 시험의 의미 보존, 디스크는 바꾸지 않는다). */
+const BASE: RawSeed = unsignRaw(DISK);
 
 function fresh(): Required<RawSeed> {
   return structuredClone(BASE) as Required<RawSeed>;
@@ -77,20 +81,20 @@ describe('seed:validate — lint 원시 함수', () => {
   });
 });
 
-describe('seed:validate — 실제 시드 baseline', () => {
-  const res = validateSeed(BASE, { now: NOW });
+describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 후 · 매니페스트 포함)', () => {
+  const res = validateSeed(DISK, { now: NOW, signatures: loaded.signatures });
 
   it('읽기 이슈 0, errors 0', () => {
     expect(loaded.issues).toEqual([]);
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 19 = W-EXPOSURE-ZERO 1 · W-RULESCOPED 2(271 bird-food.forSpecies +1 — 앵무 요구사항 행 0 · S9 요구사항이 S3 6필드 참조 → playpen floorType 1만 남음 — playpen 은 min 없음·rec 크기만, Kenny 2026-10-27) · L03 12(caution 6(S9 req-guineapig-cage Kenny 확정 2문장 +1) + 번들 note 단위 1 + Taxon note 5(S7 기니피그 +1, 햄스터와 같은 틀 · 저빌 126 신고 안내 제21조제3항 +1) — 드워프 hideout why 「3곳」 L03 −1: 2026-11-15 총괄 W02 셈 단위 「곳」 판정으로 lint UNIT_RE 에 곳 추가 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 18 = (2026-11-16 서명으로 골든 노출 → W-EXPOSURE-ZERO 1 해소, 서명 전 19) W-RULESCOPED 2(271 bird-food.forSpecies +1 — 앵무 요구사항 행 0 · S9 요구사항이 S3 6필드 참조 → playpen floorType 1만 남음 — playpen 은 min 없음·rec 크기만, Kenny 2026-10-27) · L03 12(caution 6(S9 req-guineapig-cage Kenny 확정 2문장 +1) + 번들 note 단위 1 + Taxon note 5(S7 기니피그 +1, 햄스터와 같은 틀 · 저빌 126 신고 안내 제21조제3항 +1) — 드워프 hideout why 「3곳」 L03 −1: 2026-11-15 총괄 W02 셈 단위 「곳」 판정으로 lint UNIT_RE 에 곳 추가 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-EXPOSURE-ZERO': 1, 'W-RULESCOPED': 2, L03: 12, L05: 4 });
-    expect(res.warnings).toHaveLength(19);
+    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4 });
+    expect(res.warnings).toHaveLength(18);
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
     //   271: 앵무 bird-food.forSpecies(ruleScoped) 는 요구사항 행이 없어(사실값 대기) 참조 0 → +1.
     expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
@@ -109,11 +113,21 @@ describe('seed:validate — 실제 시드 baseline', () => {
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(1);
   });
 
-  it('노출 0(DRAFT 전량)', () => {
-    expect(res.summary).toEqual({ types: 0, requirements: 0, products: 0, testimonials: 0, vets: 0 });
+  it('노출: 골든햄스터 1타입 · 요구사항 13(cp-hamster-syrian VERIFIED 13 — 저울 req-syrian-scale(HEALTH)만 DRAFT) · 상품 0(골든 상품 SLOT·DRAFT, 드워프 상품은 PLANNED 타입) · 후기 0 · 병원 0', () => {
+    expect(res.summary).toEqual({ types: 1, requirements: 13, products: 0, testimonials: 0, vets: 0 });
   });
 
-  it('--strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
+  it('--strict 도 errors 0(노출 0 이 아니라 W-EXPOSURE-ZERO 없음)', () => {
+    const strict = validateSeed(DISK, { now: NOW, strict: true, signatures: loaded.signatures });
+    expect(errorRules(strict)).toEqual([]);
+  });
+
+  it('서명 전 기준(4 패킷 미서명, 메모리): 경고 19(W-EXPOSURE-ZERO 1 포함) · 노출 0 · --strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
+    const pre = validateSeed(BASE, { now: NOW });
+    expect(pre.errors).toEqual([]);
+    expect(pre.warnings).toHaveLength(19);
+    expect(pre.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO').map((i) => i.id)).toEqual(['hamster-golden']);
+    expect(pre.summary).toEqual({ types: 0, requirements: 0, products: 0, testimonials: 0, vets: 0 });
     const strict = validateSeed(BASE, { now: NOW, strict: true });
     expect(errorRules(strict)).toEqual(['W-EXPOSURE-ZERO']);
   });

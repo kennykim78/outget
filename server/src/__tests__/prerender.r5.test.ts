@@ -6,7 +6,7 @@ import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { COPY } from '../prerender/copy.js';
 import { renderHeader } from '../prerender/pages/common.js';
 import { TYPE_VETS_MAX } from '../prerender/pages/type.js';
-import { FIXTURE_AS_OF, patch, promoted, realSeed } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, patch, promoted, realSeed, unsignedRealSeed } from './fixtures/prerender-seed.js';
 
 const TEMPLATE = '<!doctype html><html><head><!--ws:head--></head><body><div id="root"><!--ws:body--></div></body></html>';
 const ORIGIN = 'http://localhost:3001';
@@ -314,10 +314,14 @@ describe('홈 ws-data types[].specCheckItemId(R6 G3b)', () => {
     const b = build(s);
     for (const p of HOME_PATHS) for (const t of data(b, p).data.types) expect('specCheckItemId' in t, p).toBe(false);
   });
-  it('DRAFT 실시드: 노출 타입 0 → 홈 types 비어 있음, 산출물 어디에도 specCheckItemId 없음', () => {
-    const b = build(realSeed());
+  it('노출 0 시드(서명 전 기준 실시드, 메모리): 노출 타입 0 → 홈 types 비어 있음, 산출물 어디에도 specCheckItemId 없음', () => {
+    const b = build(unsignedRealSeed());
     for (const p of HOME_PATHS) expect(data(b, p).data.types, p).toEqual([]);
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('specCheckItemId');
+  });
+  it('디스크 실시드(2026-11-16 서명 후): 홈 types = 골든 1 · specCheckItemId cage', () => {
+    const b = build(realSeed());
+    for (const p of HOME_PATHS) expect(data(b, p).data.types.map((t) => [t.id, t.specCheckItemId]), p).toEqual([['hamster-golden', 'cage']]);
   });
 });
 
@@ -348,9 +352,15 @@ describe('홈 ws-data types[].setupAvailable(286 U3b — 시작 카드 「구성
     expect(home).toContain('data-ws-intent="CHECKLIST"');
     expect(home).not.toContain('data-ws-intent="SETUP"');
   });
-  it('DRAFT 실시드: 노출 타입 0 → 키 없음 · 홈에 시작 카드 섹션 없음(D12 ①)', () => {
-    const b = build(realSeed());
+  it('노출 0 시드(서명 전 기준 실시드, 메모리): 노출 타입 0 → 키 없음 · 홈에 시작 카드 섹션 없음(D12 ①)', () => {
+    const b = build(unsignedRealSeed());
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('setupAvailable');
     for (const p of HOME_PATHS) expect(b.pages.find((x) => x.route.path === p)!.html, p).not.toContain('data-ws-section="starters"');
+  });
+  it('디스크 실시드(2026-11-16 서명 후): 골든 구성안 3종은 패킷 밖(DRAFT) → setupAvailable 키 없음 · 시작 카드 섹션은 있음(노출 타입 1)', () => {
+    const b = build(realSeed());
+    expect(realSeed().setupBundles.filter((x) => x.careProfileId === 'cp-hamster-syrian').map((x) => x.reviewStatus)).toEqual(['DRAFT', 'DRAFT', 'DRAFT']);
+    expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('setupAvailable');
+    for (const p of HOME_PATHS) expect(b.pages.find((x) => x.route.path === p)!.html, p).toContain('data-ws-section="starters"');
   });
 });

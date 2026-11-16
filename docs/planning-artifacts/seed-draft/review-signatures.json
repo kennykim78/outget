@@ -1,1 +1,858 @@
-[]
+[
+  {
+    "file": "animal-types.json",
+    "id": "gerbil-mongolian",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "5619a03f0f426c0b83050b651cc5f6794e1a04084c9fc2eb3cd08629ecd6e945"
+  },
+  {
+    "file": "animal-types.json",
+    "id": "guinea-pig",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "55d27718e3bb5e4f63c75c36058db14433297e7f39f57d3e633448c7cf4a64a3"
+  },
+  {
+    "file": "animal-types.json",
+    "id": "hamster-dwarf",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "154474723ea95225e936b86b80e11297fcd33750f9f9f139aa380616ed5999cd"
+  },
+  {
+    "file": "animal-types.json",
+    "id": "hamster-golden",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "129beb6a31b8d378e68980b1e4a71b81bfd46c93d47731840480ddd388291a87"
+  },
+  {
+    "file": "care-profiles.json",
+    "id": "cp-gerbil-mongolian",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "5856adb71f20d14cb51a8ffbd1d245db55ba5a883f51f8ee3f0bfddf344a5827"
+  },
+  {
+    "file": "care-profiles.json",
+    "id": "cp-guineapig",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "849200b32372b37a2dd40b30162117690d151127f4ff48d55e5920373dbb69b3"
+  },
+  {
+    "file": "care-profiles.json",
+    "id": "cp-hamster-dwarf",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9936638bb2120f6ec2f3320c3a32ef2f6baca0d9da6b1afc770f4f2582241800"
+  },
+  {
+    "file": "care-profiles.json",
+    "id": "cp-hamster-syrian",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "0dd39800e81e52905993fc3d176a5e0c65d872858e312183e4e46270e53c7f62"
+  },
+  {
+    "file": "compatibility-rules.json",
+    "id": "cr-dwarf-tubes-cage",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "83f1d749df38af9217b821e8d973c0200a6f4dd9912280c863aa8004bb5fb1f2"
+  },
+  {
+    "file": "compatibility-rules.json",
+    "id": "cr-dwarf-wheel-cage-bedding",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "47103281a73f65121930aa6aa4c7dd3074dd24041712768452073ce3921750ec"
+  },
+  {
+    "file": "compatibility-rules.json",
+    "id": "cr-gerbil-wheel-cage-bedding",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "ff927013d4db2575bf0b73d7c77bb3b8f6db567c47055e7038ccdf24c0cb11e6"
+  },
+  {
+    "file": "compatibility-rules.json",
+    "id": "cr-syrian-wheel-cage-bedding",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "f6e127609523e95fb10d5f0e4998b2738489cbf93f0503de446069404490dcff"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-001",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "6b31133505ed1d1ae66c2f3b5a58a99bfabfa44749e5b075a5ba6c51d10e24b0"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-002",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9cd3c3f521d2bb43fdd61e24744b8e5d97568ea3a9c344771a59aef3357ab8ab"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-003",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "28ac6c232522154c84bd3def6dee30798c6eed2d5b2fe35b009c33ce6a8f381b"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-004",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "bff22a5ecdc412fff1511daa4e9e8f02e9b68388fdb36fa56e96778125afcc33"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-005",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "e52eb88c1b573776c6a68d1c0a37823de58943156d3fe22ce6956cf6921c74fd"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-006",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "476c5bfcf30c9184e976fc0be82c0be3b75e6304fc4b1cc7e65819567f7d821f"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-007",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "710b0bf9c8a9d4c868e66f0cceea97eb293d21809d05ad8d80803ba9715f35b1"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-008",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "bb6db89b8f33edfd270eaa447701fc56d79fb4c389db6055c95ce3ff152199fc"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-009",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "5b84066f939eeead733d8942e611c5375cfd32fabdfef13a2b3ce708e7fd9e6d"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-010",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "300c9a6c8473aac63d32cecf7c55383ce3850c1d4281779f3adba07ddfc232a6"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-011",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "7fdc779dccf238be465d3dcbf2a26f27a2fc20458c257f0254cd9e34cc3245e0"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-012",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "dc2a6fcba75071988eda5333b8209146300a33ed5ae0725e53a40a3a66863338"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-013",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "4c4e04ba0dd2296b048ba021e177799d7b17b39dea392ff13635935580ae48ce"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-014",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "1e34aa54678a15bf4a392e362596537ec902e20596ef5b8a4efbb0d4acde2df8"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-015",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "98e1b57f6ddcefdc0ca5c066f377a425036f1db4b5aa6765d82d9eeed97db20e"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-016",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "e5cd80ac8318f59307c30172ec499601128e61817e44bb42e490e4faa913fa8e"
+  },
+  {
+    "file": "curated-products.json",
+    "id": "cp-dw-017",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "964b2b075943c091a7236e44f30f69bfd848e05e3aa23c6a05acc5d6880b81c1"
+  },
+  {
+    "file": "setup-bundles.json",
+    "id": "sb-dwarf-balanced",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9152a12c47a7ed636e69e8787d72c55fb6cd3c2ec2593926eb2382022d9b3c0d"
+  },
+  {
+    "file": "setup-bundles.json",
+    "id": "sb-dwarf-budget",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "175142bcfea5df9657446e797fb13c9708e33d900ea3b2bb68cfc37413a545ca"
+  },
+  {
+    "file": "setup-bundles.json",
+    "id": "sb-dwarf-reuse",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "b4b9c94e6536732c9693ad7b1141e8138e37df8a38e01330327c068e1f31d582"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "bedding",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "6577ac370d8f41d8992ba6421445fbabefbf36c0f3c8e1992374f3479a3cc837"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "brush",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9757f42f343e5a2667546be2ee43db8187c015e6105d149ae85c559240ae17d2"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "cage",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9a805f0095be8bcb8805c6891219836e7f931eed3bbc2fad8e9c6d5b06378388"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "carrier",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "262095b699ab42b3dd139276212014400f13294ccb861310051c58e292444437"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "chew",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "1c0e44def2abf3fa7ff227d450d55eefbd39b9ea4e9d35c9c81d778ef059642a"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "food",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "31521e8d5bb9c0eaaccd65ea24e734d848fa728483bf8ab5a3d3765c75ec10a9"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "food-bowl",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "bc1074e57351ff6274bf49265057552d81a47888835b3c7c288395194da989bc"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "hay",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "b021dac6616ee1f625b53ecce8bcf2d21c2343e6fda7c4176f89029b258276a1"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "hay-rack",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "5578e3fbde3a2c015782f6129e7d9758c3d50337304cd70ddf2493b68ebc1e6e"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "hideout",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "2cb774d2dba995fe4d20d4b81d6e963f945beffd789233ab89c6275f01f337ad"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "nail-clipper",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "c1bc33022d0fc1ee22e4ef48926ab469d860f95ad65da7eb3a992f52d74e44ac"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "playpen",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "84c262686d3dff4ad5ab68c215a6a1f76ad2e16bf485dd0be36e47b3328afb02"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "sand-bath",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "1c55e91dd668a161c4c80cbe834ac3f03786a93ab5ac8239a382b3a0cb3b5a92"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "sand-bath-box",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "38487f19a83443fc9d70837c74d4f8036baa42f472ce81d83cb7a7eb03289acd"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "saucer",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "4f29506802d5b133e57122bfb158cc6fd349254198d193bfbfa81b5acfea03bd"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "thermo",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "2732bc1412730e9a97067a32cb116cec15de6ca94315dbe11aa4eefc109e382e"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "tubes",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "d14e9d6e144d92e78dd74fd600abba42e20922087445c6ea47406f35806cef9a"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "water",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "806b719fb67234b597690fea2ac1e67d15f60cda9b971bbfd6a03bfb35c9865c"
+  },
+  {
+    "file": "supply-items.json",
+    "id": "wheel",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "18776d8d4ab4031343fb95975fc6aa7c10208ff282b7f85740d309fa787e76ed"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-bedding",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "98d32d720a959979b15fbc27ce4d2279d04b2492248e01ec11652cfd14287599"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-cage",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "67534945125c0be6a816d53297ad9adc6506a04068bfeec34a78af5be580ddb4"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-carrier",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "7c18d898c86f2b889486d7b2ea8d574f2a3006b869d75943d81d75f59b12d3cc"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-chew",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "df240e966c9981862613ca75148a15d5930d6b4ac0f8fca31dc0d2cd2465e6aa"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-food",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "a62c2df2fd63f7a299d752b5c4e11bb3d86423e4f0ee5447ae07cc096b44161f"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-food-bowl",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "f8896b9ec5dad192f086fcfde52144dec6dd3a0ab31a8d6731e91a4ec5c8b83f"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-hideout",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "17424eee6fe6ba8ad62c4feb7f36b4d08ac4e97195d4d879d776ab13d9e0f30b"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-sand-bath",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "6f57ad494f50545f1389e411e55440ed17578b5a11e2169cf922fa6659d1749b"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-sand-bath-box",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "4dd98236794fca34fe59c1296d85d22e5fcbb6cb7b0be3b0a8ce92a6b1312757"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-saucer",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "366ab83e718ceea0304ede896db2bf8a53d482a259bddca4045ce19950df969d"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-thermo",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "865dcbfbbf1603a99ba2609461c80cf4d51eea54d1fb149684b6453c68e9c0ba"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-tubes",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "35499b281f063300bc962efe9d41a71c23fedec5b8e38a60b39c77b68919df05"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-water",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "07f2efe0f14da6a9e890437052f26c24e30a6ea049ac088ede6252dd45ccb5b3"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-dwarf-wheel",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "361be3ba9faa376877088e1d8800ee5894d087625b43a25a6dca1bf309c56fc2"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-bedding",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "1d4e6139259b8d2f8d39e976b16ef34be1a9ad9757f5112c24597bc1e972a98f"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-cage",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "27d648e52978b7ae4c3a166317c540f4d5d429f40886b1a69410b647b2ee88c1"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-carrier",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "c76dae2f8bc4cccea8225e52aab1cd6f07cdc96ae3fadff86376a7d87b940ed0"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-chew",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "bc2a6c7243db3b27b9d08d22f3c4eb56f9f3062a0b12416974f44773b138fc11"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-food-bowl",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "055e273edc2a8cea9aa43f6375e586c386a498f6591ea4ee7767e4c02c43d2c6"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-hay",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "426e443bc73297c7d4f0f7e85e3e99f31c296d8ae3ac0849efff0b02b53b21f4"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-hideout",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "d1050d81923be6483faa897d5d132162c80df4ebac401a4c93045ba0cde861a4"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-sand-bath",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "e860551ff3843e433ceeb24152264a2532458a04b72db39c0482f2ed4d4442e6"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-sand-bath-box",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "b214ddb1fde2ead95d1438a297673666d6728d407b39e93ef3ab316029d616fc"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-thermo",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "f7c588ec7b45f3acf69b5f372ba02536f951b422c05562584e97181078f86020"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-tubes",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "ce6a8e3d1f61a32832c2bdcad5667ec778ba8e7d00becefc13cc26e0eebabccc"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-water",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "bc398277c3a184b56eb7ba9fe6b9907fe6a88f19e95a4f6f53b916a2807861d4"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-gerbil-wheel",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "49f993782ebe71db767cbd85370d41129b0650132bbbc0c28116bb2c684c43cb"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-bedding",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "a1a3dce2061e57fd8bfb41822478b45510a550d686608affeb69bbc5e7571b0a"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-brush",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "be24fd6e5e9f7c3d4d59b963434e562f5d7ab6678ddd1c7f508ec3be16dd268a"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-cage",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "15d2e2878d732e846adae6e9f0c7da7d4306ddbb02449e8e7f50a25994b5117c"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-carrier",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9e0883270644d1b45bc76a9bb4e0556226e1eb59a6c818fe60120ddd67ea8d90"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-chew",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "d0a1ea0d1fa11d38403a95dc05d57593a733caeea94105678191dad5c6521ca6"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-food",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "f6fbac4234a52fc5dca6afbc132b8f888d8f385f1b293b0bc4b7ca54869d4aa6"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-food-bowl",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "5a7bbc52a50ab956d24a4b7f67c1398dd6beb1347114fbe1c72c73fbdfc5386f"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-hay",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "7f3a92f1e480846e64953e08fd4b90a09ca76b2e0f9f102053a85fb0443972d0"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-hay-rack",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9b933fe4fe93261fe96c828fdd55b788e31ff617fdc03ab7b777c281e425e7cb"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-hideout",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "99efd74151fdbc1870ca8cb41ceaf531940bd85e3c43cac9dd0df4ae9e36939b"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-nail-clipper",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "1709319133bf2ba6057c173770c4976e6b492ed4be3f8b81e7e1491575dd7c73"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-playpen",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "498600e13a385e5072e1dcfaf14eb838e861a3b1a3a14025a179bc38853d3d1e"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-thermo",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "62ed76da075b2ffa80016cb5697e19985a1796173f25348ce9e44046be51f15c"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-tubes",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "5c310d8a9fa906744b2fa4fbb8ace97e546164bab4fd4905cd81bc478c771db2"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-guineapig-water",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "f6dcdbfb4651113f0b436c71731ebd7731d12a373a4ebbd88a52b6d7d855c3c8"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-bedding",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "b729840bf0afbbc48356c85ddd06ba60af275c77e6732d9aa018164a30016b4d"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-cage",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "8d615684865ec03b82f9f6307d8f4d5c5174cef75b4280b4d29cec469061dfff"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-carrier",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "935c0cdbc3f4e524a28bc5de000bd99bacee9d6a8949ec23f03b3b0619c9b1da"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-chew",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "bedce4c8f3efde5979a704ae4be0b3b4c734ad129f7331a66b3f26ec5401c396"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-food",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "9f1fd952f9e8d28f79386ed9d2789b82e2fecb61952500491203ac9550e40bbb"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-food-bowl",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "c9f870087bfe0920e6e7601109db71b0aa9e0cf14fa1ae0e537d8fba408978b4"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-hideout",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "90ba1c6b76c254dc98e9de17f4e226acb86a39885403bf44e950d83c3ed1d6c3"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-sand-bath",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "339995ec1f59d963d140e2ae8acbb942a37de4e5c5de8c7c368fd9dd6212bd5e"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-saucer",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "48db8de88d62acab6a07c9b48bfb259a556a09efff2766bcd46c1d22d85c5db7"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-thermo",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "437c8ad505ce7106b5a10c0b0259e212facfd854ae26abfd25e972a1d4bcd334"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-tubes",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "a6f37dd9da38d4d6372eb95504fe34ecfabb7b2a2d941e9a6f05de09330cc110"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-water",
+    "basis": "AI_RESEARCH_BULK",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "843a4cd8b4a6157c03247775b3d0d1fb23480d711974cc011ff7d96ab4c35e9c"
+  },
+  {
+    "file": "supply-requirements.json",
+    "id": "req-syrian-wheel",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "a22747f94a4053837f4142b09c072e6c0d771a4e068028429cbe495899ceb4bb"
+  },
+  {
+    "file": "taxa.json",
+    "id": "meriones-unguiculatus",
+    "basis": "ROW_CHECKED",
+    "signedBy": "kenny",
+    "signedAt": "2026-11-16",
+    "factHash": "838f8b34f80d619a79326f25cd88408e525a69b754a813005c1972bda3947112"
+  }
+]

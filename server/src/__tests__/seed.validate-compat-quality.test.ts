@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
+import { unsignRaw } from './fixtures/prerender-seed.js';
 import { validateSeed } from '../seed/validate.js';
 import { combos, literalValues } from '../seed/validate-compat-quality.js';
 import { createCatalog, parseExpr, requirementCompat, type SpecField } from '../engine/index.js';
@@ -11,9 +12,15 @@ import { asSeedBundle, type RawSeed, type Rec, type SeedKey } from '../seed/comm
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03';
-const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const DISK_READ = readSeedDirRaw(SEED_DIR);
+const DISK: RawSeed = DISK_READ.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리 — 주입 시험 의미 보존). */
+const BASE: RawSeed = unsignRaw(DISK);
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
+/** 디스크 시드 사본(서명 후 상태 그대로 — 실시드 시험용). */
+const disk = (): Required<RawSeed> => structuredClone(DISK) as Required<RawSeed>;
 
 function row(s: RawSeed, key: SeedKey, id: string): Rec {
   const r = (s[key] ?? []).find((x) => (x as Rec).id === id);
@@ -35,8 +42,14 @@ const issues = (s: RawSeed) => {
 const AT = `${RULE}|rules[0].expr`;
 
 describe('실시드 — R07c·R07d 0', () => {
-  it('호환 규칙 4개 → 경고 없음, ERROR 0', () => {
-    const r = issues(fresh());
+  it('호환 규칙 4개 → 경고 없음, ERROR 0(디스크 서명 후 · 서명 전 기준 둘 다)', () => {
+    for (const s of [disk(), fresh()]) {
+      const q = issues(s);
+      expect(q.errors).toEqual([]);
+      expect(q.r07c).toEqual([]);
+      expect(q.r07d).toEqual([]);
+    }
+    const r = issues(disk());
     expect(r.errors).toEqual([]);
     expect(r.r07c).toEqual([]);
     expect(r.r07d).toEqual([]);
@@ -218,7 +231,8 @@ describe('R07e — 최소·권장 키 혼합 && / ||', () => {
     requirementCompat(createCatalog(asSeedBundle(s)), 'hamster-golden', 'wheel', { ownedItems: { cage: { heightCm: cageHeightCm } } });
 
   it('실시드 → R07e 0(정본 CR 4개에 && · || 없음)', () => {
-    const r = r07e(fresh());
+    expect(r07e(fresh()).at).toEqual([]);
+    const r = r07e(disk());
     expect(r.errors).toEqual([]);
     expect(r.at).toEqual([]);
   });

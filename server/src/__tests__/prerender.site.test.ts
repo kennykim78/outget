@@ -12,7 +12,7 @@ import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { loadMascots, sanitizeMascotSvg } from '../prerender/mascot.js';
 import { COPY } from '../prerender/copy.js';
 import { PHOTO_SOURCES } from '../seed/validate-structure.js';
-import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, V, patch, promoted, realSeed, type Row } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, FIXTURE_FIRST_STALE, FIXTURE_LAST_FRESH, V, patch, promoted, realSeed, unsignedRealSeed, type Row } from './fixtures/prerender-seed.js';
 import { lintText } from '../seed/lint.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -98,8 +98,8 @@ const visibleText = (html: string): string =>
     .replace(/<[^>]+>/g, ' ')
     .replace(/&[a-z#0-9]+;/g, ' ');
 
-describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
-  const b = build(realSeed());
+describe('(a) 노출 0 시드(서명 전 기준 실시드 — 4 패킷 미서명, 메모리) → /, /supplies, /vet + 404', () => {
+  const b = build(unsignedRealSeed());
 
   it('고정 라우트(R4 D6: /credits 항상 noindex · 86 P8: /privacy 항상 색인)', () => {
     // 51 레인 A(K1): /pick 항상(noindex·sitemap 제외).
@@ -149,8 +149,51 @@ describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
     for (const k of ['animalTypes', 'careProfiles', 'supplyItems', 'supplyRequirements', 'compatibilityRules'] as const) {
       expect(b.catalog[k]).toEqual([]);
     }
-    expect(leaks(b, realSeed())).toEqual([]);
+    expect(leaks(b, unsignedRealSeed())).toEqual([]);
     expect(b.catalogFile).toMatch(/^data\/catalog\.v1\.[0-9a-f]{8}\.json$/);
+  });
+});
+
+
+describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 후) → 골든햄스터만 노출', () => {
+  const seed = realSeed();
+  const b = build(seed);
+  const GOLDEN_REQ = [
+    'req-syrian-cage', 'req-syrian-wheel', 'req-syrian-bedding', 'req-syrian-water', 'req-syrian-food-bowl', 'req-syrian-food', 'req-syrian-hideout',
+    'req-syrian-sand-bath', 'req-syrian-chew', 'req-syrian-carrier', 'req-syrian-thermo', 'req-syrian-tubes', 'req-syrian-saucer',
+  ];
+
+  it('타입 1(hamster-golden) · 그룹 /hamster · 골든 하위 경로 · PLANNED 종(드워프·저빌·기니피그·앵무·로보) 경로 0', () => {
+    expect(b.model.types.map((x) => x.id)).toEqual(['hamster-golden']);
+    const ps = paths(b);
+    for (const p of ['/', '/hamster', '/hamster/golden', '/hamster/golden/supplies/cage', '/hamster/golden/check/wheel', '/supplies', '/vet', '/save', '/pick', '/credits', '/privacy', '/404']) expect(ps, p).toContain(p);
+    expect(ps.filter((p) => /^\/(gerbil|guinea-pig|parrot)(\/|$)|^\/hamster\/(dwarf|robo)(\/|$)/.test(p))).toEqual([]);
+    expect(ps.filter((p) => p.startsWith('/hamster/golden/products/'))).toEqual([]); // 골든 상품 SLOT·DRAFT → 상품 0
+  });
+
+  it('공개 카탈로그 = 골든 체인만: 요구사항 13(저울 HEALTH DRAFT 제외)·타입 1, 노출 집합 밖 id 0', () => {
+    expect(b.catalog.animalTypes.map((x) => x.id)).toEqual(['hamster-golden']);
+    expect(b.catalog.supplyRequirements.map((x) => x.id).sort()).toEqual([...GOLDEN_REQ].sort());
+    expect(b.catalog.supplyRequirements.map((x) => x.id)).not.toContain('req-syrian-scale');
+    expect(leaks(b, seed)).toEqual([]);
+  });
+
+  it('색인 꺼짐(indexable false 기본): robots Disallow · manifest.indexable false — 서명은 색인을 켜지 않는다', () => {
+    expect(b.files.get('robots.txt')).toBe('User-agent: *\nDisallow: /\n');
+    expect(b.manifest.indexable).toBe(false);
+  });
+
+  it('검수자 이름·운영 메모·서명 basis 는 산출물에 0(kenny·ROW_CHECKED·AI_RESEARCH_BULK·AI_DRAFT)', () => {
+    const all = [...b.files.values()].join('\n');
+    for (const w of ['kenny', 'ROW_CHECKED', 'AI_RESEARCH_BULK', 'AI_DRAFT']) expect(all, w).not.toContain(w);
+    // 공개 카탈로그는 verifiedBy 키를 null 로 가린다(검수자 이름 비공개 — 투영 규칙).
+    for (const k of ['animalTypes', 'careProfiles', 'supplyItems', 'supplyRequirements'] as const) {
+      for (const x of b.catalog[k] as unknown as Row[]) expect([k, x.id, x.verifiedBy ?? null]).toEqual([k, x.id, null]);
+    }
+  });
+
+  it('보이는 글에 금지어 0', () => {
+    for (const p of b.pages) expect([p.route.path, lintText(visibleText(p.html)).filter((h) => h.rule === 'L01')]).toEqual([p.route.path, []]);
   });
 });
 

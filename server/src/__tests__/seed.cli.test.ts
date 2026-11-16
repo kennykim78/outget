@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runValidateCli, type CliIo } from '../seed/cli-validate.js';
+import { writeUnsignedSeedDir } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = ['--now', '2026-11-03'];
+const NOW = ['--now', '2026-11-16']; // 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지
 
 const temps: string[] = [];
 afterAll(() => {
@@ -37,24 +38,37 @@ function editJson(dir: string, file: string, id: string, edit: (r: Row) => void)
 async function run(argv: string[]): Promise<{ code: number; out: string[]; err: string[] }> {
   const out: string[] = [];
   const err: string[] = [];
-  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-11-03' };
+  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-11-16' };
   const code = await runValidateCli(argv, io);
   return { code, out, err };
 }
 
 describe('seed:validate CLI', () => {
-  it('실제 시드 → exit 0, errors 0, W-EXPOSURE-ZERO 경고 줄', async () => {
+  it('실제 시드(2026-11-16 서명 후) → exit 0, errors 0, warnings 18, 노출 골든 1타입·요구사항 13, W-EXPOSURE-ZERO 없음', async () => {
     const r = await run(NOW);
     expect(r.code).toBe(0);
     const summary = r.out[r.out.length - 1];
-    expect(summary).toMatch(/^seed:validate — errors 0, warnings \d+, exposable: types 0, requirements 0, products 0, testimonials 0, vets 0$/);
-    expect(r.out.some((l) => l.startsWith('WARN [W-EXPOSURE-ZERO] animal-types.json#hamster-golden'))).toBe(true);
+    expect(summary).toBe('seed:validate — errors 0, warnings 18, exposable: types 1, requirements 13, products 0, testimonials 0, vets 0');
+    expect(r.out.some((l) => l.includes('W-EXPOSURE-ZERO'))).toBe(false);
   });
 
-  it('--strict 실제 시드 → exit 1 (W-EXPOSURE-ZERO 가 ERROR)', async () => {
+  it('--strict 실제 시드(서명 후) → exit 0(W-EXPOSURE-ZERO 없음)', async () => {
     const r = await run([...NOW, '--strict']);
-    expect(r.code).toBe(1);
-    expect(r.out.some((l) => l.startsWith('ERROR [W-EXPOSURE-ZERO]'))).toBe(true);
+    expect(r.code).toBe(0);
+    expect(r.out.some((l) => l.startsWith('ERROR'))).toBe(false);
+  });
+
+  it('서명 전 기준 시드 디렉터리(4 패킷 미서명·매니페스트 []) → exit 0·노출 0·W-EXPOSURE-ZERO 경고, --strict 이면 exit 1', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'withsmall-seed-unsigned-'));
+    temps.push(dir);
+    writeUnsignedSeedDir(dir);
+    const r = await run([...NOW, '--dir', dir]);
+    expect(r.code).toBe(0);
+    expect(r.out[r.out.length - 1]).toBe('seed:validate — errors 0, warnings 19, exposable: types 0, requirements 0, products 0, testimonials 0, vets 0');
+    expect(r.out.some((l) => l.startsWith('WARN [W-EXPOSURE-ZERO] animal-types.json#hamster-golden'))).toBe(true);
+    const s = await run([...NOW, '--dir', dir, '--strict']);
+    expect(s.code).toBe(1);
+    expect(s.out.some((l) => l.startsWith('ERROR [W-EXPOSURE-ZERO]'))).toBe(true);
   });
 
   it('잘못된 인자 → exit 2', async () => {
