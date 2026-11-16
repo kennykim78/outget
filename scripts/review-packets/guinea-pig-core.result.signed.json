@@ -1,0 +1,26 @@
+{
+  "format": "withsmall.review-check-result/v1",
+  "packet": "guinea-pig-core-2026-10",
+  "signedBy": "kenny",
+  "checkedAt": "2026-11-16",
+  "checked": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7",
+    "A8",
+    "A9",
+    "A10",
+    "A11",
+    "D1",
+    "D2",
+    "WS-req-guineapig-playpen"
+  ],
+  "bulkSignedAt": "2026-11-16",
+  "notes": {
+    "근거": "확인표_서명용_1116.pdf 전 행 체크·서명, 총괄 전달(2026-11-16 16:4x)"
+  }
+}

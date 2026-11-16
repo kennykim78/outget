@@ -205,13 +205,14 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
   });
 
   it('2) PLANNED 드워프: 이름·별칭·한 줄 소개가 HTML·ws-data 에 0 — R7-B 시드 행은 VERIFIED(메모리 서명)여도 PLANNED(게이트 G 전)라 비노출', () => {
-    // 디스크는 Kenny 확인표 수령 전 DRAFT(보안 79 H-1 환원) — 서명된 상태(dwarfSigned, 메모리)에서도 PLANNED 면 0 임을 고정.
+    // 디스크는 2026-11-16 확인표 서명의 review 단계(NEEDS_REVIEW, VERIFIED 아님) — 서명된 상태(dwarfSigned, 메모리)에서도 PLANNED 면 0 임을 고정.
     const signed = dwarfSigned();
     const row = signed.animalTypes.find((t) => t.id === 'hamster-dwarf');
     expect(row?.status).toBe('PLANNED');
     expect(row?.reviewStatus).toBe('VERIFIED');
     expect(row?.reviewerType).toBe('EXPERIENCED_KEEPER');
-    expect(realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf')?.reviewStatus).toBe('DRAFT');
+    const disk = realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf');
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType, disk?.verifiedBy, disk?.verifiedAt]).toEqual(['PLANNED', 'NEEDS_REVIEW', 'EXPERIENCED_KEEPER', null, null]);
     const famSigned = pageAt(build(promotedTwo({ base: signed })), '/hamster');
     const ws = JSON.stringify(wsDataOf(famSigned.html));
     expect(fam.html.length).toBeGreaterThan(0);

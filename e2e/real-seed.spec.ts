@@ -1,4 +1,4 @@
-// X4 실시드 스모크(R6 E2) — E2E_SEED=real 일 때만. server/seed 그대로(전부 DRAFT) → 노출 0.
+// X4 실시드 스모크(R6 E2) — E2E_SEED=real 일 때만. server/seed 그대로(2026-11-16 서명 review 단계 — 4 패킷 107행 NEEDS_REVIEW·나머지 DRAFT, VERIFIED 0) → 노출 0.
 //   / 200 · 홈 ws-data types [] · /hamster/golden 404 · sitemap 에 타입 URL 0 · robots Disallow.
 import { test, expect } from './support/fixtures';
 import { assertScreen } from './support/invariants';

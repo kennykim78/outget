@@ -2,7 +2,8 @@
 //   W02(원문에 없는 숫자·단위) · W03(첫 문장 중복 WARN) · W04(FOOD/HEALTH 첫 라운드 제외, K3) · L01(금지어) · V01(AI_DRAFT) · G05(서명 뒤 수정).
 //   실시드는 디스크 그대로 읽고, 가짜 whyShort 는 메모리 사본에만 주입한다(실시드 파일 불변).
 //   실시드 whyShort 17건 = Kenny 2026-11-15 채택분 14(ORDERS §14:0x 결정 2) + req-dwarf-hideout(총괄 14:1x 「곳」 셈 단위 판정 뒤 입력)
-//   + req-dwarf-saucer(NOT_NOW, 재서술)·req-gerbil-thermo(원문 발췌)(Kenny 결정 뒤 PM 입력) — 전부 DRAFT·AI_DRAFT 라 공개 0.
+//   + req-dwarf-saucer(NOT_NOW, 재서술)·req-gerbil-thermo(원문 발췌)(Kenny 결정 뒤 PM 입력). 2026-11-16 확인표 5종 서명의 review 단계라
+//   17행 전부 NEEDS_REVIEW(패킷 대상, VERIFIED 아님) — 공개 0.
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,7 @@ import { disguisedNumbers, numbersWithoutUnit, sentenceCount, strictSentenceCoun
 import { graphemeLength, whyShortFormProblem, whyShortNumberProblems } from '../seed/validate-why-short.js';
 import { buildSite } from '../prerender/site.js';
 import { REAL_AS_OF, baseOptions } from './fixtures/affiliate/baseline.js';
-import { DWARF_PREVIEW_AS_OF, dwarfSignedWith, realSeed } from './fixtures/prerender-seed.js';
+import { DWARF_PREVIEW_AS_OF, dwarfSignedWith, realSeed, realSignedTargets } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const NOW = '2026-11-03';
@@ -59,7 +60,7 @@ const ADOPTED = [
   'req-gerbil-thermo',
 ];
 
-describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 판정 뒤 hideout + saucer·gerbil-thermo), 새 규칙 오탐 0, 공개 0(DRAFT)', () => {
+describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 판정 뒤 hideout + saucer·gerbil-thermo), 새 규칙 오탐 0, 공개 0(review 단계 NEEDS_REVIEW)', () => {
   it('server/seed · seed-draft: whyShort 17건(같은 값), W01~W04 0, errors 0', () => {
     const shorts = (raw: RawSeed): Array<[unknown, unknown]> =>
       (raw.supplyRequirements as Rec[]).filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => [r.id, r.whyShort]);
@@ -72,9 +73,12 @@ describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 �
       for (const rule of W_RULES) expect([...of(res, rule), ...of(res, rule, 'warnings')]).toEqual([]);
     }
   });
-  it('17행 전부 DRAFT·AI_DRAFT(서명 0) — 공개 산출물(프리렌더 전 파일)에 whyShort 키·값 0', () => {
+  it('17행 전부 NEEDS_REVIEW(4 패킷 대상, 패킷/행 reviewerType, 검수자·날짜·basis null — VERIFIED 0) — 공개 산출물(프리렌더 전 파일)에 whyShort 키·값 0', () => {
+    const targets = realSignedTargets();
     for (const id of ADOPTED) {
-      expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, reviewBasis: null });
+      const t = targets.get(`supply-requirements.json#${id}`);
+      expect([id, t !== undefined]).toEqual([id, true]);
+      expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'NEEDS_REVIEW', reviewerType: t?.reviewerType, verifiedBy: null, verifiedAt: null, reviewBasis: null });
     }
     const b = buildSite(realSeed(), baseOptions(REAL_AS_OF));
     const values = ADOPTED.map((id) => row(BASE, 'supplyRequirements', id).whyShort as string);

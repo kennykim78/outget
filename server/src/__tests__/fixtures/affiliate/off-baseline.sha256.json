@@ -1,6 +1,6 @@
 {
-  "head": "be0c153+overlay",
-  "note": "D9 whyShort 17건(Kenny 2026-11-15 채택 14, ORDERS §14:0x 결정 2 + 총괄 14:1x 「곳」 셈 단위 판정 뒤 req-dwarf-hideout + Kenny 결정 뒤 PM 입력 req-dwarf-saucer(NOT_NOW 재서술)·req-gerbil-thermo(원문 발췌)) — gen-baseline --rev be0c153 --overlay server/seed --overlay server/src/__tests__/fixtures. 실시드(DRAFT) 차이 0, promotedTwo(승격 req-syrian-wheel whyShort 반영)·dwarfPreview 가 카탈로그 해시·catalogUrl·whyShort 반영 변경(15건 기준선 대비 증분은 req-dwarf-saucer 1행 — reviewBasis 는 산출물에 없음)(저빌은 PLANNED 라 산출물 0). 증명: 같은 시드에서 whyShort 만 뺀 빌드 = be0c153 커밋 기준선(차이 0)",
+  "head": "1b1fe2d+overlay",
+  "note": "292 PR-A: 1b1fe2d 처리방침 문구(「연결할 때」) 반영 — privacy/index.html 3건만 변경. review 단계 시드(NEEDS_REVIEW 107)는 산출물 차이 0(overlay 없는 --rev 1b1fe2d 와 같은 결과)",
   "templateSha256": "3e13f48faee605886ac0e00a7cdc0ebc4ee71f4e0269e3ddbe25dc3fa675ceab",
   "cases": {
     "real": {
@@ -10,7 +10,7 @@
       "index.html": "b05be5288f730bfdee3a06ef0aeeb0844cea070c07b25e6193bfc430d848a223",
       "pick/index.html": "0bd05bedccef6dc90b48ca6a7f2681a920a18cd23ee3ff25d2701f1911048b30",
       "prerender-manifest.json": "51d649c870b120930a254855d94e935e76f5c77bb34217b4de7892ed651377ec",
-      "privacy/index.html": "6e4afda1e3d6c7838e9abe82530cc109f8fec44baba2dec0fb5c823c44277edb",
+      "privacy/index.html": "b5222293374ee4222e24e3941d1e816ed9011edb8277ee8a74dce1b4319e1cfe",
       "robots.txt": "1a7163cf6a1f941596faca54c63fdbbfe9d1e02e109a37e37828c70c6d807e81",
       "save/index.html": "cdc7afac68bbee27dd073df4775c7699d92e5f67cef98910a6a4b7b699d914a8",
       "sitemap.xml": "28844a1dab0912a1065556f5ab7a521700a0c7182304089c267dfd99839607f7",
@@ -39,7 +39,7 @@
       "index.html": "dd64439efe808d6827507b91e4ccd4d504a715e52bcc4a251387dbfe4e531e50",
       "pick/index.html": "01803d479099c79969571e67a581a956b60036f496b4574d0c28aefc4d30f204",
       "prerender-manifest.json": "b93605c480d5c888731739a723f91a52d17a5e93344ab4600447f9619d1fb6e3",
-      "privacy/index.html": "110373b3373d2fdf5c26217186c821bcf2308d40ab5d0942ecb21bd3d3445b6f",
+      "privacy/index.html": "6b84798ebf2b148d49f8736bada5d0d5ec3eb6301d1396f1d9e56884d9cf3d2c",
       "robots.txt": "1a7163cf6a1f941596faca54c63fdbbfe9d1e02e109a37e37828c70c6d807e81",
       "save/index.html": "6a129818cbe2fbde8ff739674ab7e0ce3f0b3a13a8af3e840ee6e6c81e71fbd6",
       "sitemap.xml": "846006ababf94aedd1d28d9ec78aec83cc711d14287fa712291bcb45881c7f45",
@@ -105,7 +105,7 @@
       "index.html": "f5f464779f4d6bf90904ea590c0b21a181e7cbac66b9ffe8f29255759c8868d9",
       "pick/index.html": "480b83544f8ed4fcdde34f3f5c8c864f7a14e7df3a36de87106693e926b9268e",
       "prerender-manifest.json": "0582c57e85f08ba65807da4248f19e21a68765221e64aec9e109232117c223ac",
-      "privacy/index.html": "5ace7f61446af05fd9717542c0e329ff4a249ed63cd55acd80bd6881f9b522c3",
+      "privacy/index.html": "d19facbf9636b9ea54fe9fa8d7a35288eb63c2b0e64d821d03974d4c2466a859",
       "robots.txt": "1a7163cf6a1f941596faca54c63fdbbfe9d1e02e109a37e37828c70c6d807e81",
       "save/index.html": "958733e2fea2f257dc8452b9911775253ad44e971ae14057ae3aa2d2aac192a5",
       "sitemap.xml": "b431b61998cb4fe092ced0a365459c03adc8454e1ebb7ba577933f7a419a1476",

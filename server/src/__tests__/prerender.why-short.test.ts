@@ -9,7 +9,7 @@ import { WS_WIRE_VERSION, decodeWsPage } from '../engine/ws-wire.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { BASELINE_FILE, baseOptions, hashFiles } from './fixtures/affiliate/baseline.js';
 import type { BaselineFile } from './fixtures/affiliate/gen-baseline.js';
-import { FIXTURE_AS_OF, SECOND, V, labelEnums, patch, promotedTwo, realSeed, withoutWhyShort } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, SECOND, V, labelEnums, patch, promotedTwo, realSeed, unsignedRealSeed, withoutWhyShort } from './fixtures/prerender-seed.js';
 
 const WS_RE = /<script id="ws-data" type="application\/json">([\s\S]*?)<\/script>/;
 const SHORT_CAGE = '바닥을 넓게 쓰는 동물이라 넓어야 해요.'; // 테스트 전용 가짜 값
@@ -17,8 +17,8 @@ const SHORT_WHEEL = '등이 수평으로 달리는 지름이 필요해요.'; // 
 
 type Rec = Record<string, unknown>;
 
-/** 실시드에서 whyShort 만 뺀 승격 2타입 픽스처(= whyShort 0건 상태). */
-const promotedTwoNoShort = (): SeedBundle => promotedTwo({ base: withoutWhyShort(realSeed()) });
+/** 서명 전 기준 실시드에서 whyShort 만 뺀 승격 2타입 픽스처(= whyShort 0건 상태, promotedTwo 기본 바탕과 같은 서명 전 기준). */
+const promotedTwoNoShort = (): SeedBundle => promotedTwo({ base: withoutWhyShort(unsignedRealSeed()) });
 
 function seedWith(): SeedBundle {
   const s = promotedTwoNoShort();

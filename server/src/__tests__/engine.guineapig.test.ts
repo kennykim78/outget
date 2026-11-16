@@ -12,7 +12,7 @@ import {
   resolveRequirement,
 } from '../engine/index.js';
 import type { SeedBundle, SpecValues } from '../engine/index.js';
-import { realSeed } from './fixtures/prerender-seed.js';
+import { realSeed, realSignedTargets } from './fixtures/prerender-seed.js';
 import { lintText } from '../seed/lint.js';
 
 const seed: SeedBundle = realSeed();
@@ -34,10 +34,18 @@ describe('S9 요구사항 16행 — 구성·검수 상태(불변식 7)', () => {
     );
     expect(seed.supplyItems.some((i) => i.id.startsWith('vitamin'))).toBe(false);
   });
-  it('전부 DRAFT · AI_DRAFT · reviewBasis null · verifiedBy/At null', () => {
+  it('2026-11-16 서명 review 단계: 15행 NEEDS_REVIEW(패킷/행 reviewerType — 건초·사료 FOOD 는 VET_PUBLISHED_SOURCE), 패킷 밖 req-guineapig-scale(HEALTH)만 DRAFT·AI_DRAFT, 전부 reviewBasis·verifiedBy/At null, VERIFIED 0', () => {
+    const targets = realSignedTargets();
     for (const r of gpRows) {
-      expect([r.id, r.reviewStatus, r.reviewerType, r.reviewBasis, r.verifiedBy, r.verifiedAt]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
+      const t = targets.get(`supply-requirements.json#${r.id}`);
+      const want = t ? ['NEEDS_REVIEW', t.reviewerType] : ['DRAFT', 'AI_DRAFT'];
+      expect([r.id, r.reviewStatus, r.reviewerType, r.reviewBasis, r.verifiedBy, r.verifiedAt]).toEqual([r.id, ...want, null, null, null]);
     }
+    expect(gpRows.filter((r) => r.reviewStatus !== 'NEEDS_REVIEW').map((r) => r.id)).toEqual(['req-guineapig-scale']);
+    expect(gpRows.filter((r) => r.contentKind === 'FOOD').map((r) => [r.id, r.reviewStatus, r.reviewerType, r.reviewBasis])).toEqual([
+      ['req-guineapig-hay', 'NEEDS_REVIEW', 'VET_PUBLISHED_SOURCE', null],
+      ['req-guineapig-food', 'NEEDS_REVIEW', 'VET_PUBLISHED_SOURCE', null],
+    ]);
   });
   it('Kenny 결정 priority·orderHint(playpen 권장, 발톱깎이 권장/적응 후, 빗 선택)', () => {
     const p = Object.fromEntries(gpRows.map((r) => [r.supplyItemId, `${r.priority}/${r.orderHint}`]));

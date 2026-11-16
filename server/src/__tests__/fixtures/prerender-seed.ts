@@ -1,6 +1,6 @@
 // 프리렌더 테스트 픽스처 — 실시드를 읽어 메모리에서만 승격(디스크의 AI_DRAFT 를 VERIFIED 로 기록하지 않는다, 계획 §10-2).
 //   승격 값(제목·병원명·후기 문장)은 테스트 전용 자리표시이며 사육·규격 사실이 아니다.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { SeedBundle } from '../../engine/index.js';
@@ -12,6 +12,7 @@ export const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..'
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명의 review 단계 — 4 패킷 107행 NEEDS_REVIEW·매니페스트 [], VERIFIED 0·노출 0). */
 export const realSeed = (): SeedBundle => readSeedDir(SEED_DIR);
 
 /** scripts/apply-review-signatures.mjs(확인표 결과 → 검수 표기·서명 매니페스트). 드워프 미리보기는 같은 함수로 메모리 서명한다. */
@@ -36,6 +37,86 @@ export interface DwarfPacket {
 export const DWARF_PACKET_PATH = join(REPO_ROOT, 'scripts', 'review-packets', 'hamster-dwarf-core.json');
 /** 실패킷 파일 그대로(확인표 문서와 1:1). 2026-11-15 K1 반영 뒤 dwarfPacketK1() 과 같다(seed.signatures.test 「K1 사본 = 실패킷」). */
 export const dwarfPacket = (): DwarfPacket => JSON.parse(readFileSync(DWARF_PACKET_PATH, 'utf8')) as DwarfPacket;
+
+/**
+ * 실서명(2026-11-16, Kenny 확인표_서명용_1116.pdf 전 행 체크·서명 — ORDERS 11/16 16:4x) 대상 패킷 4종과 서명일.
+ *   디스크 시드는 이 4 패킷을 apply-review-signatures.mjs --stage review 로 적용한 상태다(PR-A — final(VERIFIED)은 다음 PR, CI seed-review-diff R1·R2).
+ */
+export const REAL_PACKETS = ['hamster-golden-core', 'hamster-dwarf-core', 'gerbil-mongolian-core', 'guinea-pig-core'] as const;
+export const REAL_SIGNED_AT = '2026-11-16';
+export const realPacketPath = (name: (typeof REAL_PACKETS)[number]): string => join(REPO_ROOT, 'scripts', 'review-packets', `${name}.json`);
+export const realPacket = (name: (typeof REAL_PACKETS)[number]): DwarfPacket => JSON.parse(readFileSync(realPacketPath(name), 'utf8')) as DwarfPacket;
+/** 미서명 결과(형식은 scripts/review-packets/*.result.unsigned.json 과 같다). */
+export const unsignedResultOf = (p: { packet: string }): Record<string, unknown> => ({
+  format: applyMjs.RESULT_FORMAT,
+  packet: p.packet,
+  signedBy: 'kenny',
+  checkedAt: null,
+  checked: [],
+  bulkSignedAt: null,
+});
+
+/**
+ * 콘텐츠 파일 묶음(파일명 키)을 4 패킷 미서명 결과로 되돌린다(메모리 — applySignatures 그대로, 사실 0 변경은 그 함수가 자기 검사).
+ *   = 서명 전 시드(대상 107행 DRAFT·AI_DRAFT·verifiedBy/At·reviewBasis null, 상품 specVerifiedBy/At null·status REVIEW|SLOT).
+ */
+export function unsignFiles(files: Record<string, unknown[]>): Record<string, unknown[]> {
+  let cur = files;
+  for (const n of REAL_PACKETS) {
+    const p = realPacket(n);
+    cur = applyMjs.applySignatures(cur, [], p, unsignedResultOf(p), { now: REAL_SIGNED_AT }).files;
+  }
+  return cur;
+}
+
+/**
+ * 4 실패킷이 서명 대상으로 정한 행 → { basis, reviewerType } (기대값 계산용 — 패킷 파일만 읽는다, 시드는 보지 않는다).
+ *   rowChecked = ROW_CHECKED·행 reviewerType(없으면 패킷), bulk = AI_RESEARCH_BULK·패킷 reviewerType. 키 "file#id".
+ */
+export function realSignedTargets(): Map<string, { basis: 'ROW_CHECKED' | 'AI_RESEARCH_BULK'; reviewerType: string }> {
+  const out = new Map<string, { basis: 'ROW_CHECKED' | 'AI_RESEARCH_BULK'; reviewerType: string }>();
+  for (const n of REAL_PACKETS) {
+    const p = realPacket(n) as DwarfPacket & { reviewerType: string; rowChecked: Array<{ file: string; id: string; reviewerType?: string }> };
+    for (const r of p.rowChecked) out.set(`${r.file}#${r.id}`, { basis: 'ROW_CHECKED', reviewerType: r.reviewerType ?? p.reviewerType });
+    for (const r of p.bulk.rows) out.set(`${r.file}#${r.id}`, { basis: 'AI_RESEARCH_BULK', reviewerType: p.reviewerType });
+  }
+  return out;
+}
+
+/**
+ * 서명 전 기준 실시드(메모리): 디스크 시드에서 4 패킷 서명만 되돌린 사본 — 매니페스트 [].
+ *   메모리 승격 픽스처(promoted·dwarfSigned·dwarfPreview·promotedTwo)와 규칙 주입 시험의 바탕. 디스크는 바꾸지 않는다.
+ *   디스크 상태(review 단계 — NEEDS_REVIEW 107)를 보는 시험은 realSeed() 를 쓴다.
+ */
+export function unsignedRealSeed(): SeedBundle {
+  const s = clone(realSeed());
+  const files = unsignFiles(filesOf(s));
+  for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = files[SEED_FILES[k]];
+  return s;
+}
+
+/** RawSeed(키 = CONTENT_KEYS 등) 사본을 서명 전 기준으로(readSeedDirRaw 결과를 쓰는 시험용). 입력은 바꾸지 않는다. */
+export function unsignRaw<T extends object>(raw: T): T {
+  const s = clone(raw) as unknown as Record<string, unknown[]>;
+  const files = unsignFiles(Object.fromEntries(CONTENT_KEYS.map((k) => [SEED_FILES[k], s[k] ?? []])));
+  for (const k of CONTENT_KEYS) s[k] = files[SEED_FILES[k]];
+  return s as unknown as T;
+}
+
+/**
+ * 서명 전 기준 시드 디렉터리(CLI·dist 시험용): 디스크 시드(src, 기본 server/seed — seed-draft 사본도 가능) 전 파일 복사 → 콘텐츠 8파일을 unsignFiles 결과로, 매니페스트 '[]'.
+ *   JSON 2칸 들여쓰기·끝 개행 없음(apply 스크립트 형식). dir 은 호출자가 만든 임시 디렉터리.
+ */
+export function writeUnsignedSeedDir(dir: string, src: string = SEED_DIR): string {
+  mkdirSync(dir, { recursive: true });
+  cpSync(src, dir, { recursive: true });
+  const files: Record<string, unknown[]> = {};
+  for (const k of CONTENT_KEYS) files[SEED_FILES[k]] = JSON.parse(readFileSync(join(src, SEED_FILES[k]), 'utf8')) as unknown[];
+  const out = unsignFiles(files);
+  for (const [f, rows] of Object.entries(out)) writeFileSync(join(dir, f), JSON.stringify(rows, null, 2));
+  writeFileSync(join(dir, SIGNATURE_FILE), '[]');
+  return dir;
+}
 
 /** 행별 확인 항목 이름 — 원문 발췌가 아닌 whyShort 행 1개당 1항목. 실패킷·확인표 W 절도 같은 이름(WS-<행 id>)을 쓴다. */
 export const k1ItemOf = (id: string): string => `WS-${id}`;
@@ -109,7 +190,7 @@ export const GOLDEN_TAXON_ID = 'mesocricetus-auratus';
  *   taxonVerified: 골든 Taxon 도 승격(Taxon 참조 공개 경로 검사용).
  */
 export function promoted(opts: { typeDraft?: boolean; taxonVerified?: boolean; publishable?: boolean; base?: SeedBundle } = {}): SeedBundle {
-  const s = clone(opts.base ?? realSeed());
+  const s = clone(opts.base ?? unsignedRealSeed());
   if (opts.taxonVerified) patch(s, 'taxa', GOLDEN_TAXON_ID, { ...V_LEGAL });
   patch(s, 'animalTypes', 'hamster-golden', opts.typeDraft ? {} : { ...V });
   patch(s, 'careProfiles', 'cp-hamster-syrian', { ...V });
@@ -219,20 +300,20 @@ export function filesOf(seed: SeedBundle): Record<string, unknown[]> {
 }
 
 /**
- * 실시드 + 드워프 확인표 결과를 메모리에서 적용(applySignatures 그대로 — 디스크는 바꾸지 않는다).
+ * 서명 전 기준 실시드(unsignedRealSeed) + 드워프 확인표 결과를 메모리에서 적용(applySignatures 그대로 — 디스크는 바꾸지 않는다).
  *   result 생략 = 전 항목 ☑·C 서명(가짜). packet 생략 = dwarfPacketK1()(K1: 재서술 whyShort 행은 행별 확인). 반환 seed·매니페스트.
  */
 export function dwarfSignedWith(
   result: Record<string, unknown> = dwarfAllCheckedResult(),
   packet: DwarfPacket = dwarfPacketK1(),
 ): { seed: SeedBundle; manifest: SignatureEntry[] } {
-  const s = clone(realSeed());
+  const s = unsignedRealSeed();
   const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: DWARF_PREVIEW_AS_OF });
   for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
   return { seed: s, manifest: res.manifest };
 }
 
-/** 드워프 R7-B 패킷 50행이 서명된 상태(메모리, 가짜 확인표 결과). 디스크는 Kenny 확인표 수령 전이라 전부 DRAFT. */
+/** 드워프 패킷 52행이 서명된 상태(메모리, 가짜 확인표 결과 — 서명 전 기준 unsignedRealSeed() 위). 디스크는 2026-11-16 실서명 review 단계(NEEDS_REVIEW). */
 export function dwarfSigned(): SeedBundle {
   return dwarfSignedWith().seed;
 }
