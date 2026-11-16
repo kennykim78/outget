@@ -112,8 +112,19 @@ function SaveSummary({ type, reqs, catalogUrl }: { type: PublicAnimalType; reqs:
 export default function SaveLayer({ close }: LayerContentProps) {
   const chrome = useLayerChrome();
   const page = useLayerPage();
-  // 렌더 첫 단계 — 프래그먼트 토큰은 여기서 지워진다(이후 effect 의 verify 보다 먼저).
-  const [captured, setCaptured] = useState(() => captureMagicToken());
+  // 296(Kenny 예외 조항 11/17): 처리방침 비노출 빌드(#root data-ws-privacy="off")면 이메일 저장을 받지 않는다 —
+  //   입력 칸·제출·재전송·매직링크 연결 화면 0, 입력 자리는 COPY.save.unavailable 만. 이 기기 연결 기록이 없으면 세션 확인 GET 도 0.
+  //   이미 연결된 기기의 연결 상태·지우기(권리 행사)는 그대로. 문서 수명 동안 같은 값(privacyPage.ts).
+  const [emailOn] = useState(() => privacyPageOn());
+  // 렌더 첫 단계 — 프래그먼트 토큰은 여기서 지워진다(이후 effect 의 verify 보다 먼저). 비노출 빌드는 토큰을 쓰지 않는다(지우기만).
+  const [captured, setCaptured] = useState(() => {
+    const c = captureMagicToken();
+    if (c && !emailOn) {
+      clearMagicToken();
+      return null;
+    }
+    return c;
+  });
   const linked = useSaveLinked();
   const [view, setView] = useState<View>(() => (captured ? ('invalid' in captured ? (linked ? 'linked' : 'expired') : 'connect') : linked ? 'linked' : 'input'));
   const [maskedEmail, setMaskedEmail] = useState<string | undefined>(undefined);
@@ -208,11 +219,15 @@ export default function SaveLayer({ close }: LayerContentProps) {
       subscribeMagicToken(() => {
         const next = captureMagicToken();
         if (!next) return;
+        if (!emailOn) {
+          clearMagicToken(); // 296: 비노출 빌드 — 연결 화면·verify 0
+          return;
+        }
         setCaptured(next);
         setConnectFailed(false);
         setView('invalid' in next ? (linked ? 'linked' : 'expired') : 'connect');
       }),
-    [linked],
+    [linked, emailOn],
   );
 
   // 형식이 틀린 토큰 — 네트워크 0, 만료 화면.
@@ -279,6 +294,8 @@ export default function SaveLayer({ close }: LayerContentProps) {
   //   연결 기록 없는 기기인데 서버 세션이 살아 있음 → serverLinked(연결하기 | 연결 해제).
   useEffect(() => {
     if ((captured && view !== 'linked') || probed.current) return;
+    // 296: 비노출 빌드 + 이 기기 연결 기록 없음 → 세션 확인 GET 0(입력 화면은 unavailable 만이라 serverLinked 로 갈 일 없음).
+    if (!emailOn && !linked) return;
     probed.current = true;
     const wasLinked = linked;
     const sync = saveLayerDeps.sync();
@@ -288,7 +305,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
       if (wasLinked && (p === null || p.linked)) void sync.resume();
       if (!wasLinked && p?.linked) setView((v) => (v === 'input' ? 'serverLinked' : v));
     });
-  }, [captured, linked, view]);
+  }, [captured, linked, view, emailOn]);
 
   useEffect(() => {
     if (!linked && view === 'linked') setView('input');
@@ -326,6 +343,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
 
   const send = useCallback(
     async (address: string) => {
+      if (!emailOn) return; // 296: 비노출 빌드 — 전송 경로 0(입력 칸도 그리지 않는다)
       setView('sending');
       setError(null);
       const res = await saveLayerDeps.api().requestMagic(address, SERVER_ENTRY[entryRef.current]);
@@ -337,12 +355,12 @@ export default function SaveLayer({ close }: LayerContentProps) {
       setError(res.status === 503 ? 'unavailable' : res.status === 400 ? 'format' : 'network');
       setView((v) => (v === 'sending' ? 'input' : v));
     },
-    [],
+    [emailOn],
   );
 
   const onSubmit = (e?: FormEvent) => {
     e?.preventDefault();
-    if (view === 'sending') return;
+    if (view === 'sending' || !emailOn) return;
     const address = email.trim();
     if (address.length === 0 || address.length > MAX_EMAIL || !EMAIL_RE.test(address)) {
       setError('format');
@@ -861,6 +879,31 @@ export default function SaveLayer({ close }: LayerContentProps) {
                 {COPY.save.otherAddress}
               </button>
             </div>
+          </div>
+        </LayerBody>
+        <LayerFoot>
+          <div className="ws-save-foot">
+            <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
+              {COPY.save.close}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
+    );
+  }
+
+  // 296: 처리방침 비노출 빌드 — 입력 화면 자리에 기존 문구 unavailable 만(입력 칸·제출·링크 안내·광고 문구 0, 채운 CTA 0).
+  //   요약·관리 링크(이 기기 지우기)는 유지, 닫기는 outline 하나.
+  if (!emailOn) {
+    return (
+      <>
+        <LayerBody>
+          <div className="ws-save" data-ws-save="unavailable">
+            <p className="ws-t-body" data-ws-error="unavailable">
+              {COPY.save.unavailable}
+            </p>
+            {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
+            {manageLinks('input')}
           </div>
         </LayerBody>
         <LayerFoot>
