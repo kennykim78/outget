@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { WS_DATA_KEYS, naverMapSearchUrl, type SeedBundle, type VetClinicSeedRec } from '../engine/index.js';
 import { buildSite, type SiteBuild } from '../prerender/site.js';
 import { COPY } from '../prerender/copy.js';
-import { renderHeader, type PageContext } from '../prerender/pages/common.js';
+import { renderHeader } from '../prerender/pages/common.js';
 import { TYPE_VETS_MAX } from '../prerender/pages/type.js';
 import { FIXTURE_AS_OF, patch, promoted, realSeed } from './fixtures/prerender-seed.js';
 
@@ -79,14 +79,16 @@ describe('타입 페이지 ws-data.vets(C-R5-6, D16)', () => {
     expect(vs).toHaveLength(TYPE_VETS_MAX);
     expect(vs[0].id).toBe('vc-00');
   });
-  it('홈 B ④ 병원 레일 = ws-data vets 순서 VetCard, 이어서 /vet 링크', () => {
+  it('홈 B 병원 레일(R4-2b 복원) = ws-data vets 순서 VetCard, 레일 아래 /vet 링크', () => {
     const page = html(b, '/hamster/golden');
     const sec = page.slice(page.indexOf('data-ws-section="vet"'), page.indexOf('data-ws-section="save"'));
     const ids = [...sec.matchAll(/data-ws-id="vetClinics#([^"]+)"/g)].map((m) => m[1]);
     expect(ids).toEqual(['vc-a', 'vc-b']);
-    // 51 레인 A: client RailSection 과 같이 "/vet" 링크는 레일 머리(ws-rail-more) — 카드 목록보다 앞.
-    expect(sec).toContain(`<a class="ws-rail-more ws-t-meta" href="/vet">${COPY.homeB.vetLink}`);
-    expect(sec.indexOf('href="/vet"')).toBeLessThan(sec.indexOf('vetClinics#'));
+    expect(data(b, '/hamster/golden').data.vets.map((v) => v.id)).toEqual(ids);
+    // R4 시안 톤: → 텍스트 링크는 레일 아래(ws-rail-foot).
+    expect(sec).toContain(`<a class="ws-home-link ws-rail-foot" href="/vet">${COPY.homeB.vetLink}`);
+    expect(sec.indexOf('vetClinics#')).toBeLessThan(sec.indexOf('href="/vet"'));
+    expect(sec).not.toContain(COPY.homeB.vetEmpty);
   });
 });
 
@@ -136,7 +138,8 @@ describe('/vet(G-4)', () => {
     const page = html(list, '/vet');
     expect(page).toContain(`<p class="ws-vet-row-label" id="ws-vet-filters-label">${COPY.vet.filtersTitle}</p>`);
     expect(page).toContain('<div class="ws-vet-filters" role="group" aria-labelledby="ws-vet-filters-label">');
-    expect(page).toContain('<button type="button" class="ws-filter-chip" aria-pressed="false">골든햄스터</button>');
+    // R4-6: 진료 동물 칩 = 「{동물} 진료」(시안 「✓ 골든햄스터 진료」 — ✓ 는 선택 시 CSS).
+    expect(page).toContain('<button type="button" class="ws-filter-chip" aria-pressed="false">골든햄스터 진료</button>');
     expect(page).toContain(`<button type="button" class="ws-filter-chip" aria-pressed="false">${COPY.vet.night}</button>`);
     expect(page).toContain(`<button type="button" class="ws-filter-chip" aria-pressed="false">${COPY.vet.emergency}</button>`);
   });
@@ -149,12 +152,34 @@ describe('/vet(G-4)', () => {
     expect(mapo).toContain('<h1>서울 마포구 · 우리 동네 병원</h1>');
     expect(mapo).toContain(COPY.vet.visitNote);
   });
+  it('R4-6: 제목 바로 다음 = 방문 안내 한 줄(시안 원문), 그다음 「지역 선택」 줄 — 병원 목록보다 앞', () => {
+    expect(COPY.vet.visitNote).toBe('방문 전 진료 여부를 병원에 문의해 주세요.');
+    expect(COPY.vet.regionsTitle).toBe('지역 선택');
+    const page = html(list, '/vet');
+    expect(page).toContain(`</h1>\n<p class="ws-vet-note">${COPY.vet.visitNote}</p>`);
+    expect(page.indexOf('ws-vet-note')).toBeLessThan(page.indexOf('ws-vet-row--regions'));
+    expect(page.indexOf('ws-vet-row--regions')).toBeLessThan(page.indexOf('<ul class="ws-vets">'));
+    expect(page.match(/class="ws-vet-note"/g)).toHaveLength(1);
+    expect(page).not.toContain('ws-state--empty');
+  });
+  it('R4-6: 병원 0 → 상태 머리 h2 「확인된 병원이 아직 없어요」 + emptyAll, 허구 병원·지도·필터·지역 0', () => {
+    const s0 = promoted();
+    s0.vetClinics = [];
+    const page = html(build(s0), '/vet');
+    const main = page.slice(page.indexOf('<main'), page.indexOf('</main>'));
+    expect(main).toContain(
+      `<div class="ws-state ws-state--empty" data-ws-state-kind="empty"><h2 class="ws-state-title">${COPY.vet.emptyTitle}</h2><p class="ws-state-body">${COPY.vet.emptyAll}</p></div>`,
+    );
+    expect(COPY.vet.emptyTitle).toBe('확인된 병원이 아직 없어요');
+    for (const x of ['ws-vets', 'ws-vet-map', 'ws-vet-filters', 'ws-region-chips', 'vetClinics#', 'ws-vet-row']) expect(main).not.toContain(x);
+    expect(main).toContain(COPY.vet.visitNote);
+  });
 });
 
 describe('G-6 프리렌더 정합', () => {
   const b = build(promoted());
-  it('ProductCard: ♡ span 은 링크의 형제(a 안 0), 숫자 0', () => {
-    const page = html(b, '/hamster/golden');
+  it('ProductCard(L4 후보 영역): ♡ span 은 링크의 형제(a 안 0), 숫자 0', () => {
+    const page = html(b, '/hamster/golden/supplies/wheel');
     const li = page.slice(page.indexOf('<li class="ws-product"'), page.indexOf('</li>', page.indexOf('<li class="ws-product"')));
     expect(li).toMatch(/<\/a>\n<span class="ws-like" aria-hidden="true"><span class="ws-like-glyph" aria-hidden="true">♡<\/span><\/span>\n?$/);
     const a = li.slice(li.indexOf('<a '), li.indexOf('</a>'));
@@ -240,19 +265,24 @@ describe('PublicRequirement.requirementId(R5 계약 확장)', () => {
   });
 });
 
-// DR-4 NIT-1: 헤더 칩 sm 아바타(AnimalChip.tsx:27 과 같은 조건·톤)
-describe("renderHeader 칩 아바타", () => {
-  const ctx = { mascots: new Map([["golden-hamster", "<svg/>"]]) } as unknown as PageContext;
-  const t = { slug: "golden-hamster", displayName: "골든햄스터", mascot: "golden-hamster" };
-  it("선택 타입 + 자산 있음: sm peach-soft 아바타가 이름 앞", () => {
-    const h = renderHeader(t, null, ctx);
-    expect(h).toContain("ws-avatar ws-avatar--sm ws-avatar--peach-soft");
-    expect(h.indexOf("ws-avatar--sm")).toBeLessThan(h.indexOf("ws-chip-name"));
+// U2b(Kenny D1 2026-11-14): 헤더 칩 = CTA 자리. 미선택 「친구 선택하기」 채운 버튼, 선택 = 이름만(R4 시안 — 아바타·▾ 없음, DR-4 NIT-1 대체).
+describe("renderHeader 칩·크기 확인(U2b)", () => {
+  const t = { id: "hamster-golden", slug: "hamster/golden", displayName: "골든햄스터" };
+  it("선택: 이름만(아바타·▾ 0), 미선택: ws-btn--fill 「친구 선택하기」", () => {
+    const sel = renderHeader(t, null);
+    expect(sel).toContain('<a data-ws-chip class="ws-chip ws-chip--selected" href="/pick"><span class="ws-chip-name">골든햄스터</span></a>');
+    expect(sel).not.toMatch(/ws-avatar|ws-chip-caret|<img/);
+    expect(renderHeader(null, null)).toContain(`<a data-ws-chip class="ws-chip ws-btn ws-btn--fill" href="/pick"><span class="ws-chip-name">${COPY.nav.chooseFriend}</span></a>`);
   });
-  it("미선택·자산 없음·ctx 없음: 아바타 0", () => {
-    expect(renderHeader(null, null, ctx)).not.toContain("ws-avatar");
-    expect(renderHeader({ ...t, mascot: "nope" }, null, ctx)).not.toContain("<img");
-    expect(renderHeader(t)).not.toContain("ws-avatar");
+  it("크기 확인: 미선택 /pick · ws-data specCheckItemId → 규격 필드 첫 요구사항 → 타입 홈", () => {
+    const spec = (h: string) => /<a data-ws-nav="spec-check" href="([^"]*)">/.exec(h)?.[1];
+    expect(spec(renderHeader(null, null))).toBe("/pick");
+    expect(spec(renderHeader(t, null))).toBe("/hamster/golden");
+    const data = { types: [{ id: t.id, specCheckItemId: "wheel" }], requirements: [] } as unknown as Parameters<typeof renderHeader>[2];
+    expect(spec(renderHeader(t, null, data))).toBe("/hamster/golden/check/wheel");
+    const req = (id: string, fields: number) => ({ animalTypeId: t.id, supplyItemId: id, item: { specSchema: { fields: Array.from({ length: fields }, () => ({})) } } });
+    const data2 = { types: [{ id: t.id }], requirements: [req("bowl", 0), req("cage", 2)] } as unknown as Parameters<typeof renderHeader>[2];
+    expect(spec(renderHeader(t, null, data2))).toBe("/hamster/golden/check/cage");
   });
 });
 
@@ -288,5 +318,39 @@ describe('홈 ws-data types[].specCheckItemId(R6 G3b)', () => {
     const b = build(realSeed());
     for (const p of HOME_PATHS) expect(data(b, p).data.types, p).toEqual([]);
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('specCheckItemId');
+  });
+});
+
+describe('홈 ws-data types[].setupAvailable(286 U3b — 시작 카드 「구성안」)', () => {
+  const HOME_PATHS = ['/', '/pick', '/save'];
+  it('승격 픽스처: 노출 구성안이 있는 타입 = true, 그 타입의 /setup 라우트 실재 · 홈 외 페이지 types 에는 키 없음', () => {
+    const b = build(promoted());
+    for (const p of HOME_PATHS) {
+      const d = data(b, p).data;
+      for (const t of d.types) {
+        const hasRoute = b.pages.some((x) => x.route.path === `/${t.slug}/setup`);
+        expect(t.setupAvailable === true, `${p} ${t.id}`).toBe(hasRoute);
+      }
+      expect(d.types.some((t) => t.setupAvailable === true), p).toBe(true);
+      expect(d.bundles, p).toEqual([]);
+    }
+    for (const p of b.pages.filter((x) => !HOME_PATHS.includes(x.route.path))) {
+      for (const t of p.data.data.types) expect('setupAvailable' in t, p.route.path).toBe(false);
+    }
+  });
+  it('구성안 0 → 키 없음 · /setup 없음 · 홈 「구성안」 카드 없음(fail-closed)', () => {
+    const s = promoted();
+    s.setupBundles.length = 0;
+    const b = build(s);
+    for (const p of HOME_PATHS) for (const t of data(b, p).data.types) expect('setupAvailable' in t, p).toBe(false);
+    expect(b.pages.some((x) => x.route.kind === 'SETUP')).toBe(false);
+    const home = b.pages.find((x) => x.route.path === '/')!.html;
+    expect(home).toContain('data-ws-intent="CHECKLIST"');
+    expect(home).not.toContain('data-ws-intent="SETUP"');
+  });
+  it('DRAFT 실시드: 노출 타입 0 → 키 없음 · 홈에 시작 카드 섹션 없음(D12 ①)', () => {
+    const b = build(realSeed());
+    expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('setupAvailable');
+    for (const p of HOME_PATHS) expect(b.pages.find((x) => x.route.path === p)!.html, p).not.toContain('data-ws-section="starters"');
   });
 });

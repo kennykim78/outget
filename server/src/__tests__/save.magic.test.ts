@@ -64,6 +64,9 @@ describe('POST /auth/magic/request', () => {
     expect(mail.sent[0].to).toBe('new@example.com');
     expect(mail.sent[0].text).toMatch(new RegExp(`${ORIGIN}/save#t=[A-Za-z0-9_-]{43}(\\s|$)`));
     expect(mail.sent[0].text).not.toContain('evil.example');
+    expect(mail.sent[0].text).toContain(
+      '아래 링크를 15분 안에 열고 「이 기기 연결하기」를 누르면 그 기기와 연결돼요. 링크는 한 번만 쓸 수 있어요.',
+    );
   });
 
   it('가입된·미가입 이메일: 같은 상태·같은 본문·같은 작업(토큰 행 1개·메일 1통)', async () => {

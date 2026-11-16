@@ -2,7 +2,7 @@
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
 import { CONTENT_KEYS, daysBetween, has, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
-import { isReviewBasis, requiredBasis, REVIEW_BASES } from './signatures.js';
+import { isReviewBasis, requiredBasis, requiredBasisReason, REVIEW_BASES } from './signatures.js';
 import { registrableDomainOfUrl } from './hostname.js';
 import { isAiHandle } from './ai-handle.js';
 import type { Ctx } from './context.js';
@@ -57,7 +57,7 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   // V10 — 행별 출처 확인이 근거인 행(상품·최소 규격)은 ROW_CHECKED 만(일괄 승인 불가, Kenny 2026-10-24 H-1).
   const need = requiredBasis(key, r);
   if (need && isReviewBasis(r.reviewBasis) && r.reviewBasis !== need) {
-    out.error('V10', key, id, 'reviewBasis', `${key === 'curatedProducts' ? '상품' : '최소 규격 행'}은 ${need} 만 (현재 ${r.reviewBasis}) — 일괄 승인 불가`);
+    out.error('V10', key, id, 'reviewBasis', `${requiredBasisReason(key, r) ?? '행'}은 ${need} 만 (현재 ${r.reviewBasis}) — 일괄 승인 불가`);
   }
 
   // V02

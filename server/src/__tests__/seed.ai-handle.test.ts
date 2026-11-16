@@ -9,7 +9,7 @@ import { CONTENT_KEYS, SEED_FILES, type RawSeed } from '../seed/common.js';
 import { AI_HANDLE_RE, isAiHandle } from '../seed/ai-handle.js';
 import type { SignatureEntry } from '../seed/signatures.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
-import { DWARF_PREVIEW_AS_OF, applyMjs, dwarfAllCheckedResult, dwarfPacket, dwarfSignedWith, realSeed } from './fixtures/prerender-seed.js';
+import { DWARF_PREVIEW_AS_OF, applyMjs, dwarfAllCheckedResult, dwarfPacketK1, dwarfSignedWith, realSeed } from './fixtures/prerender-seed.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const mjs = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'ai-handle.mjs')).href)) as {
@@ -121,7 +121,7 @@ describe('apply-review-signatures — signedBy AI 핸들 거부(같은 판정)',
   const filesOf = (s: SeedBundle): Record<string, unknown[]> =>
     Object.fromEntries(CONTENT_KEYS.map((k) => [SEED_FILES[k], clone((s as unknown as Record<string, unknown[]>)[k])]));
   const apply = (signedBy: string) => () =>
-    applyMjs.applySignatures(filesOf(realSeed()), [], dwarfPacket(), { ...dwarfAllCheckedResult(NOW), signedBy }, { now: NOW });
+    applyMjs.applySignatures(filesOf(realSeed()), [], dwarfPacketK1(), { ...dwarfAllCheckedResult(NOW), signedBy }, { now: NOW });
 
   it.each(['chatgpt', 'claude3', 'ai_kenny', 'GPT-4', 'gemini'])('거부: %s', (h) => {
     expect(apply(h)).toThrow(/AI 핸들/);

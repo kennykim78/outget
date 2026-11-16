@@ -58,14 +58,64 @@
   flex: 1 1 auto;
 }
 
-/* ── 홈 A ① 히어로(§3.1) ───────────────────────────── */
+/* ── 홈 A 히어로(R3 시안 v1b, 286 U3a) — 큰 한 문장 + 부제 + 선택 바(입력 아님, /pick 링크) ── */
 .ws-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--ws-space-4);
-  padding-block: var(--ws-space-8) var(--ws-space-6);
+  padding-top: var(--ws-space-12);
   text-align: center;
+}
+
+.ws-hero-title,
+.ws-start-title {
+  word-break: keep-all;
+  text-wrap: balance;
+}
+
+.ws-hero-sub {
+  margin-top: var(--ws-space-2);
+}
+
+/* 선택 바: 시안 PC 폭 = 12열 그리드 8열(8×78 + 7×24 = 792). 채운 CTA 아님(외곽선 + 청록 원 화살표). */
+.ws-pick-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-3);
+  width: 100%;
+  max-width: 792px;
+  min-height: var(--ws-input-h);
+  margin-top: var(--ws-space-6);
+  padding: 0 var(--ws-space-3) 0 var(--ws-space-6);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-cta-weight);
+  text-align: left;
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .ws-pick-bar:hover {
+    border-color: var(--ws-brand);
+    text-decoration: none;
+  }
+}
+
+.ws-pick-bar-go {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ws-touch);
+  height: var(--ws-touch);
+  border-radius: var(--ws-radius-pill);
+  background: var(--ws-brand);
+  color: var(--ws-on-brand);
 }
 
 .ws-continue {
@@ -73,46 +123,415 @@
   align-items: center;
   gap: var(--ws-space-2);
   min-height: var(--ws-touch);
+  margin-top: var(--ws-space-3);
   color: var(--ws-brand-text);
   font-weight: var(--ws-type-label-weight);
 }
 
-.ws-feature-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--ws-space-2);
-}
-
-/* 시각 34 / 히트 44(D-25): 34 = touch − space-2 − 2px. */
-.ws-feature-chips a {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  height: calc(var(--ws-touch) - var(--ws-space-2) - 2px);
-  padding: 0 var(--ws-space-3);
-  border: 1px solid var(--ws-line-strong);
-  border-radius: var(--ws-radius-pill);
-  color: var(--ws-ink-muted);
-  font-size: var(--ws-type-meta-size);
-  line-height: var(--ws-type-meta-lh);
-  font-weight: var(--ws-type-label-weight);
-  white-space: nowrap;
-}
-
-.ws-feature-chips a::after {
-  content: "";
-  position: absolute;
-  inset: calc(-1 * (var(--ws-space-1) + 1px)) 0;
-}
-
 @media (min-width: 768px) {
-  .ws-feature-chips {
-    flex-wrap: nowrap;
+  .ws-hero {
+    padding-top: var(--ws-section-gap-mobile);
+  }
+  .ws-hero-sub {
+    margin-top: var(--ws-space-3);
+  }
+  .ws-pick-bar {
+    margin-top: var(--ws-space-8);
   }
 }
 
-/* ── 홈 A ② 후기(§2.13) ────────────────────────────── */
+/* ── 홈 A 「처음 준비, 여기서 시작해요」 시작 카드 3(R3 시안 v1b, 286 U3b) — RailSection layout=grid3 ──
+   ≤767 가로 레일(카드 폭 = 콘텐츠 폭 × (1 − peek), 다음 카드가 비쳐 보임) · ≥768 3열 그리드(거터 24, 제목 가운데).
+   카드 = 사진 자리(모서리 14/20) + 제목·화살표 + 한 줄. 테두리·배경·그림자 없음(카드 안 카드 없음). */
+.ws-home-a .ws-rail-section--grid3 {
+  margin-top: var(--ws-section-gap-mobile);
+}
+
+/* 화살표·전체 링크 없음(prevLabel null) — 빈 도구 칸이 제목 정렬을 밀지 않게. */
+.ws-rail-section--grid3 .ws-rail-tools:empty {
+  display: none;
+}
+
+ul.ws-starters,
+ul.ws-habitats {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--ws-rail-gap);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  margin-inline: calc(-1 * var(--ws-gutter-mobile));
+  padding-inline: var(--ws-gutter-mobile);
+  scroll-padding-inline: var(--ws-gutter-mobile);
+}
+
+ul.ws-starters::-webkit-scrollbar,
+ul.ws-habitats::-webkit-scrollbar {
+  display: none;
+}
+
+ul.ws-starters > li,
+ul.ws-habitats > li {
+  flex: none;
+  width: calc((100vw - 2 * var(--ws-gutter-mobile)) * (1 - var(--ws-rail-peek)));
+  scroll-snap-align: start;
+}
+
+.ws-starter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  color: var(--ws-ink);
+  text-decoration: none;
+}
+
+.ws-starter-photo {
+  aspect-ratio: 3 / 2;
+  margin-bottom: var(--ws-space-3);
+  border-radius: var(--ws-radius-photo-mobile);
+}
+
+.ws-starter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-2);
+}
+
+.ws-starter-go {
+  display: inline-flex;
+  flex: none;
+  color: var(--ws-brand-text);
+}
+
+@media (hover: hover) {
+  .ws-starter:hover {
+    text-decoration: none;
+  }
+  .ws-starter:hover .ws-starter-title {
+    text-decoration: underline;
+  }
+}
+
+@media (min-width: 768px) {
+  .ws-home-a .ws-rail-section--grid3 {
+    margin-top: var(--ws-section-gap);
+  }
+  .ws-rail-section--grid3 > .ws-rail-head {
+    justify-content: center;
+    margin-bottom: var(--ws-space-8);
+    text-align: center;
+  }
+  ul.ws-starters,
+  ul.ws-habitats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--ws-grid-gutter);
+    overflow-x: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  ul.ws-starters > li,
+  ul.ws-habitats > li {
+    width: auto;
+  }
+  .ws-starter-photo {
+    border-radius: var(--ws-radius-photo);
+  }
+}
+
+/* ── 홈 A 설명 섹션(R3 시안 v1b, 286 U3c·U3d·U3e) — 필요/불필요 · 숫자 · 함께 살 집 · 병원 ──
+   섹션 간격 PC 120 / 모바일 72. ≤767 세로 한 줄(글 → 사진 → 목록 → 링크, display:contents + order),
+   ≥768 12열 2분할(글 5열 · 사진/목록 6열, 「숫자」는 사진 왼쪽). 사진 = 빈 자리표시(모서리 14/20). 테두리 카드·그림자 없음. */
+.ws-home-a .ws-home-sec {
+  margin-top: var(--ws-section-gap-mobile);
+}
+
+.ws-explain {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-explain-text,
+.ws-explain-side {
+  display: contents;
+}
+
+.ws-explain-eyebrow {
+  order: 1;
+  margin-bottom: var(--ws-space-3);
+}
+
+.ws-explain .ws-home-sec-head {
+  order: 2;
+  margin-bottom: 0;
+}
+
+.ws-explain-photo {
+  order: 3;
+  margin-top: var(--ws-space-6);
+  aspect-ratio: 588 / 282;
+  border-radius: var(--ws-radius-photo-mobile);
+}
+
+.ws-need-cols,
+.ws-figure-list,
+.ws-vet-rows,
+.ws-vet-rows-empty {
+  order: 4;
+}
+
+.ws-explain .ws-home-link {
+  order: 5;
+  align-self: flex-start;
+  margin-top: var(--ws-space-4);
+}
+
+/* 필요해요 / 지금은 필요 없어요 — 구분선 아래 2열(이름만, 시드 레코드). 「필요해요」 제목 청록, 「지금은 필요 없어요」 잉크(색 + 단어). */
+.ws-need-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ws-grid-gutter);
+  margin-top: var(--ws-space-6);
+  padding-top: var(--ws-space-6);
+  border-top: 1px solid var(--ws-line);
+}
+
+.ws-need-col[data-ws-col="need"] .ws-need-col-title {
+  color: var(--ws-brand-text);
+}
+
+ul.ws-need-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  margin-top: var(--ws-space-4);
+  color: var(--ws-ink-body);
+  word-break: keep-all;
+}
+
+/* 숫자로 알려 드려요 — 「{동물} 예시」 눈썹 → 행(이름 + 큰 숫자 + 「cm 이상」, 숫자→단위 8). 첫 행 청록, 다음 행 잉크·한 단계 작게. */
+.ws-figures .ws-explain-photo {
+  order: 2;
+  aspect-ratio: 588 / 490;
+}
+
+.ws-figures .ws-home-sec-head {
+  order: 1;
+}
+
+.ws-figures .ws-explain-eyebrow {
+  order: 3;
+  margin-top: var(--ws-space-6);
+  margin-bottom: 0;
+}
+
+ul.ws-figure-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-figure {
+  padding-block: var(--ws-space-4);
+}
+
+.ws-figure + .ws-figure {
+  border-top: 1px solid var(--ws-line);
+}
+
+.ws-figure-num {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ws-num-unit-gap);
+  margin-top: var(--ws-space-1);
+  color: var(--ws-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-figure-value {
+  font-size: calc(var(--ws-type-display-size) * 1.5);
+  line-height: calc(var(--ws-type-display-lh) * 1.5);
+  font-weight: var(--ws-type-display-weight);
+  letter-spacing: var(--ws-type-display-tracking);
+  white-space: nowrap;
+}
+
+.ws-figure:first-child .ws-figure-value {
+  color: var(--ws-brand-text);
+}
+
+.ws-figure + .ws-figure .ws-figure-value {
+  font-size: calc(var(--ws-type-display-size) * 1.25);
+  line-height: calc(var(--ws-type-display-lh) * 1.25);
+}
+
+.ws-figure-unit {
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+}
+
+/* ≤767 — 첫 숫자(예: 100×50×50)는 화면 폭에 맞춰 상한, 단위·「이상」은 한 덩어리. 320 등 극소 폭은 flex-wrap 으로 줄바꿈 허용. */
+@media (max-width: 767px) {
+  .ws-figure:first-child .ws-figure-value {
+    font-size: min(calc(var(--ws-type-display-size) * 1.5), 11vw);
+    line-height: min(calc(var(--ws-type-display-lh) * 1.5), 13vw);
+  }
+  .ws-figure-unit {
+    white-space: nowrap;
+  }
+}
+
+/* 함께 살 집 — 시작 카드와 같은 카드(grid3), 머리는 display 제목 + 리드(≥768 리드 오른쪽). */
+.ws-home-a .ws-habitats-sec .ws-home-sec-lead {
+  margin-top: var(--ws-space-2);
+}
+
+/* 진료하는 병원만 보여 드려요 — 그룹별 진료 행(행 = 44 + 위아래 12 ≈ 시안 65, 위·아래 선). 지도 그림 없음(사용권 자산 없음). */
+ul.ws-vet-rows {
+  margin-top: var(--ws-space-6);
+  border-top: 1px solid var(--ws-line);
+}
+
+ul.ws-vet-rows > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-1) var(--ws-space-4);
+  min-height: var(--ws-touch);
+  padding-block: var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-line);
+}
+
+.ws-vet-row-types {
+  text-align: right;
+  word-break: keep-all;
+}
+
+.ws-vet-rows-empty {
+  margin-top: var(--ws-space-6);
+  padding-top: var(--ws-space-6);
+  border-top: 1px solid var(--ws-line);
+}
+
+@media (min-width: 768px) {
+  .ws-home-a .ws-home-sec {
+    margin-top: var(--ws-section-gap);
+  }
+  .ws-explain {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--ws-grid-gutter);
+    align-items: start;
+  }
+  .ws-explain-text,
+  .ws-explain-side {
+    display: flex;
+    flex-direction: column;
+  }
+  .ws-explain-text {
+    grid-column: 1 / span 5;
+    padding-top: var(--ws-space-6);
+  }
+  .ws-explain-side {
+    grid-column: 7 / span 6;
+  }
+  .ws-explain-photo {
+    margin-top: 0;
+    border-radius: var(--ws-radius-photo);
+  }
+  .ws-explain .ws-home-link {
+    margin-top: var(--ws-space-8);
+  }
+  .ws-figures .ws-explain-photo {
+    grid-column: 1 / span 6;
+    grid-row: 1;
+  }
+  .ws-figures .ws-explain-text {
+    grid-column: 8 / span 5;
+    grid-row: 1;
+    padding-top: 0;
+  }
+  .ws-figures .ws-explain-eyebrow {
+    margin-top: var(--ws-space-8);
+  }
+  .ws-figure-value {
+    font-size: calc(var(--ws-type-display-size) * 2);
+    line-height: calc(var(--ws-type-display-lh) * 2);
+  }
+  .ws-figure + .ws-figure .ws-figure-value {
+    font-size: calc(var(--ws-type-display-size) * 1.5);
+    line-height: calc(var(--ws-type-display-lh) * 1.5);
+  }
+  .ws-vet-split .ws-explain-text {
+    padding-top: var(--ws-space-12);
+  }
+  .ws-vet-split ul.ws-vet-rows,
+  .ws-vet-split .ws-vet-rows-empty {
+    margin-top: 0;
+  }
+  .ws-home-a .ws-habitats-sec > .ws-rail-head {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .ws-home-a .ws-habitats-sec .ws-rail-heading {
+    flex: 1 1 auto;
+  }
+  .ws-home-a .ws-habitats-sec .ws-home-sec-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ws-space-2) var(--ws-space-6);
+  }
+  .ws-home-a .ws-habitats-sec .ws-home-sec-lead {
+    margin-top: 0;
+  }
+}
+
+/* ── 홈 A 하단 CTA(R3 시안 v1b) — 문장 좌 · 채운 버튼 우(≥768), 모바일 세로 + 버튼 전폭. 앞·뒤 간격 120(시안 notes). ── */
+.ws-start {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ws-space-6);
+  margin-block: var(--ws-section-gap);
+}
+
+.ws-start-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+}
+
+.ws-start .ws-btn {
+  min-height: var(--ws-btn-h);
+}
+
+/* section[data-ws-section](app.css, 특이도 0,1,1)의 margin-top 24 가 .ws-start 의 간격을 덮어 앞 간격이 ~40 이었다 — 홈 A 안에서 시안 값(PC 120 / 모바일 72)으로 고정. */
+.ws-home-a .ws-start {
+  margin-block: var(--ws-section-gap-mobile);
+}
+
+@media (min-width: 768px) {
+  .ws-home-a .ws-start {
+    margin-block: var(--ws-section-gap);
+  }
+  .ws-start {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ws-start .ws-btn {
+    flex: none;
+  }
+}
+
+/* ── 후기(§2.13) — 홈 A 비노출(D6), 컴포넌트 보존 ────────────────────────────── */
 .ws-reviews-section {
   margin-top: var(--ws-space-12);
 }
@@ -253,151 +672,333 @@
   flex: none;
 }
 
-/* ── 홈 A ③ 소개(§2.14) ────────────────────────────── */
-.ws-intro {
-  margin-top: var(--ws-space-12);
+/* ── 홈 B(R4 시안 home_selected, R4-2) ─────────────────────────────────
+   컨테이너 1200(12열 78 · 거터 24) · 섹션 간격 PC 120 / 모바일 72 · 버튼 52. 토큰 변수만 — hex·그라데이션·그림자 0.
+   크기: h1·h2 = display(32), 카드 이름 = title(24), 본문 = body(16), 큰 숫자 = display × 2(L5 VerdictCard 와 같은 규칙).
+   시안의 36/40·66 크기는 토큰 체계 밖이라 가장 가까운 토큰 값으로(브리프 L16 개정 = D13). */
+.ws-context {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ws-space-4);
+  padding: var(--ws-space-8) 0 var(--ws-space-6);
+  border-bottom: 1px solid var(--ws-line);
 }
 
-.ws-intro > h2 {
+.ws-context-eyebrow {
+  margin-bottom: var(--ws-space-2);
+}
+
+.ws-context-change,
+.ws-home-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-title-weight);
+}
+
+.ws-home-b .ws-home-sec {
+  margin-top: var(--ws-section-gap-mobile);
+}
+
+/* 컨텍스트 헤더 바로 뒤 첫 섹션 — 구분선에서 32(PC 48). */
+.ws-home-b .ws-context + .ws-home-sec {
+  margin-top: var(--ws-space-8);
+}
+
+.ws-home-sec-title {
+  word-break: keep-all;
+}
+
+.ws-home-sec-lead {
+  margin-top: var(--ws-space-3);
+}
+
+.ws-home-sec-head {
   margin-bottom: var(--ws-space-6);
 }
 
-.ws-intro-slide {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ws-space-3);
-  min-height: 560px;
-  padding-block: var(--ws-space-8);
-  border-top: 1px solid var(--ws-line);
-}
-
-.ws-intro-photo {
-  height: 220px;
-  border-radius: var(--ws-radius-md);
-}
-
-.ws-intro-track {
-  position: relative;
-  height: calc(4 * 70dvh);
-}
-
-.ws-intro-anchor {
-  position: absolute;
-  left: 0;
-  width: 1px;
-  height: 70dvh;
-  scroll-margin-top: calc(var(--ws-header-h) + var(--ws-space-8));
-}
-
-.ws-intro-anchor:nth-child(1) {
-  top: 0;
-}
-.ws-intro-anchor:nth-child(2) {
-  top: 70dvh;
-}
-.ws-intro-anchor:nth-child(3) {
-  top: calc(2 * 70dvh);
-}
-.ws-intro-anchor:nth-child(4) {
-  top: calc(3 * 70dvh);
-}
-
-.ws-intro-stage {
-  position: sticky;
-  top: calc(var(--ws-header-h) + var(--ws-space-8));
+/* ① 지금 필요한 것 — ≤767: 요약 카드 + 이름 줄 / ≥768: 3열 그리드(요약 카드 + 남은 필수 항목 카드), 이름 줄 숨김. */
+ul.ws-now-grid {
   display: grid;
-  grid-template-columns: 520px 1fr;
-  gap: var(--ws-space-12);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ws-space-8) var(--ws-grid-gutter);
 }
 
-.ws-intro-photo--wide {
-  width: 520px;
-  height: 380px;
-  border-radius: var(--ws-radius-lg);
-}
-
-.ws-intro-list {
-  display: flex;
-  flex-direction: column;
-  border-left: 2px solid var(--ws-line);
-}
-
-.ws-intro-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ws-space-2);
-  margin-left: -2px;
-  padding: var(--ws-space-4) 0 var(--ws-space-4) var(--ws-space-6);
-  border-left: 2px solid transparent;
-}
-
-.ws-intro-item--active {
-  border-left-color: var(--ws-brand);
-}
-
-.ws-intro-head {
-  min-height: var(--ws-touch);
-  text-align: left;
-}
-
-.ws-intro-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--ws-space-3);
-}
-
-.ws-intro-panel[hidden] {
+.ws-now-item {
   display: none;
 }
 
-/* ── 배너(§2.15) — ≤767 full-bleed 라운드 없음, ≥768 radius-lg ── */
-.ws-band {
+.ws-now-lead,
+.ws-now-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--ws-space-3);
-  margin-top: var(--ws-space-12);
-  margin-inline: calc(-1 * var(--ws-gutter-mobile));
-  padding: var(--ws-space-8) var(--ws-gutter-mobile);
-  background: var(--ws-brand-soft);
-  text-align: center;
 }
 
-@media (min-width: 768px) {
-  .ws-band {
-    margin-inline: 0;
-    padding-inline: var(--ws-gutter-wide);
-    border-radius: var(--ws-radius-lg);
+.ws-now-card {
+  color: var(--ws-ink);
+  text-decoration: none;
+}
+
+.ws-now-photo {
+  aspect-ratio: 384 / 244;
+  margin-bottom: var(--ws-space-4);
+  border-radius: var(--ws-radius-md);
+}
+
+.ws-now-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ws-space-2);
+  word-break: keep-all;
+}
+
+.ws-now-count,
+.ws-now-reason {
+  margin-top: var(--ws-space-2);
+}
+
+.ws-now-cta {
+  width: 100%;
+  min-height: var(--ws-btn-h);
+  margin-top: var(--ws-space-6);
+}
+
+.ws-now-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  margin-top: var(--ws-space-6);
+}
+
+.ws-now-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--ws-space-3);
+  color: var(--ws-ink-body);
+}
+
+.ws-now-line-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--ws-space-1);
+}
+
+/* ≤767 항목 링크 줄(R4-2b · qa MED-1): 이름마다 L4 링크(히트 44), 남은 항목은 글리프 + 보이는 단어. 구분점은 장식(읽지 않음). */
+ul.ws-now-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--ws-space-2);
+}
+
+ul.ws-now-links > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+
+ul.ws-now-links > li + li::before {
+  content: "·" / "";
+  color: var(--ws-ink-muted);
+}
+
+.ws-now-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: var(--ws-touch);
+  color: var(--ws-ink);
+}
+
+/* 남은 필수 항목 상태(! 먼저 준비 · △ 확인 필요) — 글리프 색은 전역 data-ws-glyph 규칙, 단어는 본문색(색만으로 말하지 않는다). */
+.ws-now-state {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--ws-space-1);
+  color: var(--ws-ink-body);
+  white-space: nowrap;
+}
+
+.ws-now-card .ws-now-state {
+  margin-top: var(--ws-space-1);
+}
+
+@media (hover: hover) {
+  .ws-now-card:hover .ws-now-name {
+    text-decoration: underline;
   }
 }
 
-.ws-save-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ws-touch);
-  color: var(--ws-brand-text);
-  font-weight: var(--ws-type-label-weight);
+/* ② 나중에 필요한 것 — 이름 + 시드 이유(notNowReason), 아래 구분선. */
+.ws-later {
+  padding-bottom: var(--ws-space-8);
+  border-bottom: 1px solid var(--ws-line);
 }
 
-/* ── 홈 B 컨텍스트 헤더(§3.2) ─────────────────────── */
-.ws-context {
+ul.ws-later-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--ws-space-3);
-  margin-inline: calc(-1 * var(--ws-gutter-mobile));
-  padding: var(--ws-space-8) var(--ws-gutter-mobile) var(--ws-space-6);
-  background: var(--ws-peach-soft);
-  text-align: center;
+  gap: var(--ws-space-4);
+}
+
+ul.ws-later-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+
+/* ③ {용품} 규격 확인 — ≤767 세로(제목·기준 → 사진 → 숫자·링크) / ≥768 좌 글(6열)·우 사진(6열). */
+.ws-spec-sec {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-spec-sec-text {
+  display: contents;
+}
+
+.ws-spec-sec-text > .ws-home-sec-head {
+  order: 1;
+  margin-bottom: 0;
+}
+
+.ws-spec-sec-basis {
+  order: 2;
+  margin-top: var(--ws-space-2);
+}
+
+.ws-spec-sec-photo {
+  order: 3;
+  aspect-ratio: 588 / 340;
+  margin-top: var(--ws-space-6);
+  border-radius: var(--ws-radius-md);
+}
+
+.ws-spec-sec-label {
+  order: 4;
+  margin-top: var(--ws-space-6);
+}
+
+.ws-spec-sec-num {
+  order: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ws-num-unit-gap);
+  margin-top: var(--ws-space-2);
+  color: var(--ws-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-spec-sec-value {
+  color: var(--ws-brand-text);
+  /* ≤767: display × 1.5(세 값 「100×50×50」이 360 폭 한 줄), ≥768: display × 2. 숫자 덩이는 줄바꿈하지 않는다. */
+  font-size: calc(var(--ws-type-display-size) * 1.5);
+  line-height: calc(var(--ws-type-display-lh) * 1.5);
+  white-space: nowrap;
+  font-weight: var(--ws-type-display-weight);
+  letter-spacing: var(--ws-type-display-tracking);
+}
+
+.ws-spec-sec-unit {
+  font-size: var(--ws-type-title-size);
+  line-height: var(--ws-type-title-lh);
+  font-weight: var(--ws-type-title-weight);
+}
+
+.ws-spec-sec .ws-home-link {
+  order: 6;
+  align-self: flex-start;
+  margin-top: var(--ws-space-4);
+}
+
+/* 처음 준비한다면 · 기준에 맞는 준비물 · 병원 레일(R4-2b, RailSection tone=home) — 머리는 다른 섹션과 같은 display 제목 + 리드,
+   오른쪽 도구 칸엔 ≥1024 넘칠 때만 ‹ ›, 레일 아래 → 텍스트 링크. 카드 스타일은 기존 BundleCard·ProductCard·VetCard 그대로. */
+.ws-home-sec > .ws-rail-head {
+  align-items: flex-end;
+  margin-bottom: var(--ws-space-6);
+}
+
+.ws-home-sec > .ws-rail-head > .ws-home-sec-head {
+  margin-bottom: 0;
+}
+
+.ws-home-sec > .ws-rail-head > .ws-rail-tools:empty {
+  display: none;
+}
+
+.ws-rail-foot {
+  margin-top: var(--ws-space-4);
+}
+
+/* ④ 병원 · ⑤ 저장 안내 */
+.ws-vet-sec .ws-home-sec-head {
+  margin-bottom: var(--ws-space-3);
+}
+
+.ws-vet-sec .ws-home-link {
+  margin-top: var(--ws-space-4);
+}
+
+.ws-save-sec {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ws-space-2);
+  margin-bottom: var(--ws-section-gap-mobile);
 }
 
 @media (min-width: 768px) {
   .ws-context {
-    margin-inline: 0;
-    margin-top: var(--ws-space-6);
-    border-radius: var(--ws-radius-lg);
+    padding-top: var(--ws-space-12);
+    padding-bottom: var(--ws-space-8);
+  }
+  .ws-home-b .ws-home-sec {
+    margin-top: var(--ws-section-gap);
+  }
+  .ws-home-b .ws-context + .ws-home-sec {
+    margin-top: var(--ws-space-12);
+  }
+  ul.ws-now-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .ws-now-item {
+    display: block;
+  }
+  .ws-now-lines {
+    display: none;
+  }
+  .ws-spec-sec {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--ws-grid-gutter);
+    align-items: start;
+  }
+  .ws-spec-sec-text {
+    display: flex;
+    flex-direction: column;
+    grid-column: 1 / span 6;
+  }
+  .ws-spec-sec-photo {
+    grid-column: 7 / span 6;
+    margin-top: 0;
+  }
+  .ws-spec-sec-label {
+    margin-top: var(--ws-space-12);
+  }
+  .ws-spec-sec-value {
+    font-size: calc(var(--ws-type-display-size) * 2);
+    line-height: calc(var(--ws-type-display-lh) * 2);
+  }
+  .ws-save-sec {
+    margin-bottom: var(--ws-section-gap);
   }
 }
 
@@ -443,16 +1044,9 @@ ul.ws-chips > li > a.ws-need--check {
   color: var(--ws-ink-muted);
 }
 
-.ws-done {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--ws-space-3);
-  margin-top: var(--ws-space-6);
-  padding: var(--ws-space-4);
-  border-radius: var(--ws-radius-lg);
-  background: var(--ws-butter);
-  text-align: center;
+/* 「나중에」: 글리프 없이 보이는 단어(R4-1 qa). ink-muted 5.5:1 on surface. */
+.ws-need-later {
+  color: var(--ws-ink-muted);
 }
 
 /* ── BundleCard(§2.6) ─────────────────────────────── */
@@ -562,8 +1156,11 @@ li.ws-product img,
   letter-spacing: var(--ws-type-label-tracking);
 }
 
-.ws-badge .ws-glyph {
+/* 글리프 = 단어와 같은 색(status-ready 4.6:1 on status-ready-soft) — 전역 data-ws-glyph 색을 덮는다(R4-1 qa). */
+.ws-badge .ws-glyph,
+.ws-badge .ws-glyph[data-ws-glyph] {
   min-width: 0;
+  color: inherit;
 }
 
 /* ♥(스펙33 §2.4 · D-38): 링크의 형제 버튼, 카드 오른쪽 아래. 링크 바닥 행은 오른쪽 44px 를 비운다. */
@@ -604,6 +1201,3 @@ li.ws-product > .ws-like {
   font-variant-numeric: tabular-nums;
 }
 
-.ws-vet-link {
-  margin-top: var(--ws-space-6);
-}

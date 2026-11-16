@@ -67,6 +67,14 @@ describe('--ws-font-sans 스택 순서', () => {
       'sans-serif',
     ]);
   });
+
+  it('토큰 v2.0(R3)에서도 Pretendard 유지 — 시안 조판 글꼴(맑은 고딕)을 1순위로 올리지 않는다', () => {
+    expect(tokensCss).toMatch(/from docs\/design\/tokens\.json v2\.\d+\.\d+/);
+    expect(fam[0]).toBe('"Pretendard Variable"');
+    expect(fam.some((f) => /Malgun Gothic|맑은 고딕/.test(f))).toBe(false); // 맑은 고딕은 WS Fallback Malgun(local face) 으로만
+    // 타입 유틸리티는 전부 같은 스택
+    expect(tokensCss.match(/font-family:\s*var\(--ws-font-sans\);/g)?.length).toBe(9);
+  });
 });
 
 describe('main.tsx 진입 CSS 순서', () => {

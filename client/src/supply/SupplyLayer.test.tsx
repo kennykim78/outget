@@ -1,6 +1,6 @@
 // F1-2 L4 React: 섹션 DOM 순서, NOT_NOW 이유, 상품 순서 = ws-data(앞 3), 가격·"구매" 0, external_product_clicked props,
 //   [준비했어요] = PURCHASED(기존 ✓ 유지), data-ws-id, 👍·⚠, 내 케이지 서브카드(엔진 주입). 합성 fixture.
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COPY } from '@ws/copy';
 import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type Engine, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,8 @@ import LayerHost from '../ui/layer/LayerHost';
 import { layerStore } from '../ui/layer/useLayer';
 import { splitChipText } from './SupplyLayer';
 import { cageCompatOf, compatDeps } from './useCageCompat';
+import Footer from '../shell/Footer';
+import { layerAffiliateOn } from './searchLinks';
 
 const loadSpecCatalogMock = vi.hoisted(() => vi.fn());
 vi.mock('../speccheck/engine', async (orig) => ({ ...(await orig<typeof import('../speccheck/engine')>()), loadSpecCatalog: loadSpecCatalogMock }));
@@ -80,9 +82,9 @@ function openL4(page: WsPageData, itemId = 'wheel'): HTMLElement {
 const parts = (d: HTMLElement) => Array.from(d.querySelectorAll('[data-ws-part]')).map((el) => el.getAttribute('data-ws-part'));
 
 describe('L4 SupplyLayer', () => {
-  it('섹션 DOM 순서: 왜 → 조건 → 주의 → 피할 것 → 대안 → [준비했어요] → 찾기 → 검수 → 상품', () => {
+  it('섹션 DOM 순서(R4-4 시안 규격 → 검수 → 상인 링크): 왜 → 조건 → 주의 → 피할 것 → 대안 → [준비했어요] → 상품 → 검수 → 찾기', () => {
     const d = openL4(pageWith([wheel(), req('saucer', 'OPTIONAL', '접시형 바퀴')]));
-    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'alternatives', 'ready', 'search', 'verified', 'products']);
+    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'alternatives', 'ready', 'products', 'verified', 'search']);
     expect(d).toHaveAttribute('data-ws-id', 'supplyRequirements#req-wheel');
     // 꼬리: 채운 CTA 하나 = 규격 확인(→ L5 URL)
     const fills = d.querySelectorAll('.ws-btn--fill');
@@ -91,6 +93,26 @@ describe('L4 SupplyLayer', () => {
     expect(fills[0]).toHaveAttribute('href', '/hamster/golden/check/wheel');
     // 대안 → L4 링크(같은 타입)
     expect(within(d).getByRole('link', { name: '접시형 바퀴' })).toHaveAttribute('href', '/hamster/golden/supplies/saucer');
+  });
+
+  it('R4-4 머리: 「{동물} · {용품}」 → 메타 → 사진 자리(빈 블록, img 0) — 마지막 검수는 메타가 아니라 「검수 내용」 섹션에만', () => {
+    const d = openL4(pageWith([wheel()]));
+    const body = d.querySelector('.ws-supply') as HTMLElement;
+    const kids = Array.from(body.children);
+    const eyebrow = body.querySelector('.ws-supply-eyebrow') as HTMLElement;
+    expect(eyebrow).toHaveTextContent(`${golden.displayName} · 쳇바퀴`);
+    const meta = body.querySelector('.ws-supply-meta') as HTMLElement;
+    const photo = body.querySelector('.ws-supply-photo') as HTMLElement;
+    expect(kids.indexOf(eyebrow)).toBe(0); // 제휴 꺼짐: 고지 B 없음 → 첫 자식
+    expect(kids.indexOf(meta)).toBe(1);
+    expect(kids.indexOf(photo)).toBe(2);
+    expect(photo.tagName).toBe('SPAN'); // photos.json 전부 SLOT → 빈 블록(생성 이미지 0)
+    expect(photo).toHaveAttribute('aria-hidden', 'true');
+    expect(meta.textContent).not.toContain(COPY.supplyLayer.lastVerified);
+    const ver = d.querySelector('[data-ws-part="verified"]') as HTMLElement;
+    expect(ver.querySelector('h3')).toHaveTextContent(COPY.supplyLayer.reviewTitle);
+    expect(ver.textContent).toContain(`${COPY.supplyLayer.lastVerified} 2026.09`);
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
   });
 
   it('조건: 최소|권장 칩 텍스트 + ruleText — 이유 목록(엔진 단일 소스)', () => {
@@ -114,12 +136,13 @@ describe('L4 SupplyLayer', () => {
     expect(splitChipText('28cm')).toEqual({ value: '28cm', suffix: null });
   });
 
-  it('NOT_NOW: ○ + "지금은 필요 없어요 — 이유"가 왜보다 앞', () => {
+  it('NOT_NOW: 글리프 없이 "지금은 필요 없어요 — 이유"가 왜보다 앞(R4-1 — ○ 는 기준 충족 전용)', () => {
     const d = openL4(pageWith([wheel({ priority: 'NOT_NOW', notNowReason: '첫 주에는 필요 없어요' })]));
     expect(parts(d).slice(0, 2)).toEqual(['notNow', 'why']);
     const nn = d.querySelector('[data-ws-part="notNow"]') as HTMLElement;
     expect(nn.textContent).toContain(`${COPY.supplyLayer.notNow} — 첫 주에는 필요 없어요`);
-    expect(nn.querySelector('[data-ws-glyph="later"]')).not.toBeNull();
+    expect(nn.querySelector('.ws-glyph')).toBeNull();
+    expect(nn.textContent).not.toContain('○');
   });
 
   it('상품 = ws-data 순서 그대로 이 용품 것만 앞 3, 링크 → L7 URL', () => {
@@ -204,7 +227,7 @@ describe('L4 SupplyLayer', () => {
     vi.spyOn(compatDeps, 'load').mockResolvedValue(engine);
     const d = openL4(pageWith([wheel()]));
     await waitFor(() => expect(d.querySelector('[data-ws-part="compat"]')).not.toBeNull());
-    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'compat', 'ready', 'search', 'verified', 'products']);
+    expect(parts(d)).toEqual(['why', 'conditions', 'caution', 'avoid', 'compat', 'ready', 'products', 'verified', 'search']);
     expect(within(d).getByRole('link', { name: COPY.supplyLayer.compatRegisterLink })).toHaveAttribute('href', '/hamster/golden/check/wheel');
   });
 });
@@ -299,6 +322,8 @@ describe('L4 내 케이지 서브카드 meta 문구 — usedRecommended(작업 1
     await waitFor(() => expect(d.querySelector('.ws-compat')).not.toBeNull());
     expect(metaTexts(d)).toContain(COPY.supplyLayer.compatSubNoteRecommended);
     expect(metaTexts(d)).not.toContain(COPY.supplyLayer.compatSubNote);
+    // R4-1: 호환 OK = L5 호환 단과 같은 ○(✓ 아님).
+    expect(d.querySelector('.ws-compat-verdict [data-ws-glyph="ok"]')).toHaveTextContent('○');
   });
 
   it('usedRecommended 없음 → 기존 최소 규격 문구', async () => {
@@ -353,5 +378,57 @@ describe('L4 제휴 고지(265 — 261 §1·§2.2)', () => {
     expect(d.querySelector('[data-ws-aff]')).toBeNull();
     expect(d.querySelector('[aria-describedby^="ws-aff-a-"]')).toBeNull();
     for (const x of Array.from(d.querySelectorAll('[data-ws-merchant]'))) expect(x.getAttribute('rel')).toBe('noopener noreferrer nofollow');
+  });
+});
+
+// R4-3(R4 시안 affiliate_candidates): 상인 링크(URL) 0 → 비활성 「상인 링크 준비 중」, 푸터 고지 F 판정(layerAffiliateOn)·Footer 렌더.
+describe('R4-3 상인 링크 준비 중 · 푸터 고지 F', () => {
+  it('렌더 필터를 통과한 링크 0(빈 배열·허용 밖 href) → disabled 버튼 1, 상인 a·고지 0', () => {
+    for (const links of [[], [{ provider: 'COUPANG' as const, href: 'https://evil.example/np/search?q=x' }]]) {
+      const d = openL4(pageWith([wheel({ searchLinks: links })]));
+      const merchants = d.querySelector('.ws-search-merchants') as HTMLElement;
+      const btn = within(merchants).getByRole('button', { name: COPY.supplyLayer.merchantPending });
+      expect(btn).toBeDisabled();
+      expect(merchants.querySelectorAll('a')).toHaveLength(0);
+      expect(d.querySelector('[data-ws-aff]')).toBeNull();
+      act(() => layerStore.resetForTest());
+      cleanup();
+    }
+  });
+
+  it('링크가 있으면 비활성 버튼 없음(꺼짐·켜짐 모두)', () => {
+    const off = openL4(pageWith([wheel()]));
+    expect(within(off).queryByRole('button', { name: COPY.supplyLayer.merchantPending })).toBeNull();
+  });
+
+  it('layerAffiliateOn: L4·L7 의 요구사항에 제휴 링크가 그려질 때만 true(L5·닫힘·대상 없음 false)', () => {
+    const aff = wheel({ searchLinks: buildSearchLinks('골든햄스터 쳇바퀴 28cm', { COUPANG: 'FAKE0001' }) });
+    const on = pageWith([aff]);
+    const off = pageWith([wheel()]);
+    expect(layerAffiliateOn(on, { kind: 'L4', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(true);
+    expect(layerAffiliateOn(on, { kind: 'L7', props: { typeId: golden.id, productId: 'p1' } })).toBe(true);
+    expect(layerAffiliateOn(on, { kind: 'L7', props: { typeId: golden.id, productId: 'x' } })).toBe(false); // cage 요구사항 없음
+    expect(layerAffiliateOn(on, { kind: 'L5', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(false);
+    expect(layerAffiliateOn(on, null)).toBe(false);
+    expect(layerAffiliateOn(off, { kind: 'L4', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(false);
+    // 허용 필터 밖 AFFILIATE 는 고지도 켜지 않는다(A·B 와 같은 판정)
+    const forged = pageWith([wheel({ searchLinks: [{ provider: 'COUPANG', kind: 'AFFILIATE', href: `${COUPANG_AFFILIATE_PREFIX}bad/../x` }] })]);
+    expect(layerAffiliateOn(forged, { kind: 'L4', props: { typeId: golden.id, itemId: 'wheel' } })).toBe(false);
+  });
+
+  it('Footer: affNote 일 때만 © 바로 앞에 원문 고지 F(전부 펼침), 아니면 이전과 같은 DOM', () => {
+    const { container, rerender } = render(<Footer />);
+    const f = container.querySelector('footer.ws-footer') as HTMLElement;
+    expect(f.querySelector('[data-ws-aff]')).toBeNull();
+    const offHtml = f.innerHTML;
+    rerender(<Footer affNote />);
+    const note = f.querySelector('[data-ws-aff="note-f"]') as HTMLElement;
+    expect(note.className).toBe('ws-t-meta ws-aff-note');
+    expect(note.textContent).toBe(COPY.affiliate.coupang);
+    expect(note.children).toHaveLength(0);
+    expect(note.nextElementSibling?.className).toBe('ws-footer-copy');
+    expect(note.parentElement).toBe(f);
+    rerender(<Footer affNote={false} />);
+    expect(f.innerHTML).toBe(offHtml);
   });
 });

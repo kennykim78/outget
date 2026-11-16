@@ -2,6 +2,7 @@
 //   순서 고정: SupplyItem 기본 → SupplyRequirement(CareProfile) → AnimalType.careOverrides. 뒤가 앞을 덮는다.
 //   스칼라는 교체(명시적 null 포함), minSpec/recommendedSpec 규칙은 (key, op) 같으면 교체·아니면 뒤에 추가(A-11).
 //   override 는 기존 요구사항만 수정한다(항목 추가 불가).
+//   whyShort(D9 ②)는 why 와 결합 규칙이 있어 SCALAR_KEYS 밖에서 따로 정한다(아래 주석).
 import { ORDER_HINTS, PRIORITIES } from './domain.js';
 import type {
   AnimalTypeRec,
@@ -90,6 +91,20 @@ export function resolveRequirement(
       provenance[k] = 'REQUIREMENT';
     }
   }
+  // D9 ② 이유 한 줄 결합 규칙(이 한 곳): override whyShort(문자열) > override 가 why 를 바꿨으면 null(옛 요약이 새 why 와
+  //   어긋나지 않게) > 기본 행 whyShort > null. 키 부재·문자열 아님은 null — 화면은 reasonLine 이 firstSentence(why) 로 폴백.
+  const ovWhyShort = ov && hasOwn(ov, 'whyShort') ? ov.whyShort : undefined;
+  let whyShort: string | null;
+  if (typeof ovWhyShort === 'string') {
+    whyShort = ovWhyShort;
+    provenance.whyShort = 'OVERRIDE';
+  } else if (provenance.why === 'OVERRIDE') {
+    whyShort = null;
+    provenance.whyShort = 'OVERRIDE';
+  } else {
+    whyShort = typeof base.whyShort === 'string' ? base.whyShort : null;
+    provenance.whyShort = 'REQUIREMENT';
+  }
   const ruleSets = {} as Pick<ResolvedRequirement, (typeof RULE_KEYS)[number]>;
   for (const k of RULE_KEYS) {
     const o = ov && hasOwn(ov, k) ? ov[k] : undefined;
@@ -119,6 +134,7 @@ export function resolveRequirement(
       inspectCycleDays: item.inspectCycleDays ?? null,
     },
     ...scalars,
+    whyShort,
     ...ruleSets,
     contentKind: base.contentKind,
     review: {

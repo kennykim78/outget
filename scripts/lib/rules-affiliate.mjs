@@ -24,7 +24,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { extname, join, posix } from 'node:path';
 import { CODE_EXT, isDir, lexJs, lineIndex, relPosix, stripBom, walk } from './files.mjs';
-import { decodeEntities, maskNonMarkup, parseAttrs, scripts } from './html.mjs';
+import { decodeEntities, dupAttrNames, maskNonMarkup, parseAttrs, scripts } from './html.mjs';
 import { isTestFile, jsonErrorWhere, safeLabel } from './rules-source.mjs';
 
 const L = safeLabel;
@@ -1340,7 +1340,8 @@ export function elementTree(html) {
       continue;
     }
     const raw = html.slice(m.index + 1 + m[2].length, m.index + m[0].length - 1);
-    els.push({ name, attrs: parseAttrs(raw.replace(/\/\s*$/, '')), start: m.index, openEnd: m.index + m[0].length, end: null, parent: stack.length ? stack[stack.length - 1] : -1 });
+    const rawAttrs = raw.replace(/\/\s*$/, '');
+    els.push({ name, attrs: parseAttrs(rawAttrs), dupAttrs: dupAttrNames(rawAttrs), start: m.index, openEnd: m.index + m[0].length, end: null, parent: stack.length ? stack[stack.length - 1] : -1 });
     if (!VOID.has(name) && !/\/\s*$/.test(raw)) {
       stack.push(els.length - 1);
       open.set(name, (open.get(name) ?? 0) + 1);
@@ -1367,6 +1368,156 @@ function hiddenEl(e) {
     e.attrs.title !== undefined // 툴팁 금지(111 §0)
   );
 }
+/**
+ * 감사 L-3(281): 인라인 style 의 「작은 글자·같은 색·축소」 — HIDE_STYLE_RE(0·숨김) 밖의 축소. 고지 A·B·F 조상 사슬에 적용.
+ *   선언 단위(';' → ':')로 쪼개 선형. 해석 못 하는 값(var·calc·escape·알 수 없는 단위)은 fail-closed 로 축소 취급.
+ *   글자 크기는 조상 사슬을 따라 누적(em·%·smaller 는 부모 값 기준, 루트 16px) — 10px 미만이면 FAIL(0.6rem = 9.6px 도 미만).
+ */
+const NOTE_MIN_PX = 10;
+const ROOT_PX = 16;
+const FONT_KEYWORD_PX = { 'xx-small': 9, 'x-small': 10, small: 13, medium: 16, large: 18, 'x-large': 24, 'xx-large': 32, 'xxx-large': 48 };
+const FONT_SYSTEM = new Set(['caption', 'icon', 'menu', 'message-box', 'small-caption', 'status-bar']);
+/** CSS 주석 제거(indexOf 기반 선형 — 닫히지 않은 주석은 끝까지). */
+function stripCssComments(s) {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const a = s.indexOf('/*', i);
+    if (a < 0) return out + s.slice(i);
+    out += `${s.slice(i, a)} `;
+    const b = s.indexOf('*/', a + 2);
+    if (b < 0) return out;
+    i = b + 2;
+  }
+}
+/** 인라인 style → [[prop, value]](소문자·!important 제거). */
+function styleDecls(style) {
+  const out = [];
+  for (const part of stripCssComments(style).split(';')) {
+    const c = part.indexOf(':');
+    if (c < 0) {
+      if (part.trim() !== '') out.push([part.trim().toLowerCase(), null]);
+      continue;
+    }
+    out.push([part.slice(0, c).trim().toLowerCase(), part.slice(c + 1).replace(/!\s*important\s*$/i, '').trim().toLowerCase()]);
+  }
+  return out;
+}
+/** 글자 크기 값 → 실효 px(부모 px 기준). 해석 불가면 NaN(fail-closed). */
+function fontSizePx(v, parentPx) {
+  if (Object.hasOwn(FONT_KEYWORD_PX, v)) return FONT_KEYWORD_PX[v];
+  if (v === 'smaller') return parentPx / 1.2;
+  if (v === 'larger') return parentPx * 1.2;
+  if (v === 'inherit' || v === 'unset' || v === 'revert' || v === 'revert-layer') return parentPx;
+  if (v === 'initial') return ROOT_PX;
+  const m = /^(\d+(?:\.\d*)?|\.\d+)(px|pt|pc|rem|em|%|in|cm|mm|q)?$/.exec(v);
+  if (!m) return NaN; // var()·calc()·clamp()·vw 등 — 판정 불가
+  const n = Number(m[1]);
+  switch (m[2]) {
+    case undefined: return n === 0 ? 0 : NaN;
+    case 'px': return n;
+    case 'pt': return (n * 4) / 3;
+    case 'pc': return n * 16;
+    case 'rem': return n * ROOT_PX;
+    case 'em': return n * parentPx;
+    case '%': return (n / 100) * parentPx;
+    case 'in': return n * 96;
+    case 'cm': return (n * 96) / 2.54;
+    case 'mm': return (n * 96) / 25.4;
+    case 'q': return (n * 96) / 101.6;
+    default: return NaN;
+  }
+}
+/** font 단축 속성에서 크기 토큰(첫 크기 꼴, '/줄높이' 앞). 없거나 시스템 글꼴이면 NaN. */
+function fontShorthandPx(v, parentPx) {
+  if (FONT_SYSTEM.has(v) || /var\(|calc\(|env\(|attr\(/.test(v)) return NaN;
+  if (v === 'inherit' || v === 'initial' || v === 'unset' || v === 'revert' || v === 'revert-layer') return fontSizePx(v, parentPx);
+  // 크기 토큰 = 크기 낱말(xx-small…·smaller·larger) 또는 단위 있는 수(단위 없는 수는 굵기 700 등이라 건너뜀)
+  for (const tok of v.split(/\s+/)) {
+    const size = tok.split('/')[0];
+    if (Object.hasOwn(FONT_KEYWORD_PX, size) || size === 'smaller' || size === 'larger' || /^(?:\d+(?:\.\d*)?|\.\d+)[a-z%]+$/.test(size)) return fontSizePx(size, parentPx);
+  }
+  return NaN;
+}
+const ALPHA0_RE = /^(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*[,/]\s*(?:0+(?:\.0*)?|\.0+)%?\s*\)$|^#[0-9a-f]{3}0$|^#[0-9a-f]{6}00$/;
+const normColor = (v) => v.replace(/\s+/g, '');
+/**
+ * 요소 하나의 인라인 style 축소 판정 — { why|null, px }(px = 이 요소의 실효 글자 크기).
+ *   why: 사람이 읽는 이유(FAIL 메시지 조각). parentPx 는 부모 실효 px.
+ */
+export function styleShrink(style, parentPx) {
+  let px = parentPx;
+  if (style === undefined) return { why: null, px };
+  if (style.includes('\\')) return { why: '이스케이프(판정 불가)', px };
+  let why = null;
+  const note = (w) => {
+    if (why === null) why = w;
+  };
+  let color = null;
+  let bg = null;
+  let overflowCut = false;
+  let boxSize = false;
+  for (const [p, v] of styleDecls(style)) {
+    if (v === null) {
+      note(`선언 ${L(p.slice(0, 30))} 판정 불가`);
+      continue;
+    }
+    if (p === 'font-size' || p === 'font') {
+      const n = p === 'font' ? fontShorthandPx(v, px) : fontSizePx(v, px);
+      if (Number.isNaN(n)) note(`${p}:${L(v.slice(0, 30))} 판정 불가`);
+      else {
+        px = n;
+        if (n < NOTE_MIN_PX) note(`${p}:${L(v.slice(0, 30))} → ${n.toFixed(1)}px < ${NOTE_MIN_PX}px`);
+      }
+    } else if (p === 'zoom' || p === 'scale') {
+      if (v === 'normal' || v === 'reset' || v === 'none' || v === 'inherit' || v === 'initial' || v === 'unset') continue;
+      const nums = v.split(/[\s,]+/).filter(Boolean);
+      for (const t of nums) {
+        const m = /^(\d+(?:\.\d*)?|\.\d+)(%)?$/.exec(t);
+        if (!m) note(`${p}:${L(v.slice(0, 30))} 판정 불가`);
+        else if ((m[2] ? Number(m[1]) / 100 : Number(m[1])) < 0.6) note(`${p}:${L(v.slice(0, 30))} 축소`);
+      }
+    } else if (p === 'transform') {
+      if (v === 'none') continue;
+      if (/var\(|calc\(|matrix|perspective|env\(|attr\(/.test(v)) note(`transform:${L(v.slice(0, 30))} 판정 불가`);
+      // qa MED: 정규식 /scale…\(([^)]*)\)/g 는 닫히지 않은 'scale(' 반복에서 매 위치마다 끝까지 훑어 제곱 — indexOf 로 한 번씩만 전진(선형).
+      //   닫는 ')' 가 없으면 그 뒤 어떤 scale( 도 닫히지 않으므로 판정 불가로 한 번 적고 멈춘다(CSS 는 끝에서 자동으로 닫아 적용될 수 있다 → fail-closed).
+      for (let at = v.indexOf('scale'); at >= 0; ) {
+        let q = at + 5;
+        const suf = v.startsWith('3d', q) ? 2 : 'xyz'.includes(v[q] ?? '-') ? 1 : 0;
+        q += suf;
+        if (v[q] !== '(') {
+          at = v.indexOf('scale', at + 1);
+          continue;
+        }
+        const close = v.indexOf(')', q + 1);
+        if (close < 0) {
+          note(`transform:${L(v.slice(0, 30))} 판정 불가`);
+          break;
+        }
+        const args = v.slice(q + 1, close);
+        at = v.indexOf('scale', close + 1);
+        for (const t of args.split(/[\s,]+/).filter(Boolean)) {
+          const m = /^-?(\d+(?:\.\d*)?|\.\d+)(%)?$/.exec(t);
+          if (!m) note(`transform:${L(v.slice(0, 30))} 판정 불가`);
+          else if ((m[2] ? Number(m[1]) / 100 : Number(m[1])) < 0.6) note(`transform:${L(v.slice(0, 30))} 축소`);
+        }
+      }
+    } else if (p === 'color') color = v;
+    else if (p === 'background-color' || p === 'background') bg = v;
+    else if (p === '-webkit-text-fill-color' || p === '-webkit-text-stroke-color' || p === 'mix-blend-mode' || p === 'filter') note(`${p} 판정 불가(글자 색 위장 통로)`);
+    else if (/^overflow(?:-[xy]|-inline|-block)?$/.test(p) && /hidden|clip|scroll|auto/.test(v)) overflowCut = true;
+    else if (/^(?:max-)?(?:height|width|block-size|inline-size)$/.test(p) || p === 'line-height') boxSize = true;
+  }
+  if (color !== null) {
+    if (ALPHA0_RE.test(normColor(color))) note(`color:${L(color.slice(0, 30))} 투명`);
+    else if (bg !== null && (/var\(|calc\(|currentcolor|inherit|unset|revert|initial/.test(color) || /var\(|calc\(|gradient|url\(|currentcolor/.test(bg))) note(`color:${L(color.slice(0, 30))} 와 배경 비교 판정 불가`);
+    else if (bg !== null && (normColor(bg) === normColor(color) || bg.split(/\s+/).includes(color))) note(`color 가 배경과 같다(${L(color.slice(0, 30))})`);
+  }
+  if (overflowCut && boxSize) note('overflow 잘림 + 크기 지정(글자 일부 숨김 통로)');
+  return { why, px };
+}
+
 /** 고지 문구 — 자식 태그가 있으면 null(숨긴 자식으로 원문 일치를 꾸미는 우회 차단). */
 const noteText = (html, e) => {
   const inner = html.slice(e.openEnd, e.end);
@@ -1457,9 +1608,14 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
   const isSearch = (e) => e.name === 'div' && classesOf(e).includes('ws-search');
   const isLayer = (e) => e.name === 'aside' && e.attrs['data-ws-layer'] !== undefined;
   const byId = new Map();
+  // L-3: 인라인 style 축소(작은 글자·같은 색·축소) — 자신 또는 가장 가까운 조상의 이유, 실효 글자 px 누적(부모 인덱스 < 자식이라 한 번에 선형)
+  const fontPx = new Float64Array(n);
+  const shrinkUp = new Array(n).fill(null);
   for (let i = 0; i < n; i++) {
     const e = els[i];
     const p = e.parent;
+    // qa HIGH: 속성 중복 — 파서(마지막 값)와 브라우저(첫 값)가 갈린다(style·class·aria-hidden·hidden·title 등으로 숨김·축소 위장). 정상 산출물엔 0 → fail-closed.
+    if (e.dupAttrs.length > 0) fail(lineOf(e.start), `<${e.name}> 속성 중복(${e.dupAttrs.map((k) => L(k.slice(0, 30))).join('·')}) — 브라우저는 첫 값을 쓴다, 숨김·축소 판정 우회 통로라 금지(fail-closed)`);
     if (p >= 0) {
       if (!children.has(p)) children.set(p, []);
       children.get(p).push(i);
@@ -1467,6 +1623,9 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       upAside[i] = isLayer(els[p]) ? p : upAside[p];
     }
     hiddenUp[i] = hiddenEl(e) || (p >= 0 && hiddenUp[p] === 1) ? 1 : 0;
+    const sh = styleShrink(e.attrs.style, p >= 0 ? fontPx[p] : ROOT_PX);
+    fontPx[i] = sh.px;
+    shrinkUp[i] = sh.why !== null ? `<${e.name}> ${sh.why}` : p >= 0 ? shrinkUp[p] : null;
     if (e.attrs.id !== undefined && !byId.has(e.attrs.id)) byId.set(e.attrs.id, i);
   }
   const kids = (i) => children.get(i) ?? [];
@@ -1523,6 +1682,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     if (!noteClassOk(ne)) fail(lineOf(ne.start), `고지 ${kind} class 는 ws-t-meta·ws-aff-note 만(ws-aff-note 필수 — 다른 클래스로 숨김·축소 금지)`);
     if (ne.attrs.style !== undefined) fail(lineOf(ne.start), `고지 ${kind} 에 인라인 style 금지(111 §0 마크업 고정 — 축소·숨김 통로)`);
     if (hiddenUp[ni]) fail(lineOf(ne.start), `고지 ${kind} 가 숨김·접힘·툴팁(자신 또는 조상)`);
+    if (shrinkUp[ni] !== null) fail(lineOf(ne.start), `고지 ${kind} 조상 인라인 style 축소·위장(${shrinkUp[ni]}) — 작은 글자(${NOTE_MIN_PX}px 미만)·배경과 같은 색·축소 금지`);
     if (sink) {
       const c = chainOf(ni);
       sink.notes.set(JSON.stringify(c), { chain: c, rel, line: lineOf(ne.start) });
@@ -1589,11 +1749,65 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       }
     }
   }
+  /**
+   * 감사 M-1(281): 고지 F 위치 — 실제 마크업(server renderFooter · client shell/Footer.tsx):
+   *   <div id="root"> 직속 [header, main, (scrim, aside 레이어), footer.ws-footer] — footer 안 [brand, links, note, note-f, p.ws-footer-copy].
+   *   ① footer 부모 = body 또는 body 직속 div#root(앱 루트) ② footer 가 레이어 aside 안이 아님 ③ 문서의 모든 <main>·레이어 aside 가 footer 앞에서 닫힘(main 0 이면 FAIL)
+   *   ④ p.ws-footer-copy(©)가 footer 직속 정확히 1개·마지막 요소 ⑤ note-f 의 바로 다음 요소 형제 = © (사이에 글자·태그 0 — 공백만).
+   */
+  const checkFooterF = (fi, nfi) => {
+    const f = els[fi];
+    const nf = els[nfi];
+    const lf = lineOf(f.start);
+    const p = f.parent;
+    const pe = p >= 0 ? els[p] : null;
+    const appRoot = pe !== null && (pe.name === 'body' || (pe.name === 'div' && pe.attrs.id === 'root' && pe.parent >= 0 && els[pe.parent].name === 'body'));
+    if (upAside[fi] >= 0 || (pe !== null && pe.name === 'aside')) fail(lf, '고지 F 의 footer.ws-footer 가 레이어 aside 안 — 페이지 하단(body·앱 루트 직속)이어야 한다');
+    else if (!appRoot) fail(lf, `고지 F 의 footer.ws-footer 부모가 body·앱 루트(div#root) 가 아니다(현재 ${pe === null ? '없음' : `<${pe.name}>`}) — 페이지 하단 고정`);
+    let mains = 0;
+    for (let i = 0; i < n; i++) {
+      const e = els[i];
+      const isMain = e.name === 'main';
+      if (isMain) mains++;
+      if ((isMain || isLayer(e)) && !(e.end !== null && e.end <= f.start && e.start < f.start)) {
+        fail(lineOf(e.start), `고지 F 의 footer.ws-footer 가 <${e.name}${isMain ? '' : ' data-ws-layer'}> 뒤가 아니다 — footer 는 main·레이어 aside 다음(문서 맨 위·본문 안 footer 금지)`);
+      }
+    }
+    if (mains === 0) fail(lf, '고지 F 문서에 <main> 이 없다 — footer 위치 판정 불가(fail-closed)');
+    const fk = kids(fi);
+    const copies = fk.filter((x) => els[x].name === 'p' && classesOf(els[x]).includes('ws-footer-copy'));
+    if (copies.length !== 1) {
+      fail(lf, `고지 F 자리: footer.ws-footer 직속 © 요소(p.ws-footer-copy)가 정확히 1개여야 한다(현재 ${copies.length})`);
+      return;
+    }
+    const ci = copies[0];
+    if (fk[fk.length - 1] !== ci) fail(lineOf(els[ci].start), '고지 F 자리: © 요소(p.ws-footer-copy)가 footer.ws-footer 의 마지막 요소가 아니다');
+    const pos = fk.indexOf(nfi);
+    if (fk[pos + 1] !== ci) {
+      fail(lineOf(nf.start), `고지 F 가 © 요소(p.ws-footer-copy) 바로 앞 형제가 아니다(${pos > fk.indexOf(ci) ? '© 뒤' : '© 앞 다른 요소 사이'}) — 로고·링크·의료 안내 다음, © 바로 위`);
+    } else {
+      // 사이: note-f 닫는 태그와 공백만(글자·주석·다른 마크업 0). end = 닫는 태그 시작(elementTree).
+      const between = html.slice(nf.end, els[ci].start);
+      if (!/^<\/p\s*>\s*$/i.test(between)) fail(lineOf(nf.start), '고지 F 와 © 요소 사이에 글자·마크업이 있다 — 바로 앞 형제(공백만)');
+    }
+  };
+  // 고지 F(R4-3, R4 시안 affiliate_candidates) — 제휴 a 가 1개 이상인 문서는 페이지 하단 footer.ws-footer 직속에 정확히 1개, 원문·숨김 0.
+  if (affLinks.length > 0) {
+    const footers = [];
+    for (let i = 0; i < n; i++) if (els[i].name === 'footer' && classesOf(els[i]).includes('ws-footer')) footers.push(i);
+    const notesF = footers.flatMap((f) => kids(f).filter((x) => els[x].attrs['data-ws-aff'] === 'note-f'));
+    if (footers.length !== 1) fail(null, `제휴 문서의 footer.ws-footer 가 정확히 1개여야 한다(현재 ${footers.length}) — 고지 F 자리`);
+    else if (notesF.length !== 1) fail(null, `고지 F(data-ws-aff="note-f")가 footer.ws-footer 직속에 정확히 1개여야 한다(현재 ${notesF.length})`);
+    else {
+      noteCheck(notesF[0], 'F');
+      checkFooterF(footers[0], notesF[0]);
+    }
+  }
   // 고지·data-ws-aff 가 제휴 링크와 짝이 없으면(off 바이트 보존 위반) FAIL
   for (let i = 0; i < n; i++) {
     const v = els[i].attrs['data-ws-aff'];
     if (v === undefined) continue;
-    if (v !== 'note-a' && v !== 'note-b') fail(lineOf(els[i].start), `data-ws-aff=${L(v)} — note-a·note-b 만`);
+    if (v !== 'note-a' && v !== 'note-b' && v !== 'note-f') fail(lineOf(els[i].start), `data-ws-aff=${L(v)} — note-a·note-b·note-f 만`);
     else if (!usedNotes.has(i)) fail(lineOf(els[i].start), `짝 없는 고지 ${v}(제휴 링크 0 인 블록·레이어에 고지 — 꺼짐은 HEAD 와 바이트 동일)`);
   }
 }

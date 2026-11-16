@@ -3,7 +3,7 @@
 //   boolean: 라디오 "예"/"아니오", 기본값 없음. enum ≤4 라디오 카드, ≥5 select. 라벨 불완전 enum 미렌더(formFields).
 import { useId } from 'react';
 import { COPY } from '@ws/copy';
-import { optionLabel, type SpecField, type SpecSchema } from '@ws/engine';
+import { optionLabel, splitLabel, type SpecField, type SpecSchema } from '@ws/engine';
 import { formFields, showOptionalMark, type FormRules } from './verdictView';
 
 export interface SpecFormProps {
@@ -18,15 +18,20 @@ export interface SpecFormProps {
   errors?: Readonly<Record<string, string>>;
   /** 해석된 minSpec·recommendedSpec(L5 = ws-data 요구사항). ruleScoped 필드 노출·'선택' 표시가 이것으로 정해진다(프리렌더와 같은 판정). */
   rules?: FormRules;
+  /**
+   * 286 U5a(L5 입력 상태): 숫자 칸 라벨은 이름만(「지름」), 단위(「cm」)는 칸 안 오른쪽 — aria-describedby 로 단위를 함께 읽는다.
+   *   프리렌더 L5(server type.ts layerL5)와 같은 마크업 규칙. L6(케이지)은 기본(라벨에 단위 포함).
+   */
+  unitInside?: boolean;
 }
 
 const ENUM_RADIO_MAX = 4;
 const NO_FORM_RULES: FormRules = {};
 
-function LabelText({ field, rules }: { field: SpecField; rules: FormRules }) {
+function LabelText({ field, rules, text }: { field: SpecField; rules: FormRules; text?: string }) {
   return (
     <>
-      {field.label}
+      {text ?? field.label}
       {showOptionalMark(field, rules) ? <span className="ws-spec-optional">{` · ${COPY.checkLayer.optional}`}</span> : null}
     </>
   );
@@ -64,7 +69,16 @@ function RadioGroup({
   );
 }
 
-export default function SpecForm({ schema, values, onChange, disabled = false, numberColumns = 2, errors, rules = NO_FORM_RULES }: SpecFormProps) {
+export default function SpecForm({
+  schema,
+  values,
+  onChange,
+  disabled = false,
+  numberColumns = 2,
+  errors,
+  rules = NO_FORM_RULES,
+  unitInside = false,
+}: SpecFormProps) {
   const uid = useId();
   const fields = formFields(schema, rules);
   const numbers = fields.filter((f) => f.type === 'number');
@@ -79,25 +93,41 @@ export default function SpecForm({ schema, values, onChange, disabled = false, n
             const id = `${uid}-${f.key}`;
             const error = errors?.[f.key] ?? null;
             const errorId = `${id}-err`;
+            const { base, unit } = splitLabel(f.label);
+            const inner = unitInside && unit !== '';
+            const unitId = `${id}-unit`;
+            const describedBy = [inner ? unitId : null, error ? errorId : null].filter((x): x is string => x !== null).join(' ') || undefined;
+            const input = (
+              <input
+                id={id}
+                name={f.key}
+                className={`ws-spec-input ws-t-spec${error ? ' ws-spec-input--invalid' : ''}`}
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={f.min}
+                max={f.max}
+                value={values[f.key] ?? ''}
+                onChange={(e) => onChange(f.key, e.target.value)}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={describedBy}
+              />
+            );
             return (
               <div key={f.key} className="ws-spec-field" data-ws-field={f.key}>
                 <label htmlFor={id} className="ws-t-label ws-spec-label">
-                  <LabelText field={f} rules={rules} />
+                  <LabelText field={f} rules={rules} text={inner ? base : undefined} />
                 </label>
-                <input
-                  id={id}
-                  name={f.key}
-                  className={`ws-spec-input ws-t-spec${error ? ' ws-spec-input--invalid' : ''}`}
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  min={f.min}
-                  max={f.max}
-                  value={values[f.key] ?? ''}
-                  onChange={(e) => onChange(f.key, e.target.value)}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? errorId : undefined}
-                />
+                {inner ? (
+                  <span className="ws-spec-inputwrap">
+                    {input}
+                    <span className="ws-spec-unit" id={unitId}>
+                      {unit}
+                    </span>
+                  </span>
+                ) : (
+                  input
+                )}
                 {error ? (
                   <p id={errorId} className="ws-t-meta ws-spec-error">
                     {error}

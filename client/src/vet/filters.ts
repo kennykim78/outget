@@ -52,3 +52,12 @@ export function treatChoices<T extends { id: string; displayName: string }>(type
   const used = new Set(vets.flatMap((v) => v.treats));
   return types.filter((t) => used.has(t.id));
 }
+
+/**
+ * R4-6: 쿼리 ?treats= 가 노출 타입(ids) 중 하나면 그 id — 병원이 0이라 필터 칩이 없을 때 제목 「{동물} 진료하는 병원」에만 쓴다
+ *   (거르기·저장 0). 병원이 있을 때는 parseVetFilter 결과만 쓴다(목록과 다른 동물 이름을 제목에 달지 않게).
+ */
+export function queryTreats(search: string, ids: readonly string[]): string | null {
+  const t = new URLSearchParams(search).get('treats');
+  return t !== null && SLUG_RE.test(t) && ids.includes(t) ? t : null;
+}

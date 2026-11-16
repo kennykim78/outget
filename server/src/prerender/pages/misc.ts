@@ -1,5 +1,18 @@
-// 홈 A(콜드스타트 4섹션) · /{family} · /supplies · /supplies/{item}[/{type}] · /vet[/{region}] · /credits · 404.
-import { ANIMAL_GROUPS, PICK_PATH, SUPPLY_CATEGORIES, type WsPageData } from '../../engine/index.js';
+// 홈 A(미선택 — 히어로·하단 CTA) · /{family} · /supplies · /supplies/{item}[/{type}] · /vet[/{region}] · /credits · 404.
+import {
+  ANIMAL_GROUPS,
+  PICK_PATH,
+  SPEC_WORDS,
+  SUPPLY_CATEGORIES,
+  figureValueText,
+  homeAExplainOf,
+  homeARepType,
+  homeAVetRows,
+  type HomeAExplain,
+  type LinkedAction,
+  type WsPageData,
+} from '../../engine/index.js';
+import { affiliateDisclosureOn } from '../affiliate.js';
 import { COPY, formatCopy } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
 import type { SiteModel, TypeModel } from '../project.js';
@@ -15,11 +28,9 @@ import {
   mascotAvatar,
   navCurrent,
   railSection,
-  splitTitle,
   renderFooter,
   renderHead,
   renderHeader,
-  renderTabBar,
   sortVets,
   vetCard,
   wsData,
@@ -29,7 +40,7 @@ import {
 } from './common.js';
 import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell } from '../privacy-content.js';
 import { familyName } from './family.js';
-import { layerL4 } from './type.js';
+import { layerL4, specCheckTestimonials } from './type.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
 
@@ -46,20 +57,21 @@ function page(
     mainAttrs?: Readonly<Record<string, string>>;
     /** main 에 덧붙일 클래스(client 와 같은 ws-home-a 등). */
     mainClass?: string;
+    /** R4-3: 레이어 aside 에 제휴 링크가 그려지면 true — 푸터 고지 F. 생략 = 꺼짐(바이트 동일). */
+    footerAff?: boolean;
     data: WsPageData['data'];
   },
 ): RenderedPage {
   return {
     head: renderHead(ctx, { title: o.title, description: o.description, crumbs: o.crumbs }),
     body: [
-      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), ctx),
+      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), o.data),
       mainOpen(ctx, o.typeId, o.mainAttrs, o.mainClass),
       ...o.main,
       '</main>',
       o.aside ? `${SCRIM}
 ${o.aside}` : '',
-      renderFooter(),
-      renderTabBar(o.header ? o.header.pub : null, navCurrent(ctx.route)),
+      renderFooter(o.footerAff === true),
     ]
       .filter((x) => x !== '')
       .join('\n'),
@@ -76,7 +88,7 @@ export const HOME_VETS_MAX = 20;
 
 /**
  * 홈 ws-data vets: 목록 노출 병원(isVetListed — /vet 과 같은 PublicVet 투영) 중 지역 → 이름 → id 순 최대 HOME_VETS_MAX.
- *   후기 카드 "동네 병원 보기" 행동이 병원 존재 여부를 알 수 있게(HTML 본문에는 그리지 않는다).
+ *   클라이언트가 병원 존재 여부를 알 수 있게(HTML 본문에는 그리지 않는다).
  */
 function homeVets(m: SiteModel): SiteModel['vets'] {
   return sortVets(m.vets).slice(0, HOME_VETS_MAX);
@@ -86,17 +98,175 @@ function homeVets(m: SiteModel): SiteModel['vets'] {
  * 홈 ws-data types(R6 G3b) — 노출 타입 전체 + 타입별 specCheckItemId: 노출 요구사항(t.requirements — 이미 엔진 순서
  *   orderHint → priority → 시드 순) 중 specSchema.fields 가 있는 첫 항목 id. 요구사항 전체는 싣지 않는다(LCP·ws-data 크기).
  *   없으면 키 없음(클라이언트는 /{slug} 폴백).
+ *   286 U3c·U3d: 대표 타입(시드 순 첫 노출 타입, D11 ①)에만 homeExplain(엔진 homeAExplainOf — 시드 값 그대로). 요구사항은 여전히 싣지 않는다
+ *   (홈 문서에 부분 요구사항이 실리면 layerLinks·L2·L8 의 판정이 바뀐다).
  */
 function homeTypes(m: SiteModel): WsPageData['data']['types'] {
-  return m.types.map((t) => {
+  return m.types.map((t, i) => {
     const r = t.requirements.find((x) => x.item.specSchema.fields.length > 0);
-    return r ? { ...t.pub, specCheckItemId: r.item.id } : t.pub;
+    const explain = i === 0 ? homeAExplainOf(t.requirements.map((x) => x.pub)) : null;
+    // 286 U3b: /{slug}/setup 이 있는 타입(routes.ts 와 같은 조건 — 노출 구성안 1개 이상)만 setupAvailable.
+    return {
+      ...t.pub,
+      ...(r ? { specCheckItemId: r.item.id } : {}),
+      ...(t.bundles.length > 0 ? { setupAvailable: true as const } : {}),
+      ...(explain ? { homeExplain: explain } : {}),
+    };
   });
 }
 
-/** 홈 A — ① 친구 선택 ② 실제 이용 후기(0개면 섹션 없음) ③ 소개 ④ 시작 배너. */
+/** 시작 카드 순서(286 U3b, R3 시안 v1b) — client home/StartCards.tsx STARTER_ACTIONS 와 같은 값. */
+export const STARTER_ACTIONS = ['CHECKLIST', 'SPEC_CHECK', 'SETUP'] as const satisfies readonly LinkedAction[];
+export type StarterAction = (typeof STARTER_ACTIONS)[number];
+
+/**
+ * 시작 카드 노출 판정(fail-closed, 286 D12 ①) — 노출 타입이 0이면 전부 숨김. CHECKLIST = 노출 타입 1↑,
+ *   SPEC_CHECK = specCheckItemId 가 있는 타입 1↑, SETUP = setupAvailable 타입 1↑. 대상이 없는 카드는 자리표시 없이 빠진다.
+ *   client home/StartCards.tsx starterActions 와 같은 규칙(같은 ws-data types 입력).
+ */
+export function starterActions(types: WsPageData['data']['types']): StarterAction[] {
+  if (types.length === 0) return [];
+  return STARTER_ACTIONS.filter((x) =>
+    x === 'SPEC_CHECK' ? types.some((t) => typeof t.specCheckItemId === 'string' && t.specCheckItemId !== '') : x === 'SETUP' ? types.some((t) => t.setupAvailable === true) : true,
+  );
+}
+
+/**
+ * 「처음 준비, 여기서 시작해요」(286 U3b) — client home/StartCards.tsx 와 같은 마크업. RailSection kind=starter layout=grid3.
+ *   카드 = li > a.ws-starter(사진 자리 + 제목·화살표 + 한 줄). 정적 href = /pick(무JS: L1 → 타입 홈), 하이드레이션 후 의도 보존(intent.ts).
+ *   카드 안 카드·상태 칩·수치 없음. 카드 0개면 섹션 자체가 없다.
+ */
+function homeStarters(types: WsPageData['data']['types']): string[] {
+  const acts = starterActions(types);
+  if (acts.length === 0) return [];
+  const items = acts.map((x) => {
+    const c = COPY.homeA.starters[x];
+    return [
+      `<li class="ws-starter-item"><a class="ws-starter" data-ws-action="start-card" data-ws-intent="${x}" href="${PICK_PATH}">`,
+      // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용 슬롯 id)는 싣지 않는다.
+      '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+      `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(c.title)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
+      `<span class="ws-t-meta ws-muted ws-starter-sub">${h(c.sub)}</span>`,
+      '</a></li>',
+    ].join('');
+  });
+  return [railSection({ id: 'starters', kind: 'starter', layout: 'grid3', titleHtml: h(COPY.homeA.startersTitle), items })];
+}
+
+/** 홈 A 설명 섹션 화살표 링크 꼬리(장식) — client home/Explain.tsx Arrow 와 같은 마크업. */
+const HOME_ARROW = '<span aria-hidden="true"> →</span>';
+
+/** 설명 섹션 머리(h2 display + 리드 문단) — client home/Explain.tsx ExplainHead 와 같은 마크업. */
+function explainHead(id: string, title: string, lead: string): string {
+  return `<div class="ws-home-sec-head"><h2 id="${a(id)}" class="ws-t-display ws-home-sec-title">${h(title)}</h2><p class="ws-t-body ws-muted ws-home-sec-lead">${h(lead)}</p></div>`;
+}
+
+/**
+ * 홈 A 설명 섹션(286 U3c·U3d·U3e, R3 시안 v1b 순서: 필요/불필요 → 숫자 → 함께 살 집 → 병원) — client home/Explain.tsx 와 같은 태그·클래스·id·aria.
+ *   데이터 = 대표 타입(노출 타입 시드 순 첫 번째, D11 ①)의 ws-data types[0].homeExplain(엔진 homeAExplainOf) · 노출 타입 · 노출 병원 — 시드 값 그대로(숫자·이름 창작 0).
+ *   노출 타입이 0이면 전부 없음(D12 ①). 사진 = 빈 자리표시(photos.json 전부 SLOT). 병원 = 그룹별 진료 타입 집계만 — 지도 그림 없음(사용권 자산 없음, D14),
+ *   이름·주소·위치 0(불변식 ⑧). 확인된 병원 0이면 「확인된 병원이 아직 없어요」(허구 0).
+ */
+function homeExplain(data: WsPageData['data']): string[] {
+  const rep = homeARepType(data.types);
+  if (!rep) return [];
+  const out: string[] = [];
+  const ex = rep.homeExplain;
+  if (ex && ex.need.length > 0 && ex.notNow.length > 0) {
+    const col = (key: string, title: string, rs: HomeAExplain['need']): string =>
+      `<div class="ws-need-col" data-ws-col="${a(key)}"><h3 class="ws-t-cta ws-need-col-title">${h(title)}</h3><ul class="ws-need-list" role="list">${rs
+        .map((r) => `<li class="ws-t-body" data-ws-id="supplyRequirements#${a(r.requirementId)}">${h(r.name)}</li>`)
+        .join('')}</ul></div>`;
+    out.push(
+      [
+        '<section class="ws-home-sec ws-explain ws-need-split" data-ws-section="need-split" aria-labelledby="ws-sec-need-split-title">',
+        '<div class="ws-explain-text">',
+        `<p class="ws-t-meta ws-eyebrow ws-explain-eyebrow">${h(formatCopy(COPY.homeA.needEyebrow, { animal: rep.displayName }))}</p>`,
+        explainHead('ws-sec-need-split-title', COPY.homeA.needTitle, COPY.homeA.needBody),
+        `<a class="ws-home-link" href="${a(hrefOf(`/${rep.slug}`))}">${h(COPY.homeA.needLink)}${HOME_ARROW}</a>`,
+        '</div>',
+        '<div class="ws-explain-side">',
+        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        `<div class="ws-need-cols">${col('need', COPY.homeA.needCol, ex.need)}${col('not-now', COPY.homeA.notNowCol, ex.notNow)}</div>`,
+        '</div>',
+        '</section>',
+      ].join(''),
+    );
+  }
+  const figures = ex ? ex.figures : [];
+  if (figures.length > 0) {
+    out.push(
+      [
+        '<section class="ws-home-sec ws-explain ws-figures" data-ws-section="figures" aria-labelledby="ws-sec-figures-title">',
+        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        '<div class="ws-explain-text">',
+        explainHead('ws-sec-figures-title', COPY.homeA.figuresTitle, COPY.homeA.figuresSub),
+        `<p class="ws-t-meta ws-eyebrow ws-explain-eyebrow">${h(formatCopy(COPY.homeA.figuresEyebrow, { animal: rep.displayName }))}</p>`,
+        `<ul class="ws-figure-list" role="list">${figures
+          .map(
+            (figure) =>
+              `<li class="ws-figure" data-ws-id="supplyRequirements#${a(figure.requirementId)}"><p class="ws-t-section ws-figure-label">${h(
+                figure.base !== null ? `${figure.itemName} ${figure.base}` : figure.itemName,
+              )}</p><p class="ws-figure-num"><span class="ws-figure-value">${h(figureValueText(figure))}</span><span class="ws-figure-unit">${h(
+                figure.unit ? `${figure.unit} ${SPEC_WORDS.gte}` : SPEC_WORDS.gte,
+              )}</span></p></li>`,
+          )
+          .join('')}</ul>`,
+        `<a class="ws-home-link" href="${a(hrefOf(`/${rep.slug}/check/${figures[0].itemId}`))}">${h(COPY.homeA.figuresLink)}${HOME_ARROW}</a>`,
+        '</div>',
+        '</section>',
+      ].join(''),
+    );
+  }
+  // 함께 살 집(D4) — 노출 타입 카드만(PLANNED 는 노출 타입이 아니라 data.types 에 없다), 카드 → 타입 홈. 한 줄 = 시드 oneLiner(없으면 줄 없음).
+  out.push(
+    railSection({
+      id: 'habitats',
+      kind: 'habitat',
+      layout: 'grid3',
+      tone: 'home',
+      titleHtml: h(COPY.homeA.habitatsTitle),
+      lead: [COPY.homeA.habitatsLead],
+      items: data.types.map((t) =>
+        [
+          `<li class="ws-starter-item"><a class="ws-starter ws-habitat" href="${a(hrefOf(`/${t.slug}`))}" data-ws-id="animalTypes#${a(t.id)}">`,
+          '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+          `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(t.displayName)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
+          t.oneLiner ? `<span class="ws-t-meta ws-muted ws-starter-sub">${h(t.oneLiner)}</span>` : '',
+          '</a></li>',
+        ].join(''),
+      ),
+    }),
+  );
+  const rows = homeAVetRows(data.types, data.vets);
+  out.push(
+    [
+      '<section class="ws-home-sec ws-explain ws-vet-split" data-ws-section="vet-split" aria-labelledby="ws-sec-vet-split-title">',
+      '<div class="ws-explain-text">',
+      explainHead('ws-sec-vet-split-title', COPY.homeA.vetTitle, COPY.homeA.vetSub),
+      `<a class="ws-home-link" href="/vet">${h(COPY.homeB.vetLink)}${HOME_ARROW}</a>`,
+      '</div>',
+      '<div class="ws-explain-side">',
+      rows.length > 0
+        ? `<ul class="ws-vet-rows" role="list">${rows
+            .map(
+              (row) =>
+                `<li data-ws-group="${a(row.group)}"><span class="ws-t-cta ws-vet-row-name">${h(
+                  formatCopy(COPY.homeA.vetRow, { name: COPY.groups[row.group] }),
+                )}</span><span class="ws-t-body ws-muted ws-vet-row-types">${h(row.types.map((t) => t.displayName).join(' · '))}</span></li>`,
+            )
+            .join('')}</ul>`
+        : `<p class="ws-t-body ws-muted ws-vet-rows-empty">${h(COPY.homeB.vetEmpty)}</p>`,
+      '</div>',
+      '</section>',
+    ].join(''),
+  );
+  return out;
+}
+
+/** 홈 A — 히어로 · 시작 카드 · 설명 섹션(U3c~e) · 하단 CTA. */
 export function renderHome(m: SiteModel, ctx: PageContext): RenderedPage {
-  return page(ctx, { title: COPY.site.homeTitle, description: COPY.site.description, crumbs: [HOME], ...homeParts(m, ctx) });
+  return page(ctx, { title: COPY.site.homeTitle, description: COPY.site.description, crumbs: [HOME], ...homeParts(m) });
 }
 
 /**
@@ -117,94 +287,46 @@ export function renderSave(m: SiteModel, ctx: PageContext): RenderedPage {
     title: `${COPY.save.title}${COPY.site.titleSuffix}`,
     description: COPY.save.description,
     crumbs: [HOME, { name: COPY.save.title, path: '/save' }],
-    ...homeParts(m, ctx),
+    ...homeParts(m),
     aside,
   });
 }
 
-/** 친구 선택 CTA(K1, 51 레인 A ③) — JS 없이 /pick, 하이드레이션 후 client 가 L1 로 가로챈다. client Hero·StartBand 와 같은 클래스. */
+/** 친구 선택 CTA(K1, 51 레인 A ③) — JS 없이 /pick, 하이드레이션 후 client 가 L1 로 가로챈다. client StartBand 와 같은 클래스. */
 export function pickCta(label: string): string {
   return `<a class="ws-btn ws-btn--fill" data-ws-action="pick-animal" href="${PICK_PATH}">${h(label)}</a>`;
 }
 
-const SAME_ORIGIN_ASSET = /^\/assets\/[A-Za-z0-9._/-]+$/;
-
-/** 홈 A ② 후기 — client home/Reviews.tsx 사다리(0 없음 · 1–2 single · 3–5 rail · ≥6 marquee-static 정지 레일) + ReviewCard 마크업. */
-function homeReviews(m: SiteModel, vetAvailable: boolean): string {
-  const n = m.testimonials.length;
-  if (n === 0) return '';
-  const typeName = new Map(m.types.map((t) => [t.id, t.pub.displayName]));
-  const card = (t: SiteModel['testimonials'][number]): string => {
-    const img =
-      typeof t.reviewerImage === 'string' && SAME_ORIGIN_ASSET.test(t.reviewerImage) && !t.reviewerImage.includes('..')
-        ? `<img class="ws-review-photo" src="${a(t.reviewerImage)}" alt="" width="40" height="40" loading="lazy" decoding="async">`
-        : '<span class="ws-review-photo" aria-hidden="true"></span>';
-    const who = [typeName.get(t.animalTypeId), COPY.situation[t.situation]].filter((x): x is string => typeof x === 'string' && x !== '').join(' · ');
-    // 행동 링크: VET 은 병원이 있을 때만 /vet(K1). 그 외(체크리스트·규격·구성안)는 미선택 홈이므로 친구 선택 — 정적 /pick(하이드레이션 후 client button → L1).
-    const label = t.linkedAction === 'VET' && !vetAvailable ? null : COPY.homeA.reviewAction[t.linkedAction];
-    const href = t.linkedAction === 'VET' ? '/vet' : PICK_PATH;
-    const action = label ? `<a class="ws-review-action ws-t-meta" href="${href}">${h(label)}<span aria-hidden="true"> ›</span></a>` : '';
-    return [
-      `<li class="ws-review" data-ws-id="testimonials#${a(t.id)}">`,
-      `<blockquote class="ws-review-quote">${h(`“${t.quote}”`)}</blockquote>`,
-      `<div class="ws-review-who">${img}<span class="ws-t-meta ws-muted">${h(who)}</span><span class="ws-pill-chip ws-pill-chip--brand">${h(COPY.homeA.reviewVerifiedChip)}</span></div>`,
-      action,
-      '</li>',
-    ].join('');
-  };
-  const title = splitTitle(COPY.homeA.reviewsTitle);
-  if (n <= 2) {
-    return [
-      '<section class="ws-reviews-section" data-ws-section="reviews" data-ws-ladder="single" aria-labelledby="ws-sec-reviews-title">',
-      `<h2 id="ws-sec-reviews-title" class="ws-t-title ws-center-title">${title}</h2>`,
-      '<ul class="ws-reviews-static" role="list">',
-      ...m.testimonials.map(card),
-      '</ul>',
-      '</section>',
-    ].join('\n');
-  }
-  return railSection({ id: 'reviews', kind: 'review', titleHtml: title, attrs: { 'data-ws-ladder': n >= 6 ? 'marquee-static' : 'rail' }, items: m.testimonials.map(card) });
-}
+/** 히어로 선택 바 화살표(장식) — client home/Hero.tsx PICK_BAR_ARROW 와 같은 SVG. */
+export const PICK_BAR_ARROW =
+  '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
 /**
- * 홈 A 본문 — client home/HomeA.tsx(Hero · Reviews · IntroSlides(≤1023 stack) · StartBand)와 같은 태그·클래스·id·aria(51 레인 A ①).
- *   저장 타입("이어서")은 클라이언트만 알므로 정적 0.
+ * 홈 A 본문(R3 시안 v1b, 286 U3a) — client home/HomeA.tsx(Hero · StartBand)와 같은 태그·클래스·id·aria.
+ *   히어로 = h1 + 부제 + 선택 바(a href=/pick — 입력 아님, 하이드레이션 후 L1) · 하단 CTA = 문장 + 채운 버튼 1(a href=/pick).
+ *   후기 섹션 없음(D6: 홈 후기 비노출, ws-data testimonials 도 싣지 않는다 — 노출 경로 0 일치). 저장 타입("이어서")은 클라이언트만 알므로 정적 0.
+ *   U3b(시작 카드)·U3c~e(설명 섹션 homeExplain) 는 히어로와 하단 CTA 사이.
  */
-function homeParts(m: SiteModel, ctx: PageContext): { main: string[]; mainClass: string; data: WsPageData['data'] } {
+function homeParts(m: SiteModel): { main: string[]; mainClass: string; data: WsPageData['data'] } {
   const vets = homeVets(m);
-  const slides = COPY.homeA.introSlides;
-  const chips = COPY.homeA.featureChips;
+  const types = homeTypes(m);
+  const data: WsPageData['data'] = { ...emptyData(), types, vets };
   return {
     main: [
       '<section class="ws-hero" data-ws-section="hero" aria-labelledby="ws-hero-title">',
-      mascotAvatar(ctx, 'group-small-mammal', 'brand-soft'),
-      `<h1 id="ws-hero-title" class="ws-t-display">${h(COPY.homeA.heroTitle)}</h1>`,
-      pickCta(COPY.homeA.heroCta),
-      `<ul class="ws-feature-chips">${chips.map((c, i) => `<li><a href="#ws-intro-${i + 1}">${h(c)}</a></li>`).join('')}</ul>`,
+      `<h1 id="ws-hero-title" class="ws-t-display ws-hero-title">${h(COPY.homeA.heroTitle)}</h1>`,
+      `<p class="ws-t-body ws-muted ws-hero-sub">${h(COPY.homeA.heroSub)}</p>`,
+      `<a class="ws-pick-bar" data-ws-action="pick-animal" href="${PICK_PATH}"><span class="ws-pick-bar-label">${h(COPY.homeA.heroBar)}</span><span class="ws-pick-bar-go">${PICK_BAR_ARROW}</span></a>`,
       '</section>',
-      homeReviews(m, vets.length > 0),
-      '<section class="ws-intro" data-ws-section="intro" data-ws-intro="stack" aria-labelledby="ws-sec-intro-title">',
-      `<h2 id="ws-sec-intro-title" class="ws-t-title ws-center-title">${splitTitle(COPY.homeA.introTitle)}</h2>`,
-      ...slides.map((s, i) =>
-        [
-          `<article id="ws-intro-${i + 1}" class="ws-intro-slide">`,
-          // 사진 자리(빈 블록, D-8). client PhotoTile 의 data-ws-photo(추적용 슬롯 id)는 싣지 않는다 — 사용 불가 사진 id 를 산출물에 남기지 않기 위해.
-          '<span class="ws-photo ws-intro-photo" aria-hidden="true"></span>',
-          `<p class="ws-t-label ws-eyebrow">${h(chips[i] ?? '')}</p>`,
-          `<h3 class="ws-t-title">${h(s.title)}</h3>`,
-          `<p class="ws-t-body ws-muted">${h(s.body)}</p>`,
-          '</article>',
-        ].join(''),
-      ),
-      '</section>',
-      '<section class="ws-band ws-band--start" data-ws-section="start" aria-labelledby="ws-start-title">',
-      `<h2 id="ws-start-title" class="ws-t-title">${h(COPY.homeA.startTitle)}</h2>`,
+      ...homeStarters(types),
+      ...homeExplain(data),
+      '<section class="ws-start" data-ws-section="start" aria-labelledby="ws-start-title">',
+      `<div class="ws-start-text"><h2 id="ws-start-title" class="ws-t-display ws-start-title">${h(COPY.homeA.startTitle)}</h2><p class="ws-t-body ws-muted">${h(COPY.homeA.startBody)}</p></div>`,
       pickCta(COPY.homeA.startCta),
-      `<p class="ws-t-meta ws-muted">${h(COPY.homeA.startNote)}</p>`,
       '</section>',
-    ].filter((x) => x !== ''),
+    ],
     mainClass: 'ws-home-a',
-    data: { ...emptyData(), types: homeTypes(m), vets, testimonials: m.testimonials },
+    data,
   };
 }
 
@@ -218,6 +340,8 @@ function typeCard(ctx: PageContext, t: TypeModel): string {
  * /pick(K1, 51 레인 A ④) — 부모 = 홈 A + L1(친구 선택) 정적 본문. noindex·sitemap 제외·canonical /. ws-data = 홈과 같은 값, route.kind PICK, layer null
  *   (/save 의 L8 딥링크와 같은 방식 — 클라이언트가 route.kind/경로로 L1 을 연다). 타입 카드는 /{slug} 문서 링크(JS 없이 선택 = 이동).
  *   "잘 모르겠어요"(검색)는 JS 필요 — 정적으로는 별명 목록을 같은 링크로 보여 준다(후보 안내 문구 포함, 종 확정 아님).
+ *   286 U4: 제목 = picker.title(홈 선택 바와 같은 문장) + 그룹 부제. 클라이언트 L1 의 그룹 「선택 → 주 버튼」은 JS 상호작용이라
+ *   정적 본문은 그룹별 노출 타입 링크를 그대로 펼친다(하이드레이션 때 걷힘 — removePrerenderedLayer).
  */
 export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
   const card = (t: TypeModel): string => typeCard(ctx, t);
@@ -243,9 +367,10 @@ export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
     : '';
   const aside = [
     '<aside class="ws-layer" id="ws-layer" data-ws-layer="L1" role="dialog" aria-labelledby="ws-layer-title">',
-    `<h2 id="ws-layer-title">${h(COPY.homeA.heroCta)}</h2>`,
+    `<h2 id="ws-layer-title">${h(COPY.picker.title)}</h2>`,
     layerClose('/'),
     '<div class="ws-layer-body ws-picker" data-ws-step="groups">',
+    `<p class="ws-t-body ws-picker-muted">${h(COPY.picker.groupsLead)}</p>`,
     ...(groups.length ? groups : [`<p class="ws-t-body ws-picker-muted" data-ws-empty="types">${h(COPY.planned.title)}</p>`]),
     unsure,
     '</div>',
@@ -254,10 +379,10 @@ export function renderPick(m: SiteModel, ctx: PageContext): RenderedPage {
     .filter((x) => x !== '')
     .join('\n');
   return page(ctx, {
-    title: `${COPY.homeA.heroCta}${COPY.site.titleSuffix}`,
+    title: `${COPY.picker.title}${COPY.site.titleSuffix}`,
     description: COPY.site.description,
-    crumbs: [HOME, { name: COPY.homeA.heroCta, path: PICK_PATH }],
-    ...homeParts(m, ctx),
+    crumbs: [HOME, { name: COPY.picker.title, path: PICK_PATH }],
+    ...homeParts(m),
     aside,
   });
 }
@@ -318,17 +443,20 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
   let aside: string | undefined;
   let typeId: string | undefined;
   let header: TypeModel | undefined;
+  let footerAff = false;
   const data: WsPageData['data'] = { ...emptyData(), types: allTypes(m) };
   if (ctx.route.kind === 'SUPPLY_ITEM_TYPE') {
     const t = ts.find((x) => x.id === ctx.route.typeId);
     const r = t?.requirements.find((x) => x.item.id === it.id);
     if (!t || !r) throw new Error(`pages: ${ctx.route.typeId} × ${it.id} 노출 요구사항 없음`);
     aside = layerL4(t, r, `/supplies/${it.id}`);
+    footerAff = affiliateDisclosureOn(r.pub.searchLinks);
     typeId = t.id;
     header = t;
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
     data.requirements = [r.pub];
     data.products = r.products;
+    data.testimonials = specCheckTestimonials(m, t.id); // D6-B: 여기서 연 L4 → L5 결과 아래 후기(타입 페이지와 같은 1건)
   }
   return page(ctx, {
     title: `${it.name}${header ? ` · ${header.pub.displayName}` : ''}${COPY.site.titleSuffix}`,
@@ -347,6 +475,7 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     aside,
     typeId,
     header,
+    footerAff,
     data,
   });
 }
@@ -355,6 +484,8 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
  * /vet — 지역 칩("전체" + 지역, aria-current) + 병원 카드, 0이면 빈 상태. /vet/{region} — 지역 병원(스펙33 §5.8, G-4).
  *   main[data-ws-vet-layout=map|list] 는 빌드 시 지도 키 존재 여부만(ctx.vetMap) — map 이면 빈 지도 블록을 예약한다.
  *   필터(진료 동물·야간·응급)·목록|지도 전환·제보 섹션은 하이드레이션 후(클라이언트). 좌표는 ws-data 에만.
+ *   R4-6(R4 시안 hospital_list): 제목 → 방문 안내 한 줄 → 「지역 선택」 → 「{동물} 진료」 칩 → 목록, 병원 0 = 상태 머리 「확인된 병원이 아직 없어요」
+ *   (클라이언트 StateBlock 과 같은 마크업 — 허구 병원·지도 예시 그림 0). 제목의 「{동물} 진료하는 병원」은 쿼리를 읽는 클라이언트만.
  */
 export function renderVet(m: SiteModel, ctx: PageContext): RenderedPage {
   const region = ctx.route.region;
@@ -376,19 +507,23 @@ export function renderVet(m: SiteModel, ctx: PageContext): RenderedPage {
   const chip = (label: string): string => `<button type="button" class="ws-filter-chip" aria-pressed="false">${h(label)}</button>`;
   const filters = vets.length
     ? `<div class="ws-vet-row ws-vet-row--filters"><div class="ws-vet-row-head"><p class="ws-vet-row-label" id="ws-vet-filters-label">${h(COPY.vet.filtersTitle)}</p></div><div class="ws-vet-filters" role="group" aria-labelledby="ws-vet-filters-label">${[
-        ...m.types.filter((t) => usedTreats.has(t.id)).map((t) => chip(t.pub.displayName)),
+        ...m.types.filter((t) => usedTreats.has(t.id)).map((t) => chip(formatCopy(COPY.vet.treatsChip, { name: t.pub.displayName }))),
         chip(COPY.vet.night),
         chip(COPY.vet.emergency),
       ].join('')}</div></div>`
     : '';
   const main = [
     `<h1>${h(region === undefined ? COPY.vet.title : formatCopy(COPY.vet.regionTitle, { name: region }))}</h1>`,
+    `<p class="ws-vet-note">${h(COPY.vet.visitNote)}</p>`, // K1: 병원 목록 근처에 항상 — R4-6 제목 바로 아래
     chips,
     filters,
-    vets.length ? '' : `<p>${h(region === undefined ? COPY.vet.emptyAll : COPY.vet.emptyRegion)}</p>`,
+    vets.length
+      ? ''
+      : `<div class="ws-state ws-state--empty" data-ws-state-kind="empty"><h2 class="ws-state-title">${h(COPY.vet.emptyTitle)}</h2><p class="ws-state-body">${h(
+          region === undefined ? COPY.vet.emptyAll : COPY.vet.emptyRegion,
+        )}</p></div>`,
     layout === 'map' && vets.length ? '<div class="ws-vet-map" aria-hidden="true"></div>' : '',
     vets.length ? `<ul class="ws-vets">\n${vets.map((v) => vetCard(v, typeNames, 2)).join('\n')}\n</ul>` : '',
-    `<p class="ws-vet-note">${h(COPY.vet.visitNote)}</p>`, // K1: 병원 목록 근처에 항상
   ];
   return page(ctx, {
     title: `${region ? `${region} · ` : ''}${COPY.vet.title}${COPY.site.titleSuffix}`,

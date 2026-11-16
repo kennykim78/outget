@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Layer, layerVariantFor, useLayerChrome } from './Layer';
 import LayerHost, { type LayerRegistry } from './LayerHost';
-import { layerStore, useLayer } from './useLayer';
+import { LAYER_KINDS, layerStore, useLayer } from './useLayer';
 
 function mockViewport(width: number): void {
   vi.stubGlobal('matchMedia', (q: string) => {
@@ -65,32 +65,38 @@ afterEach(() => {
   document.documentElement.style.overflow = '';
 });
 
-describe('Layer 3변형', () => {
-  it('≤767 sheet · 768–1023 modal · ≥1024 modal(L1)/drawer(L4·L7)', () => {
-    mockViewport(390);
-    expect(layerVariantFor('L1')).toBe('sheet');
-    expect(layerVariantFor('L7')).toBe('sheet');
-    mockViewport(800);
-    expect(layerVariantFor('L1')).toBe('modal');
-    expect(layerVariantFor('L4')).toBe('modal');
-    mockViewport(1280);
-    expect(layerVariantFor('L1')).toBe('modal');
-    expect(layerVariantFor('L2')).toBe('modal');
-    expect(layerVariantFor('L4')).toBe('drawer');
-    expect(layerVariantFor('L7')).toBe('drawer');
+describe('Layer 2변형(R3 U1: 드로어 폐기, PC 는 전부 모달)', () => {
+  const KINDS = LAYER_KINDS; // L3·L6 은 L2·L5 안의 스텝이라 종류가 아니다
+
+  it('≤767 sheet · ≥768 modal — L1~L8 모두 같은 변형(L4·L7 포함)', () => {
+    for (const [width, expected] of [
+      [390, 'sheet'],
+      [767, 'sheet'],
+      [768, 'modal'],
+      [800, 'modal'],
+      [1024, 'modal'],
+      [1280, 'modal'],
+    ] as const) {
+      mockViewport(width);
+      for (const k of KINDS) expect([width, k, layerVariantFor()]).toEqual([width, k, expected]);
+    }
   });
 
-  it('렌더된 패널에 변형이 반영되고 sheet 만 그랩이 있다', () => {
+  it('렌더된 패널에 변형이 반영되고 sheet 만 그랩이 있다(≥1024 L4·L7 = modal)', () => {
     mockViewport(1280);
-    const { unmount } = render(
-      <Layer kind="L4" title="케이지" onClose={() => undefined}>
-        <p>x</p>
-      </Layer>,
-    );
-    const dlg = screen.getByRole('dialog');
-    expect(dlg).toHaveAttribute('data-ws-variant', 'drawer');
-    expect(dlg.querySelector('.ws-layer-grab')).toBeNull();
-    unmount();
+    for (const kind of ['L4', 'L7'] as const) {
+      const { unmount } = render(
+        <Layer kind={kind} title="케이지" onClose={() => undefined}>
+          <p>x</p>
+        </Layer>,
+      );
+      const dlg = screen.getByRole('dialog');
+      expect(dlg).toHaveAttribute('data-ws-variant', 'modal');
+      expect(dlg).toHaveClass('ws-layer-panel--modal');
+      expect(dlg).not.toHaveClass('ws-layer-panel--drawer');
+      expect(dlg.querySelector('.ws-layer-grab')).toBeNull();
+      unmount();
+    }
     mockViewport(390);
     render(
       <Layer kind="L4" title="케이지" onClose={() => undefined}>

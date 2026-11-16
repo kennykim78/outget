@@ -21,11 +21,20 @@ Soft character, clean utility. WithSmall helps a first-time keeper of a hamster,
 - Emoji only as category glyphs on the supplies grid and hospital header; never as decoration, never in body text.
 - Scientific names in `meta` beside the display name (`골든햄스터` / `Mesocricetus auratus`). Aliases as "○○라고도 불러요".
 
+## Tokens v2.0 (R3 순백 + 청록, 2026-11-14)
+
+`tokens.json` 2.0.0 replaces the v1.2 sage-mint palette with the approved R3 direction. Token **names are unchanged**; values were swapped and new leaves added. Font stays Pretendard (the R3 mockups were typeset in 맑은 고딕 only as a Windows rendering stand-in).
+
+- Color: `bg-000` #ffffff · `ink` #102326 · `ink-body` #48575a (new: running body text) · `brand` #007f8b · `line` #d7dfdf. `on-brand` is now white on teal; `brand-text` #00707b (darker so it holds ≥4.5:1 on `brand-soft`); `focus` = `brand`. `bg-100` / `brand-soft` / `line-strong` moved to cool neutrals. Scrim = ink at 44%.
+- Status keeps the same five-state mapping; `status-first` and `status-check` were darkened so every status color is ≥4.5:1 on white, `bg-100`, `brand-soft` and its own soft ground. `status-later` now equals `ink-muted` (the v1.2 3.9:1 exception is gone). Enforced by `client/src/styles/tokensContrast.test.ts`.
+- Layout (new): `content-max` 1200 (was 1120; outer margin 40 at 1280) · `grid-gutter` 24 (12 columns of 78) · `section-gap` 120 / `section-gap-mobile` 72 · `layer-pad` 40 / `layer-pad-mobile` 16 (720 → 640 content, 360 → 328) · `btn-h` 52 · `input-h` 72 · `row-h` 76 / `row-h-mobile` 72 · `radius-photo` 20 / `radius-photo-mobile` 14 · `num-unit-gap` 8 (large number → unit, same baseline).
+- `drawer-w` is **deprecated**: every PC layer becomes a `modal-w` 720 modal. The token stays only until the component step removes its last reference. Until then the prose below that mentions the right drawer describes v1.2 behavior.
+
 ## Color
 
-Ground everything on `bg-000` (plain white). Warmth comes from `bg-100` (warm off-white) on bands, sheet headers, the sheet/modal header, category tiles and image placeholders, never from the page ground. `surface` is white too, so a card is defined by its 1px `line` border and radius, not by tone. Text is `ink`; secondary text `ink-muted` (5.3:1 on `bg-000`). Borders `line`; inputs and selected cards `line-strong`.
+Ground everything on `bg-000` (plain white). `bg-100` (cool off-white since v2.0) is for bands, sheet headers, the sheet/modal header, category tiles and image placeholders, never the page ground. `surface` is white too, so a card is defined by its 1px `line` border and radius, not by tone. Headings and numbers are `ink`; running text `ink-body`; secondary text `ink-muted` (5.5:1 on `bg-000`). Borders `line`; inputs and selected cards `line-strong`.
 
-`brand` (sage mint) is the one identity hue: selected TypeCard tint (`brand-soft`), progress fill, the mascot ground disc, the single filled CTA (text `on-brand`). Links and brand-colored text use `brand-text`, never raw `brand`, which fails as text. `peach` is warmth for mascots and the empty-state illustration; `butter` is the parrots' yellow and the completion celebration. Neither is ever a control.
+`brand` (teal since v2.0) is the one identity hue: selected TypeCard tint (`brand-soft`), progress fill, the single filled CTA (text `on-brand`, white). Links and brand-colored small text use `brand-text`; raw `brand` as small text only on white. `peach` is warmth for mascots and the empty-state illustration; `butter` is the parrots' yellow and the completion celebration. Neither is ever a control.
 
 Status is a separate system and is never pastelled into the brand:
 
@@ -37,7 +46,7 @@ Status is a separate system and is never pastelled into the brand:
 | 나중에 / NOT_NOW | ○ | `status-later` | none |
 | 최소 미달 | ✕ | `status-fail` | `status-fail-soft` |
 
-Every state is icon + color + word. `status-first` (coral) and `status-fail` (deep red) differ in lightness and glyph so the two never read alike; `status-ready` sits away from the red axis. `status-later` is below 4.5:1 by design and is never the only carrier of meaning.
+Every state is icon + color + word. `status-first` (coral) and `status-fail` (deep red) differ in lightness and glyph so the two never read alike; `status-ready` sits away from the red axis. `status-later` equals `ink-muted` since v2.0 (≥4.5:1) and is still never the only carrier of meaning.
 
 Single theme. There is no dark theme in Phase 0; the product forces `color-scheme: light` so system dark mode does not invert the mascots or the status colors.
 
@@ -51,7 +60,7 @@ Three tiers from `layout` tokens, one page rhythm. A page is: `GlobalHeader` (`h
 
 ## Layers
 
-A layer (`Layer` component) is a tool opened over the page: checklist (L2), 2 questions (L3, as a step inside L2), supply detail (L4), spec checker (L5), my cage (L6, a step inside L5), product detail (L7), animal selector (L1). One layer at a time; steps change inside the same layer. The page behind stays visible under a `rgba(47,43,39,.42)` scrim and keeps its scroll position; closing (✕, ESC, back, scrim tap) returns to it unchanged. Sheets and drawers use `shadow-sheet`; modals use it too. The header band of a layer is `bg-100` when it carries a summary (checklist), otherwise white. A layer has at most one filled CTA in its footer.
+A layer (`Layer` component) is a tool opened over the page: checklist (L2), 2 questions (L3, as a step inside L2), supply detail (L4), spec checker (L5), my cage (L6, a step inside L5), product detail (L7), animal selector (L1). One layer at a time; steps change inside the same layer. The page behind stays visible under a `rgba(16,35,38,.44)` scrim (v2.0; ink at 44%) and keeps its scroll position; closing (✕, ESC, back, scrim tap) returns to it unchanged. Sheets and drawers use `shadow-sheet`; modals use it too. The header band of a layer is `bg-100` when it carries a summary (checklist), otherwise white. A layer has at most one filled CTA in its footer.
 
 ## Product surface
 

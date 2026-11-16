@@ -1,6 +1,6 @@
 // X1 데모 완주 + X2 화면 불변식(R6 E2) — 데모 시드 전용(실시드는 real-seed.spec.ts).
-//   홈 A → L1(소동물 → 골든햄스터) → 홈 B → L3 2질문 → L2 체크 → L4 쳇바퀴 → L5 판정(30 ✓ · 20 ✕ · 누락 ?)
-//   → L6 케이지 60×40×35 → 재판정 △ '공간 조건 재확인' → /setup → L7(✓ 기준 충족 · 가격·판매처·구매 0) → /vet/서울-마포구
+//   홈 A → L1(소동물 → 골든햄스터) → 홈 B → L3 2질문 → L2 체크 → L4 쳇바퀴 → L5 판정(30 ○ · 20 ✕ · 누락 ?)
+//   → L6 케이지 60×40×35 → 재판정 △ '공간 조건 재확인' → /setup → L7(○ 기준 충족 · 가격·판매처·구매 0) → /vet/서울-마포구
 //   → L8 이메일 → 메일 링크 → [이 기기 연결하기] → 확인(마스킹 주소) → [이 주소로 저장하기] → 다른 컨텍스트 새 링크 → 체크·케이지 복원.
 //   각 화면: assertScreen(금지어 0 · 판매처 면책만 · 미달 상품 0). 외부 요청 0·pageerror 0 은 guard 가 테스트 끝에 단언.
 import type { Locator, Page } from '@playwright/test';
@@ -15,10 +15,30 @@ const CAGE = { floorWcm: '60', floorDcm: '40', heightCm: '35' } as const;
 test.skip(() => process.env.E2E_SEED_MODE !== 'demo', '데모 시드 전용');
 
 const layer = (page: Page, kind: string): Locator => page.locator(`[data-ws-layer="${kind}"][role="dialog"]`);
+/**
+ * 홈 B 「지금 필요한 것」에서 지금 화면에 보이는 항목 링크(qa MED-1): ≥768 은 항목 카드(a.ws-now-card), ≤767 은 항목 링크 줄(a.ws-now-link).
+ *   숨겨진 DOM 이 아니라 보이는 요소만 — 상태는 data-ws-state + 보이는 글리프·단어(.ws-now-state)로 확인한다.
+ */
+const nowItem = (page: Page, itemId: string): Locator =>
+  page.locator(
+    `section[data-ws-section="now"] li[data-ws-item="${itemId}"] a.ws-now-card:visible, section[data-ws-section="now"] li[data-ws-now-link="${itemId}"] a.ws-now-link:visible`,
+  );
+async function expectNowCheck(page: Page, itemId: string): Promise<void> {
+  const el = nowItem(page, itemId);
+  await expect(el).toHaveCount(1);
+  await expect(el).toBeVisible();
+  await expect(el).toHaveAttribute('data-ws-state', 'check');
+  await expect(el).toHaveAttribute('href', `${TYPE.home}/supplies/${itemId}`);
+  await expect(el.locator('.ws-now-state')).toBeVisible();
+  await expect(el.locator('.ws-now-state')).toHaveText('△확인 필요');
+}
 
 /** L5 폼 채우고 판정. diameter '' = 값 누락. */
 async function judgeWheel(L5: Locator, diameter: string): Promise<Locator> {
   const page = L5.page();
+  // 286 U5b: 결과 상태는 입력 칸을 걷는다 — 「다시 입력하기」(값 유지)로 입력 상태로 돌아간 뒤 넣는다.
+  const reenter = L5.locator('button.ws-spec-reenter');
+  if (await reenter.count()) await tap(page, reenter);
   await L5.locator('input[name="diameterCm"]').fill(diameter);
   for (const radio of [L5.locator('[data-ws-field="surface"] input[value="SOLID"]'), L5.locator('[data-ws-field="mount"] input[value="STAND"]')]) {
     if (!(await radio.isChecked())) await tap(page, radio.locator('xpath=..'));
@@ -27,6 +47,20 @@ async function judgeWheel(L5: Locator, diameter: string): Promise<Locator> {
   await tap(page, L5.locator('button.ws-spec-submit'));
   return L5.locator('section.ws-verdict');
 }
+
+test('시작 카드 「크기 확인」(미선택) → L1 → 종 선택 → L5 딥링크 /hamster/golden/check/{item}', async ({ page }) => {
+  await gotoHydrated(page, '/');
+  const card = page.locator('section[data-ws-section="starters"] a[data-ws-intent="SPEC_CHECK"]');
+  await expect(card).toBeVisible();
+  await tap(page, card);
+  const L1 = layer(page, 'L1');
+  await expect(L1).toBeVisible();
+  await L1.locator('[data-ws-group="SMALL_MAMMAL"]').click();
+  await L1.locator('[data-ws-action="pick-group"]').click();
+  await expect(L1.locator('[data-ws-step="types"]')).toBeVisible();
+  await Promise.all([page.waitForURL(new RegExp(`${TYPE.home}/check/[^/]+$`)), L1.locator(`[data-ws-type="${TYPE.id}"]`).click()]);
+  await expect(layer(page, 'L5')).toBeVisible();
+});
 
 test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6 → setup → L7 → 병원 → L8 저장 → 다른 기기 복원', async ({ page, newContext, baseURL }, testInfo) => {
   test.setTimeout(150_000);
@@ -41,9 +75,10 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await page.locator('section[data-ws-section="hero"] a[data-ws-action="pick-animal"]').click();
     const L1 = layer(page, 'L1');
     await expect(L1).toBeVisible();
-    await expect(L1.locator('h2')).toHaveText('어떤 친구인가요?');
+    await expect(L1.locator('h2')).toHaveText('어떤 친구와 함께하나요?');
     await assertScreen(page, 'L1 그룹');
     await L1.locator('[data-ws-group="SMALL_MAMMAL"]').click();
+    await L1.locator('[data-ws-action="pick-group"]').click(); // 286 U4: 그룹 선택 → 주 버튼
     await expect(L1.locator('[data-ws-step="types"]')).toBeVisible();
     await assertScreen(page, 'L1 타입');
     await Promise.all([page.waitForURL(`**${TYPE.home}`), L1.locator(`[data-ws-type="${TYPE.id}"]`).click()]);
@@ -55,7 +90,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   });
 
   await test.step('L3 2질문 → L2 체크리스트 체크', async () => {
-    await tap(page, page.locator('section[data-ws-section="save"] button.ws-btn--fill'));
+    await tap(page, page.locator('section[data-ws-section="now"] button.ws-now-cta')); // R4-2: 채운 주 버튼 = ① 요약 카드
     const L2 = layer(page, 'L2');
     await expect(L2.locator('[data-ws-step="L3"]')).toBeVisible();
     await assertScreen(page, 'L3');
@@ -80,7 +115,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
   });
 
   const L5 = layer(page, 'L5');
-  await test.step('L4 쳇바퀴 → L5 규격 판정(30 ✓ · 20 ✕ · 누락 ?)', async () => {
+  await test.step('L4 쳇바퀴 → L5 규격 판정(30 ○ · 20 ✕ · 누락 ?)', async () => {
     const L2 = layer(page, 'L2');
     await Promise.all([page.waitForURL(`**${TYPE.home}/supplies/wheel`), tap(page, L2.getByRole('link', { name: '쳇바퀴 자세히' }))]);
     const L4 = layer(page, 'L4');
@@ -93,16 +128,24 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await Promise.all([page.waitForURL(`**${TYPE.home}/check/wheel`), tap(page, L4.locator('.ws-layer-foot a', { hasText: '규격 확인' }))]);
     await expect(L5.locator('[data-ws-step="L5"]')).toBeVisible();
     await assertScreen(page, 'L5');
+    await expect(L5.locator('[data-ws-part="review"]')).toHaveCount(0); // D6-B: 입력 상태엔 후기 없음
 
     const v30 = await judgeWheel(L5, '30');
     await expect(v30).toHaveAttribute('data-ws-verdict', 'OK');
-    await expect(v30.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('✓');
+    await expect(v30.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('○'); // 286 U5b R4 fix 4상태: ○ 기준 충족
     await expect(v30.locator('[data-ws-tier="compat"]')).toHaveCount(0);
+    // D6-B: 결과 아래 「크기 확인에 도움 된 점」 — 데모 시드의 골든 SPEC_CHECK 승인 후기 첫 1건(t-002), 선 1개 + 텍스트.
+    const review = v30.locator('[data-ws-part="review"]');
+    await expect(review).toHaveCount(1);
+    await expect(review).toHaveAttribute('data-ws-id', 'testimonials#t-002');
+    await expect(review.locator('h4')).toHaveText('크기 확인에 도움 된 점');
+    await expect(review.locator('a, button, img')).toHaveCount(0);
     await assertScreen(page, 'L5 30cm');
 
     const v20 = await judgeWheel(L5, '20');
     await expect(v20).toHaveAttribute('data-ws-verdict', 'BELOW_MIN');
     await expect(v20.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('✕');
+    await expect(v20.locator('[data-ws-part="review"]')).toHaveCount(1); // 미달 결과에서도 같은 자리(판정은 바뀌지 않음)
     await assertScreen(page, 'L5 20cm');
 
     const vNone = await judgeWheel(L5, '');
@@ -130,14 +173,14 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
 
     const v = await judgeWheel(L5, '30');
     await expect(v).toHaveAttribute('data-ws-verdict', 'CHECK');
-    await expect(v.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('✓');
+    await expect(v.locator('[data-ws-tier="product"] .ws-verdict-glyph')).toHaveText('○');
     const compat = v.locator('[data-ws-tier="compat"]');
     await expect(compat.locator('.ws-verdict-glyph')).toHaveText('△');
     await expect(compat).toContainText('공간 조건 재확인');
     await assertScreen(page, 'L5 케이지 재판정');
   });
 
-  await test.step('/setup 구성안 → 홈 B → L7 상품(✓ 기준 충족 · 가격·판매처·구매 0)', async () => {
+  await test.step('/setup 구성안 → 홈 B → L7 상품(○ 기준 충족 · 가격·판매처·구매 0)', async () => {
     await gotoHydrated(page, `${TYPE.home}/setup`);
     await expect(page.locator('main section.ws-bundle').first()).toBeVisible();
     await expect(page.locator('main')).toContainText('처음 준비한다면');
@@ -147,19 +190,23 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await expect(page.locator('h1#ws-context-title')).toHaveText(TYPE.name);
     // L3 응답 후: 숫자 줄. 케이지는 등록값 60×40×35 가 골든햄스터 최소(100×50×50)에 못 미쳐 △(arch-23 ③ — 보유 케이지 규격 미달 연결), 쳇바퀴도 케이지 등록으로 △.
     await expect(page.locator('section[data-ws-section="now"]')).toHaveAttribute('data-ws-answered', '1');
-    await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
-    await expect(page.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
+    // qa MED-1: 390 에서도 보이는 요소(항목 링크 줄)로 △ + 「확인 필요」 + L4 링크 — 숨겨진 카드 DOM 이 아니라.
+    await expectNowCheck(page, 'cage');
+    await expectNowCheck(page, 'wheel');
     await assertScreen(page, '홈 B(L3 후)');
 
+    // R4-2b: 홈 B 「처음 준비한다면」 레일 → /setup 링크, 「기준에 맞는 준비물」 레일(규격 → 검수 순, 불변식 ③) → L7.
+    await expect(page.locator('section[data-ws-section="bundles"] li[data-ws-tier]').first()).toBeVisible();
+    await expect(page.locator(`section[data-ws-section="bundles"] a.ws-rail-foot[href="${TYPE.home}/setup"]`)).toBeVisible();
     const products = page.locator('section[data-ws-section="products"] li.ws-product');
     await expect(products).toHaveCount(1);
     await expect(products.first().locator('.ws-badge')).toContainText('기준 충족');
-    await expect(products.first().locator('.ws-badge [data-ws-glyph="ready"]')).toHaveText('✓');
+    await expect(products.first().locator('.ws-badge [data-ws-glyph="ok"]')).toHaveText('○'); // R4-1 판정 4상태
     await Promise.all([page.waitForURL(`**${TYPE.home}/products/cp-001`), tap(page, products.first().locator('a').first())]);
     const L7 = layer(page, 'L7');
     await expect(L7).toBeVisible();
     await expect(L7.locator('.ws-badge')).toContainText('기준 충족');
-    await expect(L7.locator('.ws-badge [data-ws-glyph="ready"]')).toHaveText('✓');
+    await expect(L7.locator('.ws-badge [data-ws-glyph="ok"]')).toHaveText('○');
     await expect(L7.locator('[data-ws-part="reasons"] li').first()).toBeVisible();
     const noCommerce = async (label: string) => {
       const t = withoutPriceNotes(await L7.innerText());
@@ -200,7 +247,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     await assertScreen(page, 'L8 입력');
     const before = mailsTo(email).length;
     await L8.locator('input[type="email"]').fill(email);
-    await tap(page, L8.getByRole('button', { name: '인증 메일 보내기' }));
+    await tap(page, L8.getByRole('button', { name: '저장 링크 받기' }));
     await expect(L8.locator('[data-ws-save="sent"]')).toBeVisible();
     await assertScreen(page, 'L8 보냄');
     const link = await waitForSaveLink(email, before, origin);
@@ -231,7 +278,7 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     expect(await p2.evaluate((k) => localStorage.getItem(k), `ws.setup.${TYPE.id}`)).toBeNull();
     const before = mailsTo(email).length;
     await L8.locator('input[type="email"]').fill(email);
-    await tap(p2, L8.getByRole('button', { name: '인증 메일 보내기' }));
+    await tap(p2, L8.getByRole('button', { name: '저장 링크 받기' }));
     await expect(L8.locator('[data-ws-save="sent"]')).toBeVisible();
     const link2 = await waitForSaveLink(email, before, origin);
     await gotoHydrated(p2, link2);
@@ -252,11 +299,11 @@ test('X1 데모 완주 — 홈 A → L1 → 홈 B → L3 → L2 → L4 → L5/L6
     expect(cage).toMatchObject({ type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35 });
     expect(await p2.evaluate(() => localStorage.getItem('ws.animalType'))).toBe(TYPE.id);
 
-    // 화면 복원: 홈 B 칩(케이지 △ — 등록값이 최소 미달 · 쳇바퀴 △) · L5 케이지 줄.
+    // 화면 복원: 홈 B 항목 카드(케이지 △ — 등록값이 최소 미달 · 쳇바퀴 △) · L5 케이지 줄.
     await gotoHydrated(p2, TYPE.home);
     await expect(p2.locator('h1#ws-context-title')).toHaveText(TYPE.name);
-    await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="cage"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
-    await expect(p2.locator('section[data-ws-section="now"] li[data-ws-item="wheel"] [data-ws-state]')).toHaveAttribute('data-ws-state', 'check');
+    await expectNowCheck(p2, 'cage');
+    await expectNowCheck(p2, 'wheel');
     await assertScreen(p2, '다른 기기 홈 B');
     await gotoHydrated(p2, `${TYPE.home}/check/wheel`);
     await expect(layer(p2, 'L5').locator('[data-ws-cage-row="set"]')).toContainText('60×40×35cm');

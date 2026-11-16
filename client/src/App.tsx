@@ -1,4 +1,4 @@
-// WithSmall 앱 루트(계약 C-2 · C-R5-5). 셸(GlobalHeader · 화면 · Footer · TabBar) + LayerHost.
+// WithSmall 앱 루트(계약 C-2 · C-R5-5). 셸(GlobalHeader · 화면 · Footer) + LayerHost. 하단 탭바 없음(U2b, Kenny D2 — ≤767 헤더 메뉴).
 //   화면: HOME·SAVE = 홈 A(F4), TYPE = 홈 B(F5), 나머지 = StaticMain(F8, 보관 프리렌더 본문).
 //   레이어 딥링크(L4·L5·L7 URL, /save)는 ws-data 로 같은 React 레이어를 마운트(app/deepLink) — 정적 aside 는 레이어 마운트와
 //   같은 useLayoutEffect 에서 걷힌다(이중 aside 0). 문서 안 레이어 URL 링크는 app/layerLinks 가 push 로 가로챈다.
@@ -16,9 +16,10 @@ import type { CapturedStatic } from './app/staticCapture';
 import HomeA from './home/HomeA';
 import HomeB from './home/HomeB';
 import Footer from './shell/Footer';
+import { layerAffiliateOn } from './supply/searchLinks';
 import GlobalHeader from './shell/GlobalHeader';
-import TabBar from './shell/TabBar';
-import { navCurrentFor, pickShellType, typeHomeHref } from './shell/shellType';
+import { navCurrentFor, pickShellType } from './shell/shellType';
+import { usePickIntent } from './shell/usePickIntent';
 import { removePrerenderedLayer } from './ui/layer/Layer';
 import LayerHost from './ui/layer/LayerHost';
 import { layerStore, useLayer, useOpenLayer } from './ui/layer/useLayer';
@@ -66,12 +67,14 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   const openL1 = () => layer.open('L1');
   const openL2 = () => layer.open('L2');
   const openL8 = () => layer.open('L8', {}, { url: '/save' });
+  // 헤더 「크기 확인」 미선택 — L1 경유 후 의도 대상(U2b, D3 ①).
+  const startIntent = usePickIntent(page, openL1);
 
   let view;
   if (rv.view === 'homeA') {
     view = <HomeA page={page} continueType={continueType} onPick={openL1} />;
   } else if (rv.view === 'homeB') {
-    view = <HomeB page={page} type={rv.type} capturedMain={captured.main} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
+    view = <HomeB page={page} type={rv.type} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
   } else if (rv.view === 'vet') {
     const fallback = <StaticMain kind={page.route.kind} html={captured.main} />;
     view = (
@@ -87,10 +90,16 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
 
   return (
     <>
-      <GlobalHeader type={type} current={current} chipExpanded={open?.kind === 'L1'} onChipOpen={openL1} />
+      <GlobalHeader
+        type={type}
+        current={current}
+        page={page}
+        chipExpanded={open?.kind === 'L1'}
+        onChipOpen={openL1}
+        onSpecCheckIntent={() => startIntent('SPEC_CHECK')}
+      />
       {view}
-      <Footer />
-      <TabBar homeHref={type ? typeHomeHref(type) : '/'} current={current} />
+      <Footer affNote={layerAffiliateOn(page, open)} />
       <LayerPageProvider page={page}>
         <LayerHost registry={layerRegistry} wsIdFor={(k, p) => layerWsId(page, k, p)} />
       </LayerPageProvider>

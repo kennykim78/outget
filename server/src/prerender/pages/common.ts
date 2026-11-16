@@ -120,66 +120,83 @@ export function navCurrent(route: Pick<RoutePlan, 'kind'>): NavCurrent {
 
 const cur = (on: boolean): string => (on ? ' aria-current="page"' : '');
 
-/** 스펙22 §2.1 — header.ws-header > a.ws-logo + a[data-ws-chip] + nav.ws-nav(≥768 표시, 현재 메뉴 aria-current). */
+/** 헤더 nav id(메뉴 단추 aria-controls) — client shell/GlobalHeader.tsx NAV_ID 와 같은 값. */
+export const NAV_ID = 'ws-nav';
+
+/**
+ * 「크기 확인」 메뉴 대상(U2b, D3 ①) — client home/intent.ts intentHref('SPEC_CHECK') 와 같은 규칙·같은 입력(이 문서 ws-data).
+ *   타입 없음 = /pick(무JS: L1 → 타입 홈, 하이드레이션 후 L1 경유 의도 보존) · 대상 항목 = ws-data types[].specCheckItemId,
+ *   없으면 이 문서 requirements 중 그 타입의 규격 필드가 있는 첫 항목 · 둘 다 없으면 타입 홈.
+ */
+export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null, data: WsPageData['data'] | null): string {
+  if (!type) return PICK_PATH;
+  const home = hrefOf(`/${type.slug}`);
+  if (!data) return home;
+  const fromType = data.types.find((t) => t.id === type.id)?.specCheckItemId;
+  const itemId =
+    typeof fromType === 'string' && fromType !== ''
+      ? fromType
+      : data.requirements.find((x) => x.animalTypeId === type.id && x.item.specSchema.fields.length > 0)?.supplyItemId;
+  return itemId ? `${home}/check/${encodeURIComponent(itemId)}` : home;
+}
+
+/**
+ * 전역 헤더(U2b · R3 v1b / R4 시안, Kenny D1·D2·D3 2026-11-14) — client shell/GlobalHeader.tsx 와 같은 마크업.
+ *   header.ws-header > 건너뛰기 · a.ws-logo · button.ws-menu-btn(≤767 「메뉴」, aria-expanded/controls) · nav#ws-nav.ws-nav
+ *   (준비물 · 크기 확인 · 병원 · 동물 칩). 칩 = 미선택 「친구 선택하기」 채운 버튼 / 선택 = 동물 이름(D1: CTA 자리를 칩으로).
+ *   하단 탭바 없음(D2). 무JS: CSS @media (scripting: none) 가 ≤767 에서도 nav 를 펼쳐 둔다(메뉴 단추 숨김).
+ */
 export function renderHeader(
-  type: Pick<PublicAnimalType, 'slug' | 'displayName'> & { mascot?: string | null } | null,
+  type: Pick<PublicAnimalType, 'id' | 'slug' | 'displayName'> | null,
   current: NavCurrent = null,
-  ctx?: PageContext,
+  data: WsPageData['data'] | null = null,
 ): string {
-  const caret = '<span class="ws-chip-caret" aria-hidden="true">▾</span>';
-  // React AnimalChip.tsx:27 과 같은 조건·톤: 선택된 타입이 있을 때만 sm 아바타(peach-soft). ctx 없으면 출력 0.
-  const avatar = type && ctx ? mascotAvatar(ctx, type.mascot, 'peach-soft', 'sm') : '';
   // K1(51 레인 A ③): 칩은 JS 없이도 정적 /pick(홈 A 부모 + L1 정적 본문). 하이드레이션 후엔 client AnimalChip 이 L1 을 연다.
   const chip = type
-    ? `<a data-ws-chip class="ws-chip ws-chip--selected" href="${PICK_PATH}">${avatar}<span class="ws-chip-name">${h(type.displayName)}</span> ${caret}</a>`
-    : `<a data-ws-chip class="ws-chip" href="${PICK_PATH}"><span class="ws-chip-name">${h(COPY.nav.chooseFriend)}</span> ${caret}</a>`;
+    ? `<a data-ws-chip class="ws-chip ws-chip--selected" href="${PICK_PATH}"><span class="ws-chip-name">${h(type.displayName)}</span></a>`
+    : `<a data-ws-chip class="ws-chip ws-btn ws-btn--fill" href="${PICK_PATH}"><span class="ws-chip-name">${h(COPY.nav.chooseFriend)}</span></a>`;
   return [
     '<header class="ws-header">',
     `<a class="ws-skip-link" href="#main">${h(COPY.nav.skipToMain)}</a>`,
     `<a class="ws-logo" href="/">${h(COPY.nav.logo)}</a>`,
-    chip,
-    '<nav class="ws-nav">',
-    `<a href="/supplies"${cur(current === 'supplies')}>${h(COPY.nav.supplies)}</a>`,
+    `<button type="button" class="ws-menu-btn" aria-expanded="false" aria-controls="${NAV_ID}">${h(COPY.nav.menu)}</button>`,
+    `<nav class="ws-nav" id="${NAV_ID}" aria-label="${a(COPY.nav.menuLabel)}">`,
+    `<a href="/supplies"${cur(current === 'supplies')}>${h(COPY.nav.menuSupplies)}</a>`,
+    `<a data-ws-nav="spec-check" href="${a(specCheckHref(type, data))}">${h(COPY.nav.menuSpecCheck)}</a>`,
     `<a href="/vet"${cur(current === 'vet')}>${h(COPY.nav.vet)}</a>`,
+    chip,
     '</nav>',
     '</header>',
   ].join('\n');
 }
 
-// 탭바 아이콘(디자인 리뷰 F7 — 보드 SVG, viewBox 0 0 24 24, stroke-width 2, 22px, currentColor, 장식). client TabBar.tsx 와 같은 마크업.
-const TAB_ICONS = {
-  home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
-  supplies: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>',
-  vet: '<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
-} as const;
-
-function tabIcon(k: keyof typeof TAB_ICONS): string {
-  return `<svg class="ws-tab-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" focusable="false">${TAB_ICONS[k]}</svg>`;
-}
-
-/** 스펙22 §2.3 — nav.ws-tabbar(≤767 표시): 홈(타입 페이지면 그 타입 홈)·용품·병원. */
-export function renderTabBar(type: Pick<PublicAnimalType, 'slug'> | null, current: NavCurrent): string {
-  const home = type ? hrefOf(`/${type.slug}`) : '/';
-  const tab = (k: keyof typeof TAB_ICONS, href: string, label: string): string =>
-    `<a class="ws-tab" href="${a(href)}"${cur(current === k)}>${tabIcon(k)}<span class="ws-tab-label">${h(label)}</span></a>`;
-  return [
-    '<nav class="ws-tabbar">',
-    tab('home', home, COPY.nav.tabHome),
-    tab('supplies', '/supplies', COPY.nav.tabSupplies),
-    tab('vet', '/vet', COPY.nav.tabVet),
-    '</nav>',
-  ].join('\n');
-}
-
-/** 스펙22 §2.19 — 크레딧 링크는 항상(R4 D6, C6). 처리방침 링크도 항상(계획 86 P8, compliance C9-PRIVACY). */
-export function renderFooter(): string {
+/**
+ * 푸터(U2b·D3 최소 범위, R3 시안 v1b) — client shell/Footer.tsx 와 같은 마크업.
+ *   로고 · 한 줄 소개 · 처리방침(항상 — 계획 86 P8, compliance C9-PRIVACY) · 사진 출처(/credits 항상 — R4 D6, 불변식 ① 사용권 공개)
+ *   · 의료 고지(불변식 ⑤) · ©. 소개·문의 링크 없음(D3).
+ *   R4-3(R4 시안 affiliate_candidates): affOn(이 문서의 레이어 aside 에 제휴 링크가 그려짐)일 때만 © 바로 앞에 제휴 고지 F(원문, 전부 펼침).
+ *   꺼짐이면 이전과 바이트 동일(off 기준선 불변).
+ */
+export function renderFooter(affOn = false): string {
   return [
     '<footer class="ws-footer">',
-    `<p>${h(COPY.footer.identity)}</p>`,
-    `<p>${h(COPY.footer.health)}</p>`,
-    `<p><a href="/privacy">${h(COPY.footer.privacy)}</a> · <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
+    `<p class="ws-footer-brand"><span class="ws-footer-logo">${h(COPY.nav.logo)}</span> <span class="ws-footer-tagline">${h(COPY.footer.tagline)}</span></p>`,
+    `<p class="ws-footer-links"><a href="/privacy">${h(COPY.footer.privacy)}</a> <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
+    `<p class="ws-footer-note">${h(COPY.footer.medical)}</p>`,
+    affOn ? affNote('f') : '',
+    `<p class="ws-footer-copy">${h(COPY.footer.copyright)}</p>`,
     '</footer>',
-  ].join('\n');
+  ]
+    .filter((x) => x !== '')
+    .join('\n');
+}
+
+/**
+ * 259 제휴 고지(111/261 §1) — note-a(검색 블록 안, 상인 버튼 바로 위) · note-b(레이어 본문 첫 요소) · note-f(R4-3 페이지 하단 푸터).
+ *   문구 = COPY.affiliate.coupang 원문(자식 태그 0, class 는 ws-t-meta·ws-aff-note 만 — compliance C10-AFF-OUT). 클라이언트 supply/AffNote 와 같은 마크업.
+ */
+export function affNote(kind: 'a' | 'b' | 'f', id?: string): string {
+  return `<p class="ws-t-meta ws-aff-note"${id ? ` id="${a(id)}"` : ''} data-ws-aff="note-${kind}">${h(COPY.affiliate.coupang)}</p>`;
 }
 
 /** 레이어 딥링크 페이지: aside.ws-layer 앞의 스크림(스펙22 §2.9 G4). 장식 — 닫기 동작은 하이드레이션 후. */
@@ -190,9 +207,9 @@ export function glyphSpan(kind: keyof typeof GLYPH): string {
   return `<span class="ws-glyph" data-ws-glyph="${a(kind)}" aria-hidden="true">${h(GLYPH[kind])}</span>`;
 }
 
-/** 스펙22 §4-1 — "✓ 기준 충족" 배지(상품 카드·L7). */
+/** 스펙22 §4-1 — 「기준 충족」 배지(상품 카드·L7). 글리프 = 판정 4상태 ○(R4-1, 클라이언트 ProductCard·ProductLayer 와 같은 표). */
 export function meetsBadge(): string {
-  return `<span class="ws-badge">${glyphSpan('ready')}${h(COPY.product.badge)}</span>`;
+  return `<span class="ws-badge">${glyphSpan('ok')}${h(COPY.product.badge)}</span>`;
 }
 
 /** 스펙22 §4-2 — imageAsset 없을 때 대체 타일: item.glyph(있으면) + "이미지 준비 중". */
@@ -295,15 +312,17 @@ export function sortVets<T extends Pick<PublicVet, 'region' | 'name' | 'id'>>(vs
   return [...vs].sort((p, q) => cmp(p.region, q.region) || cmp(p.name, q.name) || cmp(p.id, q.id));
 }
 
-/** client home/SplitTitle.tsx 와 같은 마크업 — " — " 기준 제목/부제(구분 기호는 시각적으로 숨김). */
-export function splitTitle(text: string): string {
-  const i = text.indexOf(' — ');
-  if (i < 0) return `<span class="ws-split-title">${h(text)}</span>`;
-  return `<span class="ws-split-title">${h(text.slice(0, i))}</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">${h(text.slice(i + 3))}</span>`;
-}
-
-export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review';
-const RAIL_LIST_CLASS: Record<RailKind, string> = { need: 'ws-chips', bundle: 'ws-bundles', product: 'ws-products', vet: 'ws-vets', review: 'ws-reviews' };
+export type RailKind = 'need' | 'bundle' | 'product' | 'vet' | 'review' | 'starter' | 'habitat';
+const RAIL_LIST_CLASS: Record<RailKind, string> = {
+  need: 'ws-chips',
+  bundle: 'ws-bundles',
+  product: 'ws-products',
+  vet: 'ws-vets',
+  review: 'ws-reviews',
+  starter: 'ws-starters',
+  // 286 U3e(D4) — 홈 A 「함께 살 집」 노출 타입 카드(grid3, 카드 모양은 시작 카드와 같음).
+  habitat: 'ws-habitats',
+};
 
 /**
  * client ui/RailSection.tsx 와 같은 마크업(51 레인 A): section.ws-rail-section.ws-rail-section--{kind}[data-ws-section aria-labelledby]
@@ -318,29 +337,36 @@ export function railSection(o: {
   sub?: string | null;
   more?: { label: string; href: string } | null;
   attrs?: Readonly<Record<string, string>>;
+  /** 286 U3b — 'grid3' = ≥768 3열 그리드 / ≤767 가로 레일 peek(홈 A 시작 카드 전용). 생략 = 기존 레일(홈 B 무변경). */
+  layout?: 'grid3';
+  /** R4-2b 홈 B 톤 — client RailSection tone='home' 과 같은 마크업(section + ws-home-sec ws-{id}-sec, 제목 display, lead 문단, 레일 아래 → 링크). */
+  tone?: 'home';
+  lead?: readonly string[];
+  foot?: { label: string; href: string } | null;
   items: readonly string[];
 }): string {
   const titleId = `ws-sec-${o.id}-title`;
+  const home = o.tone === 'home';
   const extra = Object.entries(o.attrs ?? {})
     .map(([k, v]) => ` ${k}="${a(v)}"`)
     .join('');
   const more = o.more ? `<a class="ws-rail-more ws-t-meta" href="${a(o.more.href)}">${h(o.more.label)}<span aria-hidden="true"> ›</span></a>` : '';
   return [
-    `<section class="ws-rail-section ws-rail-section--${o.kind}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
+    `<section class="ws-rail-section ws-rail-section--${o.kind}${o.layout ? ` ws-rail-section--${o.layout}` : ''}${home ? ` ws-home-sec ws-${a(o.id)}-sec` : ''}" data-ws-section="${a(o.id)}" aria-labelledby="${titleId}"${extra}>`,
     '<div class="ws-rail-head">',
-    `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
+    home
+      ? `<div class="ws-rail-heading ws-home-sec-head"><h2 id="${titleId}" class="ws-t-display ws-home-sec-title">${o.titleHtml}</h2>${(o.lead ?? [])
+          .map((x) => `<p class="ws-t-body ws-muted ws-home-sec-lead">${h(x)}</p>`)
+          .join('')}</div>`
+      : `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
     `<div class="ws-rail-tools">${more}</div>`,
     '</div>',
-    `<ul class="ws-rail ${RAIL_LIST_CLASS[o.kind]}" role="list" tabindex="0" aria-labelledby="${titleId}">`,
+    `<ul class="ws-rail ${RAIL_LIST_CLASS[o.kind]}" role="list"${o.layout === 'grid3' ? '' : ' tabindex="0"'} aria-labelledby="${titleId}">`,
     ...o.items,
     '</ul>',
+    ...(home && o.foot ? [`<a class="ws-home-link ws-rail-foot" href="${a(o.foot.href)}">${h(o.foot.label)}<span aria-hidden="true"> →</span></a>`] : []),
     '</section>',
   ].join('\n');
-}
-
-/** 레일 빈 상태 li(client li.ws-empty-li > p.ws-t-body.ws-muted). */
-export function emptyLi(text: string): string {
-  return `<li class="ws-empty-li"><p class="ws-t-body ws-muted">${h(text)}</p></li>`;
 }
 
 /** ProductCard ♡ 자리(스펙33 §2.4, D-38): 링크 형제 span, 하이드레이션 후 버튼으로 교체. 숫자 0(프리렌더). */

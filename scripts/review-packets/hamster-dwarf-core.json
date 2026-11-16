@@ -2,7 +2,7 @@
   "v": 1,
   "packet": "hamster-dwarf-core-2026-10",
   "doc": "docs/planning-artifacts/드워프햄스터-핵심행-확인표.md",
-  "note": "확인표 A·B·D(☑) → ROW_CHECKED, C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 행별 대상은 2026-10-24 BE70 착지의 VERIFIED 50행(보안 79 H-1) + 사료 req-dwarf-food(확인표 D1, Kenny 2026-10-25 '84 수령' — 행 reviewerType VET_PUBLISHED_SOURCE). 최소 규격 행은 연결된 A 항목이 전부 ☑일 때만 서명된다. 저울(req-dwarf-scale)은 패킷 밖(비노출). C 일괄 30행 — 용품 사료(supply-items food, 종 중립 용품 설명)를 2026-10-25 오케스트레이터 90 Q1로 추가(서명 전, 확인표 C에 표시). 2026-10-31 Kenny 결정(ORDERS §22-6, 작업 245): 터널 안지름 5cm 를 최소 규격으로 옮겨 req-dwarf-tubes 를 C 일괄에서 빼고 확인표 A11 ROW_CHECKED 대상으로 옮김(최소 규격 행은 일괄 승인 불가).",
+  "note": "확인표 A·B·D(☑) → ROW_CHECKED, C(일괄 승인 진술 서명) → AI_RESEARCH_BULK. 행별 대상은 2026-10-24 BE70 착지의 VERIFIED 50행(보안 79 H-1) + 사료 req-dwarf-food(확인표 D1, Kenny 2026-10-25 '84 수령' — 행 reviewerType VET_PUBLISHED_SOURCE). 최소 규격 행은 연결된 A 항목이 전부 ☑일 때만 서명된다. 저울(req-dwarf-scale)은 패킷 밖(비노출). C 일괄 30행 — 용품 사료(supply-items food, 종 중립 용품 설명)를 2026-10-25 오케스트레이터 90 Q1로 추가(서명 전, 확인표 C에 표시). 2026-10-31 Kenny 결정(ORDERS §22-6, 작업 245): 터널 안지름 5cm 를 최소 규격으로 옮겨 req-dwarf-tubes 를 C 일괄에서 빼고 확인표 A11 ROW_CHECKED 대상으로 옮김(최소 규격 행은 일괄 승인 불가). 2026-11-15 K1 하위 결정(원문 발췌가 아닌 whyShort 행은 ROW_CHECKED만, V10): 재서술 whyShort 행마다 확인표 W절 행별 확인 항목 WS-<행 id>를 붙였다 — C 일괄에 있던 행(최소 규격 없음)은 rowChecked로 옮기고, 이미 rowChecked인 최소 규격 행은 A 항목에 WS 항목을 더했다(A와 WS가 모두 ☑일 때만 서명).",
   "reviewerType": "EXPERIENCED_KEEPER",
   "rowChecked": [
     {
@@ -22,7 +22,8 @@
       "items": [
         "A5",
         "A6",
-        "A9"
+        "A9",
+        "WS-req-dwarf-wheel"
       ]
     },
     {
@@ -30,7 +31,8 @@
       "id": "req-dwarf-bedding",
       "items": [
         "A7",
-        "A8"
+        "A8",
+        "WS-req-dwarf-bedding"
       ]
     },
     {
@@ -166,6 +168,34 @@
       "items": [
         "cp-dw-017"
       ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-saucer",
+      "items": [
+        "WS-req-dwarf-saucer"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-hideout",
+      "items": [
+        "WS-req-dwarf-hideout"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-sand-bath",
+      "items": [
+        "WS-req-dwarf-sand-bath"
+      ]
+    },
+    {
+      "file": "supply-requirements.json",
+      "id": "req-dwarf-sand-bath-box",
+      "items": [
+        "WS-req-dwarf-sand-bath-box"
+      ]
     }
   ],
   "bulk": {
@@ -237,27 +267,11 @@
       },
       {
         "file": "supply-requirements.json",
-        "id": "req-dwarf-saucer"
-      },
-      {
-        "file": "supply-requirements.json",
         "id": "req-dwarf-water"
       },
       {
         "file": "supply-requirements.json",
         "id": "req-dwarf-food-bowl"
-      },
-      {
-        "file": "supply-requirements.json",
-        "id": "req-dwarf-hideout"
-      },
-      {
-        "file": "supply-requirements.json",
-        "id": "req-dwarf-sand-bath"
-      },
-      {
-        "file": "supply-requirements.json",
-        "id": "req-dwarf-sand-bath-box"
       },
       {
         "file": "supply-requirements.json",

@@ -280,7 +280,7 @@ li.ws-vet .ws-vet-actions {
 .ws-vet-map {
   width: 100%;
   min-height: 360px;
-  height: calc(100dvh - var(--ws-header-h) - var(--ws-tabbar-h) - 2 * var(--ws-touch) - var(--ws-space-8));
+  height: calc(100dvh - var(--ws-header-h) - 2 * var(--ws-touch) - var(--ws-space-8));
   background: var(--ws-bg-100);
   border: 1px solid var(--ws-line);
   border-radius: var(--ws-radius-md);
@@ -416,4 +416,51 @@ main.ws-page[data-ws-route^='VET'] ~ .ws-footer {
 }
 .ws-vet-report-status:empty {
   display: none;
+}
+
+/* ── R4-6(R4 시안 hospital_list·hospital_map): 제목 ≥768 큰 글자 → 바로 아래 방문 안내(본문 크기) → 목록|지도 탭은 밑줄 ── */
+@media (min-width: 768px) {
+  .ws-vet-page h1,
+  main.ws-page:is([data-ws-route='VET'], [data-ws-route='VET_REGION']) h1 {
+    font-size: var(--ws-type-display-size);
+    line-height: var(--ws-type-display-lh);
+    font-weight: var(--ws-type-display-weight);
+    letter-spacing: var(--ws-type-display-tracking);
+  }
+}
+.ws-vet-page > .ws-vet-note,
+main.ws-page[data-ws-route^='VET'] > .ws-vet-note {
+  margin: calc(-1 * var(--ws-space-2)) 0 var(--ws-space-4);
+  color: var(--ws-ink-body);
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+}
+.ws-vet-modes {
+  gap: 0;
+  border-bottom: 1px solid var(--ws-line);
+}
+.ws-vet-mode {
+  min-width: calc(2 * var(--ws-touch));
+  min-height: var(--ws-touch);
+  margin-bottom: -1px;
+  padding: 0 var(--ws-space-4);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--ws-ink-body);
+  font-size: var(--ws-type-cta-size);
+  line-height: var(--ws-type-cta-lh);
+  font-weight: var(--ws-type-body-weight);
+  cursor: pointer;
+}
+/* 선택 = 밑줄 + 굵기 + 청록(색만으로 말하지 않는다). */
+.ws-vet-mode[aria-pressed='true'] {
+  border-bottom-color: var(--ws-brand);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-cta-weight);
+}
+/* 병원 0 상태 머리(app.css .ws-state) — 목록 자리 위 여백. */
+.ws-vet-page .ws-state,
+main.ws-page[data-ws-route^='VET'] > .ws-state {
+  margin-top: var(--ws-space-6);
 }

@@ -168,6 +168,8 @@ function projectRequirement(
     minSpec: r.minSpec,
     recommendedSpec: r.recommendedSpec,
     why: r.why,
+    // D9 ②: 값이 있을 때만 키(없으면 키 부재 — ws-data 바이트 불변, 와이어 버전 v2/v3 그대로·decode 는 모르는 키를 통과).
+    ...(typeof r.whyShort === 'string' ? { whyShort: r.whyShort } : {}),
     caution: r.caution,
     avoid: r.avoid,
     searchKeyword: keyword,
@@ -414,6 +416,8 @@ function projectCatalog(cat: EngineCatalog, seed: SeedBundle, types: readonly Ty
       priority: r.priority,
       orderHint: r.orderHint,
       why: r.why,
+      // D9 ②: 시드에 키가 있을 때만(catalog.json 바이트 불변). override whyShort 는 careOverrides 그대로 실린다.
+      ...(typeof r.whyShort === 'string' ? { whyShort: r.whyShort } : {}),
       caution: r.caution,
       avoid: r.avoid,
       minSpec: r.minSpec,

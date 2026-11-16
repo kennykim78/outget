@@ -1,51 +1,45 @@
-/* L2 체크리스트 + L3 두 질문(스펙22 §3.4 · §2.10). 토큰 변수만. 그림자·그라데이션 없음, 마스코트 없음. */
+/* L2 체크리스트 + L3 두 질문(스펙22 §3.4 · §2.10 · 286 U6 R3 시안). 토큰 변수만. 그림자·그라데이션 없음, 마스코트 없음. */
 .ws-check-muted {
   color: var(--ws-ink-muted);
 }
 
-/* 요약 밴드(레이어 머리 bg-100 안) */
-.ws-check-band {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--ws-space-2);
-}
-
-.ws-check-band h2 {
-  margin: 0;
-}
-
-.ws-check-band p {
-  margin: 0;
-}
-
-.ws-check-progress {
-  height: 8px;
-  border-radius: var(--ws-radius-pill);
-  background: var(--ws-brand-soft);
-  overflow: hidden;
-}
-
-.ws-check-progress-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--ws-radius-pill);
-  background: var(--ws-brand);
-}
-
-/* 그룹 */
+/* 그룹(.ws-check 는 L5 폼(form.ws-check)과 공유 — 규칙 유지) */
 .ws-check {
   display: flex;
   flex-direction: column;
   gap: var(--ws-space-6);
 }
 
+/* 본문 머리(R3): 제목 · {동물}의 첫 준비예요 · 남은 개수 */
+.ws-check-lead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+
+.ws-check-lead > * {
+  margin: 0;
+}
+
+.ws-check-lead-title {
+  color: var(--ws-ink);
+}
+
+.ws-check-lead-sub {
+  color: var(--ws-ink-body);
+}
+
+.ws-check-status {
+  margin-top: var(--ws-space-3);
+  color: var(--ws-brand-text);
+}
+
 .ws-check-group-head {
   margin: 0 0 var(--ws-space-2);
 }
 
-.ws-check-fold {
+/* 텍스트 버튼(다시 설정 · 내 케이지 링크) — 버튼 모양 지움, 터치 44 */
+.ws-check-link {
   min-height: var(--ws-touch);
   padding: 0;
   background: none;
@@ -59,20 +53,21 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  border-top: 1px solid var(--ws-line);
 }
 
-/* 행 */
+/* 행: 체크 + 이름(+규격) + 이유 한 줄 + › — 높이 모바일 72 / ≥768 76 */
 .ws-check-row {
   display: flex;
   align-items: center;
-  min-height: var(--ws-touch);
+  min-height: var(--ws-row-h-mobile);
   border-bottom: 1px solid var(--ws-line);
 }
 
 .ws-check-toggle {
   flex: 1;
   min-width: 0;
-  min-height: var(--ws-touch);
+  min-height: var(--ws-row-h-mobile);
   display: flex;
   align-items: center;
   gap: var(--ws-space-3);
@@ -85,6 +80,36 @@
   cursor: pointer;
 }
 
+@media (min-width: 768px) {
+  .ws-check-row,
+  .ws-check-toggle {
+    min-height: var(--ws-row-h);
+  }
+}
+
+/* 체크 표시: ✓ · △ 글리프(색 = 상태 토큰) 또는 빈 원(미체크) */
+.ws-check-mark {
+  flex: none;
+  width: var(--ws-space-6);
+  height: var(--ws-space-6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ws-type-section-size);
+}
+
+.ws-check-mark .ws-glyph {
+  min-width: 0;
+}
+
+.ws-check-circle {
+  display: block;
+  width: calc(var(--ws-space-6) - var(--ws-space-1));
+  height: calc(var(--ws-space-6) - var(--ws-space-1));
+  border: 2px solid var(--ws-ink-muted);
+  border-radius: var(--ws-radius-pill);
+}
+
 .ws-check-text {
   flex: 1;
   min-width: 0;
@@ -93,33 +118,29 @@
   gap: var(--ws-space-1);
 }
 
+.ws-check-nameline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--ws-space-2);
+}
+
+.ws-check-name {
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-cta-weight);
+}
+
 .ws-check-row--later .ws-check-name {
-  color: var(--ws-ink-muted);
+  color: var(--ws-ink-body);
 }
 
-.ws-check-owned {
-  padding: 0 var(--ws-space-2);
-  border: 1px solid var(--ws-line);
-  border-radius: var(--ws-radius-pill);
-  color: var(--ws-ink-muted);
+/* 이유 한 줄(시드 원문 첫 문장 · notNowReason · 호환 이유) — 넘치면 말줄임 */
+.ws-check-reason {
+  color: var(--ws-ink-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ws-check-box {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--ws-line-strong);
-  border-radius: var(--ws-radius-sm);
-  color: var(--ws-surface);
-}
-
-.ws-check-box--on {
-  background: var(--ws-status-ready);
-  border-color: var(--ws-status-ready);
 }
 
 .ws-check-more {
@@ -128,16 +149,18 @@
   height: var(--ws-touch);
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  color: var(--ws-ink-muted);
+  justify-content: flex-end;
+  color: var(--ws-ink);
+  font-size: var(--ws-type-section-size);
   text-decoration: none;
 }
 
-/* 꼬리 */
+/* 꼬리: 주 버튼(전체 폭 52) + 보조 텍스트 */
 .ws-check-foot {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--ws-space-2);
 }
 
@@ -145,8 +168,25 @@
   margin: 0;
 }
 
+.ws-check-next {
+  min-height: var(--ws-btn-h);
+  text-decoration: none;
+}
+
+.ws-check-aux {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--ws-space-3);
+}
+
 .ws-check-save {
   color: var(--ws-brand-text);
+}
+
+/* LOW-4: 저장 링크가 다음 줄로 내려가면 기기 안내 뒤 가운뎃점을 숨긴다(폭은 유지 — 줄바꿈 순환 없음). */
+.ws-check-aux[data-ws-wrapped] .ws-check-sep {
+  visibility: hidden;
 }
 
 /* L3 */
@@ -260,6 +300,7 @@
 /* R5 F2-3 — 행 규격 요약 · 행 아래 보조 줄(내 케이지 링크) · 칩 규격 */
 .ws-check-spec {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .ws-check-row--extra {
@@ -268,7 +309,7 @@
 
 .ws-check-extra {
   flex-basis: 100%;
-  padding: 0 0 var(--ws-space-2) var(--ws-space-8);
+  padding: 0 0 var(--ws-space-2) calc(var(--ws-space-6) + var(--ws-space-3));
 }
 
 .ws-check-cage {
@@ -280,9 +321,9 @@
   font-weight: 600;
 }
 
-/* n-5: 호환이 만든 △ 의 이유(meta) */
+/* n-5: 호환이 만든 △ 의 이유(meta) — 표시 글리프 색과 같은 상태 토큰 */
 .ws-check-compat {
-  color: var(--ws-ink-muted);
+  color: var(--ws-status-check);
 }
 
 .ws-need-spec {

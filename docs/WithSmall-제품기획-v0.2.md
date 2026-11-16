@@ -1,6 +1,6 @@
 # WithSmall 제품기획 v0.2 — 소동물 사육 준비·구매·관리 오케스트레이션
 
-Status: **동결(Frozen) v0.2.6** — Phase 0 개발 기준. 이후 변경은 §9 백로그의 트리거 조건으로만 연다.
+Status: **동결(Frozen) v0.2.7** — Phase 0 개발 기준. 이후 변경은 §9 백로그의 트리거 조건으로만 연다.
 Date: 2026-09-30 · 이전 버전: v0.1(피벗 타당성·분양 플랫폼 안) — 본 문서가 대체
 추가 아이디어 게이트: **기존 AnimalType/CareProfile + SupplyRequirement/SupplyItem + Checklist 데이터로 해결되는가?** Yes → Phase 0 검토, No → §9 백로그.
 법적 서술은 리스크 분석이며 법률 자문이 아니다.
@@ -34,7 +34,7 @@ WithSmall의 답: **정보 → 왜 필요한가 → 어떤 규격 → 어디서 
 | 3 | **최소 규격 미달 제품은 돈을 받아도 추천 영역에 넣지 않는다.** 광고·제휴는 명시 | 신뢰가 유일한 자산. 무너지면 제휴 수익도 같이 무너짐 |
 | 4 | **플랫폼 자금 미보유.** 결제·에스크로 없음 | Outget 승계 |
 | 5 | **의료 판단 금지.** "병원에 문의할 상황"만 제시, "괜찮다"는 판단은 쓰지 않는다 | 수의사법·책임 |
-| 6 | **사육·법적 정보는 마스터 데이터가 결정.** 법적 판정은 실제 종(taxonomy) 단위, 사육 요구사항은 CareProfile 단위, 사용자 언어(AnimalType)는 접근 레이어일 뿐 — 셋을 섞지 않는다 | 일관성·검수 가능성·종 추가 비용 비선형화 |
+| 6 | **사육·법적 정보는 마스터 데이터가 결정.** 법적 판정은 실제 종(taxonomy) 단위, 사육 요구사항은 CareProfile 단위, 사용자 언어(AnimalType)는 접근 레이어일 뿐 — 셋을 섞지 않는다(최종값 계산은 `resolveRequirement` 한 곳 — whyShort 포함, override가 why만 바꾸면 whyShort는 비운다) | 일관성·검수 가능성·종 추가 비용 비선형화 |
 | 7 | **콘텐츠는 출처·검수자 유형·검수일·상태를 갖는다.** 콘텐츠 종류별 최소 검수 등급(§7.3) 미달이면 노출 불가. AI 초안과 좋아요는 검수를 대체하지 않는다 | 먹이·규격 오류는 동물 사망으로 이어짐 |
 | 8 | **실시간 위치 저장 안 함.** 시군구 텍스트 + 게시글 옵션 핀 | Outget 승계 |
 
@@ -135,7 +135,8 @@ CompatibilityRule               ← 용품 간 호환(spec-check 확장). Phase 
 SupplyRequirement               ← 핵심 객체 = CareProfile × SupplyItem
   careProfileId, supplyItemId
   priority(REQUIRED|RECOMMENDED|OPTIONAL|NOT_NOW), notNowReason
-  minSpec(JSON), recommendedSpec(JSON), why, caution, forbidden[]
+  minSpec(JSON), recommendedSpec(JSON), why, whyShort?, caution, forbidden[]
+                                         ↑ 이유 한 줄(선택, 6~30자·한 문장). 없으면 화면은 why 첫 문장. careOverrides 로 덮을 수 있음
   orderHint(BEFORE_ARRIVAL|FIRST_WEEK|AFTER_ADAPTATION|AS_NEEDED)   ← NOT_NOW와 함께 구매 시점을 결정
   searchKeyword                 ← 프로필 조건 포함 자동 생성 검색어(AnimalType 이름으로 치환)
   contentKind(SPEC|CARE|FOOD|HEALTH)   ← 최소 검수 등급 결정(§7.3)
@@ -299,6 +300,7 @@ Phase 0 판단 기준: 4주 내 검색 유입 → 종 선택 → 첫 체크 전�
 | 날짜 | 변경 |
 |---|---|
 | 2026-09-30 | v0.1(분양 플랫폼) → v0.2(사육 준비·구매·관리 오케스트레이션) 전환·동결. 재입양 격하, Phase 0 범위 확정, 데이터 모델·프리렌더·검수 워크플로·백로그 트리거 정의 |
+| 2026-11-15 | **v0.2.7** — §3 데이터 모델 SupplyRequirement에 선택 칸 `whyShort`(이유 한 줄, 6~30자·한 문장, careOverrides로 덮기 가능) 추가, 불변식 ⑥ 괄호 보충(`resolveRequirement` 결합 — override가 why만 바꾸면 whyShort는 비움). DB: `SupplyRequirement.whyShort TEXT NULL`(마이그레이션 20261115000000_requirement_why_short, 추가형 1열). Kenny 승인 2026-11-15 |
 | 2026-11-03 | **v0.2.6** — 법 게이트(X02)·「시행규칙 해석 전 로보 공개 불가」 폐기: 법적 의무는 위드스몰과 무관(분양·양도·매칭 안 함), 공개 차단은 검수(사실값 서명)뿐, Taxon.legal 은 null/중립·화면 법 단정 문구 없음, CITES 는 노출 조건 아님. 앵무는 크기 묶음(소·중·대) 설계 검토 중(Kenny §47) |
 | 2026-11-02 | **v0.2.5** — §4.1 검색 딥링크: 공급자 공식 제휴 링크로 바꾸는 범위(같은 검색 결과 페이지·고지·노출·순서 영향 0)와 검색 블록 전부 펼침(제휴 여부 무관), 병원 맵 제보 보존 180일. §4.2 Phase 0 제외를 「큐레이션 제품 단위 제휴」로 좁힘. §6.3 검색 딥링크 제휴 고지(검색 블록 안 + 본문 첫 부분, 접기 금지). §7.1 Phase 0 운영자 경로 외부 404(Kenny 결정 2026-10-27·2026-11-02) |
 | 2026-10-02 | **v0.2.4** — §7.1 유지 목록에서 chat·badge를 "Phase 0 범위 밖 — R5에서 언마운트(UGC·계정 기능 도입 시 재검토)"로 정정, auth는 US-025 이메일 저장용으로 유지(Kenny 결정) |

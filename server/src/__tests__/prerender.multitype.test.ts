@@ -205,13 +205,14 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
   });
 
   it('2) PLANNED 드워프: 이름·별칭·한 줄 소개가 HTML·ws-data 에 0 — R7-B 시드 행은 VERIFIED(메모리 서명)여도 PLANNED(게이트 G 전)라 비노출', () => {
-    // 디스크는 Kenny 확인표 수령 전 DRAFT(보안 79 H-1 환원) — 서명된 상태(dwarfSigned, 메모리)에서도 PLANNED 면 0 임을 고정.
+    // 디스크는 2026-11-16 확인표 서명의 review 단계(NEEDS_REVIEW, VERIFIED 아님) — 서명된 상태(dwarfSigned, 메모리)에서도 PLANNED 면 0 임을 고정.
     const signed = dwarfSigned();
     const row = signed.animalTypes.find((t) => t.id === 'hamster-dwarf');
     expect(row?.status).toBe('PLANNED');
     expect(row?.reviewStatus).toBe('VERIFIED');
     expect(row?.reviewerType).toBe('EXPERIENCED_KEEPER');
-    expect(realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf')?.reviewStatus).toBe('DRAFT');
+    const disk = realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf');
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType, disk?.verifiedBy, disk?.verifiedAt]).toEqual(['PLANNED', 'NEEDS_REVIEW', 'EXPERIENCED_KEEPER', null, null]);
     const famSigned = pageAt(build(promotedTwo({ base: signed })), '/hamster');
     const ws = JSON.stringify(wsDataOf(famSigned.html));
     expect(fam.html.length).toBeGreaterThan(0);
@@ -257,14 +258,14 @@ describe('QA118 D1 — 구성안 0개 타입은 /setup 링크를 내지 않는�
     expect(b.model.types.find((t) => t.id === B)?.bundles.length).toBe(0);
     expect(paths.has(`/${SECOND.slug}/setup`)).toBe(false);
     for (const p of typePages(b, B)) expect(p.html, p.route.path).not.toContain(`href="/${SECOND.slug}/setup"`);
-    // now 레일 자체는 남는다(전체 › 만 빠짐).
-    expect(pageAt(b, `/${SECOND.slug}`).html).toContain('id="ws-now"');
+    // ① 지금 필요한 것 섹션은 그대로 있다.
+    expect(pageAt(b, `/${SECOND.slug}`).html).toContain('data-ws-section="now"');
   });
 
-  it('대조: 구성안 있는 골든은 now 전체 ›·구성안 › 둘 다 /setup 링크 + 경로 존재', () => {
+  it('대조: 구성안 있는 골든은 /setup 경로 존재 + 홈 B 「처음 준비한다면」 레일 아래 /setup 링크(R4-2b 복원), 구성안 0 타입은 섹션 자체 없음', () => {
     expect(paths.has('/hamster/golden/setup')).toBe(true);
-    const html = pageAt(b, '/hamster/golden').html;
-    expect(html.split('href="/hamster/golden/setup"').length - 1).toBeGreaterThanOrEqual(2);
+    expect(pageAt(b, '/hamster/golden').html).toContain('href="/hamster/golden/setup"');
+    expect(pageAt(b, `/${SECOND.slug}`).html).not.toContain('data-ws-section="bundles"');
   });
 
   it('전 페이지: */setup href 는 모두 생성된 경로를 가리킨다', () => {

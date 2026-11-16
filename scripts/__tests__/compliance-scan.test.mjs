@@ -3419,6 +3419,8 @@ test('C10-AFF-FIELD 변이: 시드·Prisma·코드 식별자의 수수료류·af
 const NAVER_A = j('<a href="', HTTPS, 'search.shopping.naver.com/search/all?query=x" target="_blank" rel="noopener noreferrer nofollow">네이버에서 찾기</a>');
 const NOTE_A = j('<p class="ws-t-meta ws-aff-note" id="ws-aff-a-1" data-ws-aff="note-a">', AFF_NOTE, '</p>');
 const NOTE_B = j('<p class="ws-t-meta ws-aff-note" data-ws-aff="note-b">', AFF_NOTE, '</p>');
+/** R4-3 고지 F — 페이지 하단 footer.ws-footer 직속. */
+const NOTE_F = j('<p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">', AFF_NOTE, '</p>');
 const affA = (attrs, href = AFF_HREF) => j('<a href="', href, '" target="_blank" ', attrs, '>쿠팡에서 찾기</a>');
 const AFF_A_OK = affA('rel="sponsored nofollow noopener noreferrer" aria-describedby="ws-aff-a-1"');
 function affLayer({ noteA = NOTE_A, noteB = NOTE_B, link = AFF_A_OK, layer = 'L4', noteAAfter = false, wrapSearch = (x) => x } = {}) {
@@ -3445,13 +3447,31 @@ const affWire = (reqOver = {}, top = {}) => ({
   ...top,
 });
 const AFF_MAIN = '<main class="ws-page" data-ws-route="TYPE" data-ws-type="hamster-golden"><section data-ws-section="now"><h2>지금 필요한 것</h2></section></main>';
-/** 제휴 켜진 산출물 스캔. layerOpts·wire·mode·extra(o)·body 로 변이. */
-async function affOut({ layerOpts = {}, wire = affWire(), mode = 'production', extra = noop, body = null } = {}) {
+/** page() 의 기본 footer(제휴 산출물에서 실제 renderFooter 모양으로 바꾼다). */
+const PAGE_FOOTER = '<footer><a href="/vet">병원</a><a href="/privacy">개인정보 처리방침</a></footer>';
+/**
+ * 281 M-1: 실제 마크업(server/src/prerender/pages/common.ts renderFooter · client/src/shell/Footer.tsx)과 같은 순서 —
+ *   brand(로고) · links · note(의료) · [고지 F] · ©. attrs.footer = footer 인라인 style 등 변이용 속성 조각.
+ */
+const footerF = ({ note = NOTE_F, attrs = '', order = null } = {}) => {
+  const parts = {
+    brand: '<p class="ws-footer-brand"><span class="ws-footer-logo">WithSmall</span> <span class="ws-footer-tagline">작은 친구와 함께하는 첫 준비</span></p>',
+    links: '<p class="ws-footer-links"><a href="/vet">병원</a> <a href="/privacy">개인정보 처리방침</a></p>',
+    med: '<p class="ws-footer-note">의료 판단을 대신하지 않아요</p>',
+    note,
+    copy: '<p class="ws-footer-copy">© WithSmall</p>',
+  };
+  return [`<footer class="ws-footer"${attrs}>`, ...(order ?? ['brand', 'links', 'med', 'note', 'copy']).map((k) => parts[k]), '</footer>'].filter((x) => x !== '').join('\n');
+};
+/** 제휴 켜진 산출물 스캔. layerOpts·wire·mode·extra(o)·body·footerNote·footer(footer 전체 HTML, '' = 없음) 로 변이. */
+async function affOut({ layerOpts = {}, wire = affWire(), mode = 'production', extra = noop, body = null, footerNote = NOTE_F, footer = null } = {}) {
   return scan(
     await makeRoot({
       source: (s) => Object.assign(s, affEngineClient()),
       output: (o) => {
-        o['hamster/golden/index.html'] = page(body ?? `${AFF_MAIN}${affLayer(layerOpts)}`, wire);
+        const html = page(body ?? `${AFF_MAIN}${affLayer(layerOpts)}`, wire);
+        assert.ok(html.includes(PAGE_FOOTER), 'affOut: page() footer 모양이 바뀌었다');
+        o['hamster/golden/index.html'] = html.replace(PAGE_FOOTER, () => footer ?? footerF({ note: footerNote }));
         extra(o);
       },
       manifest: (dg) => manifestFor(dg, { mode }),
@@ -3508,9 +3528,129 @@ test('C10-AFF-OUT 변이: 고지·rel·위치·숨김·개발 빌드·ws-data·�
   for (const [label, opts] of cases) expectAff(await affOut(opts), 'C10-AFF-OUT', null, label);
 });
 
+test('C10-AFF-OUT 281 고지 F(M-1·L-1): 개수·문구·숨김·짝 — 메시지 단언', async () => {
+  const toMain = (x) => (o) => { o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('</main>', () => `${x}</main>`); };
+  const cases = [
+    ['고지 F 없음(R4-3)', { footerNote: '' }, OUT_PAGE, '고지 F(data-ws-aff="note-f")가 footer.ws-footer 직속에 정확히 1개여야 한다(현재 0)'],
+    ['고지 F 문구 변경', { footerNote: NOTE_F.replace('일정액의', '일정 금액의') }, OUT_PAGE, '고지 F 문구가 쿠팡 권장 원문과 바이트 불일치'],
+    ['고지 F 중복', { footerNote: `${NOTE_F}${NOTE_F}` }, OUT_PAGE, '직속에 정확히 1개여야 한다(현재 2)'],
+    ['고지 F 숨김 클래스', { footerNote: NOTE_F.replace('ws-aff-note"', 'ws-aff-note ws-visually-hidden"') }, OUT_PAGE, '고지 F 가 숨김·접힘·툴팁'],
+    ['고지 F 접기(details)', { footerNote: `<details><summary>더보기</summary>${NOTE_F}</details>` }, OUT_PAGE, '고지 F(data-ws-aff="note-f")가 footer.ws-footer 직속에 정확히 1개여야 한다(현재 0)'],
+    // L-1: footer 의 고지 F 는 그대로 두고 본문에 하나 더 — 본문 것은 짝 없음
+    ['본문 F 추가(footer F 유지)', { extra: toMain(NOTE_F) }, OUT_PAGE, '짝 없는 고지 note-f'],
+    ['짝 없는 고지 F(홈)', { extra: (o) => { o['index.html'] = o['index.html'].replace('</footer>', () => `${NOTE_F}</footer>`); } }, 'client/dist/index.html', '짝 없는 고지 note-f'],
+  ];
+  for (const [label, opts, file, needle] of cases) expectAffMsg(await affOut(opts), 'C10-AFF-OUT', file, needle, label);
+  // 8번째(꺼짐 문서의 고지 F → 짝 없음)는 아래 「꺼진(off) 형태」 시험에서 같은 expectAffMsg 로 단언
+});
+
+test('C10-AFF-OUT 281 고지 F 위치(M-1): © 바로 앞 형제·footer 는 main·aside 뒤 body/앱 루트 직속 → 변이 FAIL, 실제 마크업 순서는 통과', async () => {
+  expectClean(await affOut());
+  expectClean(await affOut({ layerOpts: { layer: 'L7' } }));
+  const layer = affLayer();
+  const cases = [
+    ['고지 F 가 로고 앞', { footer: footerF({ order: ['note', 'brand', 'links', 'med', 'copy'] }) }, '고지 F 가 © 요소(p.ws-footer-copy) 바로 앞 형제가 아니다'],
+    ['고지 F 가 링크와 의료 안내 사이', { footer: footerF({ order: ['brand', 'links', 'note', 'med', 'copy'] }) }, '바로 앞 형제가 아니다'],
+    ['고지 F 가 © 뒤', { footer: footerF({ order: ['brand', 'links', 'med', 'copy', 'note'] }) }, '바로 앞 형제가 아니다(© 뒤)'],
+    ['고지 F 와 © 사이 글자', { footer: footerF({ note: `${NOTE_F}덧말` }) }, '고지 F 와 © 요소 사이에 글자·마크업'],
+    ['© 없음', { footer: footerF({ order: ['brand', 'links', 'med', 'note'] }) }, '© 요소(p.ws-footer-copy)가 정확히 1개여야 한다(현재 0)'],
+    ['footer 가 main 앞(문서 맨 위)', { footer: '', body: `${footerF()}${AFF_MAIN}${layer}` }, 'footer 는 main·레이어 aside 다음'],
+    ['footer 가 main 과 aside 사이', { footer: '', body: `${AFF_MAIN}${footerF()}${layer}` }, 'footer 는 main·레이어 aside 다음'],
+    ['footer 가 main 안', { footer: '', body: `${AFF_MAIN.replace('</main>', () => `${footerF()}</main>`)}${layer}` }, 'footer 는 main·레이어 aside 다음'],
+    ['footer 가 레이어 aside 안', { footer: '', body: `${AFF_MAIN}${layer.replace(/<\/aside>$/, () => `${footerF()}</aside>`)}` }, 'footer.ws-footer 가 레이어 aside 안'],
+    ['footer 가 감싼 div 안', { footer: `<div class="ws-wrap">${footerF()}</div>` }, '부모가 body·앱 루트(div#root) 가 아니다'],
+  ];
+  for (const [label, opts, needle] of cases) expectAffMsg(await affOut(opts), 'C10-AFF-OUT', OUT_PAGE, needle, label);
+});
+
+test('C10-AFF-OUT 281 고지 조상 인라인 style 축소(L-3): 작은 글자·누적 em·같은 색·scale·판정 불가 → FAIL, 보통 글자는 통과', async () => {
+  const S = '조상 인라인 style 축소·위장';
+  const wrapSearch = (style) => (x) => x.replace('<div class="ws-search">', () => `<div class="ws-search" style="${style}">`);
+  const asideStyle = (style) => ({ body: `${AFF_MAIN}${affLayer().replace('<aside ', () => `<aside style="${style}" `)}` });
+  const cases = [
+    ['footer font-size 8px(고지 F)', { footer: footerF({ attrs: ' style="font-size:8px"' }) }, `고지 F ${S}`],
+    ['footer font 단축 9px(고지 F)', { footer: footerF({ attrs: ' style="font:700 9px/1.2 sans-serif"' }) }, `고지 F ${S}`],
+    ['footer 0.5rem(고지 F)', { footer: footerF({ attrs: ' style="font-size:0.5rem"' }) }, `고지 F ${S}`],
+    ['footer 같은 색(고지 F)', { footer: footerF({ attrs: ' style="color:#fff;background:#fff"' }) }, `고지 F ${S}`],
+    ['footer color rgba 알파 0(고지 F)', { footer: footerF({ attrs: ' style="color:rgba(0,0,0,0)"' }) }, `고지 F ${S}`],
+    ['footer var() 글자 크기(판정 불가)', { footer: footerF({ attrs: ' style="font-size:var(--x)"' }) }, '판정 불가'],
+    ['.ws-search 50%(고지 A)', { layerOpts: { wrapSearch: wrapSearch('font-size:50%') } }, `고지 A ${S}`],
+    ['aside x-small 아래 xx-small(고지 B)', asideStyle('font-size:xx-small'), `고지 B ${S}`],
+    ['aside 0.8em × .ws-search 0.7em 누적 8.96px(고지 A)', { body: `${AFF_MAIN}${affLayer({ wrapSearch: wrapSearch('font-size:0.7em') }).replace('<aside ', () => '<aside style="font-size:0.8em" ')}` }, `고지 A ${S}`],
+    ['aside transform scale(0.3)(고지 B)', asideStyle('transform:scale(0.3)'), `고지 B ${S}`],
+    ['aside zoom 0.5(고지 B)', asideStyle('zoom:0.5'), `고지 B ${S}`],
+    ['aside 높이 + overflow hidden(고지 B)', asideStyle('max-height:4px;overflow:hidden'), `고지 B ${S}`],
+    ['aside 주석으로 쪼갠 선언(고지 B)', asideStyle('font-size:/* x */6px'), `고지 B ${S}`],
+  ];
+  for (const [label, opts, needle] of cases) expectAffMsg(await affOut(opts), 'C10-AFF-OUT', OUT_PAGE, needle, label);
+  // 짝: 보통 크기·다른 색 인라인 style 은 고지 축소가 아니다(오탐 0)
+  const ok = [
+    ['footer 14px·다른 색', { footer: footerF({ attrs: ' style="font-size:14px;color:#333;background:#fff"' }) }],
+    ['aside 1.25rem·.ws-search 0.9em', { body: `${AFF_MAIN}${affLayer({ wrapSearch: wrapSearch('font-size:0.9em') }).replace('<aside ', () => '<aside style="font-size:1.25rem" ')}` }],
+    ['footer font 단축 700 14px', { footer: footerF({ attrs: ' style="font:700 14px/1.5 sans-serif"' }) }],
+  ];
+  for (const [label, opts] of ok) {
+    const res = await affOut(opts);
+    assert.ok(!affFindings(res, 'C10-AFF-OUT').some((f) => String(f.message).includes(S) || String(f.message).includes('판정 불가')), `${label}: 축소 오탐 ${JSON.stringify(affFindings(res, 'C10-AFF-OUT'))}`);
+  }
+});
+
+test('C10-AFF-OUT qa HIGH 속성 중복(fail-closed): style·class·aria-hidden 중복 → 해당 메시지로 FAIL, 정상 문서 통과', async () => {
+  expectClean(await affOut());
+  const D = '속성 중복';
+  const cases = [
+    // 파서는 마지막 값(style="")을, 브라우저는 첫 값(4px)을 쓴다
+    ['footer style 중복(4px 뒤 빈 style)', { footer: footerF({ attrs: ' style="font-size:4px" style=""' }) }, `<footer> ${D}(style)`],
+    // 브라우저는 첫 class(숨김), 파서는 마지막 class(정상 고지 class)
+    ['고지 A class 중복(숨김 클래스 위장)', { layerOpts: { noteA: NOTE_A.replace('<p class="ws-t-meta ws-aff-note"', '<p class="ws-visually-hidden" class="ws-t-meta ws-aff-note"') } }, `<p> ${D}(class)`],
+    // 브라우저는 첫 aria-hidden="true", 파서는 마지막 "false"
+    ['고지 B aria-hidden 중복', { layerOpts: { noteB: NOTE_B.replace('<p ', '<p aria-hidden="true" ARIA-HIDDEN="false" ') } }, `<p> ${D}(aria-hidden)`],
+  ];
+  for (const [label, opts, needle] of cases) expectAffMsg(await affOut(opts), 'C10-AFF-OUT', OUT_PAGE, needle, label);
+});
+
+test('C10-AFF 단위: dupAttrNames·styleShrink transform — 판정 동일, 닫히지 않은 scale( 반복은 선형(2배 입력 → ≤3배 시간)', async () => {
+  const { dupAttrNames } = await import('../lib/html.mjs');
+  const { styleShrink } = await import('../lib/rules-affiliate.mjs');
+  assert.deepEqual(dupAttrNames(' class="a" id="x" style="b"'), []);
+  assert.deepEqual(dupAttrNames(' style="a" STYLE=\'b\' hidden hidden class=c'), ['style', 'hidden']);
+  assert.deepEqual(dupAttrNames(' title="x=y" data-a="title"'), []);
+  assert.equal(styleShrink('transform:scale(1)', 16).why, null);
+  assert.equal(styleShrink('transform:scalex(0.9) scale3d(1, 1, 1) translate(2px)', 16).why, null);
+  assert.match(styleShrink('transform:scale(0.3)', 16).why, /축소/);
+  assert.match(styleShrink('transform:rotate(1deg) scaley(0.5)', 16).why, /축소/);
+  assert.match(styleShrink('transform:scale(0.3', 16).why, /판정 불가/);
+  const time = (fn) => {
+    const r = [];
+    for (let k = 0; k < 7; k++) {
+      const t = process.hrtime.bigint();
+      fn();
+      r.push(Number(process.hrtime.bigint() - t) / 1e6);
+    }
+    return r.sort((a, b) => a - b)[3];
+  };
+  const shapes = [
+    ['닫히지 않은 scale( 반복', (n) => `transform:${'scale('.repeat(n)}`],
+    ['닫히지 않은 scalex(1 반복', (n) => `transform:${'scalex(1 '.repeat(n)}`],
+    ['scale 낱말 반복(괄호 없음)', (n) => `transform:${'scale'.repeat(n)}`],
+    ['닫힌 scale(1) 반복', (n) => `transform:${'scale(1) '.repeat(n)}`],
+  ];
+  const rows = [];
+  for (const [name, make] of shapes) {
+    styleShrink(make(500), 16); // 워밍업
+    const ms = [4000, 8000, 16000].map((n) => time(() => styleShrink(make(n), 16)));
+    rows.push(`${name}: ${ms.map((x) => x.toFixed(2)).join(' / ')} ms`);
+    // 2배 입력마다 3배 이하(7회 중앙값, 고정비·GC 잡음 바닥 2ms). 제곱이면 4배씩.
+    for (let k = 1; k < ms.length; k++) assert.ok(ms[k] <= Math.max(ms[k - 1], 2) * 3, rows.join('\n'));
+  }
+  process.stdout.write(`# qa MED transform 시간(4천/8천/1만6천)\n${rows.map((r) => `#   ${r}`).join('\n')}\n`);
+});
+
 test('C10-AFF-OUT: 꺼진(off) 형태 — 일반 쿠팡 검색 링크·ws-data v2 는 규칙 0, aff 없는 v3 는 FAIL', async () => {
   const offLink = j('<a href="', CP_SEARCH('햄스터 케이지'), '" target="_blank" rel="noopener noreferrer nofollow">쿠팡에서 찾기</a>');
-  expectClean(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }) }));
+  expectClean(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }), footerNote: '' }));
+  // R4-3: 제휴 a 0 인 문서의 고지 F 는 짝 없음 → FAIL(꺼짐 = 바이트 동일) — 281 L-1 메시지 단언
+  expectAffMsg(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }, { v: 2 }) }), 'C10-AFF-OUT', OUT_PAGE, '짝 없는 고지 note-f', '꺼짐 문서에 고지 F');
   expectAff(await affOut({ body: `${AFF_MAIN}${affLayer({ noteA: '', noteB: '', link: offLink })}`, wire: affWire({ aff: undefined }) }), 'C10-AFF-OUT', OUT_PAGE, 'aff 0 인 v3');
 });
 

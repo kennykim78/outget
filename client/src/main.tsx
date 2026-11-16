@@ -17,6 +17,9 @@ import './styles/home.css';
 import './animal/picker.css';
 import './styles/speccheck.css';
 import './styles/layers.css';
+// R4-2: 홈 B 가 NeedChip(checklist.css)·VetCard(vet.css)를 더는 진입 청크에서 import 하지 않는다 — /vet·L2 정적 화면이 쓰는 CSS 를 진입에 고정(check-perf-shape).
+import './checklist/checklist.css';
+import './styles/vet.css';
 import { boot } from './app/boot';
 
 boot(document, window.location);

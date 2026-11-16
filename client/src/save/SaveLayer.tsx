@@ -20,6 +20,7 @@ import { CAGE_ITEM_ID, useCage } from '../context/cageStore';
 import { track } from '../events/track';
 import { wsStorage } from '../lib/storage';
 import AnimalAvatar from '../ui/AnimalAvatar';
+import StateBlock from '../ui/StateBlock';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
 import { readLayerState } from '../ui/layer/useLayer';
@@ -871,15 +872,21 @@ export default function SaveLayer({ close }: LayerContentProps) {
 
   // input(A) · sending(B)
   const sending = view === 'sending';
-  const errorText =
-    error === 'format' ? COPY.save.errorFormat : error === 'unavailable' ? COPY.save.unavailable : error ? COPY.save.errorNetwork : null;
+  // R4-8(R4 시안 states_board 「저장 실패」): 보내기 실패(429·네트워크·서버) = 설명 자리에 △ 상태 머리, 입력은 그대로, 채운 버튼 「다시 보내기」.
+  const sendFailed = error === 'network';
+  const errorText = error === 'format' ? COPY.save.errorFormat : error === 'unavailable' ? COPY.save.unavailable : null;
   return (
     <>
       <LayerBody>
         <div className="ws-save" data-ws-save="input">
-          <p className="ws-t-body">{COPY.save.description}</p>
+          {sendFailed ? (
+            <StateBlock kind="error" errorId="network" title={COPY.save.sendFailTitle} body={COPY.save.sendFailBody} />
+          ) : (
+            <p className="ws-t-body">{COPY.save.description}</p>
+          )}
           <form className="ws-save-form" noValidate onSubmit={onSubmit}>
-            <label htmlFor={inputId} className="ws-t-label ws-save-muted">
+            {/* R4-7(시안 l8_email): 라벨 「이메일」(잉크 색) → 72 높이 입력 하나(자리 표시 = 형식 예시). */}
+            <label htmlFor={inputId} className="ws-t-label ws-save-label">
               {COPY.save.emailLabel}
             </label>
             <input
@@ -889,6 +896,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
               name="email"
               autoComplete="email"
               inputMode="email"
+              placeholder={COPY.save.emailPlaceholder}
               required
               value={email}
               aria-invalid={error === 'format' ? true : undefined}
@@ -903,6 +911,10 @@ export default function SaveLayer({ close }: LayerContentProps) {
                 {errorText}
               </p>
             ) : null}
+            {/* 287 S2(Kenny 2026-11-16): 이메일 칸 아래 링크 안내 한 줄(시안 l8_email 자리). */}
+            <p className="ws-t-meta ws-save-muted" data-ws-save-note="link">
+              {COPY.save.linkNote}
+            </p>
           </form>
           {type ? <SaveSummary type={type} reqs={reqs} catalogUrl={page.catalogUrl} /> : null}
           {sending ? null : manageLinks('input')}
@@ -912,7 +924,7 @@ export default function SaveLayer({ close }: LayerContentProps) {
         <div className="ws-save-foot">
           {/* D6: disabled 대신 aria-disabled — 포커스 유지(onSubmit 은 sending 중 무시). */}
           <button type="button" className="ws-btn ws-btn--fill" aria-disabled={sending ? true : undefined} aria-busy={sending ? true : undefined} onClick={() => onSubmit()}>
-            {sending ? COPY.save.sending : COPY.save.submit}
+            {sending ? COPY.save.sending : sendFailed ? COPY.save.resend : COPY.save.submit}
           </button>
           <button type="button" className="ws-btn ws-btn--outline" onClick={close}>
             {COPY.save.later}

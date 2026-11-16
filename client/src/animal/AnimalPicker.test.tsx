@@ -52,17 +52,24 @@ function openL1(types: PublicAnimalType[]) {
   return screen.getByRole('dialog');
 }
 
+/** 그룹 단계: 카드 선택(✓) → 하단 주 버튼(286 U4 D5 ①). */
+function enterGroup(dialog: HTMLElement, index: number) {
+  fireEvent.click(dialog.querySelectorAll('[data-ws-group]')[index]);
+  fireEvent.click(dialog.querySelector('[data-ws-action="pick-group"]') as HTMLButtonElement);
+}
+
 function goUnsure(dialog: HTMLElement) {
   fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(COPY.picker.unsure) }));
   return within(dialog).getByRole('searchbox');
 }
 
 describe('L1 친구 선택', () => {
-  it('제목 "어떤 친구인가요?", 그룹 2 → 타입 카드 → 선택: 저장 + species_selected{via:picker} + /{slug} 이동', () => {
+  it('제목 = 홈 선택 바 문장, 그룹 2 → 타입 카드 → 선택: 저장 + species_selected{via:picker} + /{slug} 이동', () => {
     const d = openL1([golden, gerbil, budgie]);
-    expect(within(d).getByRole('heading', { name: COPY.homeA.heroCta })).toBeInTheDocument();
+    expect(COPY.picker.title).toBe(COPY.homeA.heroBar); // 286 U4: L1 제목 = 홈 선택 바(한 문장)
+    expect(within(d).getByRole('heading', { name: COPY.homeA.heroBar })).toBeInTheDocument();
     const groupButtons = d.querySelectorAll('[data-ws-group]');
-    expect(Array.from(groupButtons).map((b) => b.textContent)).toEqual([COPY.groups.SMALL_MAMMAL, COPY.groups.PARROT]);
+    expect(Array.from(groupButtons).map((b) => b.querySelector('[data-ws-name]')?.textContent)).toEqual([COPY.groups.SMALL_MAMMAL, COPY.groups.PARROT]);
     // F10: 그룹 마스코트는 자산 원만 — AnimalAvatar 디스크 없음, 리포 자산 경로, lg 96
     for (const [i, g] of (['group-small-mammal', 'group-parrot'] as const).entries()) {
       expect(groupButtons[i].querySelector('.ws-avatar')).toBeNull();
@@ -71,7 +78,7 @@ describe('L1 친구 선택', () => {
       expect(img.getAttribute('width')).toBe('96');
       expect(img.getAttribute('alt')).toBe('');
     }
-    fireEvent.click(groupButtons[0]);
+    enterGroup(d, 0);
     expect(within(d).getByRole('heading', { name: COPY.groups.SMALL_MAMMAL })).toBeInTheDocument();
     const cards = Array.from(d.querySelectorAll('[data-ws-type]')).map((c) => c.getAttribute('data-ws-type'));
     expect(cards).toEqual([golden.id, gerbil.id]); // 앵무새 그룹 타입 없음
@@ -125,7 +132,7 @@ describe('L1 친구 선택', () => {
 
   it('② 노출 타입 밖 이름 0 — 다른 이름·별칭으로 찾아도 data.types 에 없는 친구는 나오지 않는다', () => {
     const d = openL1([golden]);
-    fireEvent.click(d.querySelectorAll('[data-ws-group]')[1]); // 앵무새: 노출 타입 없음
+    enterGroup(d, 1); // 앵무새: 노출 타입 없음
     expect(d.querySelectorAll('[data-ws-type]')).toHaveLength(0);
     expect(within(d).getByText(COPY.planned.title)).toBeInTheDocument();
     const input = goUnsure(d);
@@ -137,13 +144,68 @@ describe('L1 친구 선택', () => {
     expect(within(d).queryByText(COPY.planned.badge)).toBeNull(); // "준비 중" 칩 없음(PLANNED 미노출)
   });
 
+  describe('286 U4 그룹 단계 = 선택(✓) → 하단 주 버튼(D5 ①)', () => {
+    const stepOf = (d: HTMLElement) => d.querySelector('[data-ws-step]')?.getAttribute('data-ws-step');
+    const cta = (d: HTMLElement) => d.querySelector('[data-ws-action="pick-group"]') as HTMLButtonElement;
+    const pressed = (d: HTMLElement) =>
+      Array.from(d.querySelectorAll('[data-ws-group]')).map((b) => [b.getAttribute('data-ws-group'), b.getAttribute('aria-pressed')]);
+
+    it('그룹 누름 = 선택만(단계·히스토리 그대로), ✓·aria-pressed 이동, 주 버튼 문구 = 「{그룹} 친구 고르기」, 채운 버튼 1', () => {
+      const d = openL1([golden, budgie]);
+      const before = window.history.length;
+      expect(pressed(d)).toEqual([['SMALL_MAMMAL', 'true'], ['PARROT', 'false']]);
+      expect(cta(d)).toHaveTextContent(`${COPY.groups.SMALL_MAMMAL} 친구 고르기`);
+      expect(d.querySelectorAll('.ws-picker-group-check')).toHaveLength(1);
+      fireEvent.click(d.querySelectorAll('[data-ws-group]')[1]);
+      expect(stepOf(d)).toBe('groups');
+      expect(window.history.length).toBe(before);
+      expect(pressed(d)).toEqual([['SMALL_MAMMAL', 'false'], ['PARROT', 'true']]);
+      expect(d.querySelectorAll('[data-ws-group="PARROT"] .ws-picker-group-check')).toHaveLength(1);
+      expect(cta(d)).toHaveTextContent(`${COPY.groups.PARROT} 친구 고르기`);
+      expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
+      expect(within(d).getByText(COPY.picker.groupsLead)).toBeInTheDocument();
+      expect(within(d).getByText(COPY.picker.groupsNext)).toBeInTheDocument();
+      fireEvent.click(cta(d));
+      expect(stepOf(d)).toBe('types');
+      expect(window.history.length).toBe(before + 1);
+      expect(Array.from(d.querySelectorAll('[data-ws-type]')).map((c) => c.getAttribute('data-ws-type'))).toEqual([budgie.id]);
+      expect(calls).toEqual([]);
+    });
+
+    it('처음 선택 — 저장된 친구의 그룹, 없으면 노출 타입이 있는 첫 그룹', () => {
+      window.localStorage.setItem(ANIMAL_TYPE_KEY, budgie.id);
+      const a = openL1([golden, budgie]);
+      expect(pressed(a)).toEqual([['SMALL_MAMMAL', 'false'], ['PARROT', 'true']]);
+      act(() => layerStore.resetForTest());
+      cleanup();
+      window.localStorage.clear();
+      window.history.replaceState(null, '', '/');
+      const b = openL1([budgie]);
+      expect(pressed(b)).toEqual([['SMALL_MAMMAL', 'false'], ['PARROT', 'true']]);
+    });
+
+    it('종류에서 뒤로 → 들어갔던 그룹이 선택된 그룹 단계', async () => {
+      const d = openL1([golden, budgie]);
+      enterGroup(d, 1);
+      expect(stepOf(d)).toBe('types');
+      act(() => window.history.back());
+      await waitFor(() => expect(stepOf(screen.getByRole('dialog'))).toBe('groups'));
+      expect(pressed(screen.getByRole('dialog'))).toEqual([['SMALL_MAMMAL', 'false'], ['PARROT', 'true']]);
+    });
+
+    it('금지어 0', () => {
+      const d = openL1([golden, budgie]);
+      for (const w of ['괜찮', '안전하', '최저가', '판매순', '베스트', '정확도', '회원가입', '구매']) expect(d.textContent).not.toContain(w);
+    });
+  });
+
   describe('MINOR-6 단계 = L1 히스토리 스텝(뒤로 = 이전 단계, 첫 단계에서 뒤로 = 닫기)', () => {
     const stepOf = (d: HTMLElement) => d.querySelector('[data-ws-step]')?.getAttribute('data-ws-step');
     const headerBack = (d: HTMLElement) => d.querySelector('.ws-layer-back') as HTMLButtonElement;
 
     it('그룹 → 종류 → 잘 모르겠어요 후 브라우저 뒤로 ×2 → 그룹(L1 유지), 한 번 더 → 닫힘', async () => {
       const d = openL1([golden, gerbil]);
-      fireEvent.click(d.querySelectorAll('[data-ws-group]')[0]);
+      enterGroup(d, 0);
       expect(stepOf(d)).toBe('types');
       goUnsure(d);
       expect(stepOf(d)).toBe('unsure');
@@ -159,7 +221,7 @@ describe('L1 친구 선택', () => {
     it('‹ 머리 버튼도 같은 경로 — 잘 모르겠어요 → 종류 → 그룹, 다음 뒤로 → 닫힘', async () => {
       const d = openL1([golden, gerbil]);
       const before = window.history.length;
-      fireEvent.click(d.querySelectorAll('[data-ws-group]')[0]);
+      enterGroup(d, 0);
       goUnsure(d);
       fireEvent.click(headerBack(d));
       await waitFor(() => expect(stepOf(screen.getByRole('dialog'))).toBe('types'));
@@ -173,7 +235,7 @@ describe('L1 친구 선택', () => {
 
     it('종류에서 연 0건 안내의 "‹ 그룹 선택" → 그룹 항목까지 되돌아감(뒤로 다음 = 닫힘)', async () => {
       const d = openL1([golden, gerbil]);
-      fireEvent.click(d.querySelectorAll('[data-ws-group]')[0]);
+      enterGroup(d, 0);
       fireEvent.change(goUnsure(d), { target: { value: '팬더' } });
       fireEvent.click(within(d).getByRole('button', { name: COPY.picker.backToGroups }));
       await waitFor(() => expect(stepOf(screen.getByRole('dialog'))).toBe('groups'));
@@ -201,7 +263,7 @@ describe('L1 친구 선택', () => {
   describe('선택 가로채기 setPickHandler(이중 이동 방지)', () => {
     function pickGerbil() {
       const d = openL1([golden, gerbil]);
-      fireEvent.click(d.querySelectorAll('[data-ws-group]')[0]);
+      enterGroup(d, 0);
       fireEvent.click(within(d).getByRole('button', { name: /합성저빌/ }));
     }
 
@@ -249,7 +311,7 @@ describe('L1 친구 선택', () => {
   it('지금 페이지의 친구를 다시 고르면 이동 없이 닫는다', () => {
     window.history.replaceState(null, '', '/hamster/golden');
     const d = openL1([golden]);
-    fireEvent.click(d.querySelectorAll('[data-ws-group]')[0]);
+    enterGroup(d, 0);
     fireEvent.click(within(d).getByRole('button', { name: /골든햄스터/ }));
     expect(assign).not.toHaveBeenCalled();
     window.history.replaceState(null, '', '/');

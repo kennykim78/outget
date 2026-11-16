@@ -5,7 +5,8 @@ import { checkAnimalMinSpec, createCatalog, requirementCompat, specCheck } from 
 import type { Reason, SeedBundle } from '../engine/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SEED_DIR, dwarfSigned, dwarfSignedWith, realSeed } from './fixtures/prerender-seed.js';
+import { SEED_DIR, dwarfSigned, dwarfSignedWith, realSeed, realSignedTargets } from './fixtures/prerender-seed.js';
+import { CONTENT_KEYS, SEED_FILES } from '../seed/common.js';
 
 const seed: SeedBundle = realSeed();
 const cat = createCatalog(seed);
@@ -109,7 +110,7 @@ describe('B5 상품 17행 — 엔진 재계산 = 시드 meetsMinSpec = v0.3 5장
   });
 });
 
-describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIED 0(보안 79 H-1 환원), 서명은 매니페스트로만(불변식 7)', () => {
+describe('R7-B 검수 메타 — 디스크는 2026-11-16 확인표 서명의 review 단계(4 패킷 107행 NEEDS_REVIEW)라 VERIFIED 0, 서명은 매니페스트로만(불변식 7)', () => {
   type Meta = { id: string; reviewStatus: string; reviewerType: string; verifiedBy: string | null; verifiedAt: string | null; reviewBasis?: string | null };
   const metaOf = (s: SeedBundle): Meta[] =>
     [
@@ -117,15 +118,24 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
       ...s.compatibilityRules, ...s.setupBundles, ...s.curatedProducts,
     ] as unknown as Meta[];
   const all = metaOf(seed);
-  it('디스크: AI_DRAFT ∧ VERIFIED 0건, VERIFIED 0건, reviewBasis 전부 null, 상품 specVerifiedBy/At 전부 null, 매니페스트 []', () => {
+  it('디스크: AI_DRAFT ∧ VERIFIED 0건, VERIFIED 0건, NEEDS_REVIEW = 4 패킷 대상 107행 정확히(패킷/행 reviewerType), 나머지 DRAFT·AI_DRAFT, reviewBasis 전부 null, 상품 specVerifiedBy/At 전부 null, 매니페스트 []', () => {
     expect(all.filter((r) => r.reviewStatus === 'VERIFIED' && r.reviewerType === 'AI_DRAFT').map((r) => r.id)).toEqual([]);
     expect(all.filter((r) => r.reviewStatus === 'VERIFIED').map((r) => r.id)).toEqual([]);
     expect(all.filter((r) => r.reviewBasis !== null).map((r) => r.id)).toEqual([]);
     expect(seed.curatedProducts.filter((p) => p.specVerifiedBy !== null || p.specVerifiedAt !== null).map((p) => p.id)).toEqual([]);
     expect(seed.curatedProducts.filter((p) => p.status === 'ACTIVE').map((p) => p.id)).toEqual([]);
     expect(JSON.parse(readFileSync(join(SEED_DIR, 'review-signatures.json'), 'utf8'))).toEqual([]);
+    const targets = realSignedTargets();
+    expect(targets.size).toBe(107);
+    const rows = CONTENT_KEYS.flatMap((k) => ((seed as unknown as Record<string, Meta[]>)[k]).map((r) => ({ key: `${SEED_FILES[k]}#${r.id}`, r })));
+    expect(rows.filter((x) => x.r.reviewStatus === 'NEEDS_REVIEW').map((x) => x.key).sort()).toEqual([...targets.keys()].sort());
+    for (const { key, r } of rows) {
+      const t = targets.get(key);
+      const want = t ? ['NEEDS_REVIEW', t.reviewerType] : ['DRAFT', 'AI_DRAFT'];
+      expect([key, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, ...want, null, null, null]);
+    }
   });
-  it('메모리 서명(가짜 확인표 전 ☑·C·D1): 패킷 52행만 VERIFIED·kenny·2026-10-24 — 사료만 VET_PUBLISHED_SOURCE, 나머지 EXPERIENCED_KEEPER, 상품·최소 규격·사료 ROW_CHECKED 22 / 나머지 AI_RESEARCH_BULK 30(BE92: SupplyItem food 추가, 245: req-dwarf-tubes 최소 규격 → A11)', () => {
+  it('메모리 서명(가짜 확인표 전 ☑·C·D1, K1 사본): 패킷 52행만 VERIFIED·kenny·2026-10-24 — 사료만 VET_PUBLISHED_SOURCE, 나머지 EXPERIENCED_KEEPER, 상품·최소 규격·사료·재서술 whyShort ROW_CHECKED 26 / 나머지 AI_RESEARCH_BULK 26(BE92: SupplyItem food 추가, 245: req-dwarf-tubes 최소 규격 → A11, K1 2026-11-15: 받침 쳇바퀴(NOT_NOW)·은신처·모래 목욕 2행 행별 확인)', () => {
     const { seed: signed, manifest } = dwarfSignedWith();
     const v = metaOf(signed).filter((x) => x.reviewStatus === 'VERIFIED');
     expect(v).toHaveLength(52);
@@ -134,9 +144,9 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
       expect([r.id, r.reviewerType, r.verifiedBy, r.verifiedAt]).toEqual([r.id, type, 'kenny', '2026-10-24']);
     }
     expect(v.filter((r) => r.reviewBasis === 'ROW_CHECKED').map((r) => r.id).sort()).toEqual(
-      ['req-dwarf-bedding', 'req-dwarf-cage', 'req-dwarf-food', 'req-dwarf-tubes', 'req-dwarf-wheel', ...signed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-')).map((p) => p.id)].sort(),
+      ['req-dwarf-bedding', 'req-dwarf-cage', 'req-dwarf-food', 'req-dwarf-hideout', 'req-dwarf-sand-bath', 'req-dwarf-sand-bath-box', 'req-dwarf-saucer', 'req-dwarf-tubes', 'req-dwarf-wheel', ...signed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-')).map((p) => p.id)].sort(),
     );
-    expect(v.filter((r) => r.reviewBasis === 'AI_RESEARCH_BULK')).toHaveLength(30);
+    expect(v.filter((r) => r.reviewBasis === 'AI_RESEARCH_BULK')).toHaveLength(26);
     expect(manifest).toHaveLength(52);
   });
   // BE92: SupplyItem food 는 C 일괄로 이동(오케스트레이터 90 Q1), 공용 cr-wheel-cage·cr-water-cage 는 삭제(85 근거 없음).
@@ -147,9 +157,10 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
       expect([id, byId.get(id)?.reviewStatus, byId.get(id)?.reviewerType]).toEqual([id, 'DRAFT', 'AI_DRAFT']);
     }
   });
-  it('드워프 AnimalType 은 서명돼도 PLANNED(게이트 G 전), 디스크는 DRAFT', () => {
+  it('드워프 AnimalType 은 서명돼도 PLANNED(게이트 G 전), 디스크는 review 단계 NEEDS_REVIEW·EXPERIENCED_KEEPER·PLANNED(검수자·날짜 null)', () => {
     const at = dwarfSigned().animalTypes.find((x) => x.id === D);
     expect([at?.status, at?.reviewStatus]).toEqual(['PLANNED', 'VERIFIED']);
-    expect(seed.animalTypes.find((x) => x.id === D)?.reviewStatus).toBe('DRAFT');
+    const disk = seed.animalTypes.find((x) => x.id === D);
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType, disk?.verifiedBy, disk?.verifiedAt]).toEqual(['PLANNED', 'NEEDS_REVIEW', 'EXPERIENCED_KEEPER', null, null]);
   });
 });

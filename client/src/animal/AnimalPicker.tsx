@@ -1,6 +1,8 @@
 // L1 친구 선택(스펙22 §3.3 · §2.12 TypeCard, PRD US-001·002). 스텝: 그룹 2 → 타입 격자 → "잘 모르겠어요".
 //   노출 타입(ws-data data.types)만 그린다 — PLANNED·비노출 이름 0(불변식 ⑦, G3 결정 전 기본 미노출).
-//   선택 → ws.animalType + species_selected{via: picker|alias} → /{slug} 문서 이동(D4). 채운 CTA 없음, 마스코트 허용.
+//   선택 → ws.animalType + species_selected{via: picker|alias} → /{slug} 문서 이동(D4). 마스코트 허용.
+//   286 U4(D5 ①, R3 시안 + R4 fix): 그룹 단계 = 카드 선택(✓) → 하단 주 버튼 「{그룹} 친구 고르기」 → 종류 단계 push(뒤로 = 그룹).
+//     채운 CTA 는 그룹 단계의 그 버튼 하나. 종류 단계는 카드 누름 = 선택 완료(기존 그대로).
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ANIMAL_GROUPS, type AnimalGroup, type PublicAnimalType } from '@ws/engine';
 import { COPY } from '@ws/copy';
@@ -10,7 +12,7 @@ import { track } from '../events/track';
 import { typeHomeHref } from '../shell/shellType';
 import AnimalAvatar from '../ui/AnimalAvatar';
 import { copyAt, copyFmt } from '../ui/copyText';
-import { useLayerChrome } from '../ui/layer/Layer';
+import { LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import { layerStore, type LayerProps } from '../ui/layer/useLayer';
 import { findCandidates } from './match';
 import { nav } from './navigate';
@@ -40,6 +42,13 @@ function stepKey(step: Step): string {
 
 const GROUP_MASCOT: Record<AnimalGroup, string> = { SMALL_MAMMAL: 'group-small-mammal', PARROT: 'group-parrot' };
 
+/** 그룹 단계의 처음 선택: 저장된 친구의 그룹 → 노출 타입이 있는 첫 그룹 → 첫 그룹(노출 데이터에서만 정한다). */
+function initialGroup(types: readonly PublicAnimalType[], typeId: string | null): AnimalGroup {
+  const saved = typeId ? types.find((t) => t.id === typeId) : undefined;
+  if (saved) return saved.group;
+  return ANIMAL_GROUPS.find((g) => types.some((t) => t.group === g)) ?? ANIMAL_GROUPS[0];
+}
+
 /** "‹ 그룹 선택" 에서 레이어 머리가 붙이는 "‹ " 를 뺀 이름. */
 const backToGroupsLabel = (): string => COPY.picker.backToGroups.replace(/^‹\s*/, '');
 
@@ -66,6 +75,7 @@ export default function AnimalPicker({ props, close }: { props: LayerProps; clos
   const key = stepKey(parseStep(props.step));
   const step = useMemo(() => parseStep(key), [key]);
   const [query, setQuery] = useState('');
+  const [group, setGroup] = useState<AnimalGroup>(() => initialGroup(types, selection.typeId));
   const reported = useRef(new Set<string>());
   /** 이 L1 인스턴스가 지나온 단계(히스토리 항목과 1:1). 길이 1 = 진입 단계 → ‹ 는 뒤로 대신 교체. */
   const trail = useRef<string[]>([key]);
@@ -76,6 +86,11 @@ export default function AnimalPicker({ props, close }: { props: LayerProps; clos
     if (t.length > 1 && t[t.length - 2] === key) t.pop(); // 뒤로가기·‹
     else t.push(key); // push 또는 브라우저 앞으로
   }, [key]);
+
+  // 종류 단계에서 뒤로 오면 들어갔던 그룹이 선택된 채로(딥링크 종류 단계 포함).
+  useEffect(() => {
+    if (step.kind === 'types') setGroup(step.group);
+  }, [step]);
 
   /** 다음 단계로: 같은 URL 에 L1 스텝 push(뒤로 = 이 단계). */
   function pushStep(next: Step): void {
@@ -113,7 +128,7 @@ export default function AnimalPicker({ props, close }: { props: LayerProps; clos
   useEffect(() => {
     const onBack = (target: Step) => () => backRef.current(target);
     if (step.kind === 'groups') {
-      chrome.setTitle(COPY.homeA.heroCta);
+      chrome.setTitle(COPY.picker.title);
       chrome.setBack(null);
     } else if (step.kind === 'types') {
       chrome.setTitle(COPY.groups[step.group]);
@@ -152,21 +167,55 @@ export default function AnimalPicker({ props, close }: { props: LayerProps; clos
   }
 
   if (step.kind === 'groups') {
+    const cta = copyFmt('picker.groupCta', { name: COPY.groups[group] }) ?? COPY.groups[group];
     return (
-      <div className="ws-layer-body ws-picker" data-ws-step="groups">
-        <ul className="ws-picker-grid ws-picker-grid--groups">
-          {ANIMAL_GROUPS.map((g) => (
-            <li key={g}>
-              <button type="button" className="ws-type-card ws-type-card--group" data-ws-group={g} onClick={() => pushStep({ kind: 'types', group: g })}>
-                {/* 그룹 자산은 자체 원을 가진다 — AnimalAvatar 디스크 없이 lg 이미지 크기(설계 검수 F10). 리포 자산만. */}
-                <img className="ws-picker-group-img" src={`/mascots/${GROUP_MASCOT[g]}.svg`} width={96} height={96} alt="" decoding="async" />
-                <span className="ws-t-cta">{COPY.groups[g]}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <UnsureRow onOpen={() => openUnsure(null)} />
-      </div>
+      <>
+        <div className="ws-layer-body ws-picker" data-ws-step="groups">
+          <p className="ws-t-body ws-picker-muted">{COPY.picker.groupsLead}</p>
+          <ul className="ws-picker-grid ws-picker-grid--groups">
+            {ANIMAL_GROUPS.map((g) => {
+              const selected = g === group;
+              return (
+                <li key={g}>
+                  <button
+                    type="button"
+                    className={`ws-picker-group${selected ? ' ws-picker-group--selected' : ''}`}
+                    data-ws-group={g}
+                    aria-pressed={selected}
+                    onClick={() => setGroup(g)}
+                  >
+                    {/* 사진 자리 = 그룹 마스코트(리포 자산, 생성 사진 금지 — 불변식 ①). 자산이 자체 원을 가진다(F10). */}
+                    <span className="ws-picker-group-media">
+                      <img className="ws-picker-group-img" src={`/mascots/${GROUP_MASCOT[g]}.svg`} width={96} height={96} alt="" decoding="async" />
+                    </span>
+                    <span className="ws-picker-group-label">
+                      {selected ? (
+                        <span className="ws-picker-group-check" aria-hidden="true">
+                          ✓
+                        </span>
+                      ) : null}
+                      <span className="ws-t-section" data-ws-name="">
+                        {COPY.groups[g]}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="ws-t-body ws-picker-muted">{COPY.picker.groupsNext}</p>
+        </div>
+        <LayerFoot>
+          <div className="ws-picker-foot">
+            <button type="button" className="ws-btn ws-btn--fill" data-ws-action="pick-group" onClick={() => pushStep({ kind: 'types', group })}>
+              {cta}
+            </button>
+            <button type="button" className="ws-picker-unsure-link ws-t-meta" data-ws-action="unsure" onClick={() => openUnsure(null)}>
+              {COPY.picker.unsure}
+            </button>
+          </div>
+        </LayerFoot>
+      </>
     );
   }
 

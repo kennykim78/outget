@@ -1,7 +1,7 @@
 // 서명 매니페스트(보안 79 H-1, Kenny 2026-10-25 'H-1 라벨') — G01~G06·V09·V10 + apply-review-signatures.mjs round-trip.
 //   실시드는 임시 디렉터리 복사본에서만 변조한다(디스크 시드 변경 0). 기준일 고정(실시계 0).
 import { afterAll, describe, expect, it } from 'vitest';
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -9,18 +9,27 @@ import type { SeedBundle } from '../engine/index.js';
 import { CONTENT_KEYS, SEED_FILES, type RawSeed } from '../seed/common.js';
 import { runValidateCli, type CliIo } from '../seed/cli-validate.js';
 import { readSeedDirRaw } from '../seed/read.js';
-import { factHash, FACT_FIELDS, SIGNATURE_FIELDS, SIGNATURE_FILE, type SignatureEntry } from '../seed/signatures.js';
+import { factHash, FACT_FIELDS, requiredBasis, SIGNATURE_FIELDS, SIGNATURE_FILE, whyShortIsRephrased, type SignatureEntry } from '../seed/signatures.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import {
-  DWARF_PACKET_PATH,
   DWARF_PREVIEW_AS_OF,
   SEED_DIR,
   applyMjs,
   dwarfAllCheckedResult,
   dwarfPacket,
+  dwarfPacketK1,
   dwarfSignedWith,
   filesOf,
+  k1ItemOf,
+  k1Packet,
+  REAL_PACKETS,
+  REAL_SIGNED_AT,
+  realPacket,
+  realPacketPath,
   realSeed,
+  realSignedTargets,
+  unsignedRealSeed,
+  writeUnsignedSeedDir,
   type DwarfPacket,
 } from './fixtures/prerender-seed.js';
 
@@ -54,16 +63,16 @@ const temps: string[] = [];
 afterAll(() => {
   for (const d of temps) rmSync(d, { recursive: true, force: true });
 });
-function tempCopy(src: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'withsmall-sig-'));
+/** 서명 전 기준 시드 디렉터리 사본(4 패킷 미서명·매니페스트 []) — 확인표 적용 round-trip 의 출발점. */
+function unsignedCopy(src: string): string {
+  const dir = mkdtempSync(join(tmpdir(), 'withsmall-sigu-'));
   temps.push(dir);
-  cpSync(src, dir, { recursive: true });
-  return dir;
+  return writeUnsignedSeedDir(dir, src);
 }
-async function validateCli(dir: string): Promise<{ code: number; out: string[] }> {
+async function validateCli(dir: string, now: string = NOW): Promise<{ code: number; out: string[] }> {
   const out: string[] = [];
-  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => out.push(l), today: () => NOW };
-  return { code: await runValidateCli(['--dir', dir, '--now', NOW], io), out };
+  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => out.push(l), today: () => now };
+  return { code: await runValidateCli(['--dir', dir, '--now', now], io), out };
 }
 function applyCli(argv: string[]): { code: number; out: string[] } {
   const out: string[] = [];
@@ -75,13 +84,23 @@ const writeJson = (dir: string, name: string, v: unknown): string => {
   writeFileSync(p, JSON.stringify(v, null, 2));
   return p;
 };
+/** 패킷 사본(K1 — fixtures k1Packet)을 임시 파일로(CLI --packet 용). 실패킷 파일은 바꾸지 않는다. */
+const packetFile = (packet: unknown, name: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'withsmall-sigpk-'));
+  temps.push(dir);
+  return writeJson(dir, name, packet);
+};
+/** 원문 발췌가 아닌 whyShort 행 중 실패킷 C 일괄에 있던 행(K1 — 행별 확인 필요, 일괄 승인 불가 — 2026-11-15 실패킷 rowChecked 끝·확인표 W 절로 옮김). 옛 bulk 순서. 2026-11-15 whyShort 17건 기준(총괄 14:1x 「곳」 판정 뒤 hideout +1, PM 입력 saucer(재서술·NOT_NOW) +1 · gerbil-thermo 는 원문 발췌라 해당 없음). */
+const DWARF_K1_ROWS = ['req-dwarf-saucer', 'req-dwarf-hideout', 'req-dwarf-sand-bath', 'req-dwarf-sand-bath-box'];
+const GP_K1_ROWS = ['req-guineapig-playpen'];
 
 describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mjs) ↔ seed-equivalence', () => {
-  it('필드 목록 같음(fact-fields.json 단일 출처), seed-equivalence FACT_FIELDS 25종 그대로', () => {
+  it('필드 목록 같음(fact-fields.json 단일 출처), seed-equivalence FACT_FIELDS 26종 그대로(D9 ② whyShort +1)', () => {
     expect([...mjsSig.FACT_FIELDS]).toEqual([...FACT_FIELDS]);
     expect([...equivMjs.FACT_FIELDS]).toEqual([...FACT_FIELDS]);
     expect([...mjsSig.SIGNATURE_FIELDS]).toEqual([...SIGNATURE_FIELDS]);
-    expect(FACT_FIELDS).toHaveLength(25);
+    expect(FACT_FIELDS).toHaveLength(26);
+    expect(FACT_FIELDS).toContain('whyShort');
     // 검수 메타·공개 상태는 해시 밖(재표기·게이트 G 가 서명을 깨지 않는다).
     for (const k of ['reviewStatus', 'reviewerType', 'verifiedBy', 'verifiedAt', 'reviewBasis', 'specVerifiedBy', 'specVerifiedAt', 'status', 'meetsMinSpec', 'glyph', 'slug']) {
       expect(SIGNATURE_FIELDS).not.toContain(k);
@@ -119,18 +138,99 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
   });
 });
 
-describe('실시드(환원 후) — VERIFIED 0·매니페스트 []·errors 0', () => {
-  it('server/seed 와 seed-draft 의 review-signatures.json = [] (바이트 동일)', () => {
+describe('실시드(2026-11-16 확인표 5종 서명 — review 단계, PR-A) — NEEDS_REVIEW 107·VERIFIED 0·매니페스트 []·errors 0', () => {
+  /** 4 실패킷 + 실서명 결과 파일(scripts/review-packets/*.result.signed.json). */
+  const signedResult = (n: (typeof REAL_PACKETS)[number]): string => join(ROOT, 'scripts', 'review-packets', `${n}.result.signed.json`);
+  const bytesOf = (dir: string): Record<string, string> =>
+    Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
+
+  it('server/seed 와 seed-draft 의 review-signatures.json = [] (바이트 동일 — review 단계는 매니페스트를 만들지 않는다)', () => {
     for (const d of [SEED_DIR, DRAFT_DIR]) expect(readFileSync(join(d, SIGNATURE_FILE), 'utf8')).toBe('[]');
   });
-  it('seed:validate CLI(매니페스트 포함) errors 0', async () => {
-    const r = await validateCli(SEED_DIR);
-    expect(r.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
-    expect(r.code).toBe(0);
+  it('seed:validate CLI(매니페스트 포함) errors 0 — server/seed·seed-draft', async () => {
+    for (const d of [SEED_DIR, DRAFT_DIR]) {
+      const r = await validateCli(d);
+      expect(r.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
+      expect(r.code).toBe(0);
+    }
   });
   it('모든 콘텐츠 행에 reviewBasis 키(null)', () => {
     const { raw } = readSeedDirRaw(SEED_DIR);
     for (const k of CONTENT_KEYS) for (const r of raw[k] as Row[]) expect([r.id, Object.prototype.hasOwnProperty.call(r, 'reviewBasis'), r.reviewBasis]).toEqual([r.id, true, null]);
+  });
+  it('검수 표기: NEEDS_REVIEW 107 = 4 패킷 대상 정확히(reviewerType = 패킷/행 값, AI_DRAFT 0 — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1), VERIFIED 0, 나머지 42행 DRAFT·AI_DRAFT, 전 행 verifiedBy/At·reviewBasis null', () => {
+    const { raw } = readSeedDirRaw(SEED_DIR);
+    const targets = realSignedTargets();
+    expect(targets.size).toBe(107);
+    const rows = CONTENT_KEYS.flatMap((k) => (raw[k] as Row[]).map((r) => ({ key: `${SEED_FILES[k]}#${String(r.id)}`, r })));
+    expect(rows).toHaveLength(149);
+    expect(rows.filter(({ r }) => r.reviewStatus === 'VERIFIED')).toEqual([]);
+    const nr = rows.filter(({ r }) => r.reviewStatus === 'NEEDS_REVIEW');
+    expect(nr.map(({ key }) => key).sort()).toEqual([...targets.keys()].sort());
+    for (const { key, r } of nr) expect([key, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, targets.get(key)?.reviewerType, null, null, null]);
+    const byType: Record<string, number> = {};
+    for (const { r } of nr) byType[String(r.reviewerType)] = (byType[String(r.reviewerType)] ?? 0) + 1;
+    expect(byType).toEqual({ EXPERIENCED_KEEPER: 102, VET_PUBLISHED_SOURCE: 4, OFFICIAL_SOURCE: 1 });
+    expect(nr.filter(({ r }) => r.reviewerType === 'VET_PUBLISHED_SOURCE').map(({ r }) => [r.id, r.contentKind]).sort()).toEqual([
+      ['req-dwarf-food', 'FOOD'], ['req-guineapig-food', 'FOOD'], ['req-guineapig-hay', 'FOOD'], ['req-syrian-food', 'FOOD'],
+    ]);
+    const rest = rows.filter(({ key }) => !targets.has(key)).map(({ r }) => r);
+    expect(rest).toHaveLength(149 - 107);
+    for (const r of rest) expect([r.id, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
+    for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale', 'req-gerbil-food']) expect(rest.map((r) => r.id)).toContain(id);
+    // 상품 검수 표기는 review 단계에서 바뀌지 않는다(specVerifiedBy/At null).
+    for (const p of raw.curatedProducts as Row[]) expect([p.id, p.specVerifiedBy, p.specVerifiedAt]).toEqual([p.id, null, null]);
+  });
+  it('디스크 = 서명 전 기준(unsignedRealSeed) 에서 대상 107행의 reviewStatus·reviewerType 만 다르다(사실·그 밖 키 0 변경)', () => {
+    const disk = realSeed();
+    const base = unsignedRealSeed();
+    const targets = realSignedTargets();
+    for (const k of CONTENT_KEYS) {
+      const a = disk[k as keyof SeedBundle] as unknown as Row[];
+      const b = base[k as keyof SeedBundle] as unknown as Row[];
+      expect(a.map((r) => r.id)).toEqual(b.map((r) => r.id));
+      a.forEach((r, i) => {
+        const t = targets.get(`${SEED_FILES[k]}#${String(r.id)}`);
+        const want = t ? { ...b[i], reviewStatus: 'NEEDS_REVIEW', reviewerType: t.reviewerType } : b[i];
+        expect(r).toEqual(want);
+        expect(factHash(SEED_FILES[k], r)).toBe(factHash(SEED_FILES[k], b[i]));
+      });
+    }
+  });
+  it('재현: 서명 전 기준 사본 + 실서명 결과 4개 --stage review 4회 = 디스크 바이트 동일(server/seed·seed-draft), 이어서 --stage final 4회(임시 사본) → VERIFIED 107·매니페스트 107·validate 0(PR-B 경로)', async () => {
+    const seed = unsignedCopy(SEED_DIR);
+    const draft = unsignedCopy(DRAFT_DIR);
+    const apply = (stage: 'review' | 'final'): void => {
+      for (const n of REAL_PACKETS) {
+        const r = applyCli(['--packet', realPacketPath(n), '--result', signedResult(n), '--seed', seed, '--draft', draft, '--stage', stage, '--now', REAL_SIGNED_AT]);
+        expect([n, stage, r.code]).toEqual([n, stage, 0]);
+      }
+    };
+    apply('review');
+    expect(bytesOf(seed)).toEqual(bytesOf(SEED_DIR));
+    expect(bytesOf(draft)).toEqual(bytesOf(DRAFT_DIR));
+    apply('final');
+    const m = JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')) as SignatureEntry[];
+    const targets = realSignedTargets();
+    expect(m.map((e) => `${e.file}#${e.id}`).sort()).toEqual([...targets.keys()].sort());
+    for (const e of m) expect([e.id, e.signedBy, e.signedAt, e.basis]).toEqual([e.id, 'kenny', REAL_SIGNED_AT, targets.get(`${e.file}#${e.id}`)?.basis]);
+    const { raw: fv } = readSeedDirRaw(seed);
+    const fvRows = CONTENT_KEYS.flatMap((k) => fv[k] as Row[]);
+    expect(fvRows.filter((r) => r.reviewStatus === 'VERIFIED')).toHaveLength(107);
+    expect(fvRows.filter((r) => r.reviewStatus === 'VERIFIED' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
+    expect(fvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW')).toEqual([]);
+    const vr = await validateCli(seed, REAL_SIGNED_AT); // final 은 verifiedAt 2026-11-16 — 기준일이 그보다 앞서면 S07(미래 날짜)
+    expect(vr.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
+    expect(vr.code).toBe(0);
+    expect(bytesOf(draft)).toEqual(bytesOf(seed));
+  });
+  it('실서명 결과 파일 형식: signedBy kenny · checkedAt/bulkSignedAt 2026-11-16 · checked = 패킷 rowChecked 항목 합집합(중복 없음)', () => {
+    for (const n of REAL_PACKETS) {
+      const r = JSON.parse(readFileSync(signedResult(n), 'utf8')) as Record<string, unknown>;
+      const p = realPacket(n);
+      expect([n, r.format, r.packet, r.signedBy, r.checkedAt, r.bulkSignedAt]).toEqual([n, applyMjs.RESULT_FORMAT, p.packet, 'kenny', REAL_SIGNED_AT, REAL_SIGNED_AT]);
+      expect([n, r.checked]).toEqual([n, [...new Set(p.rowChecked.flatMap((x) => x.items))]]);
+    }
   });
 });
 
@@ -231,14 +331,14 @@ describe('G01~G06 — 서명 매니페스트 불일치는 각각 error', () => {
     expect(rules(run(raw, [...manifest, clone(manifest[0])]))).toContain('G01');
   });
   it('G01 매니페스트 파일 없음(CLI) → exit 1', async () => {
-    const dir = tempCopy(SEED_DIR);
+    const dir = unsignedCopy(SEED_DIR);
     unlinkSync(join(dir, SIGNATURE_FILE));
     const r = await validateCli(dir);
     expect(r.code).toBe(1);
     expect(r.out.some((l) => l.startsWith('ERROR [G01]'))).toBe(true);
   });
   it('G01 매니페스트 JSON 파싱 실패(CLI) → exit 1', async () => {
-    const dir = tempCopy(SEED_DIR);
+    const dir = unsignedCopy(SEED_DIR);
     writeFileSync(join(dir, SIGNATURE_FILE), '[{');
     const r = await validateCli(dir);
     expect(r.code).toBe(1);
@@ -250,12 +350,12 @@ describe('V09·V10 — reviewBasis 행 규칙(매니페스트 없이도)', () =>
   const base = (): RawSeed => rawOf(dwarfSignedWith().seed);
   const v = (raw: RawSeed): ValidateResult => validateSeed(raw, { now: NOW });
   it('S04 reviewBasis 키 누락 → S04', () => {
-    const raw = rawOf(realSeed());
+    const raw = rawOf(unsignedRealSeed());
     delete rowOf(raw, 'taxa', 'mesocricetus-auratus').reviewBasis;
     expect(errsOf(v(raw), 'S04').map((i) => i.path)).toEqual(['reviewBasis']);
   });
   it('S03 reviewBasis 알 수 없는 값 → S03', () => {
-    const raw = rawOf(realSeed());
+    const raw = rawOf(unsignedRealSeed());
     rowOf(raw, 'taxa', 'mesocricetus-auratus').reviewBasis = 'TRUST_ME';
     expect(rules(v(raw))).toContain('S03');
   });
@@ -269,15 +369,133 @@ describe('V09·V10 — reviewBasis 행 규칙(매니페스트 없이도)', () =>
     const raw = base();
     rowOf(raw, 'curatedProducts', 'cp-dw-012').reviewBasis = 'AI_RESEARCH_BULK';
     rowOf(raw, 'supplyRequirements', 'req-dwarf-wheel').reviewBasis = 'AI_RESEARCH_BULK';
-    rowOf(raw, 'supplyRequirements', 'req-dwarf-hideout').reviewBasis = 'ROW_CHECKED'; // 최소 규격 없는 행은 둘 다 허용
+    rowOf(raw, 'supplyRequirements', 'req-dwarf-hideout').reviewBasis = 'ROW_CHECKED'; // ROW_CHECKED 는 어느 행이든 허용(hideout 은 2026-11-15 재서술 whyShort 로 ROW_CHECKED 만)
     expect(errsOf(v(raw), 'V10').map((i) => i.id).sort()).toEqual(['cp-dw-012', 'req-dwarf-wheel']);
+  });
+});
+
+describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 하위 결정 2026-11-15, 불변식 7)', () => {
+  // req-dwarf-carrier: VERIFIED·AI_RESEARCH_BULK·최소 규격 없음. why = "병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요."
+  // req-dwarf-saucer : VERIFIED·AI_RESEARCH_BULK·NOT_NOW. notNowReason = "세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요."
+  const EXCERPT = '케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+  const REPHRASE = '청소할 때 잠시 옮겨 둘 곳이 있어야 해요.';
+  const NN_EXCERPT = '세워진 쳇바퀴를 먼저 갖춘 뒤 필요할 때 고려해요.';
+  const FULLWIDTH_DOT = String.fromCharCode(0xff0e);
+  const v = (raw: RawSeed): ValidateResult => validateSeed(raw, { now: NOW });
+  const v10 = (raw: RawSeed): string[] => errsOf(v(raw), 'V10').map((i) => String(i.id)).sort();
+  const withShort = (id: string, s: string): RawSeed => {
+    const raw = rawOf(dwarfSignedWith().seed);
+    rowOf(raw, 'supplyRequirements', id).whyShort = s;
+    return raw;
+  };
+  /** 변경 전 requiredBasis 정책 사본(whyShort 없는 행은 이것과 같아야 한다). */
+  const oldPolicy = (key: string, r: Row): string | null => {
+    if (key === 'curatedProducts') return 'ROW_CHECKED';
+    const ne = (rs: unknown): boolean => Array.isArray((rs as Row | null)?.rules) && ((rs as Row).rules as unknown[]).length > 0;
+    if (key === 'supplyRequirements' && ne(r.minSpec)) return 'ROW_CHECKED';
+    if (key === 'animalTypes') {
+      const reqs = (r.careOverrides as Row | null)?.requirements as Row | undefined;
+      if (reqs && Object.values(reqs).some((o) => ne((o as Row | null)?.minSpec))) return 'ROW_CHECKED';
+    }
+    return null;
+  };
+
+  it('whyShortIsRephrased 단위: 발췌 false · 재서술 true · notNowReason 발췌 false · 키 없음/비문자열 false', () => {
+    const why = '병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+    expect(whyShortIsRephrased({ why, whyShort: EXCERPT })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: REPHRASE })).toBe(true);
+    expect(whyShortIsRephrased({ why: '다른 문장이에요.', notNowReason: NN_EXCERPT, whyShort: NN_EXCERPT })).toBe(false);
+    expect(whyShortIsRephrased({ why })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: null })).toBe(false);
+    expect(whyShortIsRephrased({ whyShort: REPHRASE })).toBe(true); // 원문 없음 = 발췌 아님(fail-closed)
+  });
+  it('공백·마침표 정규화: 공백 증감·마침표 유무·전각 마침표는 발췌로 본다, 어절 변경은 재서술', () => {
+    const why = '병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+    expect(whyShortIsRephrased({ why, whyShort: '케이지를  청소할때 잠깐 옮겨 둘 곳이 필요해요' })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: `케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요${FULLWIDTH_DOT}` })).toBe(false);
+    expect(whyShortIsRephrased({ why: why.replace('.', FULLWIDTH_DOT), whyShort: EXCERPT })).toBe(false);
+    expect(whyShortIsRephrased({ why, whyShort: '케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요하죠.' })).toBe(true);
+  });
+  it('발췌 whyShort + AI_RESEARCH_BULK → V10 없음(원문 검수 근거 상속)', () => {
+    expect(v10(withShort('req-dwarf-carrier', EXCERPT))).toEqual([]);
+    expect(v10(withShort('req-dwarf-saucer', NN_EXCERPT))).toEqual([]);
+  });
+  it('재서술 whyShort + AI_RESEARCH_BULK → V10(메시지에 사유), ROW_CHECKED 면 통과', () => {
+    const raw = withShort('req-dwarf-carrier', REPHRASE);
+    const errs = errsOf(v(raw), 'V10');
+    expect(errs.map((i) => i.id)).toEqual(['req-dwarf-carrier']);
+    expect(errs[0].message).toContain('원문 발췌가 아닌 whyShort 행');
+    rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier').reviewBasis = 'ROW_CHECKED';
+    expect(v10(raw)).toEqual([]);
+  });
+  it('AnimalType override whyShort: 같은 override why 발췌면 요구 없음, 재서술·why 없는 override 는 ROW_CHECKED', () => {
+    const at = (o: Row): RawSeed => {
+      const raw = rawOf(dwarfSignedWith().seed);
+      const itemId = String(rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier').supplyItemId);
+      rowOf(raw, 'animalTypes', 'hamster-dwarf').careOverrides = { requirements: { [itemId]: o } };
+      return raw;
+    };
+    const why = '병원에 가거나 케이지를 청소할 때 잠깐 옮겨 둘 곳이 필요해요.';
+    expect(v10(at({ why, whyShort: EXCERPT }))).toEqual([]);
+    expect(v10(at({ why, whyShort: REPHRASE }))).toEqual(['hamster-dwarf']);
+    expect(v10(at({ whyShort: EXCERPT }))).toEqual(['hamster-dwarf']);
+  });
+  it('requiredBasis = 변경 전 정책 ∪ (재서술 whyShort 면 ROW_CHECKED) — whyShort 키 없는 행은 변경 전 정책 그대로(실시드·서명 픽스처 전 행)', () => {
+    let n = 0;
+    let withKey = 0;
+    const added: string[] = [];
+    for (const s of [realSeed(), dwarfSignedWith().seed]) {
+      for (const k of CONTENT_KEYS) {
+        for (const r of s[k as keyof SeedBundle] as unknown as Row[]) {
+          const has = Object.prototype.hasOwnProperty.call(r, 'whyShort');
+          if (has) withKey++;
+          const expected = oldPolicy(k, r) ?? (has && whyShortIsRephrased(r) ? 'ROW_CHECKED' : null);
+          expect([r.id, requiredBasis(k, r)]).toEqual([r.id, expected]);
+          if (oldPolicy(k, r) === null && expected !== null) added.push(String(r.id));
+          n++;
+        }
+      }
+    }
+    expect(n).toBe(2 * 149);
+    expect(withKey).toBe(2 * 17); // 2026-11-15 whyShort 17건(채택 14 + 드워프 hideout + 드워프 saucer·저빌 thermo)(요구사항 행만, override 0)
+    // 새 정책이 일괄 승인을 막는 행 = 최소 규격 없는 재서술 whyShort 행(시드 2벌 × 5행 — 드워프 saucer·hideout·모래 목욕 2 + 기니피그 놀이 울타리). 저빌 thermo 는 원문 발췌라 빠짐.
+    expect([...new Set(added)].sort()).toEqual([...DWARF_K1_ROWS, ...GP_K1_ROWS].sort());
+    expect(added).toHaveLength(2 * 5);
+  });
+  it('서명 검증: 재서술 whyShort 를 재서명(해시 갱신)해도 BULK 면 V10, ROW_CHECKED 서명이면 errors 0, 이후 whyShort 수정 → G05', () => {
+    const { seed, manifest: m0 } = dwarfSignedWith();
+    const raw = rawOf(seed);
+    const manifest = clone(m0);
+    const file = SEED_FILES.supplyRequirements;
+    const r = rowOf(raw, 'supplyRequirements', 'req-dwarf-carrier');
+    const e = manifest.find((x) => x.file === file && x.id === 'req-dwarf-carrier');
+    if (!e) throw new Error('서명 항목 없음');
+    // G05 유지: 서명 뒤 whyShort 변경(실시드 값 → 다른 발췌) → 재서명 요구.
+    expect(r.whyShort).toBe('잠깐 옮겨 둘 곳이 필요해요.');
+    r.whyShort = EXCERPT;
+    expect(rules(run(raw, manifest))).toEqual(['G05']);
+    // 발췌 + 재서명(BULK) → errors 0.
+    e.factHash = factHash(file, r);
+    expect(run(raw, manifest).errors).toEqual([]);
+    // 재서술로 바꾸고 재서명(BULK) → V10 만.
+    r.whyShort = REPHRASE;
+    e.factHash = factHash(file, r);
+    expect(rules(run(raw, manifest))).toEqual(['V10']);
+    // 행별 확인 서명(ROW_CHECKED) → errors 0.
+    r.reviewBasis = 'ROW_CHECKED';
+    e.basis = 'ROW_CHECKED';
+    expect(run(raw, manifest).errors).toEqual([]);
+    // 서명 뒤 whyShort 수정 → G05.
+    r.whyShort = '청소할 때 잠시 옮겨 둘 곳이 꼭 있어야 해요.';
+    expect(rules(run(raw, manifest))).toEqual(['G05']);
   });
 });
 
 describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페스트', () => {
   const NOW_ARGS = ['--now', NOW];
-  const packetArgs = ['--packet', DWARF_PACKET_PATH];
-  const pair = (): { seed: string; draft: string } => ({ seed: tempCopy(SEED_DIR), draft: tempCopy(DRAFT_DIR) });
+  /** 가짜 전 ☑ 결과(dwarfAllCheckedResult = K1 사본 항목)와 짝인 K1 패킷 사본 파일. 실패킷 그대로는 「실패킷 그대로」 시험. */
+  const packetArgs = ['--packet', packetFile(dwarfPacketK1(), 'hamster-dwarf-core.k1.json')];
+  const pair = (): { seed: string; draft: string } => ({ seed: unsignedCopy(SEED_DIR), draft: unsignedCopy(DRAFT_DIR) });
   const bytes = (dir: string): Record<string, string> =>
     Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
 
@@ -288,7 +506,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     temps.push(resDir);
     const all = writeJson(resDir, 'all.json', dwarfAllCheckedResult(NOW));
     const a = applyCli([...packetArgs, '--result', all, '--seed', seed, '--draft', draft, ...NOW_ARGS]);
-    expect(a.out.join('\n')).toContain('ROW_CHECKED 22 · AI_RESEARCH_BULK 30'); // 245: req-dwarf-tubes 일괄 → A11
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 26 · AI_RESEARCH_BULK 26'); // 245: req-dwarf-tubes 일괄 → A11 · K1: 재서술 whyShort 4행(saucer·hideout·모래 목욕 2) 일괄 → 행별 확인
     expect(a.code).toBe(0);
     const m = JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')) as SignatureEntry[];
     expect(m).toHaveLength(52);
@@ -308,6 +526,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(m.find((e) => e.id === 'req-dwarf-food')).toMatchObject({ file: 'supply-requirements.json', basis: 'ROW_CHECKED', signedBy: 'kenny', signedAt: NOW });
     expect(reqs.filter((r) => r.reviewStatus === 'VERIFIED' && r.id !== 'req-dwarf-food').every((r) => r.reviewerType === 'EXPERIENCED_KEEPER')).toBe(true);
     expect(reqs.find((r) => r.id === 'req-dwarf-scale')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT' }); // 저울은 패킷 밖
+    for (const id of DWARF_K1_ROWS) expect(m.find((e) => e.id === id)).toMatchObject({ basis: 'ROW_CHECKED' }); // K1: 재서술 whyShort 행은 행별 확인
 
     const unsigned = join(ROOT, 'scripts', 'review-packets', 'hamster-dwarf-core.result.unsigned.json');
     expect(applyCli([...packetArgs, '--result', unsigned, '--seed', seed, '--draft', draft, ...NOW_ARGS]).code).toBe(0);
@@ -316,9 +535,13 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
 
   it('부분 확인: A1 만 ☑ → 케이지 최소 규격 행은 DRAFT(A1~A4 전부 필요), ☑ 상품만 ROW_CHECKED, C 미서명이면 나머지 DRAFT', () => {
     const p = dwarfPacket();
-    const result = { ...dwarfAllCheckedResult(NOW), checked: ['A1', 'A5', 'A6', 'A9', 'cp-dw-003'], bulkSignedAt: null };
+    const result = { ...dwarfAllCheckedResult(NOW), checked: ['A1', 'A5', 'A6', 'A9', 'WS-req-dwarf-wheel', 'cp-dw-003'], bulkSignedAt: null };
     const { seed, manifest } = dwarfSignedWith(result);
     expect(manifest.map((e) => e.id).sort()).toEqual(['cp-dw-003', 'req-dwarf-wheel']);
+    // K1(2026-11-15): 쳇바퀴 A5·A6·A9 가 ☑여도 W(이유 한 줄 대조) WS-req-dwarf-wheel 이 ☐면 쳇바퀴 행은 DRAFT.
+    const noWs = dwarfSignedWith({ ...result, checked: result.checked.filter((x) => x !== 'WS-req-dwarf-wheel') });
+    expect(noWs.manifest.map((e) => e.id)).toEqual(['cp-dw-003']);
+    expect(rowOf(noWs.seed, 'supplyRequirements', 'req-dwarf-wheel').reviewStatus).toBe('DRAFT');
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-cage').reviewStatus).toBe('DRAFT');
     expect(rowOf(seed, 'curatedProducts', 'cp-dw-001')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', specVerifiedBy: null, status: 'REVIEW' });
     expect(rowOf(seed, 'curatedProducts', 'cp-dw-003')).toMatchObject({ reviewStatus: 'VERIFIED', reviewBasis: 'ROW_CHECKED', status: 'ACTIVE' });
@@ -326,9 +549,10 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(run(rawOf(seed), manifest).errors).toEqual([]);
   });
 
-  it('C 만 서명 → 30행 AI_RESEARCH_BULK(BE92: 용품 사료 포함, 245: 터널은 최소 규격 행이라 빠짐), 상품·최소 규격 행은 DRAFT', () => {
+  it('C 만 서명 → 26행 AI_RESEARCH_BULK(BE92: 용품 사료 포함, 245: 터널은 최소 규격 행이라 빠짐, K1: 재서술 whyShort 4행 빠짐), 상품·최소 규격·재서술 whyShort 행은 DRAFT', () => {
     const { seed, manifest } = dwarfSignedWith({ ...dwarfAllCheckedResult(NOW), checked: [], checkedAt: null });
-    expect(manifest).toHaveLength(30);
+    expect(manifest).toHaveLength(26);
+    for (const id of DWARF_K1_ROWS) expect(rowOf(seed, 'supplyRequirements', id).reviewStatus).toBe('DRAFT');
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-tubes').reviewStatus).toBe('DRAFT');
     expect(manifest.every((e) => e.basis === 'AI_RESEARCH_BULK')).toBe(true);
     expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-bedding').reviewStatus).toBe('DRAFT');
@@ -346,11 +570,11 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     };
     /** BE92 이전 패킷(SupplyItem food 가 C 일괄 밖) 사본 — 오케스트레이터 90 Q1 결정으로 실패킷은 food 를 포함한다. */
     const packetWithoutFoodItem = (): DwarfPacket => {
-      const p = dwarfPacket();
+      const p = dwarfPacketK1();
       return { ...p, bulk: { ...p.bulk, rows: p.bulk.rows.filter((r) => !(r.file === 'supply-items.json' && r.id === 'food')) } };
     };
     const signWith = (packet: DwarfPacket, result: Record<string, unknown>): { seed: SeedBundle; manifest: SignatureEntry[] } => {
-      const s = clone(realSeed());
+      const s = unsignedRealSeed();
       const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
       for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
       return { seed: s, manifest: res.manifest };
@@ -367,7 +591,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     });
 
     it('D1 ☑ 인데 행 reviewerType 을 EXPERIENCED_KEEPER 로 내리면 → V03(FOOD 최소 VET_PUBLISHED_SOURCE)', () => {
-      const p = dwarfPacket();
+      const p = dwarfPacketK1();
       const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-dwarf-food' ? { ...r, reviewerType: 'EXPERIENCED_KEEPER' } : r)) };
       const { seed, manifest } = signWith(q, allOk());
       expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['req-dwarf-food']);
@@ -382,7 +606,7 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     });
 
     it('패킷 행 reviewerType 형식: AI_DRAFT·알 수 없는 값·알 수 없는 키 → 입력 거부', () => {
-      const p = dwarfPacket();
+      const p = dwarfPacketK1();
       const bad = (patchRow: Record<string, unknown>) => ({ ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-dwarf-food' ? { ...r, ...patchRow } : r)) });
       for (const q of [bad({ reviewerType: 'AI_DRAFT' }), bad({ reviewerType: 'DOCTOR' }), bad({ basis: 'ROW_CHECKED' })]) {
         expect(() => signWith(q as DwarfPacket, allOk())).toThrow(/패킷 오류/);
@@ -407,8 +631,8 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
       expect(errsOf(validateSeed(previewOf(seed), { now: NOW }), 'X01').map((i) => i.path)).toEqual(['requirements.food']);
     });
 
-    it('D1 ☑ + 실패킷(SupplyItem food C 일괄, 90 Q1 반영) → 미리보기 ACTIVE 사본 errors 0(X01 해소), 매니페스트 포함 실시드 상태도 errors 0', () => {
-      const { seed, manifest } = signWith(dwarfPacket(), allOk());
+    it('D1 ☑ + 실패킷 K1 사본(SupplyItem food C 일괄, 90 Q1 반영) → 미리보기 ACTIVE 사본 errors 0(X01 해소), 매니페스트 포함 실시드 상태도 errors 0', () => {
+      const { seed, manifest } = signWith(dwarfPacketK1(), allOk());
       expect(rowOf(seed, 'supplyItems', 'food')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', reviewBasis: 'AI_RESEARCH_BULK' });
       expect(run(rawOf(seed), manifest).errors).toEqual([]);
       expect(validateSeed(previewOf(seed), { now: NOW }).errors).toEqual([]);
@@ -416,9 +640,9 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
   });
 
   it('--stage review: 서명 대상은 NEEDS_REVIEW·EXPERIENCED_KEEPER(검수자·basis null), 매니페스트 0 → validate 0', () => {
-    const s = clone(realSeed());
+    const s = unsignedRealSeed();
     const files = Object.fromEntries(CONTENT_KEYS.map((k) => [SEED_FILES[k], s[k as keyof SeedBundle] as unknown[]]));
-    const res = applyMjs.applySignatures(files, [], dwarfPacket(), dwarfAllCheckedResult(NOW), { now: NOW, stage: 'review' });
+    const res = applyMjs.applySignatures(files, [], dwarfPacketK1(), dwarfAllCheckedResult(NOW), { now: NOW, stage: 'review' });
     expect(res.manifest).toEqual([]);
     expect(res.summary.needsReview).toBe(52);
     const raw = rawOf(s);
@@ -466,13 +690,51 @@ describe('apply-review-signatures.mjs — 확인표 결과 → 시드·매니페
     expect(bytes(seed)).toEqual(before);
   });
 
-  it('패킷 = 2026-10-24 착지 VERIFIED 50행 + 사료 D1(ROW_CHECKED 대상 22 = 최소 규격 4(245: 터널 A11) + 사료 1 + 상품 17, 일괄 30 = 29 + 용품 사료(90 Q1)), 최소 규격 행 대응 A 항목', () => {
+  it('실패킷 그대로 전 ☑·C → V10 0·errors 0(K1 반영 2026-11-15: 재서술 whyShort 행은 확인표 W 행별 확인 항목 WS-<id>) — K1 사본 = 실패킷', () => {
+    const raw = dwarfPacket();
+    const { seed, manifest } = dwarfSignedWith(dwarfAllCheckedResult(NOW, raw), raw);
+    expect(manifest).toHaveLength(52);
+    expect(run(rawOf(seed), manifest).errors).toEqual([]);
+    for (const id of DWARF_K1_ROWS) expect(manifest.find((e) => e.id === id)).toMatchObject({ basis: 'ROW_CHECKED' });
+    // 실패킷 = 실패킷의 K1 사본(옮길 행 없음). C 일괄에서 옮긴 행은 rowChecked 끝에 실패킷 bulk 순서로.
+    expect(dwarfPacketK1()).toEqual(raw);
+    expect(raw.rowChecked.slice(-DWARF_K1_ROWS.length)).toEqual(DWARF_K1_ROWS.map((id) => ({ file: 'supply-requirements.json', id, items: [k1ItemOf(id)] })));
+  });
+
+  it('음성(정책 유지): 재서술 whyShort 행을 C 일괄로 되돌린 패킷(K1 이전 형태) 전 ☑·C → V10 은 그 행들만, W 항목 ☐ → 그 행 DRAFT', () => {
+    const raw = dwarfPacket();
+    const legacy: DwarfPacket = {
+      ...raw,
+      rowChecked: raw.rowChecked.filter((r) => !DWARF_K1_ROWS.includes(r.id)),
+      bulk: { ...raw.bulk, rows: [...raw.bulk.rows, ...DWARF_K1_ROWS.map((id) => ({ file: 'supply-requirements.json', id }))] },
+    };
+    const bad = dwarfSignedWith(dwarfAllCheckedResult(NOW, legacy), legacy);
+    const res = run(rawOf(bad.seed), bad.manifest);
+    expect(rules(res)).toEqual(['V10']);
+    expect(errsOf(res, 'V10').map((i) => i.id).sort()).toEqual([...DWARF_K1_ROWS].sort());
+    expect(errsOf(res, 'V10').every((i) => i.message.includes('원문 발췌가 아닌 whyShort 행'))).toBe(true);
+    // 실패킷에서 W 항목 하나만 ☐ → 그 행만 DRAFT(C 서명과 무관), 나머지 errors 0.
+    const all = dwarfAllCheckedResult(NOW, raw);
+    const { seed, manifest } = dwarfSignedWith({ ...all, checked: (all.checked as string[]).filter((x) => x !== k1ItemOf('req-dwarf-hideout')) }, raw);
+    expect(rowOf(seed, 'supplyRequirements', 'req-dwarf-hideout')).toMatchObject({ reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', reviewBasis: null });
+    expect(manifest.some((e) => e.id === 'req-dwarf-hideout')).toBe(false);
+    expect(run(rawOf(seed), manifest).errors).toEqual([]);
+  });
+
+  it('패킷 = 2026-10-24 착지 VERIFIED 50행 + 사료 D1(ROW_CHECKED 대상 26 = 최소 규격 4(245: 터널 A11) + 사료 1 + 상품 17 + K1 재서술 whyShort 4, 일괄 26 = 29 + 용품 사료(90 Q1) − K1 4), 최소 규격 행 대응 A 항목', () => {
     const p = dwarfPacket();
-    expect(p.rowChecked).toHaveLength(22);
-    expect(p.bulk.rows).toHaveLength(30);
+    expect(p.rowChecked).toHaveLength(26);
+    expect(p.bulk.rows).toHaveLength(26);
     expect(p.bulk.rows.some((r) => r.file === 'supply-items.json' && r.id === 'food')).toBe(true);
     const items = Object.fromEntries(p.rowChecked.filter((r) => r.file === 'supply-requirements.json').map((r) => [r.id, r.items]));
-    expect(items).toEqual({ 'req-dwarf-cage': ['A1', 'A2', 'A3', 'A4', 'A10'], 'req-dwarf-wheel': ['A5', 'A6', 'A9'], 'req-dwarf-bedding': ['A7', 'A8'], 'req-dwarf-food': ['D1'], 'req-dwarf-tubes': ['A11'] });
+    expect(items).toEqual({
+      'req-dwarf-cage': ['A1', 'A2', 'A3', 'A4', 'A10'],
+      'req-dwarf-wheel': ['A5', 'A6', 'A9', 'WS-req-dwarf-wheel'],
+      'req-dwarf-bedding': ['A7', 'A8', 'WS-req-dwarf-bedding'],
+      'req-dwarf-food': ['D1'],
+      'req-dwarf-tubes': ['A11'],
+      ...Object.fromEntries(DWARF_K1_ROWS.map((id) => [id, [k1ItemOf(id)]])),
+    });
     // 245(V10 과 같은 규칙): 최소 규격이 있는 드워프 요구사항은 전부 ROW_CHECKED 대상(일괄 승인 불가).
     const withMin = realSeed().supplyRequirements.filter((r) => r.careProfileId === 'cp-hamster-dwarf' && (r.minSpec?.rules?.length ?? 0) > 0).map((r) => r.id);
     expect(withMin.filter((id) => !(id in items))).toEqual([]);
@@ -500,7 +762,7 @@ describe('골든 패킷 — 확인표 A·C·D, 패킷 밖 행(저울·구성안�
   const goldenPacket = (): Packet => JSON.parse(readFileSync(GOLDEN_PACKET_PATH, 'utf8')) as Packet;
   const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '골든햄스터-핵심행-확인표.md'), 'utf8');
   const signGolden = (result: Record<string, unknown>) => {
-    const s = clone(realSeed());
+    const s = unsignedRealSeed();
     const res = applyMjs.applySignatures(filesOf(s), [], goldenPacket(), result, { now: NOW });
     for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
     return { seed: s, manifest: res.manifest };
@@ -515,7 +777,7 @@ describe('골든 패킷 — 확인표 A·C·D, 패킷 밖 행(저울·구성안�
     expect(p.reviewerType).toBe('EXPERIENCED_KEEPER');
     expect(Object.fromEntries(p.rowChecked.map((r) => [r.id, r.items]))).toEqual({
       'req-syrian-cage': ['A6', 'A7', 'A8', 'A9', 'A10', 'A11'],
-      'req-syrian-wheel': ['A1', 'A2', 'A3'],
+      'req-syrian-wheel': ['A1', 'A2', 'A3', 'WS-req-syrian-wheel'], // K1(2026-11-15): 재서술 whyShort — 확인표 W
       'req-syrian-bedding': ['A4', 'A5'],
       'req-syrian-food': ['D1'],
     });
@@ -530,11 +792,11 @@ describe('골든 패킷 — 확인표 A·C·D, 패킷 밖 행(저울·구성안�
     expect(p.rowChecked.flatMap((r) => r.items).filter((x) => x.startsWith('A')).sort()).toEqual(docA);
   });
 
-  it('미서명 결과 파일 → 대상 16행 DRAFT·매니페스트 0, 디스크 시드와 사실·검수 표기 동일', () => {
+  it('미서명 결과 파일 → 대상 16행 DRAFT·매니페스트 0, 서명 전 기준 시드와 사실·검수 표기 동일(사실은 디스크와 동일)', () => {
     const unsigned = JSON.parse(readFileSync(join(ROOT, 'scripts', 'review-packets', 'hamster-golden-core.result.unsigned.json'), 'utf8')) as Record<string, unknown>;
     const { seed, manifest } = signGolden(unsigned);
     expect(manifest).toEqual([]);
-    expect(seed).toEqual(realSeed());
+    expect(seed).toEqual(unsignedRealSeed()); // 서명 전 기준(2026-11-16 실서명 이전 디스크와 바이트 동일 — fixtures 「unsignedRealSeed = HEAD 1b1fe2d 시드」)
   });
 
   it('전 ☑·C·D1(가짜 결과, 메모리) → 16행 VERIFIED(ROW_CHECKED 4 · AI_RESEARCH_BULK 12), 사료만 VET_PUBLISHED_SOURCE, validate errors 0(V03·V04·V08 포함) — 저울·구성안·Taxon 은 DRAFT', () => {
@@ -567,20 +829,22 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
   const GP_UNSIGNED_PATH = join(PACKETS_DIR, 'guinea-pig-core.result.unsigned.json');
   const gpPacket = (): Packet => JSON.parse(readFileSync(GP_PACKET_PATH, 'utf8')) as Packet;
   const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '기니피그-핵심행-확인표.md'), 'utf8');
-  const signGp = (result: Record<string, unknown>, packet: Packet = gpPacket()) => {
-    const s = clone(realSeed());
+  /** K1 사본(재서술 whyShort 행은 행별 확인) — 가짜 전 ☑ 서명용. 실패킷 구성 시험은 gpPacket(). */
+  const gpPacketK1 = (): Packet => k1Packet(gpPacket());
+  const signGp = (result: Record<string, unknown>, packet: Packet = gpPacketK1()) => {
+    const s = unsignedRealSeed();
     const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
     for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
     return { seed: s, manifest: res.manifest };
   };
   const allChecked = (): Record<string, unknown> => {
-    const p = gpPacket();
+    const p = gpPacketK1();
     return { format: applyMjs.RESULT_FORMAT, packet: p.packet, signedBy: 'kenny', checkedAt: NOW, checked: [...new Set(p.rowChecked.flatMap((r) => r.items))], bulkSignedAt: NOW };
   };
   const bytes = (dir: string): Record<string, string> =>
     Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
 
-  it('구성: 최소 규격 3행(케이지 A1~A7·베딩 A8~A10·갉기 A11) + 건초 D1·펠릿 D2(VET_PUBLISHED_SOURCE) + C 일괄 17행, 패킷 밖 행 0', () => {
+  it('구성: 최소 규격 3행(케이지 A1~A7·베딩 A8~A10·갉기 A11) + 건초 D1·펠릿 D2(VET_PUBLISHED_SOURCE) + K1 놀이 울타리 W + C 일괄 16행, 패킷 밖 행 0', () => {
     const p = gpPacket();
     expect(p.reviewerType).toBe('EXPERIENCED_KEEPER');
     expect(Object.fromEntries(p.rowChecked.map((r) => [r.id, r.items]))).toEqual({
@@ -589,12 +853,13 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
       'req-guineapig-chew': ['A11'],
       'req-guineapig-hay': ['D1'],
       'req-guineapig-food': ['D2'],
+      'req-guineapig-playpen': [k1ItemOf('req-guineapig-playpen')], // K1(2026-11-15): 재서술 whyShort, 최소 규격 없음 — C 일괄 → 확인표 W
     });
     expect((p.rowChecked as Array<{ id: string; reviewerType?: string }>).filter((r) => r.reviewerType !== undefined).map((r) => [r.id, r.reviewerType])).toEqual([
       ['req-guineapig-hay', 'VET_PUBLISHED_SOURCE'],
       ['req-guineapig-food', 'VET_PUBLISHED_SOURCE'],
     ]);
-    expect(p.bulk.rows).toHaveLength(17);
+    expect(p.bulk.rows).toHaveLength(16);
     const ids = [...p.rowChecked, ...p.bulk.rows].map((r) => `${r.file}#${r.id}`);
     for (const out of ['supply-requirements.json#req-guineapig-scale', 'taxa.json#cavia-porcellus']) expect(ids).not.toContain(out);
     // 새 용품 5종만 — 기존 용품(드워프 C 일괄 소유)은 넣지 않는다.
@@ -628,17 +893,17 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
     expect([...owner.values()].filter((f) => f === 'guinea-pig-core.json')).toHaveLength(22);
   });
 
-  it('미서명 결과 파일 → 대상 22행 DRAFT·매니페스트 0, 디스크 시드와 사실·검수 표기 동일', () => {
+  it('미서명 결과 파일 → 대상 22행 DRAFT·매니페스트 0, 서명 전 기준 시드와 사실·검수 표기 동일(사실은 디스크와 동일)', () => {
     const unsigned = JSON.parse(readFileSync(GP_UNSIGNED_PATH, 'utf8')) as Record<string, unknown>;
     const { seed, manifest } = signGp(unsigned);
     expect(manifest).toEqual([]);
-    expect(seed).toEqual(realSeed());
+    expect(seed).toEqual(unsignedRealSeed()); // 서명 전 기준(2026-11-16 실서명 이전 디스크와 바이트 동일 — fixtures 「unsignedRealSeed = HEAD 1b1fe2d 시드」)
   });
 
-  it('전 ☑·C·D1·D2(가짜 결과, 메모리) → 22행 VERIFIED(ROW_CHECKED 5 · AI_RESEARCH_BULK 17), 건초·펠릿만 VET_PUBLISHED_SOURCE, validate errors 0 — Taxon·저울·기존 용품 DRAFT', () => {
+  it('전 ☑·C·D1·D2(가짜 결과, 메모리, K1 사본) → 22행 VERIFIED(ROW_CHECKED 6 · AI_RESEARCH_BULK 16 — K1: 재서술 whyShort 놀이 울타리는 행별 확인), 건초·펠릿만 VET_PUBLISHED_SOURCE, validate errors 0 — Taxon·저울·기존 용품 DRAFT', () => {
     const { seed, manifest } = signGp(allChecked());
     expect(manifest).toHaveLength(22);
-    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(['req-guineapig-bedding', 'req-guineapig-cage', 'req-guineapig-chew', 'req-guineapig-food', 'req-guineapig-hay']);
+    expect(manifest.filter((e) => e.basis === 'ROW_CHECKED').map((e) => e.id).sort()).toEqual(['req-guineapig-bedding', 'req-guineapig-cage', 'req-guineapig-chew', 'req-guineapig-food', 'req-guineapig-hay', 'req-guineapig-playpen']);
     for (const id of ['req-guineapig-hay', 'req-guineapig-food']) {
       const r = rowOf(seed, 'supplyRequirements', id);
       expect(r).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'VET_PUBLISHED_SOURCE', reviewBasis: 'ROW_CHECKED', contentKind: 'FOOD' });
@@ -659,24 +924,42 @@ describe('기니피그 패킷 — 확인표 A·C·D(건초·펠릿 VET_PUBLISHED
     for (const id of ['req-guineapig-chew', 'req-guineapig-hay']) expect([id, rowOf(seed, 'supplyRequirements', id).reviewStatus]).toEqual([id, 'VERIFIED']);
   });
 
+  it('실패킷 그대로 전 ☑·C → errors 0(K1 반영 2026-11-15, 놀이 울타리 ROW_CHECKED) — K1 사본 = 실패킷 / 음성: 놀이 울타리를 C 로 되돌린 패킷 → V10', () => {
+    const raw = gpPacket();
+    const all = { ...allChecked(), checked: [...new Set(raw.rowChecked.flatMap((r) => r.items))] };
+    const ok = signGp(all, raw);
+    expect(run(rawOf(ok.seed), ok.manifest).errors).toEqual([]);
+    expect(ok.manifest.find((e) => e.id === 'req-guineapig-playpen')).toMatchObject({ basis: 'ROW_CHECKED' });
+    expect(gpPacketK1()).toEqual(raw);
+    const legacy: Packet = {
+      ...raw,
+      rowChecked: raw.rowChecked.filter((r) => !GP_K1_ROWS.includes(r.id)),
+      bulk: { ...raw.bulk, rows: [...raw.bulk.rows, ...GP_K1_ROWS.map((id) => ({ file: 'supply-requirements.json', id }))] },
+    };
+    const { seed, manifest } = signGp({ ...all, checked: [...new Set(legacy.rowChecked.flatMap((r) => r.items))] }, legacy);
+    const res = run(rawOf(seed), manifest);
+    expect(rules(res)).toEqual(['V10']);
+    expect(errsOf(res, 'V10').map((i) => i.id)).toEqual(GP_K1_ROWS);
+  });
+
   it('D1 ☑ 인데 건초 행 reviewerType 을 EXPERIENCED_KEEPER 로 내리면 → V03(FOOD 최소 VET_PUBLISHED_SOURCE)', () => {
-    const p = gpPacket();
+    const p = gpPacketK1();
     const q = { ...p, rowChecked: p.rowChecked.map((r) => (r.id === 'req-guineapig-hay' ? { ...r, reviewerType: 'EXPERIENCED_KEEPER' } : r)) };
     const { seed, manifest } = signGp(allChecked(), q);
     expect(errsOf(run(rawOf(seed), manifest), 'V03').map((i) => i.id)).toEqual(['req-guineapig-hay']);
   });
 
   it('CLI round-trip(임시 사본): 가짜 전 ☑ → seed:validate 0 → 미서명 결과로 되돌리면 원래 바이트', async () => {
-    const seed = tempCopy(SEED_DIR);
-    const draft = tempCopy(DRAFT_DIR);
+    const seed = unsignedCopy(SEED_DIR);
+    const draft = unsignedCopy(DRAFT_DIR);
     const before = bytes(seed);
     const beforeDraft = bytes(draft);
     const resDir = mkdtempSync(join(tmpdir(), 'withsmall-sigres-'));
     temps.push(resDir);
     const all = writeJson(resDir, 'gp-all.json', allChecked());
-    const args = ['--packet', GP_PACKET_PATH, '--seed', seed, '--draft', draft, '--now', NOW];
+    const args = ['--packet', packetFile(gpPacketK1(), 'guinea-pig-core.k1.json'), '--seed', seed, '--draft', draft, '--now', NOW];
     const a = applyCli([...args, '--result', all]);
-    expect(a.out.join('\n')).toContain('ROW_CHECKED 5 · AI_RESEARCH_BULK 17');
+    expect(a.out.join('\n')).toContain('ROW_CHECKED 6 · AI_RESEARCH_BULK 16');
     expect(a.code).toBe(0);
     expect(JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8'))).toHaveLength(22);
     const v = await validateCli(seed);
@@ -701,7 +984,7 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
   const gbPacket = (): Packet => JSON.parse(readFileSync(GB_PACKET_PATH, 'utf8')) as Packet;
   const doc = (): string => readFileSync(join(ROOT, 'docs', 'planning-artifacts', '저빌-핵심행-확인표.md'), 'utf8');
   const signGb = (result: Record<string, unknown>, packet: Packet = gbPacket()) => {
-    const s = clone(realSeed());
+    const s = unsignedRealSeed();
     const res = applyMjs.applySignatures(filesOf(s), [], packet, result, { now: NOW });
     for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = res.files[SEED_FILES[k]];
     return { seed: s, manifest: res.manifest };
@@ -723,9 +1006,10 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
     expect(p.reviewerType).toBe('EXPERIENCED_KEEPER');
     expect(Object.fromEntries(p.rowChecked.map((r) => [`${r.file}#${r.id}`, r.items]))).toEqual({
       'taxa.json#meriones-unguiculatus': ['A1', 'A2', 'A3'],
-      'supply-requirements.json#req-gerbil-cage': ['A4', 'A5', 'A6', 'A7', 'A8', 'A9'],
-      'supply-requirements.json#req-gerbil-bedding': ['A10', 'A11', 'A12'],
-      'supply-requirements.json#req-gerbil-hideout': ['A13', 'A14'],
+      // K1(2026-11-15): 재서술 whyShort 3행은 A 항목 + 확인표 W 항목 WS-<id>.
+      'supply-requirements.json#req-gerbil-cage': ['A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'WS-req-gerbil-cage'],
+      'supply-requirements.json#req-gerbil-bedding': ['A10', 'A11', 'A12', 'WS-req-gerbil-bedding'],
+      'supply-requirements.json#req-gerbil-hideout': ['A13', 'A14', 'WS-req-gerbil-hideout'],
       'supply-requirements.json#req-gerbil-wheel': ['A15', 'A16'],
       'supply-requirements.json#req-gerbil-tubes': ['A17'],
     });
@@ -746,12 +1030,12 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
     expect(withMin.filter((id) => !rowIds.includes(id))).toEqual(['req-gerbil-food']);
     // 확인표 A 항목 집합 = 패킷 항목 집합, B 상품 없음, D 는 패킷 밖 안내(표 행 0), 전부 ☐
     const docA = [...new Set([...doc().matchAll(/^\| (A\d+) \|/gm)].map((x) => x[1]))].sort();
-    expect(p.rowChecked.flatMap((r) => r.items).sort()).toEqual(docA);
+    expect(p.rowChecked.flatMap((r) => r.items).filter((x) => x.startsWith('A')).sort()).toEqual(docA);
     expect([...doc().matchAll(/^\| (D\d-[a-z]) /gm)]).toHaveLength(0);
     expect(doc()).toMatch(/## B\. 상품\r?\n\r?\n- 없음\./);
     expect(doc()).toMatch(/## D\. 사료\(수의 출처\) — 이번 패킷 밖/);
     expect(doc()).not.toContain('| ☑ |');
-    expect(doc().split('| ☐ |').length - 1).toBe(17); // A1~A17 확인 칸 전부 ☐
+    expect(doc().split('| ☐ |').length - 1).toBe(20); // A1~A17 + W 3(WS-req-gerbil-cage·bedding·hideout) 확인 칸 전부 ☐
     // 법 안내 문장은 시드 그대로 확인표 A1 에 있다.
     const note = (realSeed().taxa.find((t) => t.id === 'meriones-unguiculatus')?.legal as { note?: string } | undefined)?.note;
     expect(typeof note).toBe('string');
@@ -771,11 +1055,11 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
     expect([...owner.values()].filter((f) => f === 'gerbil-mongolian-core.json')).toHaveLength(17);
   });
 
-  it('미서명 결과 파일 → 대상 17행 DRAFT·매니페스트 0, 디스크 시드와 사실·검수 표기 동일', () => {
+  it('미서명 결과 파일 → 대상 17행 DRAFT·매니페스트 0, 서명 전 기준 시드와 사실·검수 표기 동일(사실은 디스크와 동일)', () => {
     const unsigned = JSON.parse(readFileSync(GB_UNSIGNED_PATH, 'utf8')) as Record<string, unknown>;
     const { seed, manifest } = signGb(unsigned);
     expect(manifest).toEqual([]);
-    expect(seed).toEqual(realSeed());
+    expect(seed).toEqual(unsignedRealSeed()); // 서명 전 기준(2026-11-16 실서명 이전 디스크와 바이트 동일 — fixtures 「unsignedRealSeed = HEAD 1b1fe2d 시드」)
   });
 
   it('전 ☑·C(가짜 결과, 메모리) → 17행 VERIFIED(ROW_CHECKED 6 · AI_RESEARCH_BULK 11), Taxon 만 OFFICIAL_SOURCE, validate errors 0 — 사료·기존 용품 DRAFT, 타입 PLANNED', () => {
@@ -815,8 +1099,8 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
   });
 
   it('CLI round-trip(임시 사본): 가짜 전 ☑ → seed:validate 0 → 미서명 결과로 되돌리면 원래 바이트', async () => {
-    const seed = tempCopy(SEED_DIR);
-    const draft = tempCopy(DRAFT_DIR);
+    const seed = unsignedCopy(SEED_DIR);
+    const draft = unsignedCopy(DRAFT_DIR);
     const before = bytes(seed);
     const beforeDraft = bytes(draft);
     const resDir = mkdtempSync(join(tmpdir(), 'withsmall-sigres-'));
@@ -837,4 +1121,46 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
     expect(bytes(seed)).toEqual(before);
     expect(bytes(draft)).toEqual(beforeDraft);
   });
+});
+
+// K1 하위 결정(2026-11-15) 반영: 실패킷 4종 ↔ 확인표 W 절 짝. 재서술 whyShort 행(원문 발췌 아님)은 전부 행별 확인 항목 WS-<행 id>,
+//   C 일괄에는 requiredBasis 행 0. 확인표 W 행의 원문·제안 한 줄은 시드 why·whyShort 그대로(창작 0).
+describe('K1 실패킷 ↔ 확인표 W 절 — 재서술 whyShort 행별 확인 항목', () => {
+  const PACKETS_DIR = join(ROOT, 'scripts', 'review-packets');
+  const keyOf = new Map<string, keyof RawSeed>(CONTENT_KEYS.map((k) => [SEED_FILES[k], k as keyof RawSeed]));
+  const packetFiles = readdirSync(PACKETS_DIR).filter((x) => x.endsWith('.json') && !x.includes('.result.')).sort();
+  type DocPacket = DwarfPacket & { doc: string };
+  const load = (f: string): DocPacket => JSON.parse(readFileSync(join(PACKETS_DIR, f), 'utf8')) as DocPacket;
+
+  it('패킷 4종, 재서술 whyShort 요구사항 행은 전부 어느 패킷의 W 항목에 있다(패킷 밖 0)', () => {
+    expect(packetFiles).toEqual(['gerbil-mongolian-core.json', 'guinea-pig-core.json', 'hamster-dwarf-core.json', 'hamster-golden-core.json']);
+    const rephrased = realSeed().supplyRequirements.filter((r) => whyShortIsRephrased(r as unknown as Row)).map((r) => r.id).sort();
+    expect(rephrased).toHaveLength(11);
+    const ws = packetFiles.flatMap((f) => load(f).rowChecked.flatMap((r) => r.items.filter((x) => x.startsWith('WS-'))));
+    expect(ws.sort()).toEqual(rephrased.map(k1ItemOf).sort());
+  });
+
+  for (const f of packetFiles) {
+    it(`${f}: C 일괄에 행별 확인 필수 행 0 · WS 항목 = 재서술 whyShort 행 · K1 사본 = 실패킷 · 확인표 W 행 = 시드 문장 그대로`, () => {
+      const seed = realSeed();
+      const p = load(f);
+      const rowFor = (r: { file: string; id: string }): Row => rowOf(seed, keyOf.get(r.file) as keyof RawSeed, r.id);
+      expect(p.bulk.rows.filter((r) => requiredBasis(keyOf.get(r.file) as never, rowFor(r)) !== null).map((r) => r.id)).toEqual([]);
+      const ws = p.rowChecked.flatMap((r) => r.items.filter((x) => x.startsWith('WS-')).map((x) => ({ id: r.id, item: x })));
+      expect(ws.map((w) => w.item)).toEqual(ws.map((w) => k1ItemOf(w.id))); // WS-<자기 행 id>
+      const rephrased = p.rowChecked.filter((r) => r.file === 'supply-requirements.json' && whyShortIsRephrased(rowFor(r))).map((r) => r.id);
+      expect(ws.map((w) => w.id).sort()).toEqual([...rephrased].sort());
+      expect(k1Packet(p, seed)).toEqual(p);
+      const doc = readFileSync(join(ROOT, p.doc), 'utf8').replace(/\r\n/g, '\n');
+      const docWs = [...doc.matchAll(/^\| (WS-[a-z0-9-]+) \|(.*)$/gm)];
+      expect(docWs.map((m) => m[1]).sort()).toEqual(ws.map((w) => w.item).sort());
+      for (const m of docWs) {
+        const r = rowOf(seed, 'supplyRequirements', m[1].slice('WS-'.length));
+        expect(m[2]).toContain(`"${String(r.why)}"`);
+        expect(m[2]).toContain(`"${String(r.whyShort)}"`);
+        expect(m[2]).toContain('| ☐ |');
+      }
+      if (ws.length > 0) expect(doc).toMatch(/^## W\. 이유 한 줄\(whyShort\) 행별 확인$/m);
+    });
+  }
 });

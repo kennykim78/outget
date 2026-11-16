@@ -125,12 +125,12 @@ describe('(a) 실시드(VERIFIED 0) → /, /supplies, /vet + 404', () => {
     for (const p of ['/supplies', '/vet', '/404']) expect(page(p)).toContain('<meta name="robots" content="noindex">');
   });
 
-  it('홈 A: 후기 0 → ② 섹션 없음, 고정 섹션 제목 포함, 마커 0, title 1개', () => {
+  it('홈 A: 후기·소개 섹션 없음, 히어로·하단 CTA 고정 문구 포함, 마커 0, title 1개', () => {
     const html = b.pages[0].html;
     expect(html).not.toContain('data-ws-section="reviews"');
-    expect(html).toContain('작은 친구를 처음부터 제대로 준비해요');
-    // 51 레인 A: 소개 제목은 client SplitTitle 마크업(" — " 를 visually-hidden span 으로 분리).
-    expect(html).toContain('<span class="ws-split-title">WithSmall 소개</span><span class="ws-visually-hidden"> — </span><span class="ws-split-sub">작은 친구의 첫 준비를 이렇게 도와요</span>');
+    expect(html).not.toContain('data-ws-section="intro"');
+    expect(html).toContain(COPY.homeA.heroTitle);
+    expect(html).toContain(COPY.homeA.startTitle);
     expect(html).not.toMatch(/ws:head|ws:body/);
     expect(html.match(/<title>/g)).toHaveLength(1);
     expect(html).toContain('<div id="root" data-ws-prerendered="1">');
@@ -213,24 +213,27 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(sm).toContain(`${ORIGIN}/vet/${encodeURIComponent('서울-마포구')}</loc><lastmod>2026-09-28</lastmod>`);
   });
 
-  it('타입 홈 B: 컨텍스트 + 5섹션 순서, ① 진행 숫자 없음(D18 — 칩 규격 요약 G-1 만 예외), ④ 병원 레일(D16) + /vet 링크', () => {
+  it('타입 홈 B(R4-2b): 컨텍스트 → now → bundles → spec → products → vet → save 순서(PRD US-003), ① 진행 숫자 없음(D18), 규격 숫자 = 엔진 minSpecFigure, 병원 레일 + /vet 링크', () => {
     const html = page('/hamster/golden');
-    const order = ['now', 'bundles', 'products', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
+    const order = ['now', 'bundles', 'spec', 'products', 'vet', 'save'].map((s) => html.indexOf(`data-ws-section="${s}"`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    // 51 레인 A: client RailSection 마크업(h2.ws-t-section + p.ws-rail-sub), NeedChip 규격 span.ws-need-spec.
-    expect(html).toContain('<h2 id="ws-sec-now-title" class="ws-t-section">지금 필요한 것</h2><p class="ws-rail-sub ws-t-body">필수 준비를 먼저 확인해요</p>');
-    // 여는 태그 속성(data-ws-answered="0")은 가시 텍스트가 아니므로 태그 끝 이후부터.
+    expect(html).toContain('<h2 id="ws-sec-now-title" class="ws-t-display ws-home-sec-title">지금 필요한 것</h2>');
+    expect(html).toContain('<p class="ws-t-body ws-muted ws-now-count">필수 준비를 먼저 확인해요</p>');
+    // 여는 태그 속성(data-ws-answered="0")은 가시 텍스트가 아니므로 태그 끝 이후부터. ① 엔 진행·개수 숫자 0(이유 문장도 시드 why 첫 문장 — 이 시드엔 숫자 없음).
     const now = html.slice(html.indexOf('>', order[0]) + 1, order[1]);
-    // 진행·개수 숫자 0. 숫자는 칩 규격 요약(엔진 chipSpecText, "28cm 이상")에만.
-    expect(visibleText(now.replace(/<span class="ws-t-meta ws-need-spec">[^<]*<\/span>/g, ''))).not.toMatch(/\d/);
-    expect(now).toContain('<span class="ws-t-meta ws-need-spec">100×50×50cm 이상</span>');
-    expect(now).not.toContain('↑');
-    const vet = html.slice(order[3], order[4]);
+    expect(visibleText(now)).not.toMatch(/\d/);
+    const spec = html.slice(order[2], order[3]);
+    expect(spec).toContain('<span class="ws-spec-sec-value">100×50×50</span>');
+    expect(spec).not.toContain('↑');
+    expect(html.slice(order[1], order[2])).toContain('data-ws-id="setupBundles#');
+    expect(html.slice(order[3], order[4])).toContain('data-ws-id="curatedProducts#');
+    const vet = html.slice(order[4], order[5]);
     expect(vet).toContain('href="/vet"');
+    expect(vet).toContain('골든햄스터를 진료하는 병원');
     expect(vet).toContain('data-ws-id="vetClinics#');
     expect(html).toContain('data-ws-type="hamster-golden"');
-    expect(html).toContain('골든햄스터 준비, 이어서 할까요?');
+    expect(html).toContain('준비한 내용을 이어서 볼까요?');
   });
 
   it('L4 레이어: 부모 본문 + US-007 순서, 규격 문장, 검색 링크 rel noopener', () => {
@@ -247,12 +250,49 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(aside).toContain('https://www.coupang.com/np/search?q=');
     // 대안 saucer 는 DRAFT → 렌더·ws-data 에 없음
     expect(html).not.toContain('saucer');
+    // R4-4(R4 시안 l4_supply, client SupplyLayer 와 같은 순서): 「{동물} · {용품}」 → 사진 자리 → 왜 … → 상품 → 검수 내용 → [규격 확인]·찾기(상인 링크).
+    const seq = [
+      '<p class="ws-supply-eyebrow">골든햄스터 · 쳇바퀴</p>',
+      '<span class="ws-photo ws-supply-photo" aria-hidden="true"></span>',
+      'data-ws-part="why"',
+      'data-ws-part="products"',
+      `<section data-ws-part="verified"><h3>${COPY.supplyLayer.reviewTitle}</h3>`,
+      '<div class="ws-actions">',
+      '<div class="ws-search">',
+    ].map((s) => aside.indexOf(s));
+    expect(seq.every((i) => i > 0)).toBe(true);
+    expect([...seq].sort((x, y) => x - y)).toEqual(seq);
+    expect(aside).not.toContain('<img'); // 사진 자리는 빈 블록(photos.json SLOT, 생성 이미지 0)
+  });
+
+  it('R4-9 L7 정적 본문 순서: 제목 → 닫기 → 「{동물} · {용품}」 → 이미지 → ○ 기준 충족 → 규격 → 마지막 검수 → 추천 이유 → 기준 링크 → 찾기', () => {
+    const html = page('/hamster/golden/products/cp-001');
+    const aside = html.slice(html.indexOf('<aside'), html.indexOf('</aside>'));
+    const seq = [
+      '<h2 id="ws-layer-title">',
+      'class="ws-layer-close"',
+      '<p class="ws-supply-eyebrow" data-ws-id="supplyItems#',
+      'class="ws-badge"',
+      `<p class="ws-verified">${COPY.supplyLayer.lastVerified}`,
+      `<h3>${COPY.product.reasonsTitle}</h3>`,
+      '<div class="ws-search">',
+    ].map((s) => aside.indexOf(s));
+    expect(seq.every((i) => i > 0)).toBe(true);
+    expect([...seq].sort((x, y) => x - y)).toEqual(seq);
   });
 
   it('L5 정적 폼(판정 없음), L7 상품 상세(가격·판매처 없음)', () => {
     const l5 = page('/hamster/golden/check/cage');
     expect(l5).toContain('data-ws-layer="L5"');
     expect(l5).toContain('<fieldset disabled>');
+    // 286 U5a 입력 상태: 제목행 「크기 확인」 · 「{동물} · {용품}」 · 질문 문장 · 기준 보조줄(요구사항 chipSpecText — 하드코딩 수치 없음) · [확인하기]
+    const l5aside = l5.slice(l5.indexOf('<aside'), l5.indexOf('</aside>'));
+    expect(l5aside).toContain('<h2 id="ws-layer-title">크기 확인</h2>');
+    expect(l5aside).toContain('aria-labelledby="ws-layer-title" aria-describedby="ws-layer-desc"'); // 이름은 「크기 확인」, 「{동물} · {용품}」 줄은 설명
+    expect(l5aside).toContain('<p id="ws-layer-desc" class="ws-meta">'); 
+    expect(l5aside).toMatch(/<p id="ws-layer-desc" class="ws-meta">[^<·]+ · 케이지<\/p>\n<h3 class="ws-spec-ask">케이지 규격을 알려 주세요<\/h3>\n<p class="ws-meta">[^<]+ 기준 · 최소 [0-9×]+cm 이상/);
+    expect(l5aside).toContain('<button type="submit">확인하기</button>');
+    expect(l5aside).not.toMatch(/검수 대기|DRAFT/);
     const l7 = page('/hamster/golden/products/cp-001');
     expect(l7).toContain('data-ws-layer="L7"');
     expect(l7).toContain('픽스처 쳇바퀴 A');
@@ -265,8 +305,8 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(l7aside).toContain('>이 조건으로 쿠팡에서 찾기<span class="ws-visually-hidden"> (새 창)</span></a>');
     expect(l7aside).toContain('>이 조건으로 네이버에서 찾기<span class="ws-visually-hidden"> (새 창)</span></a>');
     expect(l7aside).toContain('<h3>이 조건으로 찾기</h3>');
-    // 구성안 참고 범위 옆 안내(K1)
-    expect(page('/hamster/golden')).toContain('참고 범위예요. 실제 가격은 판매처마다 달라요');
+    // 구성안 참고 범위 옆 안내(K1) — R4-2 이후 구성안 카드는 /setup 에만
+    expect(page('/hamster/golden/setup')).toContain('참고 범위예요. 실제 가격은 판매처마다 달라요');
   });
 
   it('PublicProduct.verdict 는 orderExposableProducts 결과(OK)', () => {
@@ -286,8 +326,8 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
     expect(all).not.toContain('운영자가 실제 상품명'); // curated note
   });
 
-  it('후기 1개 → 홈 ② 섹션, /credits 와 모든 페이지 푸터 링크', () => {
-    expect(page('/')).toContain('data-ws-section="reviews"');
+  it('후기 1개여도 홈 후기 섹션 없음(D6, 286 U3a), /credits 와 모든 페이지 푸터 링크', () => {
+    expect(page('/')).not.toContain('data-ws-section="reviews"');
     for (const p of b.pages) expect(p.html).toContain('href="/credits"');
     expect(page('/credits')).toContain('Fixture Author');
   });
@@ -429,9 +469,9 @@ describe('R4 A2 프리렌더 보강', () => {
     }
   });
 
-  it('(d) 상품 카드·L7: ✓ 글리프 span + "기준 충족", 이미지 없으면 item.glyph + "이미지 준비 중" 타일', () => {
+  it('(d) 상품 카드·L7: ○ 글리프 span(R4-1 판정 4상태) + "기준 충족", 이미지 없으면 item.glyph + "이미지 준비 중" 타일', () => {
     const b = buildM(promoted());
-    const badge = '<span class="ws-badge"><span class="ws-glyph" data-ws-glyph="ready" aria-hidden="true">✓</span>' + COPY.product.badge + '</span>';
+    const badge = '<span class="ws-badge"><span class="ws-glyph" data-ws-glyph="ok" aria-hidden="true">○</span>' + COPY.product.badge + '</span>';
     const tile = '<span class="ws-tile" aria-hidden="true"><span class="ws-tile-glyph">🎡</span><span class="ws-tile-label">' + COPY.product.imagePending + '</span></span>';
     for (const p of ['/hamster/golden', '/hamster/golden/supplies/wheel', '/hamster/golden/products/cp-001']) {
       const html = pageOf(b, p);
@@ -442,7 +482,9 @@ describe('R4 A2 프리렌더 보강', () => {
         expect(c).not.toMatch(/₩|원\b|구매|가격/);
       }
     }
+    // R4-2b: 홈 B 상품 레일 복원 — 타입 홈 1(레일), L4 딥링크 2(부모 홈 레일 + L4 후보 영역).
     expect(pageOf(b, '/hamster/golden').match(/<li class="ws-product"/g)).toHaveLength(1);
+    expect(pageOf(b, '/hamster/golden/supplies/wheel').match(/<li class="ws-product"/g)).toHaveLength(2);
     const l7 = pageOf(b, '/hamster/golden/products/cp-001');
     expect(l7).toContain(badge);
     expect(l7).toContain(tile);
@@ -450,13 +492,13 @@ describe('R4 A2 프리렌더 보강', () => {
 
   it('(d) enum 라벨: 규격 한 줄은 라벨 없는 enum 생략, L4 조건 행 숨김, L5 는 라벨 불완전 enum 필드 미렌더 + 선택 표기', () => {
     const labeled = buildM(promoted());
-    expect(pageOf(labeled, '/hamster/golden')).toContain('<span class="ws-spec">지름 30cm · 바닥면 픽스처 라벨 1 · 설치 픽스처 라벨 1</span>');
+    expect(pageOf(labeled, '/hamster/golden/supplies/wheel')).toContain('<span class="ws-spec">지름 30cm · 바닥면 픽스처 라벨 1 · 설치 픽스처 라벨 1</span>');
     expect(pageOf(labeled, '/hamster/golden/supplies/wheel')).toContain('바닥면 픽스처 라벨 1');
     const s = promoted();
     const wheel = s.supplyItems.find((x) => x.id === 'wheel') as SeedBundle['supplyItems'][number];
     for (const f of wheel.specSchema.fields) if (f.type === 'enum') delete f.optionLabels;
     const b = buildM(s);
-    const home = pageOf(b, '/hamster/golden');
+    const home = pageOf(b, '/hamster/golden/supplies/wheel');
     expect(home).toContain('<span class="ws-spec">지름 30cm</span>');
     for (const code of ['SOLID', 'STAND', 'MESH', 'HANG']) {
       for (const p of b.pages) expect(p.html.replace(/<script[\s\S]*?<\/script>/g, ''), `${p.route.path} ${code}`).not.toContain(code);
@@ -476,32 +518,41 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(l5).not.toMatch(/type="checkbox"|checked/);
     const l5cage = pageOf(b, '/hamster/golden/check/cage');
     // 114(결정 2026-10-27 be-gp-schema 113 행): optional 이라도 minSpec(when 포함)이 참조하면 '· 선택' 생략 — barGapMm 은 cage minSpec 참조.
-    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격(mm)</label>');
-    expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로(cm)</label>');
+    // 286 U5a: 숫자 칸 라벨은 이름만, 단위는 칸 안 span(aria-describedby) — client SpecForm unitInside 와 같은 규칙.
+    expect(l5cage).toContain('<label for="ws-f-barGapMm">철망 간격</label>');
+    expect(l5cage).toContain('<label for="ws-f-floorWcm">바닥 가로</label>');
+    expect(l5cage).toContain('aria-describedby="ws-f-floorWcm-unit"><span class="ws-spec-unit" id="ws-f-floorWcm-unit">cm</span></span>');
   });
 
-  it('G4: color-scheme meta, 탭바(현재 aria-current), 레이어 딥링크 스크림, 히어로·컨텍스트 인라인 마스코트(정제)', () => {
+  it('G4: color-scheme meta, 헤더 메뉴(현재 aria-current)·탭바 0(U2b D2), 레이어 딥링크 스크림, 히어로·컨텍스트 마스코트 없음', () => {
     const b = buildM(promoted());
     for (const p of b.pages) {
       expect(p.html.match(/<meta name="color-scheme" content="light"/g), p.route.path).toHaveLength(1);
-      expect(p.html, p.route.path).toContain('<nav class="ws-tabbar">');
+      expect(p.html, p.route.path).not.toMatch(/ws-tabbar|class="ws-tab"/);
+      expect(p.html.match(/<nav class="ws-nav" id="ws-nav" aria-label="주 메뉴">/g), p.route.path).toHaveLength(1);
+      expect(p.html.match(/<button type="button" class="ws-menu-btn" aria-expanded="false" aria-controls="ws-nav">메뉴<\/button>/g), p.route.path).toHaveLength(1);
       expect(p.html).not.toContain('<metadata');
       expect(p.html).not.toContain('c2pa');
     }
-    expect(pageOf(b, '/vet')).toMatch(/<a class="ws-tab" href="\/vet" aria-current="page">/);
-    expect(pageOf(b, '/hamster/golden')).toMatch(/<a class="ws-tab" href="\/hamster\/golden" aria-current="page">/);
-    expect(pageOf(b, '/supplies')).toMatch(/<a href="\/supplies" aria-current="page">/);
+    expect(pageOf(b, '/vet')).toMatch(/<a href="\/vet" aria-current="page">병원<\/a>/);
+    expect(pageOf(b, '/supplies')).toMatch(/<a href="\/supplies" aria-current="page">준비물<\/a>/);
+    expect(pageOf(b, '/hamster/golden')).not.toMatch(/<header[\s\S]*aria-current[\s\S]*<\/header>/);
+    // 크기 확인(D3 ①): 미선택 문서 /pick, 타입 문서 = 규격 필드가 있는 첫 노출 요구사항의 L5.
+    expect(pageOf(b, '/')).toContain('<a data-ws-nav="spec-check" href="/pick">크기 확인</a>');
+    expect(pageOf(b, '/hamster/golden')).toMatch(/<a data-ws-nav="spec-check" href="\/hamster\/golden\/check\/[a-z-]+">크기 확인<\/a>/);
     for (const p of ['/hamster/golden/supplies/cage', '/hamster/golden/check/cage', '/hamster/golden/products/cp-001', '/supplies/cage/hamster-golden']) {
       expect(pageOf(b, p), p).toMatch(/<div class="ws-scrim" aria-hidden="true"><\/div>\n<aside class="ws-layer"/);
     }
     expect(pageOf(b, '/hamster/golden')).not.toContain('ws-scrim');
     // 51 레인 A(O-1): 인라인 SVG(D-2) → client AnimalAvatar 와 같은 img(/mascots/{asset}.svg). 정제 SVG 는 빌드 시 자산 검증용으로만.
-    const hero = /<section class="ws-hero"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/'));
-    expect(hero?.[1]).toContain('ws-avatar--brand-soft');
-    expect(hero?.[1]).toContain('<img src="/mascots/group-small-mammal.svg" width="96" height="96" alt=""');
-    const ctx = /<section class="ws-context"[^>]*>\n(<span class="ws-avatar[^"]*" aria-hidden="true"><img [^>]*>)/.exec(pageOf(b, '/hamster/golden'));
-    expect(ctx?.[1]).toContain('ws-avatar--peach-soft');
-    expect(ctx?.[1]).toContain('src="/mascots/hamster-golden.svg"');
+    //   286 U3a: 홈 A 히어로는 마스코트 없음(R3 시안), R4-2: 홈 B 컨텍스트 헤더도 마스코트 없음 — 헤더 동물 칩으로 확인.
+    expect(/<section class="ws-hero"[^>]*>\n<span class="ws-avatar/.test(pageOf(b, '/'))).toBe(false);
+    const home = pageOf(b, '/hamster/golden');
+    const ctxSec = home.slice(home.indexOf('<section class="ws-context"'), home.indexOf('</section>', home.indexOf('<section class="ws-context"')));
+    expect(ctxSec).not.toContain('ws-avatar');
+    // U2b(D1·R4 시안): 헤더 칩 = 이름만 — 아바타 없음.
+    const header = home.slice(home.indexOf('<header'), home.indexOf('</header>'));
+    expect(header).not.toMatch(/ws-avatar|<img/);
     expect(pageOf(b, '/hamster/golden')).not.toMatch(/role="img"|aria-label="골든/);
   });
 
@@ -539,30 +590,73 @@ describe('R4 A2 프리렌더 보강', () => {
     expect(vs[0].region).toBe('서울 강남구');
   });
 
-  it('F7: 탭바 아이콘 = 보드 SVG(viewBox 0 0 24 24, stroke-width 2, 22px)', () => {
-    const html = pageOf(buildM(promoted()), '/');
-    const svgs = html.match(/<svg class="ws-tab-icon"[^>]*>[\s\S]*?<\/svg>/g) ?? [];
-    expect(svgs).toHaveLength(3);
-    for (const s of svgs) expect(s).toMatch(/viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"/);
-    expect(svgs[0]).toContain('<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>');
-    expect(svgs[1]).toContain('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>');
-    expect(svgs[2]).toContain('<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>');
-  });
-
-  it('F5: 비노출 동물(hamster-dwarf·guinea-pig)의 승인 후기는 어떤 산출물에도 없다, 노출 타입 후기는 홈에', () => {
+  it('F5: 비노출 동물(hamster-dwarf·guinea-pig)의 승인 후기는 어떤 산출물에도 없다, 노출 타입 후기도 홈엔 없음(D6)', () => {
     const s = promoted();
     patch(s, 'testimonials', 't-007', { status: 'APPROVED', verifiedUsage: true, quote: '드워프 후기 누출 표식이에요', consentAt: '2026-09-26' });
     patch(s, 'testimonials', 't-008', { status: 'APPROVED', verifiedUsage: true, quote: '기니피그 후기 누출 표식이에요', consentAt: '2026-09-26' });
     const b = buildM(s);
     const all = [...b.files.values()].join('\n');
     for (const leak of ['t-007', 't-008', '드워프 후기 누출 표식', '기니피그 후기 누출 표식']) expect(all, leak).not.toContain(leak);
+    // 286 U3a(D6): 홈은 후기를 그리지도 싣지도 않는다 — 노출 가능 후기(t-001)도 홈 산출물 0.
     const home = wsDataOf(pageOf(b, '/')) as { data: { testimonials: Row[] } };
-    expect(home.data.testimonials.map((t) => t.id)).toEqual(['t-001']);
-    expect(pageOf(b, '/')).toContain('data-ws-id="testimonials#t-001"');
+    expect(home.data.testimonials).toEqual([]);
+    expect(pageOf(b, '/')).not.toContain('testimonials#');
     expect(leaks(b, s)).toEqual([]);
     // 독립 구현(compliance)도 같은 판정 — 비노출 타입 후기는 노출 집합 밖.
     const ex = exposureMod.computeExposure(rawOf(s), FIXTURE_AS_OF);
     expect([...ex.ids.testimonials].sort()).toEqual(['t-001']);
+  });
+
+  // D6-B(Kenny 2026-11-14): L5 결과 아래 후기 — 타입 페이지 ws-data 에만, 이 타입 ∧ SPEC_CHECK ∧ (APPROVED ∧ verifiedUsage) 첫 1건, 사진 경로 없음.
+  //   정적 L5 는 입력 상태만이라 후기 마크업 0(결과 상태에서만 클라이언트가 그린다). 홈·기타 페이지 ws-data 는 [] 유지.
+  describe('D6-B L5 후기 ws-data', () => {
+    const tData = (html: string) => (wsDataOf(html) as { data: { testimonials: Row[]; requirements: Row[] } }).data;
+    const approve = (s: SeedBundle, id: string, over: Record<string, unknown> = {}) =>
+      patch(s, 'testimonials', id, { status: 'APPROVED', verifiedUsage: true, quote: `${id} 크기 후기 표식이에요`, consentAt: '2026-09-26', ...over });
+
+    it('APPROVED ∧ verifiedUsage ∧ SPEC_CHECK(골든) → 타입 페이지 ws-data 1건(첫 건만·사진 null), 정적 HTML 엔 마크업 0', () => {
+      const s = promoted();
+      approve(s, 't-002', { reviewerImage: '/assets/reviewers/x.webp', reviewerImageConsent: true });
+      approve(s, 't-005');
+      const b = buildM(s);
+      const typePages = b.pages.filter((p) => tData(p.html).requirements.length > 0);
+      expect(typePages.map((p) => p.route.path)).toContain('/hamster/golden/check/wheel');
+      for (const p of typePages) {
+        const ts = tData(p.html).testimonials;
+        expect(ts.map((t) => t.id), p.route.path).toEqual(['t-002']);
+        expect(ts[0].reviewerImage, p.route.path).toBeNull();
+        expect(ts[0].linkedAction).toBe('SPEC_CHECK');
+      }
+      for (const p of b.pages.filter((x) => tData(x.html).requirements.length === 0)) expect(tData(p.html).testimonials, p.route.path).toEqual([]);
+      // 정적 마크업(ws-data 밖)에는 후기 문장·제목·testimonials# 0 — 정적 L5 는 입력 상태.
+      for (const p of b.pages) {
+        const visible = p.html.replace(/<script id="ws-data"[\s\S]*?<\/script>/, '');
+        expect(visible, p.route.path).not.toContain('크기 후기 표식');
+        expect(visible, p.route.path).not.toContain('testimonials#');
+        expect(visible, p.route.path).not.toContain(COPY.verdict.reviewTitle);
+      }
+      // 홈 후기(CHECKLIST t-001)는 타입 페이지에도 없다(SPEC_CHECK 만).
+      expect([...b.files.values()].join('\n')).not.toContain('픽스처 후기 문장이에요');
+      expect(leaks(b, s)).toEqual([]);
+    });
+
+    it.each([
+      ['SUBMITTED', { status: 'SUBMITTED' }],
+      ['HIDDEN', { status: 'HIDDEN' }],
+      ['SLOT', { status: 'SLOT' }],
+      ['verifiedUsage=false', { verifiedUsage: false }],
+    ])('%s 후기는 어떤 산출물에도 없다', (_name, over) => {
+      const s = promoted();
+      approve(s, 't-002', over);
+      const b = buildM(s);
+      expect([...b.files.values()].join('\n')).not.toContain('t-002 크기 후기 표식');
+      for (const p of b.pages) expect(tData(p.html).testimonials, p.route.path).toEqual([]);
+    });
+
+    it('실시드(후기 전부 SLOT) → 모든 페이지 testimonials []', () => {
+      const b = buildM(realSeed());
+      for (const p of b.pages) expect(tData(p.html).testimonials, p.route.path).toEqual([]);
+    });
   });
 
   it('ws-data ≤ 32KB (모든 페이지)', () => {

@@ -1,5 +1,5 @@
-// 홈 B 칩(DR #38): 규격 "{값}{단위} 이상"(엔진 chipSpecText via needChipSpec), 낮은 케이지 저장 → 바퀴 칩 △(엔진 requirementCompat,
-//   checklist/cageCompat 경로 = ChecklistLayer 와 같음), 케이지 없음 → 카탈로그 요청 0. 합성 fixture·카탈로그(테스트 전용).
+// 홈 B 지금 필요한 것(DR #38 · R4-2): 낮은 케이지 저장 → 쳇바퀴 카드 △(엔진 requirementCompat, checklist/cageCompat 경로 = ChecklistLayer 와 같음),
+//   케이지 없음 → 카탈로그 요청 0. 카드 순서 = derive 순서(상태로 재정렬 없음). 합성 fixture·카탈로그(테스트 전용).
 import { act, render, waitFor } from '@testing-library/react';
 import type { PublicRequirement, SpecSchema } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -69,7 +69,7 @@ function preq(id: string, name: string, specSchema: SpecSchema, minSpec: PublicR
 }
 const PAGE = pageOf(
   'TYPE',
-  // bath(미체크 REQUIRED) — 필수 전부 ✓ 이면 ① 이 완료 블록이 되어 칩이 없으므로 하나 남긴다.
+  // bath(미체크 REQUIRED) — 필수 전부 ✓ 이면 ① 이 완료 상태가 되어 카드가 없으므로 하나 남긴다.
   { requirements: [preq('cage', '케이지', CAGE_SCHEMA, CAGE_MIN), preq('wheel', '쳇바퀴', WHEEL_SCHEMA, WHEEL_MIN), req('bath', 'REQUIRED', '모래 목욕통')] },
   { typeId: golden.id, path: '/hamster/golden' },
 );
@@ -85,7 +85,8 @@ const ANSWERED: SetupV2 = {
   updatedAt: AT,
 };
 
-const chip = (id: string) => document.querySelector(`[data-ws-section="now"] li[data-ws-item="${id}"] a.ws-need`) as HTMLElement;
+const card = (id: string) => document.querySelector(`[data-ws-section="now"] li[data-ws-item="${id}"] a.ws-now-card`) as HTMLElement | null;
+const line = (k: string) => document.querySelector(`[data-ws-section="now"] [data-ws-line="${k}"]`) as HTMLElement | null;
 
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
@@ -104,37 +105,48 @@ afterEach(() => {
   window.history.replaceState(null, '', '/');
 });
 
-describe('홈 B 칩 — 규격 · 케이지 호환 △', () => {
-  it('L3 후 칩에 "{값}{단위} 이상"(↑ 없음), 케이지 없음 → 카탈로그 요청 0 · 바퀴 ✓ 그대로', async () => {
+describe('홈 B 지금 필요한 것 — 케이지 호환 △(R4-2)', () => {
+  it('L3 후 케이지 없음 → 카탈로그 요청 0 · 준비완료(케이지·쳇바퀴)는 ✓ 줄, 카드 = 남은 필수(모래 목욕통)만', async () => {
     writeSetup(wsStorage, golden.id, ANSWERED);
     render(<App page={PAGE} captured={NO_CAPTURE} />);
-    expect(chip('wheel').querySelector('.ws-need-spec')).toHaveTextContent('28cm 이상');
-    expect(chip('cage').querySelector('.ws-need-spec')).toHaveTextContent('60×40cm 이상');
-    expect(chip('wheel').textContent).not.toContain('↑');
-    expect(chip('wheel')).toHaveAttribute('data-ws-state', 'ready');
+    expect(card('wheel')).toBeNull();
+    expect(card('cage')).toBeNull();
+    expect(card('bath')).toHaveAttribute('data-ws-state', 'first');
+    expect(Array.from(line('ready')?.querySelectorAll('a.ws-now-link') ?? []).map((a) => a.textContent)).toEqual(['케이지', '쳇바퀴']);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 30));
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  // DR M-1(38_design_r5_review)이 D-4 를 개정: neutral 은 글리프만 없고 규격은 프리렌더처럼 유지(FE2 갱신).
-  it('L3 전(neutral): 글리프 없음 + 칩 규격 유지(DR M-1)', () => {
+  it('L3 전(neutral): 카드 = 필수 전부, 글리프 없음', () => {
     render(<App page={PAGE} captured={NO_CAPTURE} />);
-    expect(chip('wheel').querySelector('.ws-need-spec')).not.toBeNull();
-    expect(chip('wheel').querySelector('[data-ws-glyph]')).toBeNull();
+    for (const id of ['cage', 'wheel', 'bath']) {
+      expect(card(id)).toHaveAttribute('data-ws-state', 'neutral');
+      expect(card(id)?.querySelector('[data-ws-glyph]')).toBeNull();
+    }
   });
 
-  it('낮은 케이지(높이 35cm) 저장 → 바퀴 칩 △(호환 CHECK), 카탈로그는 동일 출처 정적 파일 1회', async () => {
+  it('낮은 케이지(높이 35cm) 저장 → 쳇바퀴 카드·모바일 링크 △ + 보이는 단어 「확인 필요」(호환 CHECK), 카탈로그는 동일 출처 정적 파일 1회 · 카드 순서 = 입력 순서', async () => {
     writeSetup(wsStorage, golden.id, ANSWERED);
     localStorage.setItem(
       cageKey(golden.id),
       JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 60, floorDcm: 40, heightCm: 35, updatedAt: AT }),
     );
     render(<App page={PAGE} captured={NO_CAPTURE} />);
-    await waitFor(() => expect(chip('wheel')).toHaveAttribute('data-ws-state', 'check'), { timeout: 10000 });
-    expect(chip('wheel').querySelector('[data-ws-glyph="check"]')).not.toBeNull();
-    expect(chip('cage')).toHaveAttribute('data-ws-state', 'ready');
+    // 판정 대기 중(compatPending): 숫자 없음, 요약 줄 = L3 전 문구.
+    expect(document.querySelector('.ws-now-count')).toHaveTextContent('필수 준비를 먼저 확인해요');
+    await waitFor(() => expect(card('wheel')).toHaveAttribute('data-ws-state', 'check'), { timeout: 10000 });
+    expect(card('wheel')?.querySelector('[data-ws-glyph="check"]')).not.toBeNull();
+    expect(card('wheel')?.querySelector('.ws-now-state')).toHaveTextContent('△확인 필요');
+    // qa MED-1: ≤767 에서 보이는 항목 링크 줄도 같은 △ + 단어 + L4 링크
+    const mobile = document.querySelector('[data-ws-section="now"] [data-ws-line="pending"] li[data-ws-now-link="wheel"] a.ws-now-link') as HTMLElement;
+    expect(mobile).toHaveAttribute('data-ws-state', 'check');
+    expect(mobile).toHaveAttribute('href', '/hamster/golden/supplies/wheel');
+    expect(mobile.querySelector('.ws-now-state')).toHaveTextContent('△확인 필요');
+    expect(card('cage')).toBeNull(); // 케이지 자체는 최소 충족 → ✓
+    expect(Array.from(document.querySelectorAll('[data-ws-section="now"] li.ws-now-item')).map((li) => li.getAttribute('data-ws-item'))).toEqual(['wheel', 'bath']);
+    expect(document.querySelector('.ws-now-count')).toHaveTextContent('필수 3가지 중 2가지가 남았어요.');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toBe(PAGE.catalogUrl);
   }, 20000);

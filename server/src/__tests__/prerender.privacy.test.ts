@@ -235,7 +235,7 @@ describe('/privacy 본문(P8·P10)', () => {
     expect(table.match(/<th scope="col">/g)).toHaveLength(2);
     expect(table).not.toContain('<th scope="col">받는 때</th>');
     expect(table.match(/<td>[^<]*<span class="ws-t-meta ws-privacy-meta">받는 때: [^<]+<\/span><\/td>/g)).toHaveLength(8);
-    expect(table).toContain('<td>이메일 주소, 저장한 준비 내용(고른 친구, 케이지 크기, 준비 체크 상태)<span class="ws-t-meta ws-privacy-meta">받는 때: 이메일 저장을 요청하고 연결 링크를 열 때</span></td>');
+    expect(table).toContain('<td>이메일 주소, 저장한 준비 내용(고른 친구, 케이지 크기, 준비 체크 상태)<span class="ws-t-meta ws-privacy-meta">받는 때: 이메일 저장을 요청하고 연결할 때</span></td>');
   });
 
   it('96 S3: 표 가로 스크롤 래퍼 없음(table 이 섹션 직속)', () => {

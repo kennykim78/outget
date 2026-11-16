@@ -118,6 +118,8 @@ export function mapSupplyRequirement(r: SupplyRequirementRec): RowData {
     minSpec: json(r.minSpec),
     recommendedSpec: json(r.recommendedSpec ?? { rules: [] }),
     why: r.why,
+    // D9 ②: 시드 키 부재 = 미작성 → DB NULL(시드에는 null 을 쓰지 않는다 — S03).
+    whyShort: typeof r.whyShort === 'string' ? r.whyShort : null,
     caution: r.caution ?? null,
     avoid: r.avoid ?? null,
     searchKeyword: r.searchKeyword ?? null,

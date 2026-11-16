@@ -1,8 +1,10 @@
 // L4 용품 상세(UX §4 L4 · 스펙33 §5.1 · 계획 F1-2). 데이터는 같은 문서 ws-data(useLayerPage)만 — 재판정·재정렬 없음.
-//   순서 고정: 메타 행 → (NOT_NOW 이유) → 왜 → 조건(최소|권장 표 + ruleText 목록) → 주의 → 피할 것 → 대안 → 내 케이지 서브카드
-//   → [준비했어요] → 이 조건으로 찾기(SearchBlock) → 검수 행(마지막 검수 · 출처 · 👍⚠) → 이 항목에 맞는 준비물(ws-data 순서 앞 3).
+//   R4-4(R4 시안 l4_supply — 규격 → 검수 → 상인 링크): (고지 B) → 「{동물} · {용품}」 → 메타 행 → 사진 자리(PhotoTile 빈 블록)
+//   → (NOT_NOW 이유) → 왜 → 조건(최소|권장 표 + ruleText 목록) → 주의 → 피할 것 → 대안 → 내 케이지 서브카드 → [준비했어요]
+//   → 이 항목에 맞는 준비물(ws-data 순서 앞 3) → 검수 내용(마지막 검수 · 출처 · 👍⚠) → 이 조건으로 찾기(SearchBlock, 상인 링크).
 //   꼬리: [규격 확인](채움, → L5) | [이 조건으로 찾기](아웃라인, → SearchBlock 스크롤·머리 포커스, D-36).
-//   가격·판매처명·"구매"·사진·마스코트 0(불변식 ③⑤, D-53). 규격 문장은 엔진 ruleText·chipSpecText·specLine 단일 소스(C-R5-8).
+//   가격·판매처명·"구매"·마스코트 0(불변식 ③⑤). 규격 문장은 엔진 ruleText·chipSpecText·specLine 단일 소스(C-R5-8).
+//   사진은 photos.json 슬롯(전부 SLOT → 빈 블록, 생성 이미지 커밋 금지 ①) — 프리렌더 layerL4 와 같은 자리.
 import { useId, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { COPY } from '@ws/copy';
 import { SPEC_WORDS, chipSpecText, ruleText, specLine, type PublicRequirement, type SpecSchema, type SpecRule } from '@ws/engine';
@@ -14,6 +16,7 @@ import { CAGE_ITEM_ID, toUserContext, useCage } from '../context/cageStore';
 import ProductCard from '../home/ProductCard';
 import ReactionBar from '../reaction/ReactionBar';
 import Glyph, { type GlyphKind } from '../ui/Glyph';
+import PhotoTile from '../ui/PhotoTile';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
 import AffNote from './AffNote';
@@ -22,8 +25,13 @@ import { affiliateDisclosureOn } from './searchLinks';
 import { useCageCompat, type CageCompat } from './useCageCompat';
 import '../styles/layers.css';
 
-const GLYPH_OF: Record<ItemState, GlyphKind> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
+/** 상태 칩 문구 키(copy glyphLabel)·클래스. 글리프는 전역 Glyph(R4-1) — LATER 는 글리프 없이 단어만(○ 는 기준 충족 전용). */
+const STATE_KEY: Record<ItemState, 'ready' | 'first' | 'check' | 'later'> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
+const STATE_GLYPH: Partial<Record<ItemState, GlyphKind>> = { READY: 'ready', FIRST: 'first', CHECK: 'check' };
 const MAX_PRODUCTS = 3;
+/** photos.json L4 슬롯(l4-cage·l4-bedding·l4-food, 홈 B ITEM_PHOTO 와 같은 표) — 추적용 id, 표시 영향 0. 슬롯 없는 용품은 요약 슬롯 ph-03. */
+const L4_PHOTO: Readonly<Record<string, string>> = { cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' };
+const L4_PHOTO_FALLBACK = 'ph-03';
 
 /** "YYYY.MM"(프리렌더 yearMonth 와 같은 형식). */
 export function yearMonth(d: string | null | undefined): string | null {
@@ -114,7 +122,8 @@ function Conditions({ r }: { r: PublicRequirement }) {
   );
 }
 
-const COMPAT_GLYPH = { OK: 'ready', CHECK: 'check', BELOW_MIN: 'fail' } as const;
+/** 호환 판정 글리프 = L5 호환 단과 같은 표(○ △ ✕, R4-1). */
+const COMPAT_GLYPH = { OK: 'ok', CHECK: 'check', BELOW_MIN: 'fail' } as const satisfies Record<string, GlyphKind>;
 const COMPAT_WORD = {
   OK: COPY.verdict.compatOk,
   CHECK: COPY.verdict.compatCheck,
@@ -209,21 +218,21 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
       <LayerBody>
         <div className="ws-supply" data-ws-id={`supplyItems#${r.supplyItemId}`}>
           {affiliateDisclosureOn(r.searchLinks) ? <AffNote kind="b" /> : null}
+          <p className="ws-t-label ws-supply-eyebrow">{`${type.displayName} · ${r.item.name}`}</p>
           <div className="ws-supply-meta">
             {state ? (
-              <span className={`ws-state-chip ws-state-chip--${GLYPH_OF[state]} ws-t-label`}>
-                <Glyph kind={GLYPH_OF[state]} />
-                {COPY.glyphLabel[GLYPH_OF[state]]}
+              <span className={`ws-state-chip ws-state-chip--${STATE_KEY[state]} ws-t-label`}>
+                {STATE_GLYPH[state] ? <Glyph kind={STATE_GLYPH[state]} /> : null}
+                {COPY.glyphLabel[STATE_KEY[state]]}
               </span>
             ) : null}
             <span className="ws-t-meta">{`${COPY.priority[r.priority]} · ${COPY.orderHint[r.orderHint]}`}</span>
-            {lm ? <span className="ws-t-meta">{`${COPY.supplyLayer.lastVerified} ${lm}`}</span> : null}
           </div>
+          <PhotoTile photoId={L4_PHOTO[r.supplyItemId] ?? L4_PHOTO_FALLBACK} className="ws-supply-photo" />
 
           {r.priority === 'NOT_NOW' ? (
             <section className="ws-supply-part ws-supply-notnow" data-ws-part="notNow">
               <p className="ws-t-body">
-                <Glyph kind="later" />
                 {r.notNowReason ? `${COPY.supplyLayer.notNow} — ${r.notNowReason}` : COPY.supplyLayer.notNow}
               </p>
             </section>
@@ -269,11 +278,24 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
             </button>
           </div>
 
-          <div className="ws-supply-part">
-            <SearchBlock requirement={r} headingId={searchHeadId} />
-          </div>
+          {products.length ? (
+            <Part part="products" title={COPY.supplyLayer.matchingProducts}>
+              <ul className="ws-supply-products" role="list">
+                {products.map((p) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    href={href(`/products/${p.id}`)}
+                    specLine={specLine(r.item.specSchema, p.specValues) || null}
+                    glyph={r.item.glyph}
+                  />
+                ))}
+              </ul>
+            </Part>
+          ) : null}
 
-          <div className="ws-supply-part ws-supply-verified" data-ws-part="verified">
+          <section className="ws-supply-part ws-supply-verified" data-ws-part="verified">
+            <h3 className="ws-t-label ws-supply-head">{COPY.supplyLayer.reviewTitle}</h3>
             <p className="ws-t-meta">
               {lm ? `${COPY.supplyLayer.lastVerified} ${lm}` : null}
               {r.source.length ? (
@@ -297,23 +319,11 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
               ) : null}
             </p>
             <ReactionBar targetType="SUPPLY_ITEM" targetId={r.supplyItemId} />
-          </div>
+          </section>
 
-          {products.length ? (
-            <Part part="products" title={COPY.supplyLayer.matchingProducts}>
-              <ul className="ws-supply-products" role="list">
-                {products.map((p) => (
-                  <ProductCard
-                    key={p.id}
-                    product={p}
-                    href={href(`/products/${p.id}`)}
-                    specLine={specLine(r.item.specSchema, p.specValues) || null}
-                    glyph={r.item.glyph}
-                  />
-                ))}
-              </ul>
-            </Part>
-          ) : null}
+          <div className="ws-supply-part">
+            <SearchBlock requirement={r} headingId={searchHeadId} />
+          </div>
         </div>
       </LayerBody>
       <LayerFoot>

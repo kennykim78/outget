@@ -114,10 +114,10 @@ describe('헤더 통합', () => {
     render(<App page={emptyPageData({ pathname: '/' })} captured={NO_CAPTURE} />);
     const header = screen.getByRole('banner');
     expect(header.querySelectorAll('[data-ws-save-dot]')).toHaveLength(1);
-    // DR m-4: 칩 안 이름 뒤(▾ 앞), 칩 접근 이름에 "이메일로 저장 중" 포함. 점은 링크 자체가 아니라 칩의 일부.
+    // DR m-4: 칩 안 이름 뒤, 칩 접근 이름에 "이메일로 저장 중" 포함. 점은 링크 자체가 아니라 칩의 일부(U2b: ▾ 없음 — R3·R4 시안).
     const chip = header.querySelector('a[data-ws-chip]') as HTMLElement;
     expect(chip.querySelector('.ws-chip-name + [data-ws-save-dot]')).not.toBeNull();
-    expect(chip.querySelector('[data-ws-save-dot] ~ .ws-chip-caret')).not.toBeNull();
+    expect(chip.querySelector('.ws-chip-caret')).toBeNull();
     expect(screen.getByRole('link', { name: new RegExp(COPY.save.dotTitle) })).toBe(chip);
     await waitFor(() => expect(log).toContain('GET /auth/session'));
   });

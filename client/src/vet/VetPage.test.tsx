@@ -216,9 +216,9 @@ describe('필터', () => {
     // 진료 동물 칩 = 표시명(원시 id 0)
     expect(screen.queryByRole('button', { name: /hamster-golden|budgie/ })).toBeNull();
 
-    fireEvent.click(chip('사랑앵무'));
+    fireEvent.click(chip('사랑앵무 진료'));
     expect(cards()).toEqual(['vetClinics#b', 'vetClinics#c']);
-    expect(chip('사랑앵무')).toHaveAttribute('aria-pressed', 'true');
+    expect(chip('사랑앵무 진료')).toHaveAttribute('aria-pressed', 'true');
     expect(window.location.search).toBe('?treats=budgie');
 
     fireEvent.click(chip(COPY.vet.night));
@@ -227,8 +227,8 @@ describe('필터', () => {
     expect(cards()).toEqual(['vetClinics#c']);
     expect(window.location.search).toBe('?treats=budgie&night=1&emergency=1');
 
-    fireEvent.click(chip('골든햄스터')); // 진료 동물은 하나 — 교체
-    expect(chip('사랑앵무')).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(chip('골든햄스터 진료')); // 진료 동물은 하나 — 교체
+    expect(chip('사랑앵무 진료')).toHaveAttribute('aria-pressed', 'false');
     expect(cards()).toEqual([]);
     expect(document.querySelector('.ws-vet-empty p')).toHaveTextContent(COPY.vet.filterNoResult);
     expect(screen.getByText(COPY.vet.visitNote)).toBeInTheDocument();
@@ -248,9 +248,9 @@ describe('필터', () => {
     expect(document.querySelector('.ws-vet-empty')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: COPY.vet.night }));
     expect(live.textContent).toBe(COPY.vet.filterUpdated);
-    fireEvent.click(screen.getByRole('button', { name: '사랑앵무' }));
+    fireEvent.click(screen.getByRole('button', { name: '사랑앵무 진료' }));
     fireEvent.click(screen.getByRole('button', { name: COPY.vet.emergency }));
-    fireEvent.click(screen.getByRole('button', { name: '골든햄스터' }));
+    fireEvent.click(screen.getByRole('button', { name: '골든햄스터 진료' }));
     expect(cards()).toEqual([]);
     expect(live.textContent).toBe(COPY.vet.filterNoResult);
     expect(document.querySelector('.ws-vet-empty [aria-live], .ws-vet-empty [role="status"]')).toBeNull();
@@ -406,6 +406,69 @@ describe('빈 상태·visitNote', () => {
     expect(screen.getByRole('group', { name: COPY.vet.filtersTitle })).toBeInTheDocument();
     expect(screen.getByText(COPY.vet.regionsMore)).not.toBeVisible();
     expect(screen.getByText(COPY.vet.regionsMore)).toHaveAttribute('hidden');
+  });
+});
+
+describe('R4-6 시안(hospital_list·hospital_map)', () => {
+  beforeEach(() => vi.stubEnv('VITE_NAVER_MAP_CLIENT_ID', ''));
+
+  it('병원 0(실시드 SLOT): 상태 머리 h2 「확인된 병원이 아직 없어요」 + emptyAll, 허구 병원·지도·채운 버튼 0, 제목 다음 방문 안내', () => {
+    render(<VetPage page={vetPage([])} capturedMain={null} />);
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveTextContent(COPY.vet.title);
+    expect(h1.nextElementSibling).toHaveClass('ws-vet-note');
+    expect(h1.nextElementSibling).toHaveTextContent(COPY.vet.visitNote);
+    expect(document.querySelectorAll('.ws-vet-note')).toHaveLength(1);
+    const head = document.querySelector('[data-ws-state-kind="empty"]') as HTMLElement;
+    expect(head).not.toBeNull();
+    expect(head.querySelector('.ws-state-mark')).toBeNull(); // 시안 목록 빈 상태엔 표식 없음
+    expect(screen.getByRole('heading', { level: 2, name: COPY.vet.emptyTitle })).toBeInTheDocument();
+    expect(head).toHaveTextContent(COPY.vet.emptyAll);
+    expect(head.querySelector('a')).toHaveTextContent(COPY.vet.reportLink); // PRD US-013 제보하기(텍스트 링크)
+    expect(document.querySelectorAll('li.ws-vet, .ws-vet-map, img, svg')).toHaveLength(0);
+    expect(document.querySelectorAll('.ws-btn--fill')).toHaveLength(0); // 지역이 없으면 「지역 다시 선택하기」도 없다
+    expect(document.body.textContent).not.toMatch(/마포구|지도 예시/);
+  });
+
+  it('병원 0 + 홈에서 실어 온 ?treats=(노출 타입) → 제목 「{동물} 진료하는 병원」, 노출 타입 밖·형식 밖이면 기본 제목', () => {
+    window.history.replaceState(null, '', '/vet?treats=hamster-golden');
+    const { unmount } = render(<VetPage page={vetPage([])} capturedMain={null} />);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(`${golden.displayName} 진료하는 병원`);
+    expect(window.location.search).toBe('?treats=hamster-golden'); // 쿼리를 다시 쓰지 않는다(필터 0)
+    unmount();
+    for (const q of ['?treats=nope', '?treats=Hamster', '']) {
+      window.history.replaceState(null, '', `/vet${q}`);
+      const r = render(<VetPage page={vetPage([])} capturedMain={null} />);
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(COPY.vet.title);
+      r.unmount();
+    }
+  });
+
+  it('병원 있음: 진료 동물 칩 「{동물} 진료」 켜면 제목도 그 동물, 끄면 기본 — 목록에 없는 동물 이름을 제목에 달지 않는다', () => {
+    render(<VetPage page={vetPage()} capturedMain={null} />);
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveTextContent(COPY.vet.title);
+    fireEvent.click(screen.getByRole('button', { name: '사랑앵무 진료' }));
+    expect(h1).toHaveTextContent('사랑앵무 진료하는 병원');
+    fireEvent.click(screen.getByRole('button', { name: '사랑앵무 진료' }));
+    expect(h1).toHaveTextContent(COPY.vet.title);
+  });
+
+  it('병원 있음 + 진료 병원 없는 동물 쿼리 → 제목 기본(필터 칩 밖 동물은 무시)', () => {
+    window.history.replaceState(null, '', '/vet?treats=budgie');
+    render(<VetPage page={vetPage([VETS[0]])} capturedMain={null} />);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(COPY.vet.title);
+  });
+
+  it('목록|지도 탭(≤1023, 키 있음): 밑줄 탭 클래스 ws-vet-mode(필터 칩 아님), aria-pressed', () => {
+    vi.stubEnv('VITE_NAVER_MAP_CLIENT_ID', 'k'); // SDK 로딩 중에도 탭은 보인다(지도 칸 = 빈 블록)
+    render(<VetPage page={vetPage()} capturedMain={null} />);
+    const tabs = [screen.getByRole('button', { name: COPY.vet.listTab }), screen.getByRole('button', { name: COPY.vet.mapTab })];
+    for (const t of tabs) {
+      expect(t).toHaveClass('ws-vet-mode');
+      expect(t).not.toHaveClass('ws-filter-chip');
+    }
+    expect(tabs[0]).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

@@ -1,6 +1,6 @@
 import type { PublicVet } from '@ws/engine';
 import { describe, expect, it } from 'vitest';
-import { applyVetFilter, isFiltered, NO_FILTER, parseVetFilter, treatChoices, vetFilterSearch } from './filters';
+import { applyVetFilter, isFiltered, NO_FILTER, parseVetFilter, queryTreats, treatChoices, vetFilterSearch } from './filters';
 import { chipsFromCaptured, chipsFromVets } from './regionChips';
 import { validateVetReport } from './reportApi';
 
@@ -120,5 +120,17 @@ describe('제보 사전 검사(서버 parseVetReport 와 같은 규칙)', () => 
     [{ treats: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }, ['treats']],
   ])('%j → %j', (over, want) => {
     expect(validateVetReport({ ...ok, ...over }).invalid).toEqual(want);
+  });
+});
+
+describe('queryTreats(R4-6 제목 전용)', () => {
+  it.each([
+    ['?treats=hamster-golden', 'hamster-golden'],
+    ['?treats=budgie&night=1', null],
+    ['?treats=Hamster', null],
+    ['?treats=', null],
+    ['', null],
+  ])('%s → %s (노출 타입 = hamster-golden 만)', (q, want) => {
+    expect(queryTreats(q, ['hamster-golden'])).toBe(want);
   });
 });

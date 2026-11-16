@@ -298,11 +298,11 @@ const gerbilActive = (): Required<RawSeed> => {
 const gerbilX = (s: RawSeed, rule: string) => errs(validateSeed(s, { now: NOW }), rule).filter((i) => i.id === 'gerbil-mongolian');
 
 describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 는 280 에서 제거)', () => {
-  it('디스크: gerbil-mongolian PLANNED · Taxon meriones-unguiculatus DRAFT·AI_DRAFT · legal act6 false/cites false/화이트리스트 null', () => {
+  it('디스크(2026-11-16 서명 review 단계): gerbil-mongolian PLANNED·NEEDS_REVIEW·EXPERIENCED_KEEPER · Taxon meriones-unguiculatus NEEDS_REVIEW·OFFICIAL_SOURCE(검수자·날짜·basis null) · legal act6 false/cites false/화이트리스트 null', () => {
     const at = row(BASE, 'animalTypes', 'gerbil-mongolian');
-    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'DRAFT', 'AI_DRAFT']);
+    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType, at.verifiedBy, at.verifiedAt, at.reviewBasis]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'NEEDS_REVIEW', 'EXPERIENCED_KEEPER', null, null, null]);
     const t = row(BASE, 'taxa', 'meriones-unguiculatus');
-    expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
+    expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt, t.reviewBasis]).toEqual(['NEEDS_REVIEW', 'OFFICIAL_SOURCE', null, null, null]);
     expect(t.legal).toMatchObject({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
   });
 

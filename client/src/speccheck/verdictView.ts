@@ -1,6 +1,6 @@
 // L5 판정 표시 — 순수 함수(스펙33 §3 표). 판정 계산은 @ws/engine specCheck 만(불변식 ⑥) — 여기는 엔진 결과를 글자로 옮길 뿐.
 //   판정 = 정보, 추천 아님: 상품·상품명·"추천" 문구 0(D-43). 카피는 @ws/copy 단일 소스.
-import { COPY, GLYPH } from '@ws/copy';
+import { COPY, formatCopy } from '@ws/copy';
 import {
   findField,
   hasCompleteOptionLabels,
@@ -22,12 +22,16 @@ import {
 } from '@ws/engine';
 import type { CageV1 } from '../context/cageStore';
 import { CAGE_ITEM_ID } from '../context/cageStore';
+import type { GlyphKind } from '../ui/Glyph';
 
 /** 'none' = 종별 규격 기준 없음(arch-23) — 기존 ink-muted·bg-100 토큰만, 새 색 없음. */
 export type Tone = 'ready' | 'check' | 'fail' | 'none';
 
+/** 판정 글리프 = 전역 GLYPH 의 판정 4상태 + 입력 필요(R4-1 — 같은 Glyph 컴포넌트로 그린다). */
+export type VerdictGlyphKind = Extract<GlyphKind, 'ok' | 'check' | 'fail' | 'none' | 'unknown'>;
+
 export interface VerdictMark {
-  glyph: string;
+  kind: VerdictGlyphKind;
   tone: Tone;
   label: string;
 }
@@ -37,44 +41,41 @@ export function isProductNoCriteria(product: SpecCheckResult['product']): boolea
   return isNoCriteria(product);
 }
 
-/** 제품 규격 단(§3): OK ✓ · BELOW_RECOMMENDED △ · BELOW_MIN ✕ · CHECK ?(D-42). 기준 없음 CHECK 는 ○ + 별도 라벨(arch-23). */
-export function productMark(v: Verdict, noCriteria = false): VerdictMark {
-  if (v === 'CHECK' && noCriteria) return { glyph: GLYPH.later, tone: 'none', label: COPY.verdict.productNoCriteria };
+/**
+ * 제품 규격 단 — R4 fix 4상태 규칙표(286 U5b · D7 = △ 로 합침):
+ *   OK ○ 기준 충족 · BELOW_RECOMMENDED △ 확인 필요(보조줄 「최소 기준 충족 · 권장 미만」) · BELOW_MIN ✕(숫자 최소에 작을 때만 「조금 작아요」,
+ *   그 밖의 미달은 「최소 규격 미달」) · CHECK+NO_CRITERIA — 기준 없음(○ 와 다른 글리프) · 값 누락 CHECK ? 입력 필요.
+ */
+export function productMark(v: Verdict, noCriteria = false, small = false, reasons?: readonly Reason[]): VerdictMark {
+  if (v === 'CHECK' && noCriteria) return { kind: 'none', tone: 'none', label: COPY.verdict.markNone };
   switch (v) {
     case 'OK':
-      return { glyph: GLYPH.ready, tone: 'ready', label: COPY.verdict.productOk };
+      return { kind: 'ok', tone: 'ready', label: COPY.verdict.markOk };
     case 'BELOW_RECOMMENDED':
-      return { glyph: GLYPH.check, tone: 'check', label: COPY.verdict.productBelowRecommended };
+      return { kind: 'check', tone: 'check', label: COPY.verdict.markCheck };
     case 'BELOW_MIN':
-      return { glyph: GLYPH.fail, tone: 'fail', label: COPY.verdict.productBelowMin };
+      return { kind: 'fail', tone: 'fail', label: small ? COPY.verdict.markSmall : COPY.verdict.productBelowMin };
     case 'CHECK':
-      return { glyph: GLYPH.unknown, tone: 'check', label: COPY.verdict.productCheck };
+      // reasons 를 주면: INPUT(값 누락·잘못된 값) 사유가 있을 때만 「입력 필요」, 기준·규칙 쪽 사유뿐이면 「확인 필요」(△). 생략 시 기존 동작.
+      if (reasons !== undefined && !reasons.some((r) => r.kind === 'INPUT')) {
+        return { kind: 'check', tone: 'check', label: COPY.verdict.markCheck };
+      }
+      return { kind: 'unknown', tone: 'check', label: COPY.verdict.markInput };
   }
 }
 
-/** 내 환경 호환 단(§3, PRD US-011 원문): OK ✓ · CHECK △ · BELOW_MIN ✕. NONE 은 단을 그리지 않는다(null). */
+/** 내 환경 호환 단(§3, PRD US-011 원문 판정어): OK ○ · CHECK △ · BELOW_MIN ✕. NONE 은 단을 그리지 않는다(null). */
 export function compatMark(v: CompatVerdict): VerdictMark | null {
   switch (v) {
     case 'OK':
-      return { glyph: GLYPH.ready, tone: 'ready', label: COPY.verdict.compatOk };
+      return { kind: 'ok', tone: 'ready', label: COPY.verdict.compatOk };
     case 'CHECK':
-      return { glyph: GLYPH.check, tone: 'check', label: COPY.verdict.compatCheck };
+      return { kind: 'check', tone: 'check', label: COPY.verdict.compatCheck };
     case 'BELOW_MIN':
-      return { glyph: GLYPH.fail, tone: 'fail', label: COPY.verdict.compatBelowMin };
+      return { kind: 'fail', tone: 'fail', label: COPY.verdict.compatBelowMin };
     default:
       return null;
   }
-}
-
-/**
- * 종합 글리프. 종합 CHECK 가 제품 단의 값 누락(CHECK)에서 온 것이면 '?'(정보 부족),
- * 제품은 판정됐고 호환 단이 CHECK 면 △ + 호환 확인 문구(값은 다 있다 — '정보 부족'이 아니다).
- */
-export function overallMark(result: SpecCheckResult): VerdictMark {
-  if (result.verdict === 'CHECK' && result.product.verdict !== 'CHECK') {
-    return compatMark('CHECK') as VerdictMark;
-  }
-  return productMark(result.verdict, result.verdict === 'CHECK' && isProductNoCriteria(result.product));
 }
 
 /** 호환 단 표시 여부: 제품이 최소 미달이면 숨긴다(제품 미달이 우선 — 사용 가능해 보이는 오독 방지). */
@@ -89,23 +90,124 @@ function numberField(schema: SpecSchema, key: string | undefined) {
   return f?.type === 'number' ? f : undefined;
 }
 
+// ── 286 U5b 결과 상태 숫자 표시 — 계산 없음(불변식 ⑥): 값은 해석된 minSpec 규칙 값 · 엔진 Reason.expected/actual 뿐 ──
+
+/** 큰 숫자 한 덩이: 「최소 지름」 + 「27」 + 「cm 이상」. value 는 여러 값이면 「100×50」. */
+export interface SpecFigure {
+  label: string;
+  value: string;
+  unit: string;
+  /** 「이상」 — 최소 숫자는 gte 규칙만 고른다. */
+  suffix: string;
+  /** 이 숫자가 가리키는 필드 키(스키마 순서) — 「내 {용품}」 입력값을 같은 키로 보여 준다. */
+  keys: string[];
+}
+
+const FIGURE_MAX_VALUES = 3;
+const FIGURE_JOIN = '×';
+
+function minReasons(product: SpecCheckResult['product']): Reason[] {
+  return product.reasons.filter((r) => r.kind === 'MIN');
+}
+
+function numericReason(schema: SpecSchema, r: Reason): r is Reason & { key: string; expected: number; actual: number } {
+  return typeof r.expected === 'number' && typeof r.actual === 'number' && numberField(schema, r.key) !== undefined;
+}
+
+/** 이 Reason 을 낸 minSpec 규칙의 연산자(같은 키·같은 값). 표시 접미사 선택용 — 판정은 이미 엔진이 했다. */
+function opOf(minSpec: RuleSet | null | undefined, r: Reason): string | null {
+  const rules = Array.isArray(minSpec?.rules) ? minSpec.rules : [];
+  return rules.find((x) => x && x.key === r.key && x.value === r.expected)?.op ?? null;
+}
+
 /**
- * 헤드라인(spec-lg): BELOW_MIN → "최소 {v}{u} · 입력 {a}{u}", BELOW_RECOMMENDED → "권장 {v}{u} · 입력 {a}{u}".
- *   단계 판정과 같은 등급의 숫자 Reason 중 첫 번째 하나. 숫자 규칙이 아니면(enum 등) null.
+ * 「최소 {항목}」 큰 숫자.
+ *   BELOW_MIN 이면 첫 숫자 MIN Reason 의 expected(엔진 출력 그대로).
+ *   아니면 해석된 minSpec 의 when 없는 숫자 gte 규칙(chipSpecText 와 같은 선택: 스키마 순서, 같은 단위면 최대 3값 ×, 섞이면 첫 값).
+ *   숫자 규칙이 없으면 null(섹션 생략 — 임의 값을 만들지 않는다).
  */
-export function productHeadline(schema: SpecSchema, product: SpecCheckResult['product']): string | null {
-  const v = product.verdict;
-  if (v !== 'BELOW_MIN' && v !== 'BELOW_RECOMMENDED') return null;
-  const kind = v === 'BELOW_MIN' ? 'MIN' : 'RECOMMENDED';
-  for (const r of product.reasons) {
-    if (r.kind !== kind || typeof r.expected !== 'number' || typeof r.actual !== 'number') continue;
-    const f = numberField(schema, r.key);
-    if (!f) continue;
-    const u = splitLabel(f.label).unit;
-    const head = kind === 'MIN' ? COPY.verdict.min : COPY.verdict.recommended;
-    return `${head} ${r.expected}${u} · ${COPY.verdict.input} ${r.actual}${u}`;
+export function minFigure(schema: SpecSchema, product: SpecCheckResult['product'], minSpec: RuleSet | null | undefined): SpecFigure | null {
+  if (isProductNoCriteria(product)) return null;
+  if (product.verdict === 'BELOW_MIN') {
+    // 「최소 … 이상」으로 읽히는 gte 규칙만(lte 미달은 아래 일반 선택으로 — 「최소 … 이하」 모순 문구 방지).
+    const r = minReasons(product).find((x) => numericReason(schema, x) && opOf(minSpec, x) === 'gte');
+    if (r && numericReason(schema, r)) {
+      const { base, unit } = splitLabel(numberField(schema, r.key)?.label ?? '');
+      return { label: formatCopy(COPY.verdict.minOf, { name: base }), value: String(r.expected), unit, suffix: COPY.spec.gte, keys: [r.key] };
+    }
+    // gte 미달이 없는 BELOW_MIN(lte·enum 등) — 엉뚱한 gte 묶음을 보이지 않도록 큰 숫자 영역 생략.
+    return null;
   }
-  return null;
+  const rules = Array.isArray(minSpec?.rules) ? minSpec.rules : [];
+  const picked: Array<{ key: string; base: string; value: number; unit: string }> = [];
+  for (const f of Array.isArray(schema?.fields) ? schema.fields : []) {
+    if (f.type !== 'number') continue;
+    const r = rules.find(
+      (x) => x && x.key === f.key && x.op === 'gte' && typeof x.value === 'number' && Number.isFinite(x.value) && !(Array.isArray(x.when) && x.when.length > 0),
+    );
+    if (r) picked.push({ key: f.key, base: splitLabel(f.label).base, value: r.value as number, unit: splitLabel(f.label).unit });
+  }
+  if (picked.length === 0) return null;
+  const sameUnit = picked.every((p) => p.unit === picked[0].unit);
+  const shown = sameUnit ? picked.slice(0, FIGURE_MAX_VALUES) : picked.slice(0, 1);
+  return {
+    label: shown.length === 1 ? formatCopy(COPY.verdict.minOf, { name: shown[0].base }) : COPY.verdict.minSpecLabel,
+    value: shown.map((p) => String(p.value)).join(FIGURE_JOIN),
+    unit: shown[0].unit,
+    suffix: COPY.spec.gte,
+    keys: shown.map((p) => p.key),
+  };
+}
+
+/** 「내 {용품}」 숫자: minFigure 와 같은 키의 입력값(전부 있을 때만). 없으면 null. */
+export function mineValue(figure: SpecFigure | null, input: Readonly<Record<string, SpecValue>>): string | null {
+  if (!figure) return null;
+  const vals = figure.keys.map((k) => input[k]);
+  if (vals.some((v) => typeof v !== 'number' || !Number.isFinite(v))) return null;
+  return vals.map((v) => String(v)).join(FIGURE_JOIN);
+}
+
+/** 최소보다 작은 숫자 항목 — {name: 필드명, n: expected − actual(표시용 뺄셈만), unit}. gte 규칙의 MIN Reason 만. */
+export function shortfalls(schema: SpecSchema, product: SpecCheckResult['product'], minSpec: RuleSet | null | undefined): Array<{ name: string; n: number; unit: string }> {
+  const out: Array<{ name: string; n: number; unit: string }> = [];
+  for (const r of minReasons(product)) {
+    if (!numericReason(schema, r) || r.actual >= r.expected || opOf(minSpec, r) !== 'gte') continue;
+    const { base, unit } = splitLabel(numberField(schema, r.key)?.label ?? '');
+    out.push({ name: base, n: Math.round((r.expected - r.actual) * 1000) / 1000, unit });
+  }
+  return out;
+}
+
+/** BELOW_MIN 이 전부 「숫자가 최소보다 작음」인가 — ✕ 단어를 「조금 작아요」로 쓸 수 있는 경우. */
+export function isSmallOnly(schema: SpecSchema, product: SpecCheckResult['product'], minSpec: RuleSet | null | undefined): boolean {
+  if (product.verdict !== 'BELOW_MIN') return false;
+  const mins = minReasons(product).filter((r) => r.verdict === 'BELOW_MIN');
+  return mins.length > 0 && shortfalls(schema, product, minSpec).length === mins.length;
+}
+
+/** 판정 제목 문장(제품 단 기준). 제품 충족·권장 미만인데 호환(compatVerdict)이 CHECK·BELOW_MIN 이면 호환을 반영한 문장 — 성공 문장 금지. */
+export function verdictTitle(
+  schema: SpecSchema,
+  product: SpecCheckResult['product'],
+  minSpec: RuleSet | null | undefined,
+  names: { item: string; animal: string },
+  compatVerdict?: CompatVerdict,
+): string {
+  if (isProductNoCriteria(product)) return formatCopy(COPY.verdict.titleNoCriteria, { animal: names.animal });
+  switch (product.verdict) {
+    case 'OK':
+      if (compatVerdict === 'CHECK') return formatCopy(COPY.verdict.titleOkCompatCheck, { name: names.item });
+      if (compatVerdict === 'BELOW_MIN') return formatCopy(COPY.verdict.titleOkCompatBelowMin, { name: names.item });
+      return formatCopy(COPY.verdict.titleOk, { name: names.item });
+    case 'BELOW_RECOMMENDED':
+      if (compatVerdict === 'CHECK') return COPY.verdict.titleBelowRecommendedCompatCheck;
+      if (compatVerdict === 'BELOW_MIN') return COPY.verdict.titleBelowRecommendedCompatBelowMin;
+      return COPY.verdict.titleBelowRecommended;
+    case 'BELOW_MIN':
+      return formatCopy(isSmallOnly(schema, product, minSpec) ? COPY.verdict.titleSmall : COPY.verdict.titleBelowMin, { name: names.item });
+    case 'CHECK':
+      return COPY.verdict.productCheck;
+  }
 }
 
 /** 이유 문장(엔진 Reason.message 그대로). NO_CRITERIA 포함 — 기준이 없다는 사실도 정보다. */

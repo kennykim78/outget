@@ -69,6 +69,8 @@ const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
     id: 'string', careProfileId: 'string', supplyItemId: 'string', priority: 'string', orderHint: 'string',
     why: 'string', caution: 'string|null', avoid: 'string|null', minSpec: 'object', recommendedSpec: 'object',
     notNowReason: 'string|null', searchKeyword: 'string|null',
+    // D9 ②: 이유 한 줄 — 선택 키, 미작성이면 키 자체가 없다(null 불허 → S03). 길이·문장·숫자 가드는 validate-why-short.ts W01·W02.
+    whyShort: 'string?',
   },
   compatibilityRules: { id: 'string', a: 'string', b: 'string', careProfileId: 'string|null?', rules: 'array' },
   setupBundles: {
@@ -150,7 +152,8 @@ function checkFields(ctx: Ctx, key: SeedKey, id: string, r: Rec, table: Record<s
 }
 
 // ── S08 금지 키 ──────────────────────────────────────────────
-const SUPPLY_ITEM_FORBIDDEN = ['priority', 'minSpec', 'recommendedSpec', 'notNowReason', 'orderHint', 'searchKeyword'];
+// whyShort(D9 ②)는 SupplyRequirement 소유(동물별 이유) — 동물 무관 SupplyItem 에 두면 S08(불변식 6).
+const SUPPLY_ITEM_FORBIDDEN = ['priority', 'minSpec', 'recommendedSpec', 'notNowReason', 'orderHint', 'searchKeyword', 'whyShort'];
 
 /**
  * S08 허용목록(L2, D14) — 상품·후기는 스키마 키 밖이면 모두 ERROR(link/href/seller/price/rating 등 거래·평점 키 차단, 불변식 3·4·7).

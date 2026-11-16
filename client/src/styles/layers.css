@@ -7,6 +7,25 @@
   gap: var(--ws-space-6);
 }
 
+/* R4-4·R4-9(R4 시안 l4_supply): 본문 첫 줄 「{동물} · {용품}」 = 청록 라벨, 사진 자리 = 640×190 비율(모바일 같은 비율) radius-md. */
+.ws-supply-eyebrow {
+  margin: 0;
+  color: var(--ws-brand-text);
+}
+.ws-supply-photo {
+  aspect-ratio: 640 / 190;
+  border-radius: var(--ws-radius-md);
+}
+@media (max-width: 767px) {
+  .ws-supply-photo {
+    aspect-ratio: 328 / 164;
+  }
+}
+.ws-product-detail-spec {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .ws-supply-meta {
   display: flex;
   flex-wrap: wrap;
@@ -118,6 +137,10 @@
   display: flex;
   align-items: center;
   gap: var(--ws-space-1);
+}
+/* 글리프 = 단어와 같은 색(ink, 상태 soft 바탕 위 ≥13:1) — 전역 data-ws-glyph 색을 덮는다(R4-1 qa, L5 판정 단과 같은 inherit 방식). */
+.ws-compat-verdict .ws-glyph[data-ws-glyph] {
+  color: inherit;
 }
 .ws-compat-link {
   display: inline-flex;

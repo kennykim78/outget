@@ -46,10 +46,10 @@ function verifiedCare(): Required<RawSeed> {
 }
 
 describe('seed:validate — 승격 무결성(R7 A3)', () => {
-  it('실시드: errors 0 · warnings 23 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts·careNotes 3 통과, Taxon VERIFIED 0; BE90 사료 caution 2문장 L03 +1; BE92 골든 초안 편집 −3; 기니피그 S3 W-RULESCOPED +6; S7 기니피그 Taxon note L03 +1 · S8 playpen floorType W-RULESCOPED +1 · S9 기니피그 요구사항 W-RULESCOPED −6 · cage caution(Kenny 확정 2문장) L03 +1 · 저빌(126) Taxon note L03 +1 — seed.validate.test baseline 참고)', () => {
+  it('실시드: errors 0 · warnings 23 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts·careNotes 3 통과, Taxon VERIFIED 0; BE90 사료 caution 2문장 L03 +1; BE92 골든 초안 편집 −3; 기니피그 S3 W-RULESCOPED +6; S7 기니피그 Taxon note L03 +1 · S8 playpen floorType W-RULESCOPED +1 · S9 기니피그 요구사항 W-RULESCOPED −6 · cage caution(Kenny 확정 2문장) L03 +1 · 저빌(126) Taxon note L03 +1 · 2026-11-15 UNIT_RE 「곳」 추가로 드워프 hideout why L03 −1 — seed.validate.test baseline 참고)', () => {
     const res = run(fresh());
     expect(res.errors).toEqual([]);
-    expect(res.warnings).toHaveLength(20); // 271: bird-food.forSpecies W-RULESCOPED +1(앵무 요구사항 행 0 — 사실값 대기)
+    expect(res.warnings).toHaveLength(19); // 「곳」 단위 −1(hideout why). 271: bird-food.forSpecies W-RULESCOPED +1(앵무 요구사항 행 0 — 사실값 대기)
     expect(res.errors.concat(res.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
   });
 

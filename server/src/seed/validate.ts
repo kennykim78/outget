@@ -14,6 +14,7 @@ import { checkReview } from './validate-review.js';
 import { checkSlugs } from './validate-slug.js';
 import { checkSignatures } from './signatures.js';
 import { checkStructure } from './validate-structure.js';
+import { checkWhyShort } from './validate-why-short.js';
 import { SEED_KEYS } from './common.js';
 
 export type { ValidateOptions } from './context.js';
@@ -34,6 +35,7 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   checkExprs(ctx);
   checkCompatOr(ctx);
   checkReview(ctx);
+  checkWhyShort(ctx);
   checkSignatures(ctx, opts.signatures);
   checkPromotion(ctx);
   checkSlugs(ctx);

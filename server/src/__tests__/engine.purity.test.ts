@@ -57,6 +57,8 @@ describe('engine purity', () => {
         'domain.ts',
         'exposure.ts',
         'expr.ts',
+        // 286 U3c~e: 홈 A 설명 섹션 데이터 선택(프리렌더·클라 공용 단일 규칙, 순수 함수).
+        'home-a.ts',
         'index.ts',
         'links.ts',
         'providers.ts',

@@ -1,10 +1,10 @@
-// F2-2 L5 규격 확인 + L6 내 케이지 스텝 — 합성 카탈로그(테스트 전용, 노출 시드 아님).
+// F2-2 L5 크기 확인(286 U5a 입력 / U5b 결과 상태) + L6 내 케이지 스텝 — 합성 카탈로그(테스트 전용, 노출 시드 아님).
 //   경계값(최소 정확히 OK · 1 미만 BELOW_MIN · 최소~권장 사이 BELOW_RECOMMENDED), 60×40×35 리빙박스 + 30cm 쳇바퀴 → CHECK,
 //   컨텍스트 없으면 2단 미표시, spec_checker_used 제출당 1, compatibility_checked 규칙당 1, URL·이미지 입력 0,
 //   카탈로그 실패 → 폼 비활성 + 안내, D-35(입력 변경 → 결과 제거), 결과에 상품·♥ 0(D-43), L6 저장 키 = 스키마 키만.
-import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { COPY } from '@ws/copy';
-import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type PublicRequirement, type SpecSchema } from '@ws/engine';
+import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { COPY, formatCopy } from '@ws/copy';
+import { COUPANG_AFFILIATE_PREFIX, buildSearchLinks, type PublicRequirement, type SpecSchema, type WsPageData } from '@ws/engine';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry } from '../app/layerRegistry';
@@ -255,7 +255,7 @@ async function openL5(itemId: string): Promise<HTMLElement> {
   mount();
   act(() => layerStore.open('L5', { typeId: golden.id, itemId }, { url: `/hamster/golden/check/${itemId}` }));
   const d = await screen.findByRole('dialog');
-  await within(d).findByText(COPY.checkLayer.intro, {}, { timeout: 15000 }); // 지연 청크 첫 로드
+  await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 }); // 지연 청크 첫 로드(286 U5a 질문 문장)
   return d;
 }
 
@@ -265,13 +265,22 @@ async function ready(d: HTMLElement): Promise<void> {
   await waitFor(() => expect(submitBtn(d)).not.toBeDisabled());
 }
 
+// 286 U5b: 결과 상태는 입력 칸·[확인하기]를 걷는다 — 다시 넣으려면 「다시 입력하기」(값 유지). 아래 조작 도우미는 결과 상태면 먼저 누른다.
+const reenterBtn = (d: HTMLElement) => within(d).queryByRole('button', { name: COPY.verdict.reenter });
+function toInput(d: HTMLElement) {
+  const b = reenterBtn(d);
+  if (b) fireEvent.click(b);
+}
 function setNumber(d: HTMLElement, label: RegExp, v: string) {
+  toInput(d);
   fireEvent.change(within(d).getByLabelText(label), { target: { value: v } });
 }
 function pick(d: HTMLElement, label: string) {
+  toInput(d);
   fireEvent.click(within(d).getByLabelText(label));
 }
 function submit(d: HTMLElement) {
+  toInput(d);
   fireEvent.click(submitBtn(d));
 }
 
@@ -299,31 +308,40 @@ describe('L5 판정 — 경계값(제품 규격 단)', () => {
     submit(d);
     let r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     expect(r).toHaveAttribute('data-ws-verdict', 'OK');
-    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markOk)).toBeInTheDocument();
 
     setNumber(d, /폭/, '14');
     submit(d);
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     expect(r).toHaveAttribute('data-ws-verdict', 'BELOW_MIN');
-    expect(within(pline(r)).getByText(COPY.verdict.productBelowMin)).toBeInTheDocument();
-    expect(within(r).getByText('최소 15cm · 입력 14cm')).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markSmall)).toBeInTheDocument();
+    // 286 U5b: 큰 숫자 = 요구사항 minSpec(합성 15) · 내 값 = 입력 14 · 차이 = Reason.expected − actual
+    expect(r.querySelector('.ws-verdict-num--min .ws-verdict-num-value')?.textContent).toBe('15');
+    expect(r.querySelector('.ws-verdict-num--mine .ws-verdict-num-value')?.textContent).toBe('14');
+    expect(within(r).getByText('최소 폭보다 1cm 작아요')).toBeInTheDocument();
   }, 20000); // 파일 첫 테스트 = L5 지연 청크 콜드 로드(openL5 findByText 15s) — 기본 5s 타임아웃 초과(FE1 F1-2, 오케스트레이터 승인).
 
+  // 286 U5b · R4 fix 4상태: OK ○ 기준 충족 · 권장 미만 △ 확인 필요(보조줄) · 최소 미달 ✕ 조금 작아요(+ 차이 줄). 글리프·단어 함께.
   it.each([
-    ['30', 'OK', COPY.verdict.productOk, null],
-    ['28', 'BELOW_RECOMMENDED', COPY.verdict.productBelowRecommended, '권장 30cm · 입력 28cm'],
-    ['29', 'BELOW_RECOMMENDED', COPY.verdict.productBelowRecommended, '권장 30cm · 입력 29cm'],
-    ['27', 'BELOW_MIN', COPY.verdict.productBelowMin, '최소 28cm · 입력 27cm'],
-    ['25', 'BELOW_MIN', COPY.verdict.productBelowMin, '최소 28cm · 입력 25cm'],
-  ])('쳇바퀴 지름 %s → %s', async (dia, verdict, label, headline) => {
+    ['30', 'OK', '○', COPY.verdict.markOk, null],
+    ['28', 'BELOW_RECOMMENDED', '△', COPY.verdict.markCheck, null],
+    ['29', 'BELOW_RECOMMENDED', '△', COPY.verdict.markCheck, null],
+    ['27', 'BELOW_MIN', '✕', COPY.verdict.markSmall, '최소 지름보다 1cm 작아요'],
+    ['25', 'BELOW_MIN', '✕', COPY.verdict.markSmall, '최소 지름보다 3cm 작아요'],
+  ])('쳇바퀴 지름 %s → %s', async (dia, verdict, glyph, label, gap) => {
     const d = await openL5('wheel');
     await ready(d);
     const r = await checkWheel(d, dia);
     expect(r).toHaveAttribute('data-ws-verdict', verdict);
     const line = r.querySelector('[data-ws-tier="product"]') as HTMLElement;
+    expect(line.querySelector('.ws-verdict-glyph')?.textContent).toBe(glyph);
     expect(within(line).getByText(label)).toBeInTheDocument();
-    if (headline) expect(within(line).getByText(headline)).toBeInTheDocument();
-    else expect(line.querySelector('.ws-verdict-headline')).toBeNull();
+    // 큰 숫자는 픽스처 요구사항 minSpec(합성 28)에서 — 시안 예시 값(27)이 아니다.
+    expect(r.querySelector('.ws-verdict-num--min .ws-verdict-num-value')?.textContent).toBe('28');
+    expect(r.querySelector('.ws-verdict-num--mine .ws-verdict-num-value')?.textContent).toBe(dia);
+    if (verdict === 'BELOW_RECOMMENDED') expect(within(line).getByText(COPY.verdict.productBelowRecommended)).toBeInTheDocument();
+    if (gap) expect(within(line).getByText(gap)).toBeInTheDocument();
+    else expect(line.querySelector('.ws-verdict-gap')).toBeNull();
   });
 
   it('입력 누락 → CHECK(?) "판정할 정보가 더 필요해요", 범위 밖도 엔진 CHECK(D-44)', async () => {
@@ -333,7 +351,11 @@ describe('L5 판정 — 경계값(제품 규격 단)', () => {
     submit(d);
     let r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     expect(r).toHaveAttribute('data-ws-verdict', 'CHECK');
-    expect(within(pline(r)).getByText(COPY.verdict.productCheck)).toBeInTheDocument();
+    expect(within(r).getByRole('heading', { name: COPY.verdict.productCheck })).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markInput)).toBeInTheDocument();
+    expect(pline(r).querySelector('.ws-verdict-glyph')?.textContent).toBe('?');
+    // LOW-2: 「? 입력 필요」는 단의 △ 색을 이어받지 않는다 — data-ws-mark=unknown 이 ink-muted 규칙(speccheck.css)의 고리.
+    expect(pline(r).querySelector('.ws-verdict-line-mark')).toHaveAttribute('data-ws-mark', 'unknown');
 
     pick(d, '막힌 판');
     pick(d, '스탠드형');
@@ -352,8 +374,8 @@ describe('L5 판정 — 내 환경 호환 단', () => {
     expect(tiers(r)).toEqual(['product']);
     expect(within(r).queryByText(COPY.verdict.compatLine)).toBeNull();
     expect(named('compatibility_checked')).toHaveLength(0);
-    await waitFor(() => expect(d.querySelector('[data-ws-live]')?.textContent).toBe(COPY.verdict.productOk));
-    // 케이지 등록 유도는 폼 아래 CageRow(호환 규칙이 있는 용품만)
+    await waitFor(() => expect(d.querySelector('[data-ws-live]')?.textContent).toBe(COPY.verdict.markOk));
+    // 케이지 등록 유도 CageRow(호환 규칙이 있는 용품만) — 결과 상태에선 호환 단 자리(VerdictCard contextRow)
     expect(d.querySelector('[data-ws-cage-row="empty"]')).not.toBeNull();
   });
 
@@ -368,8 +390,11 @@ describe('L5 판정 — 내 환경 호환 단', () => {
     const compat = r.querySelector('[data-ws-tier="compat"]') as HTMLElement;
     expect(within(compat).getByText(COPY.verdict.compatCheck)).toBeInTheDocument();
     expect(within(compat).getByText('합성 호환 베딩 문장')).toBeInTheDocument();
-    expect(within(r.querySelector('[data-ws-tier="product"]') as HTMLElement).getByText(COPY.verdict.productOk)).toBeInTheDocument();
-    await waitFor(() => expect(d.querySelector('[data-ws-live]')?.textContent).toBe(`${COPY.verdict.productOk}. ${COPY.verdict.compatCheck}`));
+    expect(within(r).getByRole('heading', { name: formatCopy(COPY.verdict.titleOkCompatCheck, { name: '합성 쳇바퀴' }) })).toBeInTheDocument();
+    expect(within(r.querySelector('[data-ws-tier="product"]') as HTMLElement).getByText(COPY.verdict.markOk)).toBeInTheDocument();
+    expect(compat.querySelector('.ws-verdict-glyph')?.textContent).toBe('△'); // X1 의미: 등록 케이지 60×40×35 → 호환 △
+    expect(r.querySelector('[data-ws-cage-row="set"]')).not.toBeNull(); // 2단 입력(내 케이지) 줄이 결과 안에 남는다
+    await waitFor(() => expect(d.querySelector('[data-ws-live]')?.textContent).toBe(`${COPY.verdict.markOk}. ${COPY.verdict.compatCheck}`));
 
     expect(named('spec_checker_used')).toEqual([
       ['spec_checker_used', { animalTypeId: golden.id, supplyItemId: 'wheel', verdict: 'CHECK' }],
@@ -386,6 +411,10 @@ describe('L5 판정 — 내 환경 호환 단', () => {
     await ready(d);
     const r = await checkWheel(d, '30');
     expect(r).toHaveAttribute('data-ws-verdict', 'BELOW_MIN');
+    // 제품 충족 + 호환 ✕ → 제목은 성공 문장(titleOk)이 아니라 호환을 반영한 문장, 포커스도 그 제목으로
+    const failTitle = within(r).getByRole('heading', { name: formatCopy(COPY.verdict.titleOkCompatBelowMin, { name: '합성 쳇바퀴' }) });
+    expect(within(r).queryByRole('heading', { name: formatCopy(COPY.verdict.titleOk, { name: '합성 쳇바퀴' }) })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(failTitle));
     const compat = r.querySelector('[data-ws-tier="compat"]') as HTMLElement;
     expect(compat).toHaveAttribute('data-ws-tone', 'fail');
     expect(within(compat).getByText(COPY.verdict.compatBelowMin)).toBeInTheDocument();
@@ -406,7 +435,7 @@ describe('L5 낭독 라이브 영역(WCAG 4.1.3)', () => {
     expect(el?.textContent).toBe('');
 
     const r = await checkWheel(d, '30');
-    await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.productOk));
+    await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.markOk));
     expect(live(d)).toBe(el); // 같은 노드(재삽입 아님)
     // VerdictCard 안에는 판정 라이브 속성 없음(이중 낭독 방지). 265 K6: 검색 패널이 처음부터 그려져 복사 안내 p(aria-live, 비어 있음)
     //   하나만 카드 안에 있다 — 판정 문구가 아니라 복사 확인 전용이고, 검색 블록(.ws-search) 밖에는 0.
@@ -416,29 +445,29 @@ describe('L5 낭독 라이브 영역(WCAG 4.1.3)', () => {
     expect(lives[0].textContent).toBe('');
     expect(r.querySelector('[role="status"]')).toBeNull();
 
-    setNumber(d, /지름/, '31'); // 입력 변경 → 결과 제거, 영역은 유지·비움
+    setNumber(d, /지름/, '31'); // 다시 입력하기 + 입력 변경 → 결과 제거, 영역은 유지·비움
     expect(within(d).queryByRole('region', { name: COPY.verdict.resultRegion })).toBeNull();
     expect(live(d)).toBe(el);
     await waitFor(() => expect(live(d)?.textContent).toBe(''));
 
     submit(d); // 같은 문구 재판정도 다시 채워진다
-    await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.productOk));
+    await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.markOk));
   });
 
   it('D2: 같은 입력 재제출 → ""로 갔다가 150ms 뒤 같은 문구로 다시 채워짐(변경 2회), 입력 변경 시 비움 유지', async () => {
     const d = await openL5('wheel');
     await ready(d);
     await checkWheel(d, '30');
-    await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.productOk));
+    await waitFor(() => expect(live(d)?.textContent).toBe(COPY.verdict.markOk));
     const el = live(d) as HTMLElement;
     vi.useFakeTimers();
     try {
-      submit(d); // 같은 입력 재제출 → 변경 1: 비움
+      submit(d); // 다시 입력하기 → 같은 입력 재제출 → 변경 1: 비움
       expect(el.textContent).toBe('');
       act(() => void vi.advanceTimersByTime(149));
       expect(el.textContent).toBe('');
       act(() => void vi.advanceTimersByTime(1));
-      expect(el.textContent).toBe(COPY.verdict.productOk);
+      expect(el.textContent).toBe(COPY.verdict.markOk);
 
       setNumber(d, /지름/, '31'); // 입력 변경 → 비움 유지
       act(() => void vi.advanceTimersByTime(500));
@@ -461,7 +490,7 @@ describe('L5 이벤트', () => {
     expect(named('spec_checker_used')).toHaveLength(1);
     submit(d);
     await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
-    submit(d); // 같은 입력 재제출도 제출 1회 = 1건
+    submit(d); // 다시 입력하기 → 같은 입력 재제출도 제출 1회 = 1건(다시 입력하기 자체는 0)
     expect(named('spec_checker_used').map(([, p]) => p.verdict)).toEqual(['OK', 'BELOW_MIN', 'BELOW_MIN']);
     // 제출 3회 × 확인 규칙 2개
     expect(named('compatibility_checked')).toHaveLength(6);
@@ -469,18 +498,61 @@ describe('L5 이벤트', () => {
 });
 
 describe('L5 화면 규칙', () => {
-  it('입력이 바뀌면 결과 제거·[판정하기] 다시 채움(D-35), 결과 후 채운 CTA 0(265 K6: 펼침 토글 제거, 261 §6 상한 규칙)', async () => {
+  it('286 U5a 입력 상태: 제목행 「크기 확인」 · 「{동물} · {용품}」 · 질문 문장 · 기준 보조줄(요구사항 값) · 단위는 칸 안 · 채운 [확인하기] 1', async () => {
     const d = await openL5('wheel');
     await ready(d);
+    expect(d).toHaveAccessibleName(COPY.checkLayer.title);
+    expect(d).toHaveAccessibleDescription(`${golden.displayName} · 합성 쳇바퀴`); // 이름은 「크기 확인」 그대로, 동물·용품 줄은 설명
+    expect(d.getAttribute('data-ws-layer')).toBe('L5');
+    expect(within(d).getByText(`${golden.displayName} · 합성 쳇바퀴`)).toBeInTheDocument();
+    expect(within(d).getByRole('heading', { name: formatCopy(COPY.checkLayer.ask, { name: '합성 쳇바퀴' }) })).toBeInTheDocument();
+    expect(within(d).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · 최소 28cm 이상 · 권장 30cm 이상`)).toBeInTheDocument();
+    const dia = within(d).getByLabelText(/지름/) as HTMLInputElement;
+    expect(within(d).getByText('지름', { selector: 'label' })).toBeInTheDocument(); // 라벨은 이름만
+    const unit = document.getElementById(dia.getAttribute('aria-describedby') ?? '');
+    expect(unit).toHaveClass('ws-spec-unit');
+    expect(unit?.textContent).toBe('cm');
+    expect(dia.closest('.ws-spec-inputwrap')).not.toBeNull();
     expect(submitBtn(d)).toHaveClass('ws-btn--fill');
+    expect(submitBtn(d).textContent).toBe(COPY.checkLayer.submit);
     expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(1);
-    await checkWheel(d, '30');
-    expect(submitBtn(d)).toHaveClass('ws-btn--outline');
-    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
+  });
+
+  it('286 U5b 결과 상태: 입력 칸·[확인하기] 걷힘 → 채운 버튼 1 = [{용품} 기준 살펴보기](L4, 상인 링크 아님) + 「다시 입력하기」(값 유지·첫 칸 포커스, D-35)', async () => {
+    const d = await openL5('wheel');
+    await ready(d);
+    const r = await checkWheel(d, '30');
+    expect(d.querySelector('[data-ws-step="L5"]')).toHaveAttribute('data-ws-state', 'result');
+    expect(within(d).queryByRole('button', { name: COPY.checkLayer.submit })).toBeNull();
+    expect(d.querySelector('[data-ws-spec-form]')).toBeNull();
+    // 제출 → 포커스는 결과 제목(사라진 버튼에 남지 않는다)
+    const title = within(r).getByRole('heading', { name: formatCopy(COPY.verdict.titleOk, { name: '합성 쳇바퀴' }) });
+    await waitFor(() => expect(document.activeElement).toBe(title));
+    expect(within(r).getByText(`${golden.displayName} · 합성 쳇바퀴`)).toBeInTheDocument();
+    const fills = d.querySelectorAll('.ws-btn--fill');
+    expect(fills).toHaveLength(1);
+    expect(fills[0]).toHaveClass('ws-spec-basis');
+    expect(fills[0].tagName).toBe('A');
+    expect(fills[0]).toHaveAttribute('href', '/hamster/golden/supplies/wheel');
+    expect(fills[0].textContent).toBe(formatCopy(COPY.verdict.seeBasis, { name: '합성 쳇바퀴' }));
+    expect(fills[0].closest('.ws-search')).toBeNull();
     expect(d.querySelector('[aria-expanded]')).toBeNull();
-    setNumber(d, /지름/, '31');
+    // ⑦ 검수 대기·DRAFT 라벨 0
+    expect(d.textContent ?? '').not.toMatch(/검수 대기|DRAFT|AI_DRAFT/);
+
+    fireEvent.click(within(d).getByRole('button', { name: COPY.verdict.reenter }));
     expect(within(d).queryByRole('region', { name: COPY.verdict.resultRegion })).toBeNull();
+    const dia = within(d).getByLabelText(/지름/) as HTMLInputElement;
+    expect(dia.value).toBe('30'); // 값 유지
+    await waitFor(() => expect(document.activeElement).toBe(dia));
     expect(submitBtn(d)).toHaveClass('ws-btn--fill');
+    expect(named('spec_checker_used')).toHaveLength(1); // 다시 입력하기는 제출이 아님
+
+    // [{용품} 기준 살펴보기] → L4(같은 용품)
+    await checkWheel(d, '30');
+    fireEvent.click(d.querySelector('a.ws-spec-basis') as HTMLElement);
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveAttribute('data-ws-layer', 'L4'));
+    expect(window.location.pathname).toBe('/hamster/golden/supplies/wheel');
   });
 
   it('결과에 상품·♥·추천 문구 0, 대안은 SupplyItem(L4 링크), 고정 meta·검수 meta', async () => {
@@ -508,7 +580,9 @@ describe('L5 화면 규칙', () => {
     expect(within(r).queryByRole('button', { name: COPY.supplyLayer.findWithCondition })).toBeNull();
     expect(r.querySelector('[aria-expanded]')).toBeNull();
     expect(r.querySelector('.ws-spec-search > p.ws-t-label.ws-spec-muted')?.textContent).toBe(COPY.supplyLayer.findWithCondition);
-    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
+    // 판정 뒤 채운 CTA = 꼬리의 [기준 살펴보기] 1개뿐(상한 규칙) — 검색·상인 블록 안 fill 0.
+    expect(Array.from(d.querySelectorAll('.ws-btn--fill')).map((x) => x.className)).toEqual(['ws-btn ws-btn--fill ws-spec-basis']);
+    expect(r.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
     // 꺼짐(일반 검색 링크만): 고지 0, sponsored·describedby 0.
     expect(d.querySelector('[data-ws-aff]')).toBeNull();
     expect(within(r).getByText('골든햄스터 쳇바퀴 30cm')).toBeInTheDocument();
@@ -579,13 +653,13 @@ describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력�
     submit(d);
     let r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     expect(r).toHaveAttribute('data-ws-verdict', 'CHECK'); // floorType 미입력 → 엔진 MISSING
-    expect(within(pline(r)).getByText(COPY.verdict.productCheck)).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markInput)).toBeInTheDocument();
 
     pick(d, '막힌 바닥');
     submit(d);
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     expect(r).toHaveAttribute('data-ws-verdict', 'OK'); // 입력값이 엔진에 전달됨
-    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markOk)).toBeInTheDocument();
 
     pick(d, '망 바닥');
     submit(d);
@@ -611,24 +685,25 @@ describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력�
     setNumber(d, /바닥 가로/, '60');
     setNumber(d, /바닥 세로/, '40');
     setNumber(d, /높이/, '35');
-    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.emptyCta }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
 
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     await waitFor(() => expect(tiers(r)).toEqual(['product', 'compat'])); // 재계산이 일어났다
     expect(r).toHaveAttribute('data-ws-verdict', 'OK'); // floorType 이 재판정 입력에도 남았다
-    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markOk)).toBeInTheDocument();
     expect(named('spec_checker_used')).toHaveLength(1);
 
     // 케이지 수정(바닥 가로 축소 → 호환 CHECK)으로 한 번 더 재계산 — 제품 단은 여전히 OK(floorType 유지)
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.edit }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.editCta })); // R4-5: 등록한 케이지 보기 → 폼
     setNumber(d, /바닥 가로/, '25');
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     await waitFor(() => expect(r).toHaveAttribute('data-ws-verdict', 'CHECK'));
-    expect(within(pline(r)).getByText(COPY.verdict.productOk)).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markOk)).toBeInTheDocument();
     expect(within(r.querySelector('[data-ws-tier="compat"]') as HTMLElement).getByText('합성 매트 호환 문장')).toBeInTheDocument();
     expect(named('spec_checker_used')).toHaveLength(1);
   });
@@ -647,13 +722,13 @@ describe('L5 ruleScoped 필드 — 해석된 요구사항이 폼·엔진 입력�
     setNumber(d, /바닥 가로/, '60');
     setNumber(d, /바닥 세로/, '40');
     setNumber(d, /높이/, '35');
-    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.save }));
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.emptyCta }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
 
     r = await within(d).findByRole('region', { name: COPY.verdict.resultRegion });
     await waitFor(() => expect(tiers(r)).toEqual(['product', 'compat']));
     expect(r).toHaveAttribute('data-ws-verdict', 'CHECK');
-    expect(within(pline(r)).getByText(COPY.verdict.productCheck)).toBeInTheDocument();
+    expect(within(pline(r)).getByText(COPY.verdict.markInput)).toBeInTheDocument();
   });
 });
 
@@ -681,7 +756,7 @@ describe('L6 내 케이지 스텝', () => {
     expect(within(d).getByText(COPY.cage.deviceOnly)).toBeInTheDocument();
     assertNoUrlOrImageInputs(d);
 
-    const save = within(d).getByRole('button', { name: COPY.cage.save });
+    const save = within(d).getByRole('button', { name: COPY.cage.emptyCta });
     expect(save).toBeDisabled();
     pick(d, '리빙박스');
     expect(within(d).queryByLabelText(/철망 간격/)).toBeNull(); // WIRE 만(D7)
@@ -722,12 +797,12 @@ describe('L6 내 케이지 스텝', () => {
     pick(d, '철망');
     expect(within(d).getByLabelText(/철망 간격/)).toBeInTheDocument();
     // 빈 필수 칸: 그냥 비활성, 안내 0
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).toBeDisabled();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).toBeDisabled();
     expect(within(d).queryByText(COPY.cage.outOfRange)).toBeNull();
     setNumber(d, /바닥 가로/, '300');
     setNumber(d, /바닥 세로/, '40');
     setNumber(d, /높이/, '35');
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).toBeDisabled();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).toBeDisabled();
     expect(window.localStorage.getItem(cageKey(golden.id))).toBeNull();
     // DR m-2: 범위 밖 칸만 aria-invalid + fail 테두리 + meta 안내(aria-describedby)
     const bad = within(d).getByLabelText(/바닥 가로/);
@@ -743,7 +818,7 @@ describe('L6 내 케이지 스텝', () => {
     setNumber(d, /바닥 가로/, '80');
     setNumber(d, /철망 간격/, '9');
     expect(within(d).queryByText(COPY.cage.outOfRange)).toBeNull();
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).not.toBeDisabled();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).not.toBeDisabled();
   });
 
   it('케이지가 있으면 "수정" → "등록 지우기" 로 키 삭제 후 이전 스텝', async () => {
@@ -752,6 +827,11 @@ describe('L6 내 케이지 스텝', () => {
     await ready(d);
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.edit }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
+    // R4-5: 케이지가 있으면 보기부터(폼·지우기 0) → 「등록값 수정하기」 → 폼(첫 입력 포커스)
+    expect(d.querySelector('[data-ws-cage="summary"]')).not.toBeNull();
+    expect(within(d).queryByRole('button', { name: COPY.cage.delete })).toBeNull();
+    fireEvent.click(within(d).getByRole('button', { name: COPY.cage.editCta }));
+    expect(d.querySelector('[data-ws-cage="summary"]')).toBeNull();
     expect(within(d).getByLabelText(/바닥 가로/)).toHaveValue(80);
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.delete }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L5"]')).not.toBeNull());
@@ -778,7 +858,7 @@ describe('L6 내 케이지 스텝', () => {
     fireEvent.click(within(d).getByRole('button', { name: COPY.cage.register }));
     await waitFor(() => expect(d.querySelector('[data-ws-step="L6"]')).not.toBeNull());
     expect(within(d).queryByText(COPY.cage.deviceOnly)).toBeNull();
-    expect(within(d).getByRole('button', { name: COPY.cage.save })).toBeInTheDocument();
+    expect(within(d).getByRole('button', { name: COPY.cage.emptyCta })).toBeInTheDocument();
   });
 
   it('케이지 호환 규칙이 없는 용품: 케이지 없음 → CageRow 없음', async () => {
@@ -820,7 +900,7 @@ describe('L5 제휴 고지(265 — K6 전부 펼침 + 261 §1·§2.5)', () => {
     );
     act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'wheel' }, { url: '/hamster/golden/check/wheel' }));
     const d = await screen.findByRole('dialog');
-    await within(d).findByText(COPY.checkLayer.intro, {}, { timeout: 15000 });
+    await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 });
     return d;
   }
 
@@ -879,5 +959,115 @@ describe('L5 제휴 고지(265 — K6 전부 펼침 + 261 §1·§2.5)', () => {
     );
     expect(screen.queryAllByRole('link')).toHaveLength(0);
     expect(document.querySelector('[data-ws-aff]')).toBeNull();
+    // R4-3(R4 시안 affiliate_candidates): 그릴 상인 링크 0 → 비활성 「상인 링크 준비 중」 1개
+    expect(screen.getByRole('button', { name: COPY.supplyLayer.merchantPending })).toBeDisabled();
+  });
+
+  it('R4-3 SpecSearch: 검색어가 없으면 블록 없음, 링크가 있으면 비활성 버튼 없음', () => {
+    const { container, rerender } = render(<SpecSearch animalTypeId={golden.id} supplyItemId="wheel" keyword="" links={[]} />);
+    expect(container.innerHTML).toBe('');
+    rerender(
+      <SpecSearch
+        animalTypeId={golden.id}
+        supplyItemId="wheel"
+        keyword={KW}
+        links={[{ provider: 'NAVER', href: 'https://search.shopping.naver.com/search/all?query=x' }]}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: COPY.supplyLayer.merchantPending })).toBeNull();
+  });
+});
+
+// D6-B(Kenny 2026-11-14): L5 결과 아래 「크기 확인에 도움 된 점」 — ws-data testimonials(서버 투영 = APPROVED ∧ verifiedUsage) 중
+//   이 동물 ∧ SPEC_CHECK 의 첫 1건만. 0건·다른 동물·다른 행동이면 영역째 없음. 입력 상태에는 없음. 선 1개 + 텍스트(버튼·링크·사진·별점 0).
+describe('L5 후기 — 크기 확인에 도움 된 점(D6-B)', () => {
+  const SPEC_T = { id: 't-spec', quote: '지름을 재 보고 나서 바꿔야 할 걸 알았어요', animalTypeId: golden.id, situation: 'FIRST_TIME', linkedAction: 'SPEC_CHECK', reviewerImage: null } as const;
+  function reviewPage(testimonials: WsPageData['data']['testimonials']) {
+    return pageOf('TYPE', { ...PAGE.data, testimonials }, { typeId: golden.id, path: '/hamster/golden' });
+  }
+  async function openWithPage(page: WsPageData): Promise<HTMLElement> {
+    render(
+      <LayerPageProvider page={page}>
+        <LayerHost registry={layerRegistry} />
+      </LayerPageProvider>,
+    );
+    act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'wheel' }, { url: '/hamster/golden/check/wheel' }));
+    const d = await screen.findByRole('dialog');
+    await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 });
+    return d;
+  }
+  const reviewOf = (d: HTMLElement) => d.querySelector('[data-ws-part="review"]');
+  const cleanupAll = () => {
+    act(() => layerStore.resetForTest());
+    cleanup();
+  };
+
+  it('0건 → 결과 상태에 영역·제목 없음(DOM 0)', async () => {
+    const d = await openWithPage(reviewPage([]));
+    await ready(d);
+    await checkWheel(d, '26');
+    expect(reviewOf(d)).toBeNull();
+    expect(d.textContent).not.toContain(COPY.verdict.reviewTitle);
+    expect(d.querySelector('[data-ws-id^="testimonials#"]')).toBeNull();
+  });
+
+  it('1건 → 결과 상태(BELOW_MIN·OK 모두)에 제목·원문·한 줄, 입력 상태에는 없음', async () => {
+    const d = await openWithPage(reviewPage([SPEC_T]));
+    await ready(d);
+    expect(reviewOf(d)).toBeNull(); // 입력 상태
+    let r = await checkWheel(d, '26');
+    expect(r.getAttribute('data-ws-verdict')).toBe('BELOW_MIN');
+    let s = reviewOf(d) as HTMLElement;
+    expect(s).not.toBeNull();
+    expect(s.getAttribute('data-ws-id')).toBe('testimonials#t-spec');
+    expect(within(s).getByRole('heading', { level: 4 }).textContent).toBe(COPY.verdict.reviewTitle);
+    expect(s.querySelector('blockquote')?.textContent).toBe(`“${SPEC_T.quote}”`);
+    expect(s.textContent).toContain(`${golden.displayName} · ${COPY.situation.FIRST_TIME}`);
+    // 선 1개 + 텍스트: 버튼·링크·사진·폼 없음, 결과 설명 다음 · 대안·검색 링크 앞.
+    expect(s.querySelectorAll('button, a, img, input')).toHaveLength(0);
+    const order = Array.from(r.querySelectorAll('[data-ws-tier="product"], [data-ws-part="review"], [data-ws-part="alternatives"], .ws-search-merchants'));
+    expect(order[0].getAttribute('data-ws-tier')).toBe('product');
+    expect(order[1]).toBe(s);
+    expect(order.length).toBeGreaterThan(2);
+    // 「다시 입력하기」 → 입력 상태: 후기 없음.
+    toInput(d);
+    expect(reviewOf(d)).toBeNull();
+    r = await checkWheel(d, '30');
+    expect(r.getAttribute('data-ws-verdict')).toBe('OK');
+    s = reviewOf(d) as HTMLElement;
+    expect(s).not.toBeNull();
+    expect(d.querySelectorAll('[data-ws-part="review"]')).toHaveLength(1);
+  });
+
+  it('다른 동물·다른 행동(CHECKLIST·SETUP·VET)·빈 문장 후기는 비노출, 여러 건이면 첫 1건만', async () => {
+    const others: WsPageData['data']['testimonials'] = [
+      { ...SPEC_T, id: 't-other', animalTypeId: 'hamster-dwarf' },
+      { ...SPEC_T, id: 't-cl', linkedAction: 'CHECKLIST' },
+      { ...SPEC_T, id: 't-su', linkedAction: 'SETUP' },
+      { ...SPEC_T, id: 't-vet', linkedAction: 'VET' },
+      { ...SPEC_T, id: 't-empty', quote: '  ' },
+    ];
+    const d = await openWithPage(reviewPage(others));
+    await ready(d);
+    await checkWheel(d, '26');
+    expect(reviewOf(d)).toBeNull();
+    cleanupAll();
+    const d2 = await openWithPage(reviewPage([...others, SPEC_T, { ...SPEC_T, id: 't-spec-2', quote: '두 번째 문장이에요' }]));
+    await ready(d2);
+    await checkWheel(d2, '26');
+    const all = d2.querySelectorAll('[data-ws-part="review"]');
+    expect(all).toHaveLength(1);
+    expect(all[0].getAttribute('data-ws-id')).toBe('testimonials#t-spec');
+    expect(d2.textContent).not.toContain('두 번째 문장이에요');
+  });
+
+  it('후기 영역 고정 문구에 금지어·별점·시안 자리표시 없음', async () => {
+    const d = await openWithPage(reviewPage([SPEC_T]));
+    await ready(d);
+    await checkWheel(d, '26');
+    const text = (reviewOf(d) as HTMLElement).textContent ?? '';
+    for (const banned of ['괜찮', '안전하', '최저가', '판매순', '베스트', '정확도', '회원가입', '구매', '★', '별점', '예시 문구', '시안용', '자리표시', '실제 후기 아님']) {
+      expect(text, banned).not.toContain(banned);
+    }
   });
 });

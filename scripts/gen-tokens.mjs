@@ -53,7 +53,7 @@ for (const x of t.layout.tokens) decl(x.name, x.value);
 
 // 파생 (스펙 22 §1.5, 고정 목록 — tokens.json 리프 아님)
 const derived = [
-  ['scrim', 'rgba(47, 43, 39, 0.42)'],
+  ['scrim', 'rgba(16, 35, 38, 0.44)'], // v2.0 R3: 잉크(#102326) 약 44%
   ['modal-w-tablet', '600px'],
   ['content-tablet', '960px'],
   ['touch', '44px'],

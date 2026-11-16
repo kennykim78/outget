@@ -1,10 +1,10 @@
-// 체크리스트 상태 엔진(PRD US-005: ✓ ! △ ○, 준비율 = REQUIRED 중 ✓ 비율, △ 제외).
+// 체크리스트 상태 엔진(PRD US-005: ✓ ! △ + 나중에(글리프 없음, R4-1 — ○ 는 기준 충족 전용), 준비율 = REQUIRED 중 ✓ 비율, △ 제외).
 //   입력은 ws-data PublicRequirement 그대로 — priority·orderHint·notNowReason 은 서버 resolve 결과를 읽기만 한다
 //   (재판정·재계산 없음, 불변식 ⑥). 하는 일은 그룹핑·정렬(orderHint)·사용자 체크 상태 결합뿐.
 import { ORDER_HINTS, PRIORITIES, type PublicRequirement } from '@ws/engine';
 import type { ReadySource, SetupV2, SetupV3 } from './setupStore';
 
-/** ✓ 준비완료 · ! 먼저 준비(REQUIRED 미완료) · △ 확인 필요 · ○ 나중에. */
+/** ✓ 준비완료 · ! 먼저 준비(REQUIRED 미완료) · △ 확인 필요 · 나중에(글리프 없이 단어만). */
 export type ItemState = 'READY' | 'FIRST' | 'CHECK' | 'LATER';
 
 export interface ChecklistRow {
@@ -19,12 +19,10 @@ export interface ChecklistRow {
 export interface ChecklistGroup {
   priority: PublicRequirement['priority'];
   rows: ChecklistRow[];
-  /** NOT_NOW 그룹은 기본 접힘. */
-  collapsed: boolean;
 }
 
 export interface ChecklistView {
-  /** 항상 4개, PRIORITIES 순서(필수·권장·선택·지금 필요 없음). 빈 그룹 표시 여부는 화면이 정한다. */
+  /** 항상 4개, PRIORITIES 순서(필수·권장·선택·지금 필요 없음). 빈 그룹 표시 여부는 화면이 정한다. 접힘 없음(K6 전부 펼침, 286 U6). */
   groups: ChecklistGroup[];
   /** 0~100 정수(내림 — 전부 ✓ 일 때만 100). REQUIRED 0개면 0. */
   readyPercent: number;
@@ -84,7 +82,6 @@ export function deriveChecklist(
     rows: rows
       .filter((r) => r.requirement.priority === priority)
       .sort((a, b) => hintRank(a.requirement.orderHint) - hintRank(b.requirement.orderHint)),
-    collapsed: priority === 'NOT_NOW',
   }));
 
   const required = rows.filter((r) => r.requirement.priority === 'REQUIRED');

@@ -1,5 +1,6 @@
 // 콘텐츠 린트(불변식 5) — 금지어 정확 일치 = ERROR(L01), 어간 = WARN(L02),
-//   문체(L03)·자리표시자(L04)·검색어 토큰(L05)·공백 제거 후에만 걸리는 짧은 금지어 = WARN(L06).
+//   문체(L03)·자리표시자(L04)·검색어 토큰(L05)·공백 제거 후에만 걸리는 짧은 금지어 = WARN(L06),
+//   호환 숫자 표기(정규화 전 원문, compatDigits) = ERROR(L07, 후기 quote 는 WARN).
 //   금지어 목록 단일 소스: banned-words.json (scripts/ compliance-scan 과 패리티 테스트로 묶임).
 import { asRec, isSlotRow, type Collector, type Rec, type SeedKey } from './common.js';
 import data from './banned-words.json' with { type: 'json' };
@@ -70,24 +71,94 @@ export function sentenceCount(text: string): number {
     .filter((s) => s.length > 0).length;
 }
 
+/**
+ * 이유 한 줄(whyShort, D9 ②) 전용 엄격 문장 수 — sentenceCount(why·caution 규칙, 결과 불변)와 따로 둔다.
+ *   NFKC(전각 마침표 ．→ . , ｡→ 。) 뒤, 마침표 뒤 공백이 없어도 경계("요.먹이도" = 2문장). 단 숫자 사이 마침표(1.5)는 경계 아님.
+ */
+export function strictSentenceCount(text: string): number {
+  return text
+    .normalize('NFKC')
+    .split(/[!?。]|(?<!\d)\.|\.(?!\d)/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0).length;
+}
+
 // 숫자 뒤에 와야 하는 단위·수량사. 긴 것 먼저.
 const UNIT_RE =
-  /^\s?(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|℃|°C|°|원|만|천|개월|개|마리|회|번|년|일|주|시간|분|초|층|종|가지|단계|세|살|배|명|월|호|차|박|칸|장|쌍)/;
+  /^\s?(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|℃|°C|°|원|만|천|개월|개|마리|회|번|년|일|주|시간|분|초|층|종|가지|단계|세|살|배|명|월|호|차|박|칸|장|쌍|곳)/;
 // 숫자 묶음: 18~26, 60×40, 1.5, 15-20
-const NUMBER_GROUP_RE = /\d+(?:\.\d+)?(?:\s*[~×xX\-–]\s*\d+(?:\.\d+)?)*/g;
+const NUMBER_GROUP_RE = /\d+(?:\.\d+)?(?:\s*[~×xX\-–\u301C\u2212\u2014]\s*\d+(?:\.\d+)?)*/g;
 
 /** 단위 없는 숫자 묶음 목록(순수). 예: "80×50 케이지" → ["80×50"]. */
 export function numbersWithoutUnit(text: string): string[] {
-  const out: string[] = [];
-  NUMBER_GROUP_RE.lastIndex = 0;
+  return numberTokens(text)
+    .filter((t) => t.unit === null)
+    .map((t) => t.group);
+}
+
+/**
+ * 숫자 묶음 + 뒤따르는 단위(없으면 null) 목록(순수, D9 ② W02 와 공용). 영문에 붙은 숫자(모델명 등)는 건너뛴다.
+ *   예: "가로 60×40cm 이상, 2 개" → [{group:'60×40', unit:'cm'}, {group:'2', unit:'개'}].
+ */
+export function numberTokens(raw: string): Array<{ group: string; unit: string | null }> {
+  // NFKC 먼저: 전각 ９９·수학 굵은 𝟗𝟗·원문자 ⑨·㎝ 등을 ASCII 숫자·단위로 펴서 ASCII \d 규칙이 우회되지 않게.
+  //   NFKC 로도 ASCII 가 안 되는 숫자(아라비아-인도 ٩·❾ 등)·한글 수사+단위는 disguisedNumbers 가 따로 잡는다.
+  const text = raw.normalize('NFKC');
+  const out: Array<{ group: string; unit: string | null }> = [];
+  const re = new RegExp(NUMBER_GROUP_RE.source, 'g');
   let m: RegExpExecArray | null;
-  while ((m = NUMBER_GROUP_RE.exec(text)) !== null) {
+  while ((m = re.exec(text)) !== null) {
     const before = text.slice(0, m.index);
-    // 영문·숫자에 붙은 숫자(모델명 등)는 건너뛴다.
     if (/[A-Za-z_]$/.test(before)) continue;
-    const after = text.slice(m.index + m[0].length);
-    if (!UNIT_RE.test(after)) out.push(m[0]);
+    const u = UNIT_RE.exec(text.slice(m.index + m[0].length));
+    out.push({ group: m[0], unit: u ? u[0].trim() : null });
   }
+  return out;
+}
+
+// NFKC 뒤에도 남는 비ASCII 숫자(\p{N}: 아라비아-인도 ٩·데바나가리 ९·❾·〇 등).
+const NON_ASCII_NUMBER_RE = /[^\P{N}0-9]+/gu;
+// 한글 수사(고유어·한자어) 바로 뒤(공백 1개 허용) 측정 단위. 앞은 한글이 아닐 때만("높이 cm" 의 "이" 는 수사 아님).
+//   고유어 수 세기(한 번·두 개·세 마리)는 자연어라 대상 아님 — 측정 단위(cm·g·%·℃ 및 센티·그램 등 한글 단위)만.
+const HANGUL_NUMERAL =
+  '(?:(?:스물|스무|서른|마흔|쉰|예순|일흔|여든|아흔|열)(?:하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉)?|하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|[일이삼사오육칠팔구십백천영공]+)';
+const MEASURE_UNIT = '(?:cm|mm|km|kg|ml|mL|kcal|cc|m|g|L|l|%|°C|°|센티미터|센티|밀리미터|밀리|킬로그램|킬로미터|킬로|미터|그램|리터|퍼센트)';
+const HANGUL_NUMERAL_UNIT_RE = new RegExp(`(?<![가-힣])${HANGUL_NUMERAL}\\s?${MEASURE_UNIT}(?![A-Za-z])`, 'gu');
+
+/**
+ * 숫자 표기 우회 목록(순수, L03·W02 공용) — NFKC 뒤에도 남는 비ASCII 숫자, 한글 수사+측정 단위("아흔cm").
+ *   숫자는 ASCII 로 쓴다(단위·원문 대조 규칙이 ASCII 기준).
+ */
+export function disguisedNumbers(raw: string): string[] {
+  const text = raw.normalize('NFKC');
+  return [...(text.match(NON_ASCII_NUMBER_RE) ?? []), ...(text.match(HANGUL_NUMERAL_UNIT_RE) ?? [])];
+}
+
+/** 호환 숫자 한 글자(정규화 전 원문 기준) — NFKC 로 ASCII 숫자가 생기거나(전각 ０·①·⑴·⒈·㉑·⓪·𝟎·²·½·㎡ 등), 그 자체가 비ASCII 숫자(\p{N}: ❶·⓵·٩·〇 등). */
+function isCompatDigit(ch: string): boolean {
+  if (/[0-9]/.test(ch)) return false;
+  const n = ch.normalize('NFKC');
+  if (n !== ch && /[0-9]/.test(n)) return true;
+  return /\p{N}/u.test(ch);
+}
+
+/**
+ * 호환 숫자 표기 목록(순수, L07·W02 공용) — **정규화 전 원문**에서 이어진 호환 숫자 글자 묶음.
+ *   numberTokens·disguisedNumbers 는 NFKC 뒤 값 대조라 전각 ６０ 을 60 으로 펴 통과시킨다. 이 함수는 표기 자체를 막는다.
+ *   NFKC 로 바뀌어도 숫자가 안 생기는 문자(℃·ㆍ·…·한글 음절·호환 자모·㈀·㉠)는 대상 아님. normalizeLintText 와 무관(lint-parity 불변).
+ *   한계: 한글 채움 문자(U+3164 등)로 금지어를 쪼개는 우회는 normalizeLintText 범위라 여기서 다루지 않는다.
+ */
+export function compatDigits(raw: string): string[] {
+  const out: string[] = [];
+  let run = '';
+  for (const ch of raw) {
+    if (isCompatDigit(ch)) run += ch;
+    else if (run !== '') {
+      out.push(run);
+      run = '';
+    }
+  }
+  if (run !== '') out.push(run);
   return out;
 }
 
@@ -126,6 +197,8 @@ function ruleReasons(out: TextField[], base: string, rs: unknown): void {
 function requirementTexts(out: TextField[], base: string, r: Rec): void {
   const p = base ? `${base}.` : '';
   push(out, `${p}why`, r.why, 'why');
+  // D9 ②: 이유 한 줄도 why 와 같은 린트(금지어 L01·어간 L02·자리표시자 L04·단위 없는 숫자 L03). 길이·문장·숫자 출처는 W01·W02.
+  push(out, `${p}whyShort`, r.whyShort, 'why');
   push(out, `${p}caution`, r.caution, 'caution');
   push(out, `${p}avoid`, r.avoid, 'prose');
   push(out, `${p}notNowReason`, r.notNowReason, 'prose');
@@ -217,6 +290,15 @@ export function lintRecord(key: SeedKey, id: string, r: Rec, out: Collector): vo
     if (f.role === 'prose' || f.role === 'why' || f.role === 'caution') {
       const bare = numbersWithoutUnit(f.text);
       if (bare.length > 0) out.warn('L03', key, id, f.path, `단위 없는 숫자: ${bare.join(', ')}`);
+      const odd = disguisedNumbers(f.text);
+      if (odd.length > 0) out.warn('L03', key, id, f.path, `숫자 표기 우회(비ASCII 숫자·한글 수사+단위): ${odd.join(', ')} — ASCII 숫자로`);
+    }
+    const compat = compatDigits(f.text);
+    if (compat.length > 0) {
+      // 후기 원문(quote)은 원문 보존 원칙이라 WARN, 나머지 역할은 ERROR(불변식 5·7 — 숫자 표기 우회로 값 대조를 비켜 가지 않게).
+      const msg = `호환 숫자 표기: ${compat.join(', ')} — ASCII 숫자로`;
+      if (f.role === 'quote') out.warn('L07', key, id, f.path, msg);
+      else out.error('L07', key, id, f.path, msg);
     }
     if (f.role === 'keyword' && f.text.trim() !== '' && !f.text.includes('{animal}')) {
       out.warn('L05', key, id, f.path, 'searchKeyword override 에 {animal} 토큰 없음 — 동물명이 붙지 않는다');
