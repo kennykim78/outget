@@ -205,20 +205,25 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
   });
 
   it('2) PLANNED 드워프: 이름·별칭·한 줄 소개가 HTML·ws-data 에 0 — R7-B 시드 행은 VERIFIED(메모리 서명)여도 PLANNED(게이트 G 전)라 비노출', () => {
-    // 디스크는 Kenny 확인표 수령 전 DRAFT(보안 79 H-1 환원) — 서명된 상태(dwarfSigned, 메모리)에서도 PLANNED 면 0 임을 고정.
+    // 디스크도 2026-11-16 확인표 서명으로 VERIFIED·PLANNED — 서명된 상태(메모리 dwarfSigned·디스크 realSeed)에서도 PLANNED 면 0 임을 고정.
     const signed = dwarfSigned();
     const row = signed.animalTypes.find((t) => t.id === 'hamster-dwarf');
     expect(row?.status).toBe('PLANNED');
     expect(row?.reviewStatus).toBe('VERIFIED');
     expect(row?.reviewerType).toBe('EXPERIENCED_KEEPER');
-    expect(realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf')?.reviewStatus).toBe('DRAFT');
+    const disk = realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf');
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType]).toEqual(['PLANNED', 'VERIFIED', 'EXPERIENCED_KEEPER']);
     const famSigned = pageAt(build(promotedTwo({ base: signed })), '/hamster');
+    const famDisk = pageAt(build(realSeed()), '/hamster'); // 디스크 실시드(골든만 ACTIVE)
     const ws = JSON.stringify(wsDataOf(famSigned.html));
+    const wsDisk = JSON.stringify(wsDataOf(famDisk.html));
     expect(fam.html.length).toBeGreaterThan(0);
     for (const w of ['드워프', '정글리안', '윈터화이트', '캠벨', '드햄', 'hamster-dwarf', 'hamster/dwarf', '정글리안햄스터', '캠벨햄스터', 'Phodopus', 'phodopus-sungorus', 'phodopus-campbelli', 'cp-hamster-dwarf', '단독 사육 기본', 'req-dwarf-', 'sb-dwarf-', 'cp-dw-', 'cr-dwarf-', 'kenny']) {
       expect(famSigned.html, w).not.toContain(w);
       expect(fam.html, w).not.toContain(w);
       expect(ws, w).not.toContain(w);
+      expect(famDisk.html, w).not.toContain(w);
+      expect(wsDisk, w).not.toContain(w);
     }
   });
 

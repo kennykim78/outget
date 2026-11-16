@@ -11,11 +11,11 @@
         "message": "골든햄스터 베딩을 25cm 깔면 쳇바퀴 위가 뚜껑에 닿을 수 있어요. 케이지 높이와 쳇바퀴 지름을 함께 확인해요."
       }
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "SPEC",
     "source": [
       {
@@ -42,11 +42,11 @@
         "message": "드워프 베딩을 20cm 깔면 쳇바퀴 위가 뚜껑에 닿을 수 있어요. 케이지 높이와 쳇바퀴 지름을 함께 확인해요."
       }
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "SPEC",
     "source": [
       {
@@ -73,11 +73,11 @@
         "message": "드워프는 볼주머니가 찬 채로 지나가므로 터널 안쪽 폭이 5cm 이상인지 확인해요."
       }
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "SPEC",
     "source": [
       {
@@ -99,11 +99,11 @@
         "message": "베딩을 20cm 깔면 쳇바퀴 위가 뚜껑에 닿을 수 있어요. 케이지 높이와 쳇바퀴 지름을 함께 확인해요."
       }
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "SPEC",
     "source": [
       {

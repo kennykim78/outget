@@ -26,11 +26,11 @@
       "야행성이고 야생에서는 하룻밤에 몇 km를 오간다. 낮 소음·진동을 피한다.",
       "굴을 파는 습성 — 베딩을 25cm 이상 깊게 깐다."
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {
@@ -97,11 +97,11 @@
       "주로 밤에 활동하고 낮에는 잔다. 몸이 작고 쉽게 놀라 손에 잡히면 물 수 있으니 처음에는 짧게 다룬다.",
       "외풍과 직사광선이 없고 온도 변화가 적은 실내에 둔다. 더우면 피할 곳이 없어 열사병이 올 수 있으니 여름에는 시원한 자리로 옮기고, 기운이 없어 보이면 병원에 문의한다."
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {
@@ -188,11 +188,11 @@
       "먹이를 갑자기 바꾸면 먹지 않을 수 있어 천천히 바꿔요. 먹지 않거나 변이 줄면 바로 병원에 문의해요.",
       "발톱이 계속 자라 몇 주마다 다듬어요. 처음에는 병원에서 방법을 배워요. 쳇바퀴는 다칠 수 있어 쓰지 않아요."
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {
@@ -292,11 +292,11 @@
       "청소할 때 더럽지 않은 헌 베딩을 조금 남겨 다시 넣어요. 냄새를 모두 없애면 다툼이 생길 수 있어요.",
       "한쪽 구석만 오래 파는 행동이 이어지면 베딩 깊이나 어두운 은신처가 모자란다는 신호일 수 있어요."
     ],
-    "reviewStatus": "DRAFT",
-    "reviewerType": "AI_DRAFT",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "reviewStatus": "VERIFIED",
+    "reviewerType": "EXPERIENCED_KEEPER",
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {

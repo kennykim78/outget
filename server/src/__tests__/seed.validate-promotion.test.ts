@@ -4,14 +4,19 @@ import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSeedDirRaw } from '../seed/read.js';
+import { unsignRaw } from './fixtures/prerender-seed.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
 import { CARE_FACT_KEYS, CARE_FACT_KEYS_SOURCE } from '../seed/validate-promotion.js';
 import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03';
-const BASE: RawSeed = readSeedDirRaw(SEED_DIR).raw;
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const DISK_READ = readSeedDirRaw(SEED_DIR);
+const DISK: RawSeed = DISK_READ.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리 — 주입 시험 의미 보존). */
+const BASE: RawSeed = unsignRaw(DISK);
 
 const TAXON = 'mesocricetus-auratus';
 const CP = 'cp-hamster-syrian';
@@ -19,6 +24,8 @@ const CP = 'cp-hamster-syrian';
 function fresh(): Required<RawSeed> {
   return structuredClone(BASE) as Required<RawSeed>;
 }
+/** 디스크 시드 사본(서명 후 상태 그대로 — 실시드 시험용). */
+const disk = (): Required<RawSeed> => structuredClone(DISK) as Required<RawSeed>;
 function row(s: RawSeed, key: SeedKey, id: string): Rec {
   const r = (s[key] ?? []).find((x) => (x as Rec).id === id);
   if (!r) throw new Error(`fixture: ${key}#${id} 없음`);
@@ -47,14 +54,20 @@ function verifiedCare(): Required<RawSeed> {
 
 describe('seed:validate — 승격 무결성(R7 A3)', () => {
   it('실시드: errors 0 · warnings 23 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts·careNotes 3 통과, Taxon VERIFIED 0; BE90 사료 caution 2문장 L03 +1; BE92 골든 초안 편집 −3; 기니피그 S3 W-RULESCOPED +6; S7 기니피그 Taxon note L03 +1 · S8 playpen floorType W-RULESCOPED +1 · S9 기니피그 요구사항 W-RULESCOPED −6 · cage caution(Kenny 확정 2문장) L03 +1 · 저빌(126) Taxon note L03 +1 · 2026-11-15 UNIT_RE 「곳」 추가로 드워프 hideout why L03 −1 — seed.validate.test baseline 참고)', () => {
-    const res = run(fresh());
+    // 2026-11-16 서명 후 디스크: 골든 노출로 W-EXPOSURE-ZERO 1 해소 → 18. 서명 전 기준(메모리)은 19(그대로).
+    const res = run(disk());
     expect(res.errors).toEqual([]);
-    expect(res.warnings).toHaveLength(19); // 「곳」 단위 −1(hideout why). 271: bird-food.forSpecies W-RULESCOPED +1(앵무 요구사항 행 0 — 사실값 대기)
+    expect(res.warnings).toHaveLength(18);
+    expect(res.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO')).toEqual([]);
     expect(res.errors.concat(res.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
+    const pre = run(fresh());
+    expect(pre.errors).toEqual([]);
+    expect(pre.warnings).toHaveLength(19); // 「곳」 단위 −1(hideout why). 271: bird-food.forSpecies W-RULESCOPED +1(앵무 요구사항 행 0 — 사실값 대기)
+    expect(pre.errors.concat(pre.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
   });
 
   it('실시드 골든 Taxon 학명은 이미 비어 있지 않다', () => {
-    expect(String(row(fresh(), 'taxa', TAXON).scientificName).trim().length).toBeGreaterThan(0);
+    expect(String(row(disk(), 'taxa', TAXON).scientificName).trim().length).toBeGreaterThan(0);
   });
 
   it('S03: 빈 학명은 DRAFT 여도 ERROR (""·공백만)', () => {

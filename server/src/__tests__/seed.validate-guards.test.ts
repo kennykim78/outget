@@ -11,13 +11,19 @@ import { isDomesticDomain } from '../seed/validate-review.js';
 import * as gates from '../seed/validate-gates.js';
 import { REQUIRED_ITEMS_BY_PROFILE, speciesOf } from '../seed/validate-gates.js';
 import { validateSeed, type ValidateResult } from '../seed/validate.js';
-import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, promotedTwo } from './fixtures/prerender-seed.js';
+import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, promotedTwo, unsignRaw } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-03';
-const BASE = readSeedDirRaw(SEED_DIR).raw;
+const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
+const DISK_READ = readSeedDirRaw(SEED_DIR);
+const DISK: RawSeed = DISK_READ.raw;
+/** 규칙 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리 — 주입 시험 의미 보존). */
+const BASE = unsignRaw(DISK);
 const fresh = (): Required<RawSeed> => structuredClone(BASE) as Required<RawSeed>;
+/** 디스크 시드 사본(서명 후 상태 그대로 — 실시드 시험용). */
+const disk = (): Required<RawSeed> => structuredClone(DISK) as Required<RawSeed>;
 const rawOf = (seed: SeedBundle): Required<RawSeed> =>
   Object.fromEntries(Object.keys(SEED_FILES).map((k) => [k, seed[k as keyof SeedBundle] as unknown[]])) as Required<RawSeed>;
 
@@ -38,10 +44,17 @@ const dwarfPreviewFoodDraft = (): Required<RawSeed> => {
 };
 
 describe('실시드 — 새 규칙 오탐 0', () => {
-  it('server/seed: X01·V08·R01 ERROR 0 · X02 없음(280 제거) (골든 ACTIVE 비노출, 드워프 PLANNED)', () => {
+  it('server/seed(서명 후, 매니페스트 포함): X01·V08·R01 ERROR 0 · X02 없음(280 제거) — 골든 ACTIVE 노출(필수 6 VERIFIED, 사료 VET_PUBLISHED_SOURCE·국내 출처), 드워프·저빌·기니피그 PLANNED', () => {
+    const res = validateSeed(disk(), { now: NOW, signatures: DISK_READ.signatures });
+    expect(res.errors).toEqual([]);
+    for (const rule of ['X01', 'X02', 'V08', 'R01']) expect(errs(res, rule)).toEqual([]);
+    expect(res.summary.types).toBe(1);
+  });
+  it('서명 전 기준(메모리): 같은 규칙 ERROR 0 (골든 ACTIVE 비노출)', () => {
     const res = validateSeed(fresh(), { now: NOW });
     expect(res.errors).toEqual([]);
     for (const rule of ['X01', 'X02', 'V08', 'R01']) expect(errs(res, rule)).toEqual([]);
+    expect(res.summary.types).toBe(0);
   });
 });
 
@@ -215,7 +228,7 @@ describe('기니피그 ACTIVE 전 게이트(QA118 X01 — X02 는 280 에서 제
   });
 
   it('실시드 16행이 집합을 충족: 각 항목에 cp-guineapig 요구사항 행이 있고 priority REQUIRED(해석 전·후)', () => {
-    const rows = (BASE.supplyRequirements as Rec[]).filter((r) => r.careProfileId === 'cp-guineapig');
+    const rows = (DISK.supplyRequirements as Rec[]).filter((r) => r.careProfileId === 'cp-guineapig');
     expect(rows.length).toBe(16);
     for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-guineapig']) {
       const r = rows.find((x) => x.supplyItemId === id);
@@ -298,11 +311,14 @@ const gerbilActive = (): Required<RawSeed> => {
 const gerbilX = (s: RawSeed, rule: string) => errs(validateSeed(s, { now: NOW }), rule).filter((i) => i.id === 'gerbil-mongolian');
 
 describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 는 280 에서 제거)', () => {
-  it('디스크: gerbil-mongolian PLANNED · Taxon meriones-unguiculatus DRAFT·AI_DRAFT · legal act6 false/cites false/화이트리스트 null', () => {
-    const at = row(BASE, 'animalTypes', 'gerbil-mongolian');
-    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'DRAFT', 'AI_DRAFT']);
-    const t = row(BASE, 'taxa', 'meriones-unguiculatus');
-    expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
+  it('디스크(2026-11-16 서명 후): gerbil-mongolian PLANNED·VERIFIED(EXPERIENCED_KEEPER·C 일괄) · Taxon meriones-unguiculatus VERIFIED·OFFICIAL_SOURCE(행 확인) · legal act6 false/cites false/화이트리스트 null', () => {
+    const at = row(DISK, 'animalTypes', 'gerbil-mongolian');
+    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType, at.verifiedBy, at.verifiedAt, at.reviewBasis]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'VERIFIED', 'EXPERIENCED_KEEPER', 'kenny', '2026-11-16', 'AI_RESEARCH_BULK']);
+    const t = row(DISK, 'taxa', 'meriones-unguiculatus');
+    expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt, t.reviewBasis]).toEqual(['VERIFIED', 'OFFICIAL_SOURCE', 'kenny', '2026-11-16', 'ROW_CHECKED']);
+    expect(t.legal).toMatchObject({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
+    // 서명 전 기준(메모리)은 DRAFT·AI_DRAFT — 아래 주입 시험의 바탕.
+    expect([row(BASE, 'animalTypes', 'gerbil-mongolian').reviewStatus, row(BASE, 'taxa', 'meriones-unguiculatus').reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
     expect(t.legal).toMatchObject({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
   });
 
@@ -314,7 +330,7 @@ describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 는 280 �
   });
 
   it('실시드 14행이 집합을 충족: 각 항목 행 있음·REQUIRED(해석 전·후), wheel 은 RECOMMENDED', () => {
-    const rows = (BASE.supplyRequirements as Rec[]).filter((r) => r.careProfileId === 'cp-gerbil-mongolian');
+    const rows = (DISK.supplyRequirements as Rec[]).filter((r) => r.careProfileId === 'cp-gerbil-mongolian');
     expect(rows.length).toBe(14);
     for (const id of REQUIRED_ITEMS_BY_PROFILE['cp-gerbil-mongolian']) {
       const r = rows.find((x) => x.supplyItemId === id);
@@ -446,8 +462,11 @@ describe('V08 — FOOD/HEALTH VERIFIED 국내 출처 1개 이상(G-3)', () => {
     expect(errs(validateSeed(s, { now: NOW }), 'V08')).toEqual([]);
   });
 
-  it('DRAFT FOOD 는 대상 아님(실시드 req-dwarf-food·req-syrian-food)', () => {
+  it('DRAFT FOOD 는 대상 아님(서명 전 기준 req-dwarf-food·req-syrian-food DRAFT) / 디스크(서명 후)는 FOOD 4행 VERIFIED·VET_PUBLISHED_SOURCE 인데 국내 출처가 있어 V08 0', () => {
     expect(errs(validateSeed(fresh(), { now: NOW }), 'V08')).toEqual([]);
+    const food = (DISK.supplyRequirements as Rec[]).filter((r) => r.contentKind === 'FOOD' && r.reviewStatus === 'VERIFIED');
+    expect(food.map((r) => [r.id, r.reviewerType]).sort()).toEqual([['req-dwarf-food', 'VET_PUBLISHED_SOURCE'], ['req-guineapig-food', 'VET_PUBLISHED_SOURCE'], ['req-guineapig-hay', 'VET_PUBLISHED_SOURCE'], ['req-syrian-food', 'VET_PUBLISHED_SOURCE']]);
+    expect(errs(validateSeed(disk(), { now: NOW }), 'V08')).toEqual([]);
   });
 });
 
@@ -483,7 +502,7 @@ describe('280 — 법 상태는 노출을 막지 않는다(X02 제거, Kenny ORD
   });
 
   it('Taxon.legal 데이터는 정보용으로 남아 있다(지우지 않음) — 디스크 Taxon 전부 legal 객체', () => {
-    for (const t of BASE.taxa as Rec[]) expect([t.id, typeof t.legal, t.legal === null]).toEqual([t.id, 'object', false]);
+    for (const t of DISK.taxa as Rec[]) expect([t.id, typeof t.legal, t.legal === null]).toEqual([t.id, 'object', false]);
   });
 
   const legalVariants: Array<[string, Rec]> = [
@@ -608,7 +627,7 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
   };
 
   it('(i) 디스크: 로보는 드워프 프로필과 분리(careProfileId null · cp-hamster-dwarf.taxonIds 에 없음) · 별칭 유지 · legal 정보용 메모 그대로(act6 null·cites false·화이트리스트 null)', () => {
-    const s = fresh();
+    const s = disk();
     const at = row(s, 'animalTypes', 'hamster-robo');
     expect([at.status, at.careProfileId, at.aliases]).toEqual(['PLANNED', null, ['로보', '로보로브스키']]);
     expect(row(s, 'careProfiles', 'cp-hamster-dwarf').taxonIds).toEqual(['phodopus-sungorus', 'phodopus-campbelli']);
@@ -650,7 +669,7 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     ['cockatiel', 'nymphicus-hollandicus'],
   ] as const) {
     it(`(ii) 디스크: ${taxonId} DRAFT·AI_DRAFT · legal 정보용 메모 그대로(act6 false·cites false·화이트리스트 null) · 출처 4(접근일 2026-11-02, 277)`, () => {
-      const t = row(fresh(), 'taxa', taxonId);
+      const t = row(disk(), 'taxa', taxonId);
       expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt]).toEqual(['DRAFT', 'AI_DRAFT', null, null]);
       expect(t.legal).toEqual({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null, note: null });
       expect((t.source as Rec[]).map((x) => x.accessedAt)).toEqual(Array(4).fill('2026-11-02'));
@@ -708,9 +727,10 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     expect(res.errors.map((i) => `${i.rule} ${i.id} ${i.path}`)).toEqual(['X01 budgie careProfileId']);
   });
 
-  it('실시드(디스크): 새 타입 3은 PLANNED → X01 대상 아님(ERROR 0)', () => {
-    const res = validateSeed(fresh(), { now: NOW_W1 });
+  it('실시드(디스크, 서명 후): 새 타입 3은 PLANNED·DRAFT(서명 대상 밖) → X01 대상 아님(ERROR 0)', () => {
+    const res = validateSeed(disk(), { now: NOW, signatures: DISK_READ.signatures });
     expect(res.errors).toEqual([]);
-    for (const id of ['budgie', 'cockatiel', 'hamster-robo']) expect([id, row(fresh(), 'animalTypes', id).status]).toEqual([id, 'PLANNED']);
+    for (const id of ['budgie', 'cockatiel', 'hamster-robo']) expect([id, row(disk(), 'animalTypes', id).status, row(disk(), 'animalTypes', id).reviewStatus]).toEqual([id, 'PLANNED', 'DRAFT']);
+    expect(validateSeed(fresh(), { now: NOW_W1 }).errors).toEqual([]);
   });
 });

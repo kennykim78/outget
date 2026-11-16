@@ -13,7 +13,7 @@ import {
   specCheck,
 } from '../engine/index.js';
 import type { SeedBundle, SpecValues } from '../engine/index.js';
-import { realSeed } from './fixtures/prerender-seed.js';
+import { REAL_SIGNED_AT, realSeed, realSignedTargets } from './fixtures/prerender-seed.js';
 import { lintText } from '../seed/lint.js';
 
 const seed: SeedBundle = realSeed();
@@ -36,7 +36,7 @@ describe('S5 요구사항 14행 — 구성·검수 상태(불변식 7)', () => {
     );
     expect(seed.supplyItems).toHaveLength(27); // 271: 앵무 공통 용품 7(구조만, DRAFT)은 저빌과 무관 — 저빌 착지가 더한 SupplyItem 은 여전히 0
   });
-  it('전부 DRAFT · AI_DRAFT · reviewBasis null · verifiedBy/At null (Taxon·CP·AnimalType·호환 규칙 포함)', () => {
+  it('2026-11-16 서명 후: 18행 중 17행 VERIFIED(kenny·패킷 basis·reviewerType — Taxon OFFICIAL_SOURCE), 패킷 밖 req-gerbil-food(FOOD)만 DRAFT·AI_DRAFT, AnimalType 은 PLANNED (Taxon·CP·AnimalType·호환 규칙 포함)', () => {
     const metas = [
       ...rows,
       ...seed.taxa.filter((t) => t.id === 'meriones-unguiculatus'),
@@ -45,7 +45,18 @@ describe('S5 요구사항 14행 — 구성·검수 상태(불변식 7)', () => {
       ...seed.compatibilityRules.filter((c) => c.careProfileId === CP),
     ];
     expect(metas).toHaveLength(14 + 4);
-    for (const r of metas) expect([r.id, r.reviewStatus, r.reviewerType, r.reviewBasis, r.verifiedBy, r.verifiedAt]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
+    const targets = realSignedTargets();
+    const fileOf = (r: { id: string }): string =>
+      rows.includes(r as never) ? 'supply-requirements.json' : r.id === 'meriones-unguiculatus' ? 'taxa.json' : r.id === CP ? 'care-profiles.json' : r.id === G ? 'animal-types.json' : 'compatibility-rules.json';
+    for (const r of metas) {
+      const t = targets.get(`${fileOf(r)}#${r.id}`);
+      const want = t ? ['VERIFIED', t.reviewerType, t.basis, 'kenny', REAL_SIGNED_AT] : ['DRAFT', 'AI_DRAFT', null, null, null];
+      expect([r.id, r.reviewStatus, r.reviewerType, r.reviewBasis, r.verifiedBy, r.verifiedAt]).toEqual([r.id, ...want]);
+    }
+    expect(metas.filter((r) => r.reviewStatus !== 'VERIFIED').map((r) => r.id)).toEqual(['req-gerbil-food']);
+    expect(metas.filter((r) => r.reviewStatus === 'VERIFIED')).toHaveLength(17);
+    expect(seed.taxa.find((t) => t.id === 'meriones-unguiculatus')?.reviewerType).toBe('OFFICIAL_SOURCE');
+    expect(metas.filter((r) => r.reviewStatus === 'VERIFIED' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
     expect(seed.animalTypes.find((t) => t.id === G)?.status).toBe('PLANNED');
   });
   it('priority·orderHint: 필수 7(cage·bedding·water·food·hideout·sand-bath·sand-bath-box), 쳇바퀴·건초는 권장', () => {

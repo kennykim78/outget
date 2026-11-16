@@ -94,11 +94,18 @@ describe('spa — 실시드 dist(manifest 있음)', () => {
     expect(r.headers['content-security-policy']).toBe(SPA_CSP);
   });
 
-  it('/hamster/golden → 404(실시드 VERIFIED 0) + 404.html 본문', async () => {
-    const r = await request(app).get('/hamster/golden');
-    expect(r.status).toBe(404);
-    expect(r.text).toContain('data-ws-route="NOT_FOUND"');
-    expect(r.headers['content-security-policy']).toBe(SPA_CSP);
+  it('/hamster/golden → 200(2026-11-16 서명 후 골든 노출) · /hamster/dwarf·/gerbil·/guinea-pig → 404(PLANNED) + 404.html 본문', async () => {
+    const g = await request(app).get('/hamster/golden');
+    expect(g.status).toBe(200);
+    expect(g.text).toContain('data-ws-prerendered="1"');
+    expect(g.text).not.toContain('data-ws-route="NOT_FOUND"');
+    expect(g.headers['content-security-policy']).toBe(SPA_CSP);
+    for (const p of ['/hamster/dwarf', '/gerbil', '/guinea-pig']) {
+      const r = await request(app).get(p);
+      expect([p, r.status]).toEqual([p, 404]);
+      expect(r.text).toContain('data-ws-route="NOT_FOUND"');
+      expect(r.headers['content-security-policy']).toBe(SPA_CSP);
+    }
   });
 
   it('/save → 200(R5 D11: 프리렌더면 noindex, 아니면 셸) + 기본 CSP', async () => {

@@ -5,7 +5,8 @@ import { checkAnimalMinSpec, createCatalog, requirementCompat, specCheck } from 
 import type { Reason, SeedBundle } from '../engine/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SEED_DIR, dwarfSigned, dwarfSignedWith, realSeed } from './fixtures/prerender-seed.js';
+import { REAL_SIGNED_AT, SEED_DIR, dwarfSigned, dwarfSignedWith, realSeed, realSignedTargets } from './fixtures/prerender-seed.js';
+import { CONTENT_KEYS, SEED_FILES } from '../seed/common.js';
 
 const seed: SeedBundle = realSeed();
 const cat = createCatalog(seed);
@@ -109,7 +110,7 @@ describe('B5 상품 17행 — 엔진 재계산 = 시드 meetsMinSpec = v0.3 5장
   });
 });
 
-describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIED 0(보안 79 H-1 환원), 서명은 매니페스트로만(불변식 7)', () => {
+describe('R7-B 검수 메타 — 디스크는 2026-11-16 Kenny 확인표 5종 서명(4 패킷 107행)만 VERIFIED, 서명은 매니페스트로만(불변식 7)', () => {
   type Meta = { id: string; reviewStatus: string; reviewerType: string; verifiedBy: string | null; verifiedAt: string | null; reviewBasis?: string | null };
   const metaOf = (s: SeedBundle): Meta[] =>
     [
@@ -117,13 +118,29 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
       ...s.compatibilityRules, ...s.setupBundles, ...s.curatedProducts,
     ] as unknown as Meta[];
   const all = metaOf(seed);
-  it('디스크: AI_DRAFT ∧ VERIFIED 0건, VERIFIED 0건, reviewBasis 전부 null, 상품 specVerifiedBy/At 전부 null, 매니페스트 []', () => {
+  it('디스크: AI_DRAFT ∧ VERIFIED 0건, VERIFIED = 4 패킷 대상 107행 정확히(kenny·2026-11-16·패킷 basis/reviewerType), 나머지 DRAFT·AI_DRAFT·basis null, 드워프 상품 17 specVerified·ACTIVE 14(미달 3 REVIEW), 매니페스트 107', () => {
+    const keyed = (s: SeedBundle) => CONTENT_KEYS.flatMap((k) => ((s as unknown as Record<string, Meta[]>)[k]).map((r) => ({ key: `${SEED_FILES[k]}#${r.id}`, r })));
+    const targets = realSignedTargets();
+    expect(targets.size).toBe(107);
     expect(all.filter((r) => r.reviewStatus === 'VERIFIED' && r.reviewerType === 'AI_DRAFT').map((r) => r.id)).toEqual([]);
-    expect(all.filter((r) => r.reviewStatus === 'VERIFIED').map((r) => r.id)).toEqual([]);
-    expect(all.filter((r) => r.reviewBasis !== null).map((r) => r.id)).toEqual([]);
-    expect(seed.curatedProducts.filter((p) => p.specVerifiedBy !== null || p.specVerifiedAt !== null).map((p) => p.id)).toEqual([]);
-    expect(seed.curatedProducts.filter((p) => p.status === 'ACTIVE').map((p) => p.id)).toEqual([]);
-    expect(JSON.parse(readFileSync(join(SEED_DIR, 'review-signatures.json'), 'utf8'))).toEqual([]);
+    const rows = keyed(seed);
+    expect(rows.filter((x) => x.r.reviewStatus === 'VERIFIED').map((x) => x.key).sort()).toEqual([...targets.keys()].sort());
+    for (const { key, r } of rows) {
+      const t = targets.get(key);
+      if (t) expect([key, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, 'VERIFIED', t.reviewerType, 'kenny', REAL_SIGNED_AT, t.basis]);
+      else expect([key, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, 'DRAFT', 'AI_DRAFT', null, null, null]);
+    }
+    const dw = seed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-'));
+    expect(dw).toHaveLength(17);
+    expect(seed.curatedProducts.filter((p) => p.specVerifiedBy !== null || p.specVerifiedAt !== null).map((p) => p.id)).toEqual(dw.map((p) => p.id));
+    for (const p of dw) expect([p.id, p.specVerifiedBy, p.specVerifiedAt]).toEqual([p.id, 'kenny', REAL_SIGNED_AT]);
+    expect(seed.curatedProducts.filter((p) => p.status === 'ACTIVE').map((p) => p.id)).toEqual(dw.filter((p) => p.meetsMinSpec === true).map((p) => p.id));
+    expect(dw.filter((p) => p.status === 'REVIEW').map((p) => p.id)).toEqual(['cp-dw-009', 'cp-dw-016', 'cp-dw-017']);
+    expect(dw.filter((p) => p.status === 'ACTIVE')).toHaveLength(14);
+    const manifest = JSON.parse(readFileSync(join(SEED_DIR, 'review-signatures.json'), 'utf8')) as Array<{ file: string; id: string; signedBy: string; signedAt: string; basis: string }>;
+    expect(manifest).toHaveLength(107);
+    expect(manifest.map((e) => `${e.file}#${e.id}`).sort()).toEqual([...targets.keys()].sort());
+    for (const e of manifest) expect([e.id, e.signedBy, e.signedAt, e.basis]).toEqual([e.id, 'kenny', REAL_SIGNED_AT, targets.get(`${e.file}#${e.id}`)?.basis]);
   });
   it('메모리 서명(가짜 확인표 전 ☑·C·D1, K1 사본): 패킷 52행만 VERIFIED·kenny·2026-10-24 — 사료만 VET_PUBLISHED_SOURCE, 나머지 EXPERIENCED_KEEPER, 상품·최소 규격·사료·재서술 whyShort ROW_CHECKED 26 / 나머지 AI_RESEARCH_BULK 26(BE92: SupplyItem food 추가, 245: req-dwarf-tubes 최소 규격 → A11, K1 2026-11-15: 받침 쳇바퀴(NOT_NOW)·은신처·모래 목욕 2행 행별 확인)', () => {
     const { seed: signed, manifest } = dwarfSignedWith();
@@ -147,9 +164,10 @@ describe('R7-B 검수 메타 — 디스크는 Kenny 확인표 수령 전 VERIFIE
       expect([id, byId.get(id)?.reviewStatus, byId.get(id)?.reviewerType]).toEqual([id, 'DRAFT', 'AI_DRAFT']);
     }
   });
-  it('드워프 AnimalType 은 서명돼도 PLANNED(게이트 G 전), 디스크는 DRAFT', () => {
+  it('드워프 AnimalType 은 서명돼도 PLANNED(게이트 G 전) — 메모리 서명·디스크(2026-11-16 서명) 둘 다 VERIFIED·PLANNED', () => {
     const at = dwarfSigned().animalTypes.find((x) => x.id === D);
     expect([at?.status, at?.reviewStatus]).toEqual(['PLANNED', 'VERIFIED']);
-    expect(seed.animalTypes.find((x) => x.id === D)?.reviewStatus).toBe('DRAFT');
+    const disk = seed.animalTypes.find((x) => x.id === D);
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType, disk?.verifiedAt]).toEqual(['PLANNED', 'VERIFIED', 'EXPERIENCED_KEEPER', REAL_SIGNED_AT]);
   });
 });

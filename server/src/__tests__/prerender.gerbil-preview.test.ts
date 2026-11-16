@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import type { SeedBundle } from '../engine/index.js';
 import { buildSite, type BuiltPage, type SiteBuild } from '../prerender/site.js';
 import { WS_DATA_MAX_BYTES } from '../prerender/cli.js';
-import { FIXTURE_AS_OF, V, realSeed } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, V, realSeed, unsignedRealSeed } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = readFileSync(join(here, '..', '..', '..', 'client', 'index.html'), 'utf8');
@@ -27,9 +27,9 @@ const pageAt = (b: SiteBuild, path: string): BuiltPage => {
 };
 const TAXON_NOTE_FRAGMENT = '시·군·구에 신고하는 제도';
 
-/** 저빌 강제 ACTIVE 미리보기(메모리 전용). 사실값은 디스크 그대로, 검수 표기만 V(픽스처). Taxon 은 건드리지 않는다. */
+/** 저빌 강제 ACTIVE 미리보기(메모리 전용). 바탕 = 서명 전 기준 실시드(골든 비노출·Taxon DRAFT), 사실값은 디스크 그대로, 검수 표기만 V(픽스처). Taxon 은 건드리지 않는다. */
 function gerbilPreview(): SeedBundle {
-  const s = realSeed();
+  const s = unsignedRealSeed();
   const at = s.animalTypes.find((x) => x.id === G);
   if (!at || at.status !== 'PLANNED') throw new Error('fixture: 디스크 gerbil-mongolian 은 PLANNED 여야 한다');
   Object.assign(at, V, { status: 'ACTIVE' });

@@ -1,7 +1,7 @@
 // E2E 서버 프로세스(글로벌 셋업이 tsx 로 띄운다). 사이트 생성 → 실제 createApp(인메모리 repos) 서빙.
 //   사용: tsx e2e/support/serve.mts --mode demo|real --client <clientDist> --site <siteDir> --mail <mailFile.jsonl> [--below-min on|off]
 //   --below-min on(demo 만): 데모 시드에 최소 규격 미달 상품 1건을 메모리로 더한다(X2 불변식 ③ 런타임 단언, demo-seed.mts BELOW_MIN_PRODUCT).
-//   demo: demoSeed()(메모리 승격) → buildSite → siteDir.   real: 실제 prerender CLI(server/seed, 전부 DRAFT 그대로) → siteDir.
+//   demo: demoSeed()(메모리 승격) → buildSite → siteDir.   real: 실제 prerender CLI(server/seed 그대로 — 2026-11-16 서명 후 골든햄스터만 노출) → siteDir.
 //   siteDir 는 리포 밖이어야 한다(아니면 exit 2). 리포의 어떤 파일도 쓰지 않는다.
 //   준비되면 stdout 에 한 줄: E2E_READY {"port":N,"origin":"http://127.0.0.1:N"}. SIGTERM/SIGINT/stdin 종료 시 닫는다.
 import { createHash } from 'node:crypto';
