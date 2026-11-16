@@ -9,6 +9,8 @@
 //     101 MED-3: 검사 대상 경로 = SPA 서빙과 같은 resolveClientDist(middleware/spa.ts 가 이 함수를 쓴다). 운영에서 페이지가 없어도 기동 거부.
 //     101 L-1: 판정은 '{{KENNY:' 포함 여부(키 모양 무관) — 키 목록은 표시용 보조.
 //     139 MED-2: 공개 전환(WS_INDEXABLE=1 또는 빌드 산출 prerender-manifest.json 의 indexable:true)이면 허용 변수를 무시하고 기동 거부.
+//     294(Kenny 2026-11-16): 빌드가 /privacy 를 뺀 경우(manifest privacyPage:false — 운영 빌드 ∧ 자리표시 남음)는 페이지 없음이 정상 —
+//       허용 변수=1 이면 경고로 기동, 공개 전환이면 여전히 거부.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -130,6 +132,8 @@ export const bootClientDist = (env: Env = process.env): string => resolveClientD
  *   · 파일 없음 → problems(기동 거부, 101 MED-3 — 처리방침 없이 공개 운영 금지)
  *   · '{{KENNY:' 포함 → problems(기동 거부, 키 목록 표시). WS_ALLOW_PRIVACY_PLACEHOLDER=1 이면 이 항목만 warnings 로 강등.
  *     단 공개 전환(publicIndexing: WS_INDEXABLE=1 또는 manifest indexable:true)이면 강등하지 않는다(139 MED-2).
+ *   · 294: 파일 없음 ∧ manifest privacyPage:false(빌드가 일부러 뺌) → 공개 전환이면 problems, 아니면 허용 변수=1 일 때만 warnings(아니면 problems).
+ *     파일이 있으면 manifest 값과 무관하게 위 자리표시 검사를 그대로 한다.
  *   비운영은 검사 안 함.
  */
 export function privacyPlaceholderCheck(env: Env, clientDist: string): EnvReport {
@@ -137,6 +141,21 @@ export function privacyPlaceholderCheck(env: Env, clientDist: string): EnvReport
   const warnings: string[] = [];
   if (!isProdLike(env)) return { problems, warnings };
   const file = join(clientDist, 'privacy', 'index.html');
+  if (!existsSync(file) && privacyPageOff(clientDist)) {
+    // 294(Kenny 2026-11-16): 빌드가 /privacy 를 일부러 내보내지 않음(운영 빌드 ∧ 자리표시 남음 → manifest privacyPage:false).
+    //   자리표시가 어떤 공개 경로에도 없다(빌드 compliance C9 가 산출물 전체 0 을 FAIL 로 강제). 그래도 아래 두 조건은 유지:
+    //   · 공개 전환(139 MED-2)이면 처리방침 없이 공개 운영 금지 → 기동 거부
+    //   · WS_ALLOW_PRIVACY_PLACEHOLDER=1(명시 허용)이 아니면 기동 거부 — 처리방침 없이 운영 기동은 명시 선택일 때만
+    const pub = publicIndexing(env, clientDist);
+    if (pub !== null) {
+      problems.push(`privacy: 처리방침 페이지 비노출 빌드(manifest privacyPage:false)인데 공개 전환(${pub}) — 운영 기동 거부(139 MED-2). 6값을 채워 다시 빌드`);
+    } else if ((env[ALLOW_PRIVACY_PLACEHOLDER_ENV] ?? '').trim() === '1') {
+      warnings.push(`${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1: 처리방침 페이지 비노출 빌드(manifest privacyPage:false, 자리표시 남음)로 기동 — 공개 전 6값을 채워 다시 빌드`);
+    } else {
+      problems.push(`privacy: 처리방침 페이지 비노출 빌드(manifest privacyPage:false) — 운영 기동 거부. 6값을 채워 다시 빌드하거나, 비노출 운영이면 ${ALLOW_PRIVACY_PLACEHOLDER_ENV}=1`);
+    }
+    return { problems, warnings };
+  }
   if (!existsSync(file)) {
     problems.push(`privacy: 처리방침 페이지 없음(${file}) — 운영 기동 거부. 클라이언트 빌드·프리렌더(/privacy) 후 다시 배포`);
     return { problems, warnings };
@@ -173,6 +192,21 @@ export function publicIndexing(env: Env, clientDist: string): string | null {
     // 없음·손상 → 근거 아님
   }
   return null;
+}
+
+/**
+ * 294: 빌드가 /privacy 를 일부러 내보내지 않았는가 — <clientDist>/prerender-manifest.json 의 privacyPage === false(정확히)
+ *   그리고 manifest 라우트에 /privacy 가 없음. manifest 없음·손상·다른 값은 false(기존 검사 그대로 — 페이지 없음이면 기동 거부).
+ */
+export function privacyPageOff(clientDist: string): boolean {
+  try {
+    const m = JSON.parse(readFileSync(join(clientDist, 'prerender-manifest.json'), 'utf8')) as { privacyPage?: unknown; routes?: unknown } | null;
+    if (m === null || typeof m !== 'object' || m.privacyPage !== false) return false;
+    const routes = Array.isArray(m.routes) ? (m.routes as Array<{ path?: unknown; kind?: unknown } | null>) : [];
+    return !routes.some((r) => r !== null && typeof r === 'object' && (r.path === '/privacy' || r.kind === 'PRIVACY'));
+  } catch {
+    return false;
+  }
 }
 
 export interface CollectEnvOptions {

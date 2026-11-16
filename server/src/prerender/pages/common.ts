@@ -14,6 +14,8 @@ export interface PageContext {
   catalogUrl: string;
   /** 자산 이름 → 정제된 인라인 SVG(prerender/mascot.ts). 비어 있으면 마스코트 없이 렌더. */
   mascots: ReadonlyMap<string, string>;
+  /** 294: false 면 /privacy 를 내보내지 않은 빌드 — 푸터 처리방침 링크 0(site.ts privacyPagePublished). 생략 = true(바이트 동일). */
+  privacyPage?: boolean;
 }
 
 export interface RenderedPage {
@@ -176,12 +178,14 @@ export function renderHeader(
  *   · 의료 고지(불변식 ⑤) · ©. 소개·문의 링크 없음(D3).
  *   R4-3(R4 시안 affiliate_candidates): affOn(이 문서의 레이어 aside 에 제휴 링크가 그려짐)일 때만 © 바로 앞에 제휴 고지 F(원문, 전부 펼침).
  *   꺼짐이면 이전과 바이트 동일(off 기준선 불변).
+ *   294(Kenny 2026-11-16): privacyOn=false(운영 빌드 ∧ 처리방침 자리표시 남음 → /privacy 비노출)면 처리방침 링크만 뺀다 — client Footer 와 같은 규칙.
  */
-export function renderFooter(affOn = false): string {
+export function renderFooter(affOn = false, privacyOn = true): string {
+  const privacyLink = privacyOn ? `<a href="/privacy">${h(COPY.footer.privacy)}</a> ` : '';
   return [
     '<footer class="ws-footer">',
     `<p class="ws-footer-brand"><span class="ws-footer-logo">${h(COPY.nav.logo)}</span> <span class="ws-footer-tagline">${h(COPY.footer.tagline)}</span></p>`,
-    `<p class="ws-footer-links"><a href="/privacy">${h(COPY.footer.privacy)}</a> <a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
+    `<p class="ws-footer-links">${privacyLink}<a href="/credits">${h(COPY.credits.footerLink)}</a></p>`,
     `<p class="ws-footer-note">${h(COPY.footer.medical)}</p>`,
     affOn ? affNote('f') : '',
     `<p class="ws-footer-copy">${h(COPY.footer.copyright)}</p>`,

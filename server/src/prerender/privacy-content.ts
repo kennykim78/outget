@@ -371,6 +371,23 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
   ],
 };
 
+/** 자리표시 판정 표식 — config/env.ts PLACEHOLDER_MARK(L-1)·compliance KENNY_NEEDLE 과 같은 기준('{{KENNY:' 포함 여부, 키 모양 무관). */
+const PLACEHOLDER_MARK = '{{KENNY:';
+
+/** 처리방침 데이터 어디든(필드 전부 — 본문·표·링크·버전) 해결되지 않은 {{KENNY: 자리표시가 남아 있는가. */
+export function hasUnresolvedPlaceholders(p: PrivacyPolicy = PRIVACY_POLICY): boolean {
+  return JSON.stringify(p).includes(PLACEHOLDER_MARK);
+}
+
+/**
+ * 294(Kenny 2026-11-16): /privacy 를 내보낼지 — 빌드 시 결정.
+ *   운영 빌드(production) ∧ 자리표시가 남음 → false: 페이지·sitemap·푸터·L8 링크를 내보내지 않는다(자리표시가 어떤 공개 경로에도 나가지 않게).
+ *   6값을 채우면(자리표시 0) 자동으로 true. 개발·시험 빌드는 자리표시 그대로 내보낸다(기존 WARN 경로 — compliance C9 · 기동 검사 미적용).
+ */
+export function privacyPagePublished(production: boolean, p: PrivacyPolicy = PRIVACY_POLICY): boolean {
+  return !(production && hasUnresolvedPlaceholders(p));
+}
+
 const TOKEN_RE = /\{policy:([A-Z0-9_]+)\}|\{const:([A-Z0-9_]+)\}/g;
 const KENNY_RE = /\{\{KENNY:([A-Za-z0-9]+)\}\}/g;
 

@@ -1,5 +1,5 @@
 // 프리렌더 라우트 계획(계획 §4, D3·D4·D11·D12). 순수 — 사이트 모델 → 결정론적 라우트 목록.
-//   노출 가능한 것만 만든다. /, /supplies, /vet, /credits, /privacy, 404 는 항상. 비면 noindex + sitemap 제외.
+//   노출 가능한 것만 만든다. /, /supplies, /vet, /credits, /privacy(294: 운영 빌드 ∧ 자리표시 남음이면 제외), 404 는 항상. 비면 noindex + sitemap 제외.
 //   URL 세그먼트 규칙은 seed/validate-slug.ts 단일 소스. 위반 값은 조용히 건너뛰지 않고 throw(검증 우회 방지).
 import { PICK_PATH, type RouteKind, type WsLayer } from '../engine/index.js';
 import { RESERVED_FIRST_SEGMENTS, RESERVED_SECOND_SEGMENTS, SLUG_RE, VET_REGION_RE } from '../seed/validate-slug.js';
@@ -49,7 +49,12 @@ export function fileOf(path: string): string {
   return path === '/' ? 'index.html' : `${path.slice(1)}/index.html`;
 }
 
-export function planRoutes(m: SiteModel): RoutePlan[] {
+export interface PlanRoutesOptions {
+  /** 294: false 면 /privacy 라우트를 만들지 않는다(운영 빌드 ∧ 처리방침 자리표시 남음 — privacy-content.ts privacyPagePublished). 기본 true. */
+  privacyPage?: boolean;
+}
+
+export function planRoutes(m: SiteModel, opts: PlanRoutesOptions = {}): RoutePlan[] {
   const out: RoutePlan[] = [];
   const seen = new Set<string>();
   const add = (r: Omit<RoutePlan, 'file' | 'canonicalPath'> & { file?: string; canonicalPath?: string }): void => {
@@ -121,7 +126,8 @@ export function planRoutes(m: SiteModel): RoutePlan[] {
   // R4 D6: /credits 는 항상(푸터 링크 항상, 사진 0이면 빈 상태). noindex·sitemap 제외.
   add({ path: '/credits', kind: 'CREDITS', indexable: false, lastmod: null, layer: null });
   // 계획 86 P8: /privacy 는 항상(푸터 링크 항상). 색인·sitemap 포함(오케스트레이터 2026-10-25). lastmod 없음(시행일은 본문).
-  add({ path: '/privacy', kind: 'PRIVACY', indexable: true, lastmod: null, layer: null });
+  //   294(Kenny 2026-11-16): 운영 빌드에서 자리표시가 남았으면 만들지 않는다(→ sitemap 제외, 서버 manifest 모드 404).
+  if (opts.privacyPage !== false) add({ path: '/privacy', kind: 'PRIVACY', indexable: true, lastmod: null, layer: null });
   add({ path: '/404', file: '404.html', kind: 'NOT_FOUND', indexable: false, lastmod: null, layer: null });
   return out;
 }

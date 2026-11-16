@@ -15,7 +15,7 @@
 // 규칙: C1-FETCH C1-LIB C1-SDK C1-SEEDURL · C2-TRADE C2-PRICE · C3-QUERY C3-GUARDTEST C3-OUT-ID C3-OUT-ROUTE C3-OUT-SRC C3-OUT-TAXON C3-OUT-DRAFTSRC C3-OUT-REVIEWMETA C3-TAXON ·
 //       C4-BANNED C4-CODE(R4 FAIL) C4-STEM(R6: 산출물·VERIFIED/APPROVED 시드 FAIL, DRAFT 시드 WARN) · C5-GEO(+R5 위치 API 0) · C6-IMG · C7-SECRET · C8-OUT-SAFE C8-SRC-SAFE ·
 //       C9-STORAGE(웹 저장소 lib/storage.ts 만·document.cookie 0) C9-COOKIE(서버 쿠키 발급 2파일) ·
-//       C9-PRIVACY(/privacy 존재·모든 라우트 링크·기간 숫자 = server/src/privacy/policy.ts FAIL, {{KENNY: 자리표시 WARN — 차단은 운영 기동 검사) · C0-SEED C0-OUTPUT ·
+//       C9-PRIVACY(/privacy 존재·모든 라우트 링크·기간 숫자 = server/src/privacy/policy.ts FAIL, {{KENNY: 자리표시 WARN — 차단은 운영 기동 검사; 294 manifest.privacyPage:false 면 /privacy·링크·자리표시 0·비공개를 FAIL 로) · C0-SEED C0-OUTPUT ·
 //       C10-AFF-IMPORT C10-AFF-RUNTIME(WARN) C10-AFF-HOST C10-AFF-REDIRECT C10-AFF-FIELD C10-AFF-OUT(258 단계 7 — 검색 딥링크 제휴 격리, scripts/lib/rules-affiliate.mjs)
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';

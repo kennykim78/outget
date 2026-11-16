@@ -1026,3 +1026,67 @@ describe('P3 D6 포커스 · D7 카운트다운 낭독', () => {
     expect(countdown.closest('[role="status"], [role="alert"], [role="log"], [role="timer"]')).toBeNull();
   });
 });
+
+// 296(Kenny 예외 조항 11/17): 처리방침 비노출 빌드(#root data-ws-privacy="off") — 이메일 입력 칸 자체를 숨긴다.
+//   입력·제출·재전송 0, save_email_submit 0, 네트워크 0, 기존 문구 COPY.save.unavailable 만. 표식 없으면 기존대로.
+describe('L8 처리방침 비노출 빌드 — 이메일 칸 숨김', () => {
+  let rootEl: HTMLElement | null = null;
+  function setPrivacyOff(): void {
+    rootEl = document.createElement('div');
+    rootEl.id = 'root';
+    rootEl.setAttribute('data-ws-privacy', 'off');
+    document.body.appendChild(rootEl);
+  }
+  afterEach(() => {
+    rootEl?.remove();
+    rootEl = null;
+  });
+
+  it('off: input[type=email] 0 · 제출/재전송 버튼 0 · fetch 0 · save_email_submit 0 · unavailable 표시 · 요약 유지', async () => {
+    setPrivacyOff();
+    window.localStorage.setItem('ws.animalType', golden.id);
+    mount();
+    act(() => layerStore.open('L8', {}, { url: '/save' }));
+    const d = await screen.findByRole('dialog', { name: COPY.save.title }, { timeout: 15000 });
+    expect(d).toHaveTextContent(COPY.save.unavailable);
+    expect(document.querySelectorAll('input[type="email"]')).toHaveLength(0);
+    expect(screen.queryByLabelText(COPY.save.emailLabel)).toBeNull();
+    expect(screen.queryByRole('button', { name: COPY.save.submit })).toBeNull();
+    expect(screen.queryByRole('button', { name: COPY.save.resend })).toBeNull();
+    expect(screen.queryByRole('button', { name: COPY.save.otherAddress })).toBeNull();
+    expect(d.querySelector('form')).toBeNull();
+    expect(d.querySelectorAll('.ws-btn--fill')).toHaveLength(0);
+    expect(d).not.toHaveTextContent(COPY.save.description);
+    expect(d).not.toHaveTextContent(COPY.save.linkNote);
+    expect((d.querySelector('[data-ws-save="summary"]') as HTMLElement).textContent).toContain(golden.displayName);
+    expect(d.querySelector('.ws-save-foot .ws-btn--outline')).toHaveTextContent(COPY.save.close);
+    await act(async () => undefined);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(events.some(([n]) => n === 'save_email_submit')).toBe(false);
+    expectNoBanned(d);
+  });
+
+  it('off: /save#t= 매직링크로 열어도 연결 화면·verify 0 — 같은 unavailable 화면, 토큰은 주소에서 지움', async () => {
+    setPrivacyOff();
+    window.history.replaceState(null, '', `/save#t=${TOKEN}`);
+    mount(pageOf('SAVE', {}, { path: '/save' }));
+    act(() => layerStore.initDeepLink('L8', {}, '/'));
+    const d = await screen.findByRole('dialog', { name: COPY.save.title }, { timeout: 15000 });
+    expect(d).toHaveTextContent(COPY.save.unavailable);
+    expect(screen.queryByRole('button', { name: COPY.save.connectCta })).toBeNull();
+    expect(document.querySelectorAll('input[type="email"]')).toHaveLength(0);
+    expect(window.location.hash).toBe('');
+    await act(async () => undefined);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('표식 없음(on): 기존대로 이메일 칸·제출 버튼 표시', async () => {
+    mount();
+    const d = await openFromHome();
+    expect(screen.getByLabelText(COPY.save.emailLabel)).toHaveAttribute('type', 'email');
+    expect(screen.getByRole('button', { name: COPY.save.submit })).toBeInTheDocument();
+    expect(d).not.toHaveTextContent(COPY.save.unavailable);
+  });
+});

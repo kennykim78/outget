@@ -38,7 +38,7 @@ import {
   type PageContext,
   type RenderedPage,
 } from './common.js';
-import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell } from '../privacy-content.js';
+import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell, type PrivacyPolicy } from '../privacy-content.js';
 import { familyName } from './family.js';
 import { layerL4, specCheckTestimonials } from './type.js';
 
@@ -71,7 +71,7 @@ function page(
       '</main>',
       o.aside ? `${SCRIM}
 ${o.aside}` : '',
-      renderFooter(o.footerAff === true),
+      renderFooter(o.footerAff === true, ctx.privacyPage !== false),
     ]
       .filter((x) => x !== '')
       .join('\n'),
@@ -598,8 +598,8 @@ function privacyBlock(b: PrivacyBlock): string {
  *   본문 = privacy-content.ts(구조화 섹션). 기간 숫자는 privacy/policy.ts 단일 출처 → span[data-ws-policy](compliance C9-PRIVACY 대조).
  *   Kenny 미정 값은 {{KENNY:키}} 그대로 — production 산출물이면 compliance FAIL.
  */
-export function renderPrivacy(m: SiteModel, ctx: PageContext): RenderedPage {
-  const p = PRIVACY_POLICY;
+export function renderPrivacy(m: SiteModel, ctx: PageContext, policy: PrivacyPolicy = PRIVACY_POLICY): RenderedPage {
+  const p = policy;
   const anchor = (id: string): string => `privacy-${id}`;
   const toc = [
     '<nav class="ws-privacy-toc" aria-labelledby="ws-privacy-toc-title">',

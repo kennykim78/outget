@@ -160,7 +160,8 @@ function cleanPrevious(out: string): void {
       for (const r of Array.isArray(m.routes) ? m.routes : []) {
         if (typeof r.file !== 'string' || r.file === 'index.html') continue; // index.html 은 아래에서 덮어씀
         const abs = inside(out, r.file);
-        if (abs) rmSync(abs, { force: true });
+        // 294: 사전 압축 사본(.br/.gz)도 — 비노출로 바뀐 페이지(/privacy 등)의 옛 사본이 dist 에 남지 않게.
+        if (abs) for (const f of [abs, `${abs}.br`, `${abs}.gz`]) rmSync(f, { force: true });
       }
     } catch {
       /* 손상된 manifest — 덮어쓴다 */

@@ -5,10 +5,11 @@
 // prerender-manifest.json 계약(F3 가 쓴다):
 //   { v: 1, seedDigest: "<sha256 hex — seed-exposure.mjs seedDigest()>", indexable: boolean(사이트 수준, WS_INDEXABLE),
 //     mode: "production"|"development"(NODE_ENV=production 프리렌더만 production — C9-PRIVACY 자리표시 경고 문구, 누락은 production 취급),
+//     privacyPage?: false(294 — 운영 빌드 ∧ 처리방침 자리표시 남음으로 /privacy 를 뺀 빌드만, C9-PRIVACY 비노출 규칙),
 //     routes: [{ path: "/hamster/golden", file: "hamster/golden/index.html", kind: RouteKind, indexable: boolean,
 //                typeId?, family?, itemId?, productId?, region?, layer?: { kind, typeId, itemId?|productId? } }] }
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { scripts, tags, textNodes } from './html.mjs';
@@ -365,6 +366,11 @@ export function scanSeedExposure({ ex, add }) {
  *   ④ /privacy 의 span[data-ws-policy=NAME] 값 = server/src/privacy/policy.ts 의 `export const NAME = <정수식>` 값.
  *      이름 미존재·불일치 FAIL, span 0 FAIL, policy.ts 의 *_RETENTION_DAYS export 가 페이지에 하나도 없으면 FAIL, policy.ts 없음·해석 불가 FAIL.
  *   한계: span 밖에 직접 쓴 숫자는 대조하지 못한다(본문은 privacy-content.ts {policy:NAME} 토큰으로만 기간을 싣는다).
+ *   294(Kenny 2026-11-16) 비노출 빌드 — manifest.privacyPage === false(운영 빌드 ∧ 자리표시 남음 → 빌드가 /privacy 를 일부러 뺌)면 ①~④ 대신:
+ *   ⑤ manifest 에 /privacy·PRIVACY 라우트 0 · dist/privacy/ 0(옛 사본·압축본 포함) — 있으면 FAIL
+ *   ⑥ manifest 라우트 HTML 에 <a href="/privacy"> 0(죽은 링크 — 있으면 FAIL), sitemap 은 기존 ⊆ indexable 규칙
+ *   ⑦ 산출물 텍스트 어디든 "{{KENNY:" — FAIL(비노출인데 자리표시가 샜다)
+ *   ⑧ manifest.indexable === true(공개 빌드)면 FAIL — 처리방침 없이 공개 금지(기동 검사 139 MED-2 와 같은 선)
  */
 export const PRIVACY_POLICY_FILE = 'server/src/privacy/policy.ts';
 export const KENNY_NEEDLE = '{{KENNY:';
@@ -382,8 +388,40 @@ export function parsePolicyConstants(src) {
   return out;
 }
 
+function checkPrivacyOff({ root, dist, m, routes, routeFiles, all, add }) {
+  const R = 'prerender-manifest.json';
+  // ⑤
+  if (routes.some((r) => r.kind === 'PRIVACY' || (typeof r.path === 'string' && decodePath(r.path) === '/privacy'))) {
+    add('C9-PRIVACY', 'FAIL', R, null, 'privacyPage:false 인데 manifest 에 /privacy 라우트가 있다');
+  }
+  const privacyDir = resolve(dist, 'privacy') + sep;
+  for (const f of all.filter((x) => resolve(x).startsWith(privacyDir))) {
+    add('C9-PRIVACY', 'FAIL', relPosix(root, f), null, 'privacyPage:false 인데 privacy/ 산출물이 남아 있다(옛 페이지·압축본 포함)');
+  }
+  // ⑥
+  for (const f of all.filter((x) => x.endsWith('.html') && routeFiles.has(resolve(x)))) {
+    const html = readFileSync(f, 'utf8');
+    if (tags(html).some((t) => t.name === 'a' && typeof t.attrs.href === 'string' && t.attrs.href.trim() === '/privacy')) {
+      add('C9-PRIVACY', 'FAIL', relPosix(root, f), null, 'privacyPage:false 인데 처리방침 링크(href="/privacy")가 있다(없는 페이지로 가는 링크)');
+    }
+  }
+  // ⑦
+  for (const f of all.filter((x) => OUT_TEXT_EXT.test(x))) {
+    const text = readFileSync(f, 'utf8');
+    const at = text.indexOf(KENNY_NEEDLE);
+    if (at >= 0) add('C9-PRIVACY', 'FAIL', relPosix(root, f), lineIndex(text)(at), `privacyPage:false 인데 Kenny 미정 자리표시 ${KENNY_NEEDLE}…}} 가 산출물에 있다`);
+  }
+  // ⑧
+  if (m.indexable === true) add('C9-PRIVACY', 'FAIL', R, null, 'privacyPage:false(처리방침 비노출) 빌드는 공개(indexable:true)할 수 없다 — 6값을 채워 다시 빌드');
+}
+
 function checkPrivacy({ root, dist, m, routes, routeFiles, all, add }) {
   const R = 'prerender-manifest.json';
+  if (isObj(m) && m.privacyPage === false) {
+    checkPrivacyOff({ root, dist, m, routes, routeFiles, all, add });
+    return;
+  }
+  if (isObj(m) && 'privacyPage' in m) add('C9-PRIVACY', 'FAIL', R, null, `manifest.privacyPage 는 false 만 허용(없으면 노출) — 실제 ${L(JSON.stringify(m.privacyPage))}`);
   const route = routes.find((r) => r.kind === 'PRIVACY' && typeof r.file === 'string' && decodePath(r.path) === '/privacy');
   const abs = route ? join(dist, route.file) : null;
   if (!abs || !existsSync(abs)) {
