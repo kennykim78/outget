@@ -7,7 +7,7 @@ import { assertScreen } from './support/invariants';
 
 test.skip(() => process.env.E2E_SEED_MODE !== 'real', '실시드 전용(E2E_SEED=real)');
 
-const PLANNED_PATHS = ['/hamster/dwarf', '/hamster/robo', '/gerbil', '/guinea-pig', '/parrot/budgie', '/parrot/cockatiel'];
+const PLANNED_PATHS = ['/hamster/dwarf', '/hamster/robo', '/gerbil', '/guinea-pig', '/parrot/budgie', '/parrot/cockatiel', '/parrot', '/parrot/lovebird-peach', '/parrot/sun-conure'];
 
 test('실시드: / 200 · 홈 types = [hamster-golden] · 금지어 0', async ({ page, request }) => {
   const res = await request.get('/');
