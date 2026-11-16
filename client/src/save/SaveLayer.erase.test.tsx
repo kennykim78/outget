@@ -167,6 +167,35 @@ describe('진입 링크(본문 끝 data-ws-save=manage)', () => {
     expect(q(d, 'device-link')).toBeInTheDocument();
     expect(d.querySelector('[data-ws-save="erase-link"]')).toBeNull();
   });
+
+  // 294(Kenny 2026-11-16): /privacy 비노출 빌드(#root data-ws-privacy="off") → L8 처리방침 링크 0, 나머지 진입 링크는 그대로.
+  describe('/privacy 비노출 빌드(#root data-ws-privacy="off")', () => {
+    let rootEl: HTMLElement;
+    beforeEach(() => {
+      rootEl = document.createElement('div');
+      rootEl.id = 'root';
+      rootEl.setAttribute('data-ws-privacy', 'off');
+      document.body.appendChild(rootEl);
+    });
+    afterEach(() => rootEl.remove());
+
+    it('연결 상태: 지우기 두 링크는 있고 처리방침 링크 0', async () => {
+      const d = await openLinked();
+      const manage = q(d, 'manage');
+      expect(q(manage, 'erase-link')).toHaveTextContent(COPY.save.eraseLink);
+      expect(q(manage, 'device-link')).toHaveTextContent(COPY.save.deviceLink);
+      expect(document.querySelector('a[href="/privacy"]')).toBeNull();
+      expect(manage.textContent ?? '').not.toContain(COPY.footer.privacy);
+    });
+
+    it('입력 화면: 처리방침 링크 0', async () => {
+      mount();
+      act(() => layerStore.open('L8', {}, { url: '/save' }));
+      const d = await screen.findByRole('dialog', { name: COPY.save.title }, { timeout: 15000 });
+      expect(q(d, 'manage').querySelector('a[href="/privacy"]')).toBeNull();
+      expect(document.querySelector('a[href="/privacy"]')).toBeNull();
+    });
+  });
 });
 
 describe('저장한 정보 지우기 — eraseConfirm', () => {

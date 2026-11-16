@@ -545,7 +545,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
       renderHeader(t.pub, navCurrent(ctx.route), data),
       typeMain(ctx, m, t),
       aside ? `${SCRIM}\n${aside}` : '',
-      renderFooter(affReq !== null && affiliateDisclosureOn(affReq.pub.searchLinks)),
+      renderFooter(affReq !== null && affiliateDisclosureOn(affReq.pub.searchLinks), ctx.privacyPage !== false),
     ]
       .filter((x) => x !== '')
       .join('\n'),
@@ -586,7 +586,7 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
     `<h1>${h(t.pub.displayName)} · ${h(COPY.homeB.bundlesTitle)}</h1>`,
     ...cards,
     '</main>',
-    renderFooter(),
+    renderFooter(false, ctx.privacyPage !== false),
   ].join('\n');
   return {
     head: renderHead(ctx, {

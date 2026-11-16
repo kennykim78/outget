@@ -37,6 +37,7 @@ const SERVER_MODULES = import.meta.glob([
   '../../../server/src/prerender/mascot.ts',
   '../../../server/src/__tests__/fixtures/prerender-seed.ts',
   '../../../server/src/__tests__/fixtures/affiliate/fake-map.ts',
+  '../../../server/src/prerender/privacy-content.ts',
 ]);
 async function serverModule<T>(rel: string): Promise<T> {
   const load = SERVER_MODULES[`../../../server/src/${rel}`];
@@ -51,6 +52,8 @@ let site: SiteLite;
 let dwarfSite: SiteLite;
 // R4-3: 제휴 켜짐(가짜 맵 — 검색어 전부 FAKE 코드) 골든 승격 빌드. 푸터 고지 F 프리렌더 ↔ React 일치용.
 let affSite: SiteLite;
+// 294: 운영 빌드 + 처리방침 자리표시 남음 → /privacy 비노출 빌드(#root data-ws-privacy="off"). 푸터 처리방침 링크 0 프리렌더 ↔ React.
+let hiddenSite: SiteLite;
 
 beforeAll(async () => {
   const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
@@ -73,6 +76,17 @@ beforeAll(async () => {
   }>('__tests__/fixtures/affiliate/fake-map.ts');
   const affOpts = { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots };
   affSite = siteMod.buildSite(fx.promoted(), { ...affOpts, affiliate: fake.fakeLinkMap(fake.buildKeywords(fx.promoted(), affOpts)) });
+  const privacyMod = await serverModule<{ PRIVACY_POLICY: Record<string, unknown> }>('prerender/privacy-content.ts');
+  hiddenSite = siteMod.buildSite(fx.promoted(), {
+    template: TEMPLATE,
+    origin: 'https://withsmall.example',
+    seedDigest: 'a'.repeat(64),
+    asOf: fx.FIXTURE_AS_OF,
+    mascots,
+    production: true,
+    // 지금 본문이 채워진 뒤에도 자리표시 경로를 보도록 시행일 자리를 자리표시로 둔다(시험 안에서만).
+    privacyPolicy: { ...privacyMod.PRIVACY_POLICY, effectiveDate: ['{{KEN', 'NY:effectiveDate}}'].join('') },
+  });
   dwarfSite = siteMod.buildSite(fx.dwarfPreview(), {
     template: TEMPLATE,
     origin: 'http://localhost:3001',
@@ -461,4 +475,38 @@ describe('R4-3 제휴 on 빌드 — 푸터 고지 F 프리렌더 ↔ React', () 
       document.body.innerHTML = '';
     }
   }, 60_000);
+});
+
+// 294(Kenny 2026-11-16): /privacy 비노출 빌드 — 프리렌더 푸터에 처리방침 링크 0, React 푸터도 0(#root data-ws-privacy="off" 를 읽는다).
+//   골격·텍스트·href 는 하이드레이션 전후 같다. /privacy 문서 자체가 없다.
+describe('294 /privacy 비노출 빌드 — 푸터 프리렌더 ↔ React', () => {
+  it('/privacy 페이지 없음', () => {
+    expect(hiddenSite.pages.some((p) => p.route.path === '/privacy' || p.route.kind === 'PRIVACY')).toBe(false);
+  });
+
+  it.each(CASES.filter(([kind]) => kind !== 'PRIVACY'))('푸터 %s %s: 처리방침 링크 0, 프리렌더 ↔ React 동일', (_kind, path) => {
+    const p = pageAt(path, hiddenSite);
+    loadStatic(p);
+    expect(document.getElementById('root')?.getAttribute('data-ws-privacy')).toBe('off');
+    const footerOf = (): { skel: Skel; hrefs: string[]; texts: string[] } => {
+      const fs = document.querySelectorAll('footer.ws-footer');
+      expect(fs).toHaveLength(1);
+      const f = fs[0];
+      return {
+        skel: skel(f),
+        hrefs: Array.from(f.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? ''),
+        texts: Array.from(f.querySelectorAll('p')).map((x) => norm(x.textContent)),
+      };
+    };
+    const before = footerOf();
+    expect(before.hrefs).toEqual(['/credits']);
+    hydrate(p);
+    const after = footerOf();
+    const d: string[] = [];
+    diff(before.skel, after.skel, 'footer', d);
+    expect(d).toEqual([]);
+    expect(after.hrefs).toEqual(['/credits']);
+    expect(after.texts).toEqual(before.texts);
+    expect(document.querySelector('a[href="/privacy"]')).toBeNull();
+  });
 });

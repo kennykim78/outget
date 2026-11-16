@@ -129,6 +129,8 @@
 3. Actions `deploy` 1회. caddy 서비스 설정(env_file 제거)이 바뀌었으므로 `deploy.sh` 의 `up -d` 가 caddy 컨테이너를 다시 만들고 새 Caddyfile(비밀번호 없음)을 읽는다. 외부 확인이 `external status: 200 · robots.txt 200 Disallow-all=yes · X-Robots-Tag noindex=yes` 면 끝.
    caddy 가 아직 한 번도 뜨지 않은 서버(첫 배포 전)면 1·2 뒤 8절 E 첫 배포가 곧 이 단계다.
 
+**처리방침 자리표시와 `/privacy` (Kenny 2026-11-16 24:0x 결정).** 프로덕션 프리렌더에서 처리방침 6값(`{{KENNY:…}}`)이 하나라도 남아 있으면 `/privacy` 페이지를 **만들지 않는다**: 라우트·sitemap 항목·푸터와 L8 링크가 없고 서버는 `/privacy` 에 404 를 준다(`prerender-manifest.json` 에 `privacyPage:false`, `#root` 에 `data-ws-privacy="off"`). 이 경우 `{{KENNY:` 문자열은 산출물 어디에도 나오지 않는다(compliance C9-PRIVACY 가 FAIL 로 지킨다). 앱은 `WS_ALLOW_PRIVACY_PLACEHOLDER=1` 일 때만 경고와 함께 기동하고, `WS_INDEXABLE=1`(공개 색인)이면 이 변수와 무관하게 거부한다. 6값을 채우면 다음 빌드부터 `/privacy` 가 자동으로 다시 나온다(채운 뒤 서버 `WS_ALLOW_PRIVACY_PLACEHOLDER` 줄 삭제). 아래 8절 E·9절의 「`/privacy` 에 자리표시가 보인다」는 서술은 이 결정 전의 것이다.
+
 ## 7. 로그·접속 기록 (처리방침과 같아야 함)
 
 - **웹 접속 기록(IP·요청 주소)은 남기지 않는다.** Caddy: 사이트 블록에 `log` 없음 + 기본 로거에서 `http` 네임스페이스 전체 제외(오류 기록에 들어가는 요청·IP 포함 차단). 앱: 요청 로거 없음, 요청 처리 중 콘솔 출력 0(테스트 `server/src/__tests__/no-access-log.test.ts`, `scripts/__tests__/deploy-config.test.mjs`).

@@ -2943,6 +2943,50 @@ test('C9-PRIVACY: 링크 규칙은 manifest 라우트 파일만(비라우트 she
   assert.deepEqual(c9Of(res), []);
 });
 
+// ── 294(Kenny 2026-11-16): 비노출 빌드(manifest.privacyPage:false) — /privacy·링크·자리표시가 어디에도 없어야 통과, 새면 FAIL ─────────────
+const hiddenOutput = (o) => {
+  delete o['privacy/index.html'];
+  for (const f of Object.keys(o)) if (f.endsWith('.html')) o[f] = o[f].replace('<a href="/privacy">개인정보 처리방침</a>', '');
+};
+const hiddenManifest = (over = {}) => (dg) => {
+  const m = manifestFor(dg, { mode: 'production', privacyPage: false, ...over });
+  m.routes = m.routes.filter((r) => r.kind !== 'PRIVACY');
+  return m;
+};
+
+test('C9-PRIVACY 294: privacyPage:false + 페이지·링크·자리표시 0 → C9 0건(exit 0)', async () => {
+  const res = scan(await makeRoot({ output: hiddenOutput, manifest: hiddenManifest() }));
+  expectClean(res);
+  assert.deepEqual(c9Of(res), []);
+});
+
+for (const [name, f, msg] of [
+  ['자리표시가 JS 번들에 샘', { output: (o) => { hiddenOutput(o); o['assets/index-abc.js'] = `export const x = "${KENNY}";\n`; }, manifest: hiddenManifest() }, '자리표시'],
+  ['자리표시가 라우트 HTML 에 샘', { output: (o) => { hiddenOutput(o); o['index.html'] = o['index.html'].replace('</main>', `<p>${KENNY}</p></main>`); }, manifest: hiddenManifest() }, '자리표시'],
+  ['처리방침 링크 남음(죽은 링크)', { output: (o) => { hiddenOutput(o); o['index.html'] = o['index.html'].replace('</footer>', '<a href="/privacy">개인정보 처리방침</a></footer>'); }, manifest: hiddenManifest() }, '링크'],
+  ['manifest 에 /privacy 라우트 남음', { output: hiddenOutput, manifest: (dg) => manifestFor(dg, { mode: 'production', privacyPage: false }) }, 'manifest 에 /privacy'],
+  ['privacy/ 옛 산출물(압축본) 남음', { output: (o) => { hiddenOutput(o); o['privacy/index.html.br'] = 'x'; }, manifest: hiddenManifest() }, 'privacy/ 산출물'],
+  ['공개 빌드(indexable:true)', { output: (o) => { hiddenOutput(o); o['robots.txt'] = 'User-agent: *\nAllow: /\n'; }, manifest: hiddenManifest({ indexable: true }) }, '공개'],
+]) {
+  test(`C9-PRIVACY 294: privacyPage:false + ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot(f));
+    expectFail(res, 'C9-PRIVACY');
+    assert.ok(c9Of(res, 'FAIL').some((x) => x.message.includes(msg)), JSON.stringify(c9Of(res)));
+  });
+}
+
+test('C9-PRIVACY 294: manifest.privacyPage 가 false 아닌 값(true·"false"·0) → FAIL, 기존 규칙도 그대로', async () => {
+  for (const v of [true, 'false', 0]) {
+    const res = scan(await makeRoot({ output: noop, manifest: (dg) => manifestFor(dg, { privacyPage: v }) }));
+    expectFail(res, 'C9-PRIVACY');
+    assert.ok(c9Of(res, 'FAIL').some((x) => x.message.includes('privacyPage 는 false 만')), JSON.stringify(c9Of(res)));
+  }
+  // 비노출 표시 없이 페이지만 빼면 기존 규칙(페이지 없음·링크 없음과 무관하게 페이지 없음 FAIL)
+  const res = scan(await makeRoot({ output: hiddenOutput, manifest: (dg) => { const m = manifestFor(dg, { mode: 'production' }); m.routes = m.routes.filter((r) => r.kind !== 'PRIVACY'); return m; } }));
+  expectFail(res, 'C9-PRIVACY');
+  assert.ok(c9Of(res, 'FAIL').some((x) => x.message.includes('페이지 없음')), JSON.stringify(c9Of(res)));
+});
+
 test('C9-PRIVACY: parsePolicyConstants — 정수·곱·_ 구분만, 문자열·기타 식은 건너뜀', async () => {
   const { parsePolicyConstants } = await import('../lib/rules-output.mjs');
   const m = parsePolicyConstants(`${POLICY_TS}export const A = 1_000;\nexport const B = FOO * 2;\nexport const C = 'x';\n`);

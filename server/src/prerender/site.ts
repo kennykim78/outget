@@ -5,6 +5,7 @@ import { encodeWsPage, toWsPageV1, type AffiliateCodes, type PublicCatalog, type
 import { jsonForScript } from './html.js';
 import { projectSite, type SiteModel } from './project.js';
 import { planRoutes, type RoutePlan } from './routes.js';
+import { PRIVACY_POLICY, privacyPagePublished, type PrivacyPolicy } from './privacy-content.js';
 import { buildRobots } from './robots.js';
 import { buildSitemap, normalizeOrigin } from './sitemap.js';
 import { injectTemplate } from './template.js';
@@ -45,7 +46,13 @@ export interface BuildSiteOptions {
    *   compliance C9-PRIVACY 가 이 값으로 /privacy 자리표시({{KENNY:})를 FAIL(운영)·WARN(개발)으로 가른다 — 'development' 가 아니면 운영으로 본다.
    */
   production?: boolean;
+  /** 처리방침 데이터(테스트 주입용 — 기본 privacy-content.ts PRIVACY_POLICY). 294: 운영 빌드에서 자리표시가 남았으면 /privacy 를 내보내지 않는다. */
+  privacyPolicy?: PrivacyPolicy;
 }
+
+/** 294: /privacy 비노출 빌드의 #root 표식 — 클라이언트(client/src/app/privacyPage.ts)가 푸터·L8 처리방침 링크를 숨긴다. */
+export const PRIVACY_OFF_ATTR = 'data-ws-privacy';
+export const PRIVACY_OFF_VALUE = 'off';
 
 export interface ManifestRoute {
   path: string;
@@ -66,6 +73,8 @@ export interface PrerenderManifest {
   indexable: boolean;
   /** 빌드 모드(계획 86 P11, compliance C9-PRIVACY). */
   mode: 'production' | 'development';
+  /** 294: /privacy 를 내보내지 않은 빌드만 false(내보낸 빌드는 키 없음 — 기존 manifest 바이트 그대로). 기동 검사(config/env.ts)·compliance C9 가 읽는다. */
+  privacyPage?: false;
   routes: ManifestRoute[];
 }
 
@@ -86,9 +95,11 @@ export interface SiteBuild {
   catalogFile: string;
   /** dist 상대 경로 → 내용(UTF-8). 페이지·sitemap.xml·robots.txt·prerender-manifest.json·카탈로그. */
   files: Map<string, string>;
+  /** 294: /privacy 를 내보냈는가(privacy-content.ts privacyPagePublished). */
+  privacyPage: boolean;
 }
 
-function render(m: SiteModel, ctx: PageContext): RenderedPage {
+function render(m: SiteModel, ctx: PageContext, policy: PrivacyPolicy): RenderedPage {
   const r = ctx.route;
   const typeOf = () => {
     const t = m.types.find((x) => x.id === r.typeId);
@@ -115,7 +126,7 @@ function render(m: SiteModel, ctx: PageContext): RenderedPage {
     case 'CREDITS':
       return renderCredits(m, ctx);
     case 'PRIVACY':
-      return renderPrivacy(m, ctx);
+      return renderPrivacy(m, ctx, policy);
     case 'SAVE':
       return renderSave(m, ctx);
     case 'PICK':
@@ -141,7 +152,9 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   const origin = normalizeOrigin(opts.origin);
   const siteIndexable = opts.indexable === true;
   const model = projectSite(seed, opts.asOf, opts.affiliate);
-  const routes = planRoutes(model);
+  const policy = opts.privacyPolicy ?? PRIVACY_POLICY;
+  const privacyPage = privacyPagePublished(opts.production === true, policy);
+  const routes = planRoutes(model, { privacyPage });
 
   const catalog: PublicCatalog = { v: 1, seedDigest: opts.seedDigest, ...model.catalog };
   const catalogJson = `${JSON.stringify(catalog)}\n`;
@@ -153,12 +166,12 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
 
   const files = new Map<string, string>();
   const pages: BuiltPage[] = routes.map((route) => {
-    const p = render(model, { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true });
+    const p = render(model, { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true, privacyPage }, policy);
     const json = jsonForScript(opts.wsDataWire === 1 ? toWsPageV1(p.data) : encodeWsPage(p.data));
     const html = injectTemplate(opts.template, {
       head: templateHasColorScheme ? p.head.replace(`${COLOR_SCHEME_META}\n`, '') : p.head,
       body: p.body,
-      rootAttrs: { 'data-ws-prerendered': '1' },
+      rootAttrs: privacyPage ? { 'data-ws-prerendered': '1' } : { 'data-ws-prerendered': '1', [PRIVACY_OFF_ATTR]: PRIVACY_OFF_VALUE },
       afterRoot: `<script id="ws-data" type="application/json">${json}</script>`,
     });
     files.set(route.file, html);
@@ -170,6 +183,7 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
     seedDigest: opts.seedDigest,
     indexable: siteIndexable,
     mode: opts.production === true ? 'production' : 'development',
+    ...(privacyPage ? {} : { privacyPage: false as const }),
     routes: routes.map(manifestRoute),
   };
   files.set(
@@ -182,5 +196,5 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   files.set('robots.txt', buildRobots({ indexable: siteIndexable, origin }));
   files.set('prerender-manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
   files.set(catalogFile, catalogJson);
-  return { model, routes, pages, manifest, catalog, catalogFile, files };
+  return { model, routes, pages, manifest, catalog, catalogFile, files, privacyPage };
 }

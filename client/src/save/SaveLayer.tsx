@@ -13,6 +13,7 @@ import { BACKUP_RETENTION_DAYS, COPY, formatCopy } from '@ws/copy';
 import type { PublicAnimalType, PublicRequirement } from '@ws/engine';
 import { useAnimalSelection } from '../animal/selection';
 import { useLayerPage } from '../app/layerPage';
+import { privacyPageOn } from '../app/privacyPage';
 import { toDeriveOptions, useCageCompatState } from '../checklist/cageCompat';
 import { deriveChecklist } from '../checklist/derive';
 import { useSetup } from '../checklist/setupStore';
@@ -465,9 +466,12 @@ export default function SaveLayer({ close }: LayerContentProps) {
             {COPY.save.deviceLink}
           </button>
         ) : null}
-        <a className="ws-save-link ws-t-meta" href="/privacy">
-          {COPY.footer.privacy}
-        </a>
+        {/* 294: /privacy 비노출 빌드(#root data-ws-privacy="off")면 처리방침 링크 0 — app/privacyPage.ts */}
+        {privacyPageOn() ? (
+          <a className="ws-save-link ws-t-meta" href="/privacy">
+            {COPY.footer.privacy}
+          </a>
+        ) : null}
       </div>
     );
   };
