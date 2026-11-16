@@ -69,10 +69,10 @@ function unsignedCopy(src: string): string {
   temps.push(dir);
   return writeUnsignedSeedDir(dir, src);
 }
-async function validateCli(dir: string, now: string = NOW): Promise<{ code: number; out: string[] }> {
+async function validateCli(dir: string): Promise<{ code: number; out: string[] }> {
   const out: string[] = [];
-  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => out.push(l), today: () => now };
-  return { code: await runValidateCli(['--dir', dir, '--now', now], io), out };
+  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => out.push(l), today: () => NOW };
+  return { code: await runValidateCli(['--dir', dir, '--now', NOW], io), out };
 }
 function applyCli(argv: string[]): { code: number; out: string[] } {
   const out: string[] = [];
@@ -138,14 +138,22 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
   });
 });
 
-describe('실시드(2026-11-16 확인표 5종 서명 — review 단계, PR-A) — NEEDS_REVIEW 107·VERIFIED 0·매니페스트 []·errors 0', () => {
+describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매니페스트 107·errors 0', () => {
   /** 4 실패킷 + 실서명 결과 파일(scripts/review-packets/*.result.signed.json). */
   const signedResult = (n: (typeof REAL_PACKETS)[number]): string => join(ROOT, 'scripts', 'review-packets', `${n}.result.signed.json`);
   const bytesOf = (dir: string): Record<string, string> =>
     Object.fromEntries(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
 
-  it('server/seed 와 seed-draft 의 review-signatures.json = [] (바이트 동일 — review 단계는 매니페스트를 만들지 않는다)', () => {
-    for (const d of [SEED_DIR, DRAFT_DIR]) expect(readFileSync(join(d, SIGNATURE_FILE), 'utf8')).toBe('[]');
+  it('server/seed 와 seed-draft 의 review-signatures.json 바이트 동일 · 107항목 = 4 패킷 대상(kenny·2026-11-16·패킷 basis)', () => {
+    const t = readFileSync(join(SEED_DIR, SIGNATURE_FILE), 'utf8');
+    expect(readFileSync(join(DRAFT_DIR, SIGNATURE_FILE), 'utf8')).toBe(t);
+    const m = JSON.parse(t) as SignatureEntry[];
+    const targets = realSignedTargets();
+    expect(m).toHaveLength(107);
+    expect(m.map((e) => `${e.file}#${e.id}`).sort()).toEqual([...targets.keys()].sort());
+    for (const e of m) expect([e.id, e.signedBy, e.signedAt, e.basis]).toEqual([e.id, 'kenny', REAL_SIGNED_AT, targets.get(`${e.file}#${e.id}`)?.basis]);
+    expect(m.filter((e) => e.basis === 'ROW_CHECKED')).toHaveLength(42);
+    expect(m.filter((e) => e.basis === 'AI_RESEARCH_BULK')).toHaveLength(65);
   });
   it('seed:validate CLI(매니페스트 포함) errors 0 — server/seed·seed-draft', async () => {
     for (const d of [SEED_DIR, DRAFT_DIR]) {
@@ -154,50 +162,27 @@ describe('실시드(2026-11-16 확인표 5종 서명 — review 단계, PR-A) �
       expect(r.code).toBe(0);
     }
   });
-  it('모든 콘텐츠 행에 reviewBasis 키(null)', () => {
+  it('검수 표기: VERIFIED 107(AI_DRAFT 0) — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1(저빌 Taxon), 나머지 42행 DRAFT·AI_DRAFT·reviewBasis null', () => {
     const { raw } = readSeedDirRaw(SEED_DIR);
-    for (const k of CONTENT_KEYS) for (const r of raw[k] as Row[]) expect([r.id, Object.prototype.hasOwnProperty.call(r, 'reviewBasis'), r.reviewBasis]).toEqual([r.id, true, null]);
-  });
-  it('검수 표기: NEEDS_REVIEW 107 = 4 패킷 대상 정확히(reviewerType = 패킷/행 값, AI_DRAFT 0 — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1), VERIFIED 0, 나머지 42행 DRAFT·AI_DRAFT, 전 행 verifiedBy/At·reviewBasis null', () => {
-    const { raw } = readSeedDirRaw(SEED_DIR);
-    const targets = realSignedTargets();
-    expect(targets.size).toBe(107);
-    const rows = CONTENT_KEYS.flatMap((k) => (raw[k] as Row[]).map((r) => ({ key: `${SEED_FILES[k]}#${String(r.id)}`, r })));
-    expect(rows).toHaveLength(149);
-    expect(rows.filter(({ r }) => r.reviewStatus === 'VERIFIED')).toEqual([]);
-    const nr = rows.filter(({ r }) => r.reviewStatus === 'NEEDS_REVIEW');
-    expect(nr.map(({ key }) => key).sort()).toEqual([...targets.keys()].sort());
-    for (const { key, r } of nr) expect([key, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, targets.get(key)?.reviewerType, null, null, null]);
+    const rows = CONTENT_KEYS.flatMap((k) => (raw[k] as Row[]).map((r) => ({ k, r })));
+    for (const { r } of rows) expect([r.id, Object.prototype.hasOwnProperty.call(r, 'reviewBasis')]).toEqual([r.id, true]);
+    const v = rows.filter(({ r }) => r.reviewStatus === 'VERIFIED').map(({ r }) => r);
+    expect(v).toHaveLength(107);
+    expect(v.filter((r) => r.reviewerType === 'AI_DRAFT')).toEqual([]);
     const byType: Record<string, number> = {};
-    for (const { r } of nr) byType[String(r.reviewerType)] = (byType[String(r.reviewerType)] ?? 0) + 1;
+    for (const r of v) byType[String(r.reviewerType)] = (byType[String(r.reviewerType)] ?? 0) + 1;
     expect(byType).toEqual({ EXPERIENCED_KEEPER: 102, VET_PUBLISHED_SOURCE: 4, OFFICIAL_SOURCE: 1 });
-    expect(nr.filter(({ r }) => r.reviewerType === 'VET_PUBLISHED_SOURCE').map(({ r }) => [r.id, r.contentKind]).sort()).toEqual([
+    expect(v.filter((r) => r.reviewerType === 'VET_PUBLISHED_SOURCE').map((r) => [r.id, r.contentKind]).sort()).toEqual([
       ['req-dwarf-food', 'FOOD'], ['req-guineapig-food', 'FOOD'], ['req-guineapig-hay', 'FOOD'], ['req-syrian-food', 'FOOD'],
     ]);
-    const rest = rows.filter(({ key }) => !targets.has(key)).map(({ r }) => r);
+    // FOOD/HEALTH VERIFIED 는 출처 2개 이상(불변식 7) — 패킷 밖 저울(HEALTH)·저빌 사료는 DRAFT.
+    for (const r of v.filter((x) => x.contentKind === 'FOOD' || x.contentKind === 'HEALTH')) expect([r.id, (r.source as unknown[]).length >= 2]).toEqual([r.id, true]);
+    const rest = rows.filter(({ r }) => r.reviewStatus !== 'VERIFIED').map(({ r }) => r);
     expect(rest).toHaveLength(149 - 107);
     for (const r of rest) expect([r.id, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
     for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale', 'req-gerbil-food']) expect(rest.map((r) => r.id)).toContain(id);
-    // 상품 검수 표기는 review 단계에서 바뀌지 않는다(specVerifiedBy/At null).
-    for (const p of raw.curatedProducts as Row[]) expect([p.id, p.specVerifiedBy, p.specVerifiedAt]).toEqual([p.id, null, null]);
   });
-  it('디스크 = 서명 전 기준(unsignedRealSeed) 에서 대상 107행의 reviewStatus·reviewerType 만 다르다(사실·그 밖 키 0 변경)', () => {
-    const disk = realSeed();
-    const base = unsignedRealSeed();
-    const targets = realSignedTargets();
-    for (const k of CONTENT_KEYS) {
-      const a = disk[k as keyof SeedBundle] as unknown as Row[];
-      const b = base[k as keyof SeedBundle] as unknown as Row[];
-      expect(a.map((r) => r.id)).toEqual(b.map((r) => r.id));
-      a.forEach((r, i) => {
-        const t = targets.get(`${SEED_FILES[k]}#${String(r.id)}`);
-        const want = t ? { ...b[i], reviewStatus: 'NEEDS_REVIEW', reviewerType: t.reviewerType } : b[i];
-        expect(r).toEqual(want);
-        expect(factHash(SEED_FILES[k], r)).toBe(factHash(SEED_FILES[k], b[i]));
-      });
-    }
-  });
-  it('재현: 서명 전 기준 사본 + 실서명 결과 4개 --stage review 4회 = 디스크 바이트 동일(server/seed·seed-draft), 이어서 --stage final 4회(임시 사본) → VERIFIED 107·매니페스트 107·validate 0(PR-B 경로)', async () => {
+  it('재현: 서명 전 기준 사본 + 실서명 결과 4개(--stage review 4회 → --stage final 4회) = 디스크 바이트 동일, review 단계는 NEEDS_REVIEW 107·매니페스트 []·validate 0', async () => {
     const seed = unsignedCopy(SEED_DIR);
     const draft = unsignedCopy(DRAFT_DIR);
     const apply = (stage: 'review' | 'final'): void => {
@@ -207,22 +192,19 @@ describe('실시드(2026-11-16 확인표 5종 서명 — review 단계, PR-A) �
       }
     };
     apply('review');
-    expect(bytesOf(seed)).toEqual(bytesOf(SEED_DIR));
-    expect(bytesOf(draft)).toEqual(bytesOf(DRAFT_DIR));
-    apply('final');
-    const m = JSON.parse(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')) as SignatureEntry[];
-    const targets = realSignedTargets();
-    expect(m.map((e) => `${e.file}#${e.id}`).sort()).toEqual([...targets.keys()].sort());
-    for (const e of m) expect([e.id, e.signedBy, e.signedAt, e.basis]).toEqual([e.id, 'kenny', REAL_SIGNED_AT, targets.get(`${e.file}#${e.id}`)?.basis]);
-    const { raw: fv } = readSeedDirRaw(seed);
-    const fvRows = CONTENT_KEYS.flatMap((k) => fv[k] as Row[]);
-    expect(fvRows.filter((r) => r.reviewStatus === 'VERIFIED')).toHaveLength(107);
-    expect(fvRows.filter((r) => r.reviewStatus === 'VERIFIED' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
-    expect(fvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW')).toEqual([]);
-    const vr = await validateCli(seed, REAL_SIGNED_AT); // final 은 verifiedAt 2026-11-16 — 기준일이 그보다 앞서면 S07(미래 날짜)
+    expect(readFileSync(join(seed, SIGNATURE_FILE), 'utf8')).toBe('[]');
+    const { raw: rv } = readSeedDirRaw(seed);
+    const rvRows = CONTENT_KEYS.flatMap((k) => rv[k] as Row[]);
+    expect(rvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW')).toHaveLength(107);
+    expect(rvRows.filter((r) => r.reviewStatus === 'VERIFIED')).toEqual([]);
+    expect(rvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
+    const vr = await validateCli(seed);
     expect(vr.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
     expect(vr.code).toBe(0);
     expect(bytesOf(draft)).toEqual(bytesOf(seed));
+    apply('final');
+    expect(bytesOf(seed)).toEqual(bytesOf(SEED_DIR));
+    expect(bytesOf(draft)).toEqual(bytesOf(DRAFT_DIR));
   });
   it('실서명 결과 파일 형식: signedBy kenny · checkedAt/bulkSignedAt 2026-11-16 · checked = 패킷 rowChecked 항목 합집합(중복 없음)', () => {
     for (const n of REAL_PACKETS) {

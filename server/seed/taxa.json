@@ -170,11 +170,11 @@
       "note": "저빌을 데려오거나 보내거나 기를 때, 그리고 폐사했을 때 시·군·구에 신고하는 제도가 있어요(야생생물법 제21조제3항, 2025년 12월 14일 시행)."
     },
     "revisionOf": null,
-    "reviewStatus": "NEEDS_REVIEW",
+    "reviewStatus": "VERIFIED",
     "reviewerType": "OFFICIAL_SOURCE",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "ROW_CHECKED",
     "contentKind": "LEGAL",
     "source": [
       {

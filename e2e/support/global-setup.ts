@@ -1,5 +1,5 @@
 // E2E 글로벌 셋업 — (1) 현재 트리 클라이언트를 리포 밖 임시 폴더로 빌드 (2) 시드 사이트 생성 + (3) 실제 서버(createApp) 기동.
-//   E2E_SEED=demo(기본) | real   — demo: 메모리 승격 데모 시드, real: server/seed 그대로(review 단계 NEEDS_REVIEW·DRAFT, VERIFIED 0 → 빈 상태).
+//   E2E_SEED=demo(기본) | real   — demo: 메모리 승격 데모 시드, real: server/seed 그대로(2026-11-16 서명 후 — 골든햄스터만 노출).
 //   E2E_CLIENT_DIST=<dir>        — 이미 빌드된 클라이언트 재사용(로컬 반복용, 리포 밖 경로만). 미지정이면 매번 새로 빌드.
 //   E2E_KEEP=1                   — 종료 후 임시 폴더를 지우지 않는다(디버깅).
 //   E2E_BELOW_MIN=0              — 데모 시드의 최소 규격 미달 상품 변형(serve.mts --below-min)을 끈다(기본 켬).

@@ -100,11 +100,11 @@
     ],
     "estimatedRangeText": null,
     "note": "바닥 100×50cm 케이지 기준.",
-    "reviewStatus": "NEEDS_REVIEW",
+    "reviewStatus": "VERIFIED",
     "reviewerType": "EXPERIENCED_KEEPER",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {
@@ -142,11 +142,11 @@
     ],
     "estimatedRangeText": null,
     "note": "바닥 100×50cm 케이지 기준.",
-    "reviewStatus": "NEEDS_REVIEW",
+    "reviewStatus": "VERIFIED",
     "reviewerType": "EXPERIENCED_KEEPER",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {
@@ -180,11 +180,11 @@
     ],
     "estimatedRangeText": null,
     "note": null,
-    "reviewStatus": "NEEDS_REVIEW",
+    "reviewStatus": "VERIFIED",
     "reviewerType": "EXPERIENCED_KEEPER",
-    "verifiedBy": null,
-    "verifiedAt": null,
-    "reviewBasis": null,
+    "verifiedBy": "kenny",
+    "verifiedAt": "2026-11-16",
+    "reviewBasis": "AI_RESEARCH_BULK",
     "contentKind": "CARE",
     "source": [
       {

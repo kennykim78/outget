@@ -12,7 +12,7 @@ export const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..'
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
-/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명의 review 단계 — 4 패킷 107행 NEEDS_REVIEW·매니페스트 [], VERIFIED 0·노출 0). */
+/** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 반영 — 4 패킷 107행 VERIFIED·매니페스트 107). */
 export const realSeed = (): SeedBundle => readSeedDir(SEED_DIR);
 
 /** scripts/apply-review-signatures.mjs(확인표 결과 → 검수 표기·서명 매니페스트). 드워프 미리보기는 같은 함수로 메모리 서명한다. */
@@ -40,7 +40,7 @@ export const dwarfPacket = (): DwarfPacket => JSON.parse(readFileSync(DWARF_PACK
 
 /**
  * 실서명(2026-11-16, Kenny 확인표_서명용_1116.pdf 전 행 체크·서명 — ORDERS 11/16 16:4x) 대상 패킷 4종과 서명일.
- *   디스크 시드는 이 4 패킷을 apply-review-signatures.mjs --stage review 로 적용한 상태다(PR-A — final(VERIFIED)은 다음 PR, CI seed-review-diff R1·R2).
+ *   디스크 시드는 이 4 패킷을 apply-review-signatures.mjs(--stage review → final)로 적용한 상태다.
  */
 export const REAL_PACKETS = ['hamster-golden-core', 'hamster-dwarf-core', 'gerbil-mongolian-core', 'guinea-pig-core'] as const;
 export const REAL_SIGNED_AT = '2026-11-16';
@@ -86,7 +86,7 @@ export function realSignedTargets(): Map<string, { basis: 'ROW_CHECKED' | 'AI_RE
 /**
  * 서명 전 기준 실시드(메모리): 디스크 시드에서 4 패킷 서명만 되돌린 사본 — 매니페스트 [].
  *   메모리 승격 픽스처(promoted·dwarfSigned·dwarfPreview·promotedTwo)와 규칙 주입 시험의 바탕. 디스크는 바꾸지 않는다.
- *   디스크 상태(review 단계 — NEEDS_REVIEW 107)를 보는 시험은 realSeed() 를 쓴다.
+ *   디스크 상태(서명 후)를 보는 시험은 realSeed() 를 쓴다.
  */
 export function unsignedRealSeed(): SeedBundle {
   const s = clone(realSeed());
@@ -165,7 +165,7 @@ export const V = { reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER',
  * 노출 기준일(asOf) — 승격 픽스처를 쓰는 모든 테스트는 이 고정값을 프리렌더 --now·buildSite asOf·computeExposure 에 넣는다.
  *   실시계(io.today·localToday)와 결합 금지(F14 시한폭탄: V.verifiedAt + 180일 = 2027-03-29 이후 강등).
  */
-export const FIXTURE_AS_OF = '2026-11-03'; // 실시드 출처 접근일 최댓값(Taxon 법 칸 출처 2026-11-02, 277) 이상 — S07 미래 날짜 방지.
+export const FIXTURE_AS_OF = '2026-11-16'; // 실서명일(REAL_SIGNED_AT, 2026-11-16) 이상 — 디스크 verifiedAt 이 S07 미래 날짜가 되지 않게(옛 값 2026-11-03 = 출처 접근일 최댓값 2026-11-02 이상, 277). V.verifiedAt + 180 = 2027-03-29 전이라 강등 경계 의미 불변.
 /** V.verifiedAt + 180일(마지막 노출일) / + 181일(강등 첫날). */
 export const FIXTURE_LAST_FRESH = '2027-03-29';
 export const FIXTURE_FIRST_STALE = '2027-03-30';
@@ -277,7 +277,7 @@ export function demoteUnpromotedRequired(seed: SeedBundle, careProfileId: string
  *   실시계 결합 금지(F14): 2026-10-24 + 180일 = 2027-04-22 까지 노출, 그 뒤 강등.
  */
 export const DWARF_SIGNED_AT = '2026-10-24';
-export const DWARF_PREVIEW_AS_OF = '2026-11-03';
+export const DWARF_PREVIEW_AS_OF = '2026-11-16'; // 실서명일 이상(옛 값 2026-11-03). DWARF_SIGNED_AT + 180 = 2027-04-22 전이라 노출 유지.
 
 /**
  * 드워프 패킷 전 항목 ☑(A·B·D + K1 행별 확인) + C 서명(가짜 확인표 결과 — 테스트 전용, 날짜 기본 DWARF_SIGNED_AT).
@@ -313,7 +313,7 @@ export function dwarfSignedWith(
   return { seed: s, manifest: res.manifest };
 }
 
-/** 드워프 패킷 52행이 서명된 상태(메모리, 가짜 확인표 결과 — 서명 전 기준 unsignedRealSeed() 위). 디스크는 2026-11-16 실서명 review 단계(NEEDS_REVIEW). */
+/** 드워프 패킷 52행이 서명된 상태(메모리, 가짜 확인표 결과 — 서명 전 기준 unsignedRealSeed() 위). 디스크는 2026-11-16 실서명 상태. */
 export function dwarfSigned(): SeedBundle {
   return dwarfSignedWith().seed;
 }
