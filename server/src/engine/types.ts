@@ -371,6 +371,25 @@ export interface BudgetTipRec extends ContentMeta {
   mustCheck: string[];
   specExample?: SpecValues | null;
   references: TipReference[];
+  /** 총괄 ①(ORDERS 11/22 18:4x): 수의 검수 표시 — HEALTH·섭취 위험 팁은 유효할 때만 노출(TIP_VET_REVIEW_REQUIRED). 없으면 숨김. */
+  vetReview?: TipVetReview | null;
+  /** 총괄 ②: AI 요약 원문 대조 기록 — 없거나 형식이 틀리면 팁(요약) 비노출. */
+  summaryCheck?: TipSummaryCheck | null;
+}
+
+/** 수의 검수 표시(검수자 유형·검수일·출처). reviewerType ∈ TIP_VET_REVIEWER_TYPES. */
+export interface TipVetReview {
+  reviewerType: 'VET_PUBLISHED_SOURCE' | 'OFFICIAL_SOURCE' | 'VET';
+  reviewedAt: string;
+  /** 출처 표기(문헌·기관명 — URL 아님, compliance C1-SEEDURL). */
+  source: string;
+}
+
+/** 요약 원문 대조 기록 — sources 는 이 행 references[].url 전부(확인한 참조 주소), checkedBy 는 사람(AI_DRAFT 불가). */
+export interface TipSummaryCheck {
+  sources: string[];
+  checkedAt: string;
+  checkedBy: string;
 }
 
 // ── 엔진 카탈로그 ─────────────────────────────────────────────

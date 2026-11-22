@@ -7,7 +7,11 @@ import {
   TIP_MAX_LIST,
   TIP_MAX_TEXT,
   TIP_MAX_TOTAL,
+  TIP_VET_REVIEWER_TYPES,
+  TIP_VET_REVIEW_REQUIRED,
+  isAiDraftMarker,
   isTipHazard,
+  tipNeedsVetReview,
   checkAnimalMinSpec,
   createCatalog,
   isTipSectionCategory,
@@ -73,6 +77,66 @@ export function tipTextProblems(text: string): string[] {
     }
   }
   return p;
+}
+
+/**
+ * 총괄 ORDERS 11/22 18:4x — 검수 기록 필드.
+ *   V-TIP-SC(ERROR) summaryCheck 형식: null/생략 허용(=숨김) · 객체면 키 {sources, checkedAt, checkedBy} 만 · sources 비지 않은 문자열 배열·중복 없음
+ *     ·각 항목이 이 행 references[].url 중 하나 · checkedAt YYYY-MM-DD · checkedBy 필수 · checkedBy 가 AI_DRAFT 면 ERROR(사람 대조 기록만).
+ *   W-TIP-SC(WARN) 기록 없음 또는 references 일부만 대조 → 노출 안 됨(엔진 isTipSummaryCheckValid).
+ *   V-TIP-VET(ERROR) vetReview 형식: null/생략 허용 · 객체면 키 {reviewerType, reviewedAt, source} 만 · reviewerType ∈ TIP_VET_REVIEWER_TYPES
+ *     · reviewedAt YYYY-MM-DD · source 비지 않은 문자열·URL 아님(출처 표기만 — 외부 URL 은 references[].url 에만).
+ *   W-TIP-VET(WARN) HEALTH·섭취 위험 팁에 vetReview 없음 → 노출 안 됨(TIP_VET_REVIEW_REQUIRED).
+ *   날짜 나이(STALE_DAYS)는 노출 판정(엔진)이 본다 — 여기선 형식만.
+ */
+function checkReviewRecords(ctx: Ctx, id: string, r: Rec): void {
+  const { out } = ctx;
+  const refUrls = new Set<string>();
+  if (Array.isArray(r.references)) for (const x of r.references) if (typeof asRec(x)?.url === 'string') refUrls.add(asRec(x)!.url as string);
+
+  const sc = r.summaryCheck;
+  if (sc === undefined || sc === null) {
+    out.warn('W-TIP-SC', KEY, id, 'summaryCheck', '요약 원문 대조 기록(summaryCheck) 없음 — 팁 비노출(총괄 ②)');
+  } else {
+    const o = asRec(sc);
+    if (!o) out.error('V-TIP-SC', KEY, id, 'summaryCheck', '{sources, checkedAt, checkedBy} 객체 또는 null');
+    else {
+      for (const k of Object.keys(o)) if (!['sources', 'checkedAt', 'checkedBy'].includes(k)) out.error('V-TIP-SC', KEY, id, `summaryCheck.${k}`, '알 수 없는 키(sources·checkedAt·checkedBy 만)');
+      if (!isIsoDate(o.checkedAt)) out.error('V-TIP-SC', KEY, id, 'summaryCheck.checkedAt', 'YYYY-MM-DD');
+      if (!isNonEmptyStr(o.checkedBy)) out.error('V-TIP-SC', KEY, id, 'summaryCheck.checkedBy', 'checkedBy 필수(원문과 대조한 사람)');
+      else if (isAiDraftMarker(o.checkedBy)) out.error('V-TIP-SC', KEY, id, 'summaryCheck.checkedBy', 'AI_DRAFT 는 원문 대조자가 될 수 없다(불변식 7 — 사람 대조 기록만)');
+      if (!Array.isArray(o.sources) || o.sources.length === 0) out.error('V-TIP-SC', KEY, id, 'summaryCheck.sources', '확인한 참조 URL 1개 이상');
+      else {
+        const seen = new Set<string>();
+        o.sources.forEach((u, i) => {
+          const p = `summaryCheck.sources[${i}]`;
+          if (!isNonEmptyStr(u)) out.error('V-TIP-SC', KEY, id, p, '비지 않은 문자열(참조 URL)');
+          else if (seen.has(u)) out.error('V-TIP-SC', KEY, id, p, '중복 URL');
+          else if (!refUrls.has(u)) out.error('V-TIP-SC', KEY, id, p, '이 행 references[].url 에 없는 주소 — 대조 기록은 참조 원문만');
+          if (typeof u === 'string') seen.add(u);
+        });
+        const missing = [...refUrls].filter((u) => !seen.has(u)).length;
+        if (missing > 0) out.warn('W-TIP-SC', KEY, id, 'summaryCheck.sources', `참조 ${missing}곳이 대조 기록에 없음 — 모든 원문을 대조해야 노출(숨김)`);
+      }
+    }
+  }
+
+  const vr = r.vetReview;
+  if (vr === undefined || vr === null) {
+    if (TIP_VET_REVIEW_REQUIRED && tipNeedsVetReview(r.contentKind, r.hazards)) {
+      out.warn('W-TIP-VET', KEY, id, 'vetReview', 'HEALTH·섭취 위험 팁 — 수의 검수 표시(vetReview) 없음, 비노출(총괄 ①)');
+    }
+    return;
+  }
+  const v = asRec(vr);
+  if (!v) return out.error('V-TIP-VET', KEY, id, 'vetReview', '{reviewerType, reviewedAt, source} 객체 또는 null');
+  for (const k of Object.keys(v)) if (!['reviewerType', 'reviewedAt', 'source'].includes(k)) out.error('V-TIP-VET', KEY, id, `vetReview.${k}`, '알 수 없는 키(reviewerType·reviewedAt·source 만)');
+  if (typeof v.reviewerType !== 'string' || !TIP_VET_REVIEWER_TYPES.includes(v.reviewerType)) {
+    out.error('V-TIP-VET', KEY, id, 'vetReview.reviewerType', `${TIP_VET_REVIEWER_TYPES.join('·')} 중 하나 (현재 ${JSON.stringify(v.reviewerType)}) — AI_DRAFT 등 불가`);
+  }
+  if (!isIsoDate(v.reviewedAt)) out.error('V-TIP-VET', KEY, id, 'vetReview.reviewedAt', 'YYYY-MM-DD');
+  if (!isNonEmptyStr(v.source)) out.error('V-TIP-VET', KEY, id, 'vetReview.source', '출처 표기 필수');
+  else if (URL_LIKE.test(v.source)) out.error('V-TIP-VET', KEY, id, 'vetReview.source', 'URL·도메인 표기 금지(출처 이름만 — 외부 주소는 references[].url 에만)');
 }
 
 export function checkTips(ctx: Ctx, raw: RawSeed, sound: boolean): void {
@@ -150,6 +214,8 @@ export function checkTips(ctx: Ctx, raw: RawSeed, sound: boolean): void {
       const d = tipDistinctDomainCount(r.references);
       if (d < TIP_HAZARD_MIN_DOMAINS) out.warn('W-TIP-REF2', KEY, id, 'references', `위험 태그 팁은 서로 다른 사이트 도메인 참조 ${TIP_HAZARD_MIN_DOMAINS}곳 이상일 때만 노출 (현재 ${d}곳) — 숨김`);
     }
+
+    checkReviewRecords(ctx, id, r);
 
     // V-TIP-2 자유 텍스트: URL·가격·상호명 금지(참조 title·siteName 포함)
     for (const t of [...texts(r), ...refTexts(r)]) {

@@ -12,8 +12,10 @@ import {
   tipReferenceUrlProblem,
   type BudgetTipRec,
   type SeedBundle,
+  type TipVetReview,
 } from '../engine/index.js';
 import { realSeed } from './fixtures/prerender-seed.js';
+import { TEST_CHECKED_BY, testSummaryCheck, testVetReview, withTipChecks } from './fixtures/tip-records.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -22,8 +24,12 @@ import {
   TIP_HAZARDS,
   TIP_MULTI_LABEL_SUFFIXES,
   TIP_SECTION_CATEGORIES,
+  TIP_VET_REVIEWER_TYPES,
+  TIP_VET_REVIEW_REQUIRED,
   isIpLiteralHost,
   isTipArticleHost,
+  isTipSummaryCheckValid,
+  isTipVetReviewValid,
   isTipCommerceHost,
   tipDistinctDomainCount,
   tipHazardSourcesOk,
@@ -48,8 +54,9 @@ const AS_OF = '2026-11-22';
 const REF = { title: '햄스터 수납함 집 만들기 기록', url: 'https://namu.wiki/w/test-123', siteName: '예시 위키', checkedAt: '2026-11-20' };
 const REF2 = { title: '다른 사이트 기록', url: 'https://brunch.co.kr/@someone/42', siteName: '다른 블로그', checkedAt: '2026-11-20' };
 
+// 총괄 ORDERS 11/22 18:4x: 노출 경로 시험은 시험용 검수 기록(summaryCheck·vetReview)을 채운다 — p 에 키가 있으면(null 포함) 그대로.
 function tipFixture(p: Partial<BudgetTipRec> = {}): BudgetTipRec {
-  return {
+  return withTipChecks({
     id: 'tip-fixture-cage',
     kind: 'REFERENCE',
     careProfileId: 'cp-hamster-syrian',
@@ -71,7 +78,7 @@ function tipFixture(p: Partial<BudgetTipRec> = {}): BudgetTipRec {
     contentKind: 'CARE',
     source: [],
     ...p,
-  };
+  });
 }
 
 const cat = () => createCatalog(realSeed());
@@ -449,5 +456,151 @@ describe('312(310 MED-2) — 글 사이트 허용 목록 1차 · 차단 목록 2
     const urls = (realSeed().budgetTips ?? []).flatMap((t) => (t.references ?? []).map((r) => r.url));
     expect(urls.length).toBeGreaterThan(0);
     for (const u of urls) expect(tipReferenceUrlProblem(u), u).toBeNull();
+  });
+});
+
+// 총괄 ORDERS 11/22 18:4x — ① HEALTH·섭취 위험 팁은 수의 검수 표시(vetReview)가 있어야 노출 ② 요약 원문 대조 기록(summaryCheck)이 비면 팁 비노출.
+describe('총괄 11/22 — summaryCheck·vetReview 노출 조건(엔진·미러 일치)', () => {
+  const mx = mjs as unknown as {
+    TIP_VET_REVIEW_REQUIRED: boolean;
+    TIP_VET_REVIEWER_TYPES: readonly string[];
+    tipSummaryCheckValid: (sc: unknown, refs: unknown, d: number) => boolean;
+    tipVetReviewValid: (v: unknown, d: number) => boolean;
+  };
+  const D = Date.UTC(2026, 10, 22) / 86400000;
+  const SC = { sources: [REF.url], checkedAt: '2026-11-21', checkedBy: TEST_CHECKED_BY };
+  const VR = testVetReview('2026-11-21');
+  const HEALTH = { hazards: ['INGESTION'] as BudgetTipRec['hazards'], contentKind: 'HEALTH' as const, references: [REF, REF2] };
+  const exposed = (t: BudgetTipRec) => isBudgetTipExposable(cat(), 'hamster-golden', t, AS_OF);
+
+  it('플래그·허용 등급 — 엔진 = 미러', () => {
+    expect(TIP_VET_REVIEW_REQUIRED).toBe(true);
+    expect(mx.TIP_VET_REVIEW_REQUIRED).toBe(TIP_VET_REVIEW_REQUIRED);
+    expect([...mx.TIP_VET_REVIEWER_TYPES]).toEqual([...TIP_VET_REVIEWER_TYPES]);
+    expect(TIP_VET_REVIEWER_TYPES).not.toContain('AI_DRAFT');
+  });
+
+  it('summaryCheck 채우면 노출, 비면(생략·null) 숨김', () => {
+    expect(exposed(tipFixture())).toBe(true);
+    expect(exposed(tipFixture({ summaryCheck: SC }))).toBe(true);
+    expect(exposed(tipFixture({ summaryCheck: null }))).toBe(false);
+    expect(exposed(tipFixture({ summaryCheck: undefined }))).toBe(false);
+    const noKey: BudgetTipRec = { ...tipFixture() };
+    delete noKey.summaryCheck;
+    expect(Object.hasOwn(noKey, 'summaryCheck')).toBe(false);
+    expect(exposed(noKey)).toBe(false);
+  });
+
+  it.each([
+    ['sources 비었음', { ...SC, sources: [] }, [REF]],
+    ['참조 밖 주소', { ...SC, sources: [REF.url, 'https://brunch.co.kr/@x/1'] }, [REF]],
+    ['참조 일부만 대조', { ...SC }, [REF, REF2]],
+    ['중복 주소', { ...SC, sources: [REF.url, REF.url] }, [REF]],
+    ['checkedBy 빈 값', { ...SC, checkedBy: ' ' }, [REF]],
+    ['checkedBy AI_DRAFT', { ...SC, checkedBy: 'AI_DRAFT' }, [REF]],
+    ['checkedBy ai-draft 변형', { ...SC, checkedBy: ' ai-draft ' }, [REF]],
+    ['checkedBy AI__DRAFT 변형', { ...SC, checkedBy: 'AI__DRAFT' }, [REF]],
+    ['checkedBy AIDRAFT 변형', { ...SC, checkedBy: 'AIDRAFT' }, [REF]],
+    ['checkedBy 괄호 덧붙임 변형', { ...SC, checkedBy: 'AI_DRAFT(검토)' }, [REF]],
+    ['checkedBy 전각 변형', { ...SC, checkedBy: 'ＡＩ_ＤＲＡＦＴ' }, [REF]],
+    ['checkedAt 형식 오류', { ...SC, checkedAt: '2026/11/21' }, [REF]],
+    ['checkedAt 미래', { ...SC, checkedAt: '2026-11-23' }, [REF]],
+    ['checkedAt 오래됨(STALE_DAYS+1)', { ...SC, checkedAt: '2026-05-25' }, [REF]],
+    ['알 수 없는 키', { ...SC, note: 'x' }, [REF]],
+    ['키 누락', { sources: SC.sources, checkedAt: SC.checkedAt }, [REF]],
+    ['배열', [SC], [REF]],
+  ] as Array<[string, unknown, BudgetTipRec['references']]>)('summaryCheck %s → 숨김(엔진·미러 같음)', (_n, sc, refs) => {
+    const t = tipFixture({ references: refs, summaryCheck: sc as never });
+    expect(exposed(t)).toBe(false);
+    expect(isTipSummaryCheckValid(sc, refs, D)).toBe(false);
+    expect(mx.tipSummaryCheckValid(sc, refs, D)).toBe(false);
+  });
+
+  it('summaryCheck 경계: STALE_DAYS 째 날은 유효, 참조 2곳을 모두 대조하면 유효', () => {
+    const back = new Date((D - STALE_DAYS) * 86400000).toISOString().slice(0, 10);
+    const cases: Array<[unknown, unknown]> = [
+      [{ ...SC, checkedAt: back }, [REF]],
+      [{ ...SC, sources: [REF2.url, REF.url] }, [REF, REF2]],
+    ];
+    for (const [sc, refs] of cases) {
+      expect(isTipSummaryCheckValid(sc, refs, D)).toBe(true);
+      expect(mx.tipSummaryCheckValid(sc, refs, D)).toBe(true);
+    }
+  });
+
+  it('HEALTH·섭취 위험 팁: vetReview 채우면 노출, 비면 숨김 — CARE 무위험·비섭취 팁은 vetReview 불필요', () => {
+    expect(exposed(tipFixture({ ...HEALTH, vetReview: VR }))).toBe(true);
+    expect(exposed(tipFixture({ ...HEALTH, vetReview: null }))).toBe(false);
+    expect(exposed(tipFixture({ ...HEALTH, vetReview: undefined }))).toBe(false);
+    // HEALTH 만(태그 없음)도 수의 검수 대상
+    expect(exposed(tipFixture({ contentKind: 'HEALTH', vetReview: null }))).toBe(false);
+    expect(exposed(tipFixture({ contentKind: 'HEALTH', vetReview: VR }))).toBe(true);
+    // 독성 태그(HEALTH 강제)도 대상
+    expect(exposed(tipFixture({ ...HEALTH, hazards: ['TOXIC_MATERIAL'], vetReview: null }))).toBe(false);
+    // CARE·비섭취 위험 태그(ESCAPE)는 대상 아님
+    expect(exposed(tipFixture({ vetReview: null }))).toBe(true);
+    expect(exposed(tipFixture({ hazards: ['ESCAPE'], references: [REF, REF2], vetReview: null }))).toBe(true);
+  });
+
+  it.each([
+    ['AI_DRAFT 검수자', { ...VR, reviewerType: 'AI_DRAFT' }],
+    ['OPERATOR 검수자', { ...VR, reviewerType: 'OPERATOR' }],
+    ['EXPERIENCED_KEEPER 검수자', { ...VR, reviewerType: 'EXPERIENCED_KEEPER' }],
+    ['출처 빈 값', { ...VR, source: '' }],
+    ['검수일 형식 오류', { ...VR, reviewedAt: '2026-13-01' }],
+    ['검수일 미래', { ...VR, reviewedAt: '2026-11-23' }],
+    ['검수일 오래됨', { ...VR, reviewedAt: '2026-05-25' }],
+    ['알 수 없는 키', { ...VR, extra: 1 }],
+    ['키 누락', { reviewerType: 'VET', reviewedAt: '2026-11-21' }],
+  ] as Array<[string, unknown]>)('vetReview %s → HEALTH 팁 숨김(엔진·미러 같음)', (_n, vr) => {
+    expect(exposed(tipFixture({ ...HEALTH, vetReview: vr as never }))).toBe(false);
+    expect(isTipVetReviewValid(vr, D)).toBe(false);
+    expect(mx.tipVetReviewValid(vr, D)).toBe(false);
+  });
+
+  it('vetReview 허용 등급 3종 모두 유효', () => {
+    for (const rt of TIP_VET_REVIEWER_TYPES) {
+      const vr = { ...VR, reviewerType: rt as TipVetReview['reviewerType'] };
+      expect(isTipVetReviewValid(vr, D)).toBe(true);
+      expect(mx.tipVetReviewValid(vr, D)).toBe(true);
+      expect(exposed(tipFixture({ ...HEALTH, vetReview: vr }))).toBe(true);
+    }
+  });
+
+  it('노출 팁 id 집합 패리티(검수 기록 변이 혼합)', () => {
+    const s = realSeed();
+    const tips: BudgetTipRec[] = [
+      tipFixture({ id: 'r-ok' }),
+      tipFixture({ id: 'r-sc-null', summaryCheck: null }),
+      tipFixture({ id: 'r-sc-ai', summaryCheck: { ...SC, checkedBy: 'AI_DRAFT' } }),
+      tipFixture({ id: 'r-sc-part', references: [REF, REF2], summaryCheck: SC }),
+      tipFixture({ id: 'r-h-ok', ...HEALTH, vetReview: VR }),
+      tipFixture({ id: 'r-h-novet', ...HEALTH, vetReview: null }),
+      tipFixture({ id: 'r-h-aivet', ...HEALTH, vetReview: { ...VR, reviewerType: 'AI_DRAFT' as never } }),
+      tipFixture({ id: 'r-care-novet', vetReview: null }),
+      tipFixture({ id: 'r-hk-novet', contentKind: 'HEALTH', vetReview: null }),
+    ];
+    s.budgetTips = tips;
+    const c = createCatalog(s);
+    const engine = new Set(tips.filter((t) => isBudgetTipExposable(c, 'hamster-golden', t, AS_OF)).map((t) => t.id));
+    const ex = mjs.computeExposure(Object.fromEntries(Object.entries(s)) as Record<string, unknown[]>, AS_OF);
+    expect([...ex.ids.budgetTips].sort()).toEqual([...engine].sort());
+    expect([...engine].sort()).toEqual(['r-care-novet', 'r-h-ok', 'r-ok']);
+  });
+
+  it('실시드: 사람 대조·수의 검수 기록이 없어(null) 팁 전부 비노출 — 의도된 결과', () => {
+    const s = realSeed();
+    const tips = s.budgetTips ?? [];
+    expect(tips.length).toBeGreaterThan(0);
+    for (const t of tips) {
+      expect(t.summaryCheck, t.id).toBeNull();
+      expect(t.vetReview, t.id).toBeNull();
+    }
+    const c = createCatalog(s);
+    expect(tips.filter((t) => isBudgetTipExposable(c, 'hamster-golden', t, AS_OF))).toEqual([]);
+    expect([...mjs.computeExposure(Object.fromEntries(Object.entries(s)) as Record<string, unknown[]>, AS_OF).ids.budgetTips]).toEqual([]);
+    // 같은 시드에 시험용 기록만 채우면 노출 경로가 살아난다(필드가 유일한 차이)
+    const filled = tips.map((t) => ({ ...t, summaryCheck: testSummaryCheck(t), vetReview: testVetReview(testSummaryCheck(t).checkedAt) }));
+    expect(filled.some((t) => isBudgetTipExposable(c, 'hamster-golden', t, AS_OF))).toBe(true);
   });
 });

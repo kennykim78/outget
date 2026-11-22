@@ -249,3 +249,99 @@ describe('seed:validate — W-TIP-REF2 위험 태그 참조 도메인 2곳', () 
     expect(ref2(run(tips))).toEqual([]);
   });
 });
+
+// 총괄 ORDERS 11/22 18:4x — summaryCheck(요약 원문 대조 기록)·vetReview(HEALTH·섭취 위험 수의 검수 표시) 형식 검사.
+describe('V-TIP-SC · W-TIP-SC — summaryCheck 형식', () => {
+  const SC = { sources: [REF.url], checkedAt: '2026-11-21', checkedBy: '운영자 이름' };
+  const sc = (res: ReturnType<typeof run>) => rules(res, 'V-TIP-SC').map((e) => e.path);
+  const warnSc = (res: ReturnType<typeof run>) => res.warnings.filter((w) => w.rule === 'W-TIP-SC');
+
+  it('올바른 기록은 오류·W-TIP-SC 0', () => {
+    const res = run([tip({ summaryCheck: SC })]);
+    expect(res.errors).toEqual([]);
+    expect(warnSc(res)).toEqual([]);
+  });
+
+  it('null·생략은 ERROR 아님 · W-TIP-SC 경고(비노출)', () => {
+    for (const t of [tip({ summaryCheck: null }), tip()]) {
+      const res = run([t]);
+      expect(res.errors).toEqual([]);
+      expect(warnSc(res)).toHaveLength(1);
+    }
+  });
+
+  it('checkedBy 가 AI_DRAFT(변형 포함)면 ERROR', () => {
+    for (const by of ['AI_DRAFT', 'ai-draft', ' Ai Draft ']) {
+      expect(sc(run([tip({ summaryCheck: { ...SC, checkedBy: by } })])), by).toEqual(['summaryCheck.checkedBy']);
+    }
+  });
+
+  it.each([
+    ['checkedBy 누락', { sources: SC.sources, checkedAt: SC.checkedAt }, ['summaryCheck.checkedBy']],
+    ['checkedBy 빈 값', { ...SC, checkedBy: '  ' }, ['summaryCheck.checkedBy']],
+    ['checkedAt 형식', { ...SC, checkedAt: '2026/11/21' }, ['summaryCheck.checkedAt']],
+    ['checkedAt 없는 날짜', { ...SC, checkedAt: '2026-02-30' }, ['summaryCheck.checkedAt']],
+    ['sources 비었음', { ...SC, sources: [] }, ['summaryCheck.sources']],
+    ['sources 문자열 아님', { ...SC, sources: [3] }, ['summaryCheck.sources[0]']],
+    ['sources 중복', { ...SC, sources: [REF.url, REF.url] }, ['summaryCheck.sources[1]']],
+    ['참조 밖 주소', { ...SC, sources: [REF.url, 'https://brunch.co.kr/@x/1'] }, ['summaryCheck.sources[1]']],
+    ['알 수 없는 키', { ...SC, note: 'x' }, ['summaryCheck.note']],
+    ['객체 아님', 'checked', ['summaryCheck']],
+  ] as Array<[string, unknown, string[]]>)('%s → V-TIP-SC', (_n, value, paths) => {
+    expect(sc(run([tip({ summaryCheck: value })]))).toEqual(paths);
+  });
+
+  it('참조 일부만 대조하면 ERROR 아님 · W-TIP-SC(비노출)', () => {
+    const res = run([tip({ references: [REF, { ...REF, url: 'https://brunch.co.kr/@a/1' }], summaryCheck: SC })]);
+    expect(rules(res, 'V-TIP-SC')).toEqual([]);
+    expect(warnSc(res).map((w) => w.path)).toEqual(['summaryCheck.sources']);
+  });
+});
+
+describe('V-TIP-VET · W-TIP-VET — vetReview 형식', () => {
+  const VR = { reviewerType: 'VET', reviewedAt: '2026-11-21', source: '수의 문헌 이름' };
+  const HEALTH = { hazards: ['INGESTION'], contentKind: 'HEALTH', references: [REF, { ...REF, url: 'https://brunch.co.kr/@a/1' }] };
+  const vet = (res: ReturnType<typeof run>) => rules(res, 'V-TIP-VET').map((e) => e.path);
+  const warnVet = (res: ReturnType<typeof run>) => res.warnings.filter((w) => w.rule === 'W-TIP-VET');
+
+  it('HEALTH·섭취 팁: vetReview null → W-TIP-VET 1(비노출) · 채우면 0 · CARE 무위험 팁은 null 이어도 경고 0', () => {
+    expect(warnVet(run([tip({ ...HEALTH, vetReview: null })]))).toHaveLength(1);
+    expect(warnVet(run([tip({ contentKind: 'HEALTH', vetReview: null })]))).toHaveLength(1);
+    const ok = run([tip({ ...HEALTH, vetReview: VR })]);
+    expect(ok.errors).toEqual([]);
+    expect(warnVet(ok)).toEqual([]);
+    expect(warnVet(run([tip({ vetReview: null })]))).toEqual([]);
+  });
+
+  it.each([
+    ['reviewerType AI_DRAFT', { ...VR, reviewerType: 'AI_DRAFT' }, ['vetReview.reviewerType']],
+    ['reviewerType OPERATOR', { ...VR, reviewerType: 'OPERATOR' }, ['vetReview.reviewerType']],
+    ['reviewerType EXPERIENCED_KEEPER', { ...VR, reviewerType: 'EXPERIENCED_KEEPER' }, ['vetReview.reviewerType']],
+    ['reviewedAt 형식', { ...VR, reviewedAt: '21-11-2026' }, ['vetReview.reviewedAt']],
+    ['source 빈 값', { ...VR, source: '' }, ['vetReview.source']],
+    ['source URL', { ...VR, source: 'https://vet.example.com/a' }, ['vetReview.source']],
+    ['source 도메인', { ...VR, source: 'vet.example.co.kr 자료' }, ['vetReview.source']],
+    ['알 수 없는 키', { ...VR, by: 'x' }, ['vetReview.by']],
+    ['객체 아님', 'VET', ['vetReview']],
+  ] as Array<[string, unknown, string[]]>)('%s → V-TIP-VET', (_n, value, paths) => {
+    expect(vet(run([tip({ ...HEALTH, vetReview: value })]))).toEqual(paths);
+  });
+
+  it('허용 등급 VET_PUBLISHED_SOURCE·OFFICIAL_SOURCE·VET 는 오류 0', () => {
+    for (const reviewerType of ['VET_PUBLISHED_SOURCE', 'OFFICIAL_SOURCE', 'VET']) {
+      expect(run([tip({ ...HEALTH, vetReview: { ...VR, reviewerType } })]).errors, reviewerType).toEqual([]);
+    }
+  });
+
+  it('현재 디스크 5행: 두 필드 모두 null(사람 대조·수의 검수 사실 없음 — 지어내지 않음) → W-TIP-SC 5 · W-TIP-VET 1(bedding)', () => {
+    const tips = base.raw.budgetTips as Array<Record<string, unknown>>;
+    for (const t of tips) {
+      expect(t.summaryCheck, String(t.id)).toBeNull();
+      expect(t.vetReview, String(t.id)).toBeNull();
+    }
+    const res = run(tips);
+    expect(res.errors).toEqual([]);
+    expect(res.warnings.filter((w) => w.rule === 'W-TIP-SC')).toHaveLength(5);
+    expect(warnVet(res).map((w) => w.id)).toEqual(['tip-syrian-bedding-plain-paper']);
+  });
+});

@@ -93,8 +93,10 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4, 'W-TIP-CAT': 1 });
-    expect(res.warnings).toHaveLength(19);
+    // 315 총괄 11/22: 팁 5행 summaryCheck null → W-TIP-SC 5 · HEALTH·섭취(bedding) vetReview null → W-TIP-VET 1 (+6 = 25)
+    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4, 'W-TIP-CAT': 1, 'W-TIP-SC': 5, 'W-TIP-VET': 1 });
+    expect(res.warnings).toHaveLength(25);
+    expect(res.warnings.filter((i) => i.rule === 'W-TIP-VET').map((i) => i.id)).toEqual(['tip-syrian-bedding-plain-paper']);
     expect(res.warnings.filter((i) => i.rule === 'W-TIP-CAT').map((i) => i.id)).toEqual(['tip-syrian-wheel-check-posture']);
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
     //   271: 앵무 bird-food.forSpecies(ruleScoped) 는 요구사항 행이 없어(사실값 대기) 참조 0 → +1.
@@ -126,7 +128,7 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
   it('서명 전 기준(4 패킷 미서명, 메모리): 경고 20(W-EXPOSURE-ZERO 1 · 308 W-TIP-CAT 1 포함) · 노출 0 · --strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
     const pre = validateSeed(BASE, { now: NOW });
     expect(pre.errors).toEqual([]);
-    expect(pre.warnings).toHaveLength(20);
+    expect(pre.warnings).toHaveLength(26); // 315 W-TIP-SC 5 · W-TIP-VET 1
     expect(pre.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO').map((i) => i.id)).toEqual(['hamster-golden']);
     expect(pre.summary).toEqual({ types: 0, requirements: 0, products: 0, testimonials: 0, vets: 0 });
     const strict = validateSeed(BASE, { now: NOW, strict: true });

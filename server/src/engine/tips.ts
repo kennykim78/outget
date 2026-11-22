@@ -179,3 +179,92 @@ export function tipHazardSourcesOk(hazards: unknown, refs: unknown): boolean {
   if (!Array.isArray(hazards) || hazards.length === 0) return true;
   return tipDistinctDomainCount(refs) >= TIP_HAZARD_MIN_DOMAINS;
 }
+
+// ── 총괄 결정 ORDERS 11/22 18:4x — 수의 검수 표시(vetReview)·요약 원문 대조 기록(summaryCheck) ─────────────
+//   scripts/lib/seed-exposure.mjs 가 독립 재구현(패리티 시험). 둘 중 하나만 바꾸면 시험이 깨진다.
+
+/**
+ * ① 되돌리기 쉬운 플래그: true 면 HEALTH·섭취(독성) 위험 태그 팁은 유효한 vetReview 가 있을 때만 노출.
+ *   false 로 바꾸면 vetReview 요구만 꺼진다(summaryCheck·나머지 조건은 그대로). seed-exposure.mjs TIP_VET_REVIEW_REQUIRED 와 같은 값.
+ */
+export const TIP_VET_REVIEW_REQUIRED = true;
+
+/** vetReview.reviewerType 허용값 — 불변식 7 HEALTH 최소 등급(VET_PUBLISHED_SOURCE) 이상. AI_DRAFT·OPERATOR·EXPERIENCED_KEEPER 불가. */
+export const TIP_VET_REVIEWER_TYPES: readonly string[] = Object.freeze(['VET_PUBLISHED_SOURCE', 'OFFICIAL_SOURCE', 'VET']);
+
+const VET_REVIEW_KEYS = ['reviewerType', 'reviewedAt', 'source'];
+const SUMMARY_CHECK_KEYS = ['sources', 'checkedAt', 'checkedBy'];
+
+/** 수의 검수 표시가 필요한 팁인가: contentKind HEALTH ∨ 독성·섭취 위험 태그(TIP_HEALTH_HAZARDS — INGESTION 포함). */
+export function tipNeedsVetReview(contentKind: unknown, hazards: unknown): boolean {
+  if (contentKind === 'HEALTH') return true;
+  return Array.isArray(hazards) && hazards.some((h) => h === 'TOXIC_MATERIAL' || h === 'INGESTION');
+}
+
+/** checkedBy 가 AI 초안 표지인가(대소문자·공백·하이픈 무시 — `ai draft`·`AI-DRAFT` 도 같다). */
+export function isAiDraftMarker(v: unknown): boolean {
+  // NFKC(전각→반각) 후 영문자 외 전부 제거 → AIDRAFT 포함이면 AI 초안 표지(AI__DRAFT·AI_DRAFT(검토)·ＡＩ_ＤＲＡＦＴ·폭 없는 문자 변형 포함). QA D1.
+  return typeof v === 'string' && v.normalize('NFKC').toUpperCase().replace(/[^A-Z]/g, '').includes('AIDRAFT');
+}
+
+const exactKeys = (rec: Record<string, unknown>, keys: readonly string[]): boolean => {
+  const ks = Object.keys(rec);
+  return ks.length === keys.length && ks.every((k) => keys.includes(k));
+};
+
+const dayAgeOk = (v: unknown, asOfDay: number): boolean => {
+  const d = isoDayNumber(v);
+  if (d === null) return false;
+  const age = asOfDay - d;
+  return age >= 0 && age <= STALE_DAYS;
+};
+
+/**
+ * vetReview 가 노출 근거로 유효한가: 객체 ∧ 키 정확히 {reviewerType, reviewedAt, source}
+ *   ∧ reviewerType ∈ TIP_VET_REVIEWER_TYPES ∧ reviewedAt 달력 날짜 ∧ 0 ≤ asOf − reviewedAt ≤ STALE_DAYS ∧ source 비지 않은 문자열.
+ */
+export function isTipVetReviewValid(v: unknown, asOfDay: number): boolean {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const rec = v as Record<string, unknown>;
+  if (!exactKeys(rec, VET_REVIEW_KEYS)) return false;
+  if (typeof rec.reviewerType !== 'string' || !TIP_VET_REVIEWER_TYPES.includes(rec.reviewerType)) return false;
+  if (!nonEmpty(rec.source)) return false;
+  return dayAgeOk(rec.reviewedAt, asOfDay);
+}
+
+/**
+ * summaryCheck(AI 요약 원문 대조 기록)가 노출 근거로 유효한가 — 비었거나 형식이 틀리면 요약(=팁 본문) 비노출.
+ *   객체 ∧ 키 정확히 {sources, checkedAt, checkedBy} ∧ sources 비지 않은 문자열 배열·중복 없음
+ *   ∧ sources = 이 행 references[].url 집합(모든 참조를 대조했고, 참조 밖 주소 없음)
+ *   ∧ checkedAt 달력 날짜 ∧ 0 ≤ asOf − checkedAt ≤ STALE_DAYS ∧ checkedBy 비지 않음 ∧ AI_DRAFT 아님.
+ */
+export function isTipSummaryCheckValid(sc: unknown, refs: unknown, asOfDay: number): boolean {
+  if (typeof sc !== 'object' || sc === null || Array.isArray(sc)) return false;
+  const rec = sc as Record<string, unknown>;
+  if (!exactKeys(rec, SUMMARY_CHECK_KEYS)) return false;
+  if (!nonEmpty(rec.checkedBy) || isAiDraftMarker(rec.checkedBy)) return false;
+  if (!dayAgeOk(rec.checkedAt, asOfDay)) return false;
+  const src = rec.sources;
+  if (!Array.isArray(src) || src.length === 0 || !src.every((s) => nonEmpty(s))) return false;
+  if (new Set(src).size !== src.length) return false;
+  if (!Array.isArray(refs) || refs.length === 0) return false;
+  const urls: string[] = [];
+  for (const r of refs) {
+    if (typeof r !== 'object' || r === null || typeof (r as Record<string, unknown>).url !== 'string') return false;
+    urls.push((r as Record<string, unknown>).url as string);
+  }
+  const urlSet = new Set(urls);
+  return src.length === urlSet.size && src.every((s) => urlSet.has(s as string));
+}
+
+/**
+ * 총괄 ①② 검수 기록 조건(노출 판정의 일부): summaryCheck 유효 ∧ (수의 검수가 필요한 팁이면 TIP_VET_REVIEW_REQUIRED → vetReview 유효).
+ */
+export function tipReviewRecordsOk(
+  tip: { contentKind?: unknown; hazards?: unknown; references?: unknown; vetReview?: unknown; summaryCheck?: unknown },
+  asOfDay: number,
+): boolean {
+  if (!isTipSummaryCheckValid(tip.summaryCheck, tip.references, asOfDay)) return false;
+  if (TIP_VET_REVIEW_REQUIRED && tipNeedsVetReview(tip.contentKind, tip.hazards) && !isTipVetReviewValid(tip.vetReview, asOfDay)) return false;
+  return true;
+}

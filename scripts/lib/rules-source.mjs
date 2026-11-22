@@ -1327,7 +1327,8 @@ function scanSeedFile(rel, text, ctx) {
       // C1-SEEDURL — http(s) 는 source[].url·sourceUrl 만 + photos.licenseUrl(creativecommons.org 증서 허용목록만, S1 M-3)
       const ccLicense = file === SEED_FILES.photos && n.path === 'licenseUrl' && ccLicenseOfUrl(n.value) !== null;
       // 301·312: 팁 원문 링크는 budget-tips.json references[i].url 에만, 글 사이트 허용 목록(TIP_ARTICLE_HOSTS) ∧ 글 페이지 규칙(IP 리터럴·판매처·상품 경로·제휴 쿼리 거부) 통과분만.
-      const tipRef = file === SEED_FILES.budgetTips && /^references\[\d+\]\.url$/.test(n.path) && tipReferenceUrlAllowed(n.value);
+      //   총괄 ORDERS 11/22 18:4x: summaryCheck.sources[i](원문 대조 기록 — 같은 행 참조 URL)도 같은 규칙.
+      const tipRef = file === SEED_FILES.budgetTips && /^(?:references\[\d+\]\.url|summaryCheck\.sources\[\d+\])$/.test(n.path) && tipReferenceUrlAllowed(n.value);
       if (/(?:https?|wss?|ftp):\/\//i.test(n.value) && !/(^|\.)source\[\d+\]\.url$/.test(n.path) && key !== 'sourceUrl' && !ccLicense && !tipRef) {
         add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 외부 URL 은 source[].url·sourceUrl 에만(사진 licenseUrl 은 CC 증서만)`);
       }

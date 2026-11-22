@@ -61,7 +61,15 @@ let noTipsSite: SiteLite;
 
 // 팁 픽스처(사육 사실 아님 — 시험 고정값). 서버 prerender.tips.test.ts tip() 과 같은 모양. checkedAt 은 FIXTURE_AS_OF(2026-11-16) 기준 180일 안.
 const TIP_REF = { title: '시험 글 제목', url: 'https://brunch.co.kr/@tester/123', siteName: '예시 블로그', checkedAt: '2026-11-10' };
+// 총괄 ORDERS 11/22 18:4x: 팁은 요약 원문 대조 기록(summaryCheck)이 있어야 노출 — 시험용 기록을 채운다(사육 사실 아님).
+//   sources = 이 행 references[].url 전부 · checkedAt = 참조 확인일 중 가장 늦은 날. p 에 summaryCheck 키가 있으면 그대로.
 function tipFixture(p: Record<string, unknown> = {}): Record<string, unknown> {
+  const t = tipFixtureBase(p);
+  if (Object.hasOwn(p, 'summaryCheck')) return t;
+  const refs = t.references as Array<{ url: string; checkedAt: string }>;
+  return { ...t, summaryCheck: { sources: [...new Set(refs.map((r) => r.url))], checkedAt: refs.map((r) => r.checkedAt).sort().at(-1), checkedBy: '시험 운영자' } };
+}
+function tipFixtureBase(p: Record<string, unknown>): Record<string, unknown> {
   return {
     id: 'tip-fe-cage',
     kind: 'REFERENCE',

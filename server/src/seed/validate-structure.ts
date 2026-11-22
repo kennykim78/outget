@@ -103,6 +103,8 @@ const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
     id: 'string', kind: 'string', careProfileId: 'string', supplyItemId: 'string', animalTypeIds: 'array?',
     substitute: 'string', sourceHint: 'string', materials: 'array', steps: 'array', dimensions: 'array', cautions: 'array',
     hazards: 'array', mustCheck: 'array', specExample: 'object|null?', references: 'array',
+    // 총괄 ORDERS 11/22 18:4x — 형식은 validate-tips V-TIP-VET·V-TIP-SC, 없거나 null 이면 비노출.
+    vetReview: 'object|null?', summaryCheck: 'object|null?',
   },
 };
 

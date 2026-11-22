@@ -11,6 +11,7 @@ import { COPY } from '../prerender/copy.js';
 import type { BudgetTipRec, SeedBundle } from '../engine/index.js';
 import { SEED_FILES } from '../seed/common.js';
 import { realSeed } from './fixtures/prerender-seed.js';
+import { stripTipChecks, withTipChecks } from './fixtures/tip-records.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const imp = async <T>(rel: string): Promise<T> => (await import(pathToFileURL(join(ROOT, ...rel.split('/'))).href)) as T;
@@ -59,7 +60,8 @@ const raw = (s: SeedBundle): Record<string, unknown[]> =>
 
 /** buildSite(팁 있는 시드) → 임시 dist, mutate 로 파일 변이 → 산출물 규칙(exSeed 기준 노출) 결과. */
 function scanBuilt(mutate: (files: Map<string, string>) => void = () => {}, exSeed?: SeedBundle, tips: BudgetTipRec[] = [TIP]): Finding[] {
-  const seed: SeedBundle = { ...realSeed(), budgetTips: tips };
+  // 총괄 ORDERS 11/22 18:4x: 시험용 검수 기록(summaryCheck·vetReview)을 채운다 — 키가 있으면(null 포함) 그대로.
+  const seed: SeedBundle = { ...realSeed(), budgetTips: tips.map(withTipChecks) };
   const b = buildSite(seed, { template: TEMPLATE, origin: 'https://withsmall.example', seedDigest: DIGEST, asOf: AS_OF });
   const files = new Map(b.files);
   mutate(files);
@@ -76,8 +78,9 @@ function scanBuilt(mutate: (files: Map<string, string>) => void = () => {}, exSe
   }
   const findings: Finding[] = [];
   const add: Add = (rule, severity, file, _line, message) => findings.push({ rule, severity, file, message });
-  const ex = exm.computeExposure(raw(exSeed ?? seed), AS_OF);
-  expect(out.scanOutputs({ root, dist, ex, digest: DIGEST, bw: BW, add, requireOutput: true, seed: raw(exSeed ?? seed) })).toBe('RUN');
+  const exBase: SeedBundle = exSeed ? { ...exSeed, budgetTips: (exSeed.budgetTips ?? []).map(withTipChecks) } : seed;
+  const ex = exm.computeExposure(raw(exBase), AS_OF);
+  expect(out.scanOutputs({ root, dist, ex, digest: DIGEST, bw: BW, add, requireOutput: true, seed: raw(exBase) })).toBe('RUN');
   aff.scanAffiliateOutputs({ root, dist, add });
   return findings.filter((f) => f.severity === 'FAIL');
 }
@@ -90,7 +93,13 @@ describe('C9-TIPS 산출물', () => {
   });
 
   it('팁 있는 실제 빌드 — 산출물 FAIL 0(C3-OUT-ID·C8·C9-TIPS·C10-AFF-OUT 포함)', () => {
-    expect(scanBuilt()).toEqual([]);
+    let built = false;
+    expect(
+      scanBuilt((files) => {
+        built = files.has(TIPS);
+      }),
+    ).toEqual([]);
+    expect(built).toBe(true);
   });
 
   it.each([
@@ -112,6 +121,19 @@ describe('C9-TIPS 산출물', () => {
     const f = scanBuilt(undefined, { ...realSeed(), budgetTips: [{ ...TIP, references: [] }] });
     expect(f.filter((x) => x.rule === 'C9-TIPS').length).toBeGreaterThan(0);
     expect(f.some((x) => x.rule === 'C3-OUT-ID' && x.message.includes('budgetTips#tip-test-cage'))).toBe(true);
+  });
+
+  // 총괄 ORDERS 11/22 18:4x — 미러(seed-exposure)는 summaryCheck·vetReview 가 빈 팁을 비노출로 본다. 빌드가 그 팁을 내보내면 FAIL.
+  const REF2 = { ...REF, url: 'https://brunch.co.kr/@other/9' };
+  it.each([
+    ['summaryCheck null', { ...TIP, summaryCheck: null }],
+    ['summaryCheck checkedBy AI_DRAFT', { ...TIP, summaryCheck: { sources: [REF.url], checkedAt: '2026-11-21', checkedBy: 'AI_DRAFT' } }],
+    ['HEALTH·섭취 팁 vetReview null', { ...TIP, hazards: ['INGESTION'], contentKind: 'HEALTH', references: [REF, REF2], vetReview: null }],
+  ] as Array<[string, BudgetTipRec]>)('검수 기록 빈 시드 기준(%s)이면 /tips 라우트·팁 id 가 FAIL — 기록이 있으면 FAIL 0', (_n, exTip) => {
+    const builtTip = stripTipChecks(exTip);
+    const f = scanBuilt(undefined, { ...realSeed(), budgetTips: [exTip] }, [builtTip]);
+    expect(f.filter((x) => x.rule === 'C9-TIPS').length, JSON.stringify(f)).toBeGreaterThan(0);
+    expect(scanBuilt(undefined, undefined, [builtTip])).toEqual([]);
   });
 });
 

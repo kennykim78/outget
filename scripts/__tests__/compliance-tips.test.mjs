@@ -41,6 +41,18 @@ test('판매처·상품·제휴 URL, references 밖 URL 은 C1-SEEDURL FAIL', ()
   assert.ok(scanTip({ cautions: ['https://blog.example.com/x'] }).some((f) => f.rule === 'C1-SEEDURL'));
 });
 
+// 총괄 ORDERS 11/22 18:4x: summaryCheck.sources[i](원문 대조 기록)도 references 와 같은 글 사이트 규칙 — 허용 호스트면 통과, 밖이면 C1-SEEDURL FAIL.
+//   vetReview 의 URL 은 예외 경로가 없다(source 는 출처 이름만).
+test('summaryCheck.sources 는 참조 URL 규칙 그대로 · vetReview 안 URL 은 C1-SEEDURL FAIL', () => {
+  const sc = (u) => ({ summaryCheck: { sources: [u], checkedAt: '2026-11-21', checkedBy: '운영자' } });
+  assert.deepEqual(scanTip(sc('https://namu.wiki/w/x')), []);
+  for (const u of ['https://www.coupang.com/vp/products/1', 'https://blog.example.com/p/1', 'https://bit.ly/3abc']) {
+    assert.ok(scanTip(sc(u)).some((f) => f.rule === 'C1-SEEDURL'), u);
+  }
+  const vet = scanTip({ vetReview: { reviewerType: 'VET', reviewedAt: '2026-11-21', source: 'https://namu.wiki/w/x' } });
+  assert.ok(vet.some((f) => f.rule === 'C1-SEEDURL'), JSON.stringify(vet));
+});
+
 test('REFERENCE 행은 DRAFT 여도 금지어 어간 FAIL(검수 없이 노출되는 경로)', () => {
   assert.ok(scanTip({ cautions: ['이건 안전해요'] }).some((f) => f.rule === 'C4-STEM'));
 });

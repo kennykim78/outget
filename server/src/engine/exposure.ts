@@ -7,7 +7,7 @@
 import { STALE_DAYS, TIP_HEALTH_HAZARDS, isTipHazard, isoDayNumber, reviewerRank, type VetStatus } from './domain.js';
 import { listResolvedRequirements, resolveRequirement } from './resolve.js';
 import { checkAnimalMinSpec } from './spec-check.js';
-import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk } from './tips.js';
+import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
 import type {
   BudgetTipRec,
   CompatibilityRuleRec,
@@ -196,7 +196,7 @@ export function isTestimonialPublic(
 
 export type BudgetTipForExposure = Pick<
   BudgetTipRec,
-  'kind' | 'careProfileId' | 'supplyItemId' | 'animalTypeIds' | 'references' | 'hazards' | 'contentKind'
+  'kind' | 'careProfileId' | 'supplyItemId' | 'animalTypeIds' | 'references' | 'hazards' | 'contentKind' | 'vetReview' | 'summaryCheck'
 >;
 
 /**
@@ -207,6 +207,8 @@ export type BudgetTipForExposure = Pick<
  *     ∧ (타입, 용품) 요구사항 노출(resolveRequirement + requirementOk) ∧ 용품 카테고리가 /tips 섹션(ETC·BATH 등 미표시)
  *     ∧ 독성·섭취 위험 태그면 contentKind HEALTH(V-TIP-1 과 같은 조건)
  *     ∧ 위험 태그 ≥ 1 이면 참조 사이트 도메인 서로 다른 2곳 이상(총괄 ②(b), tipHazardSourcesOk — 1곳이면 숨김 + validate W-TIP-REF2). 고정 면책 문구 동반은 렌더러(renderTipsPage)·compliance C9-TIPS 가 강제.
+ *     ∧ 총괄 ORDERS 11/22 18:4x(tipReviewRecordsOk): summaryCheck(AI 요약 원문 대조 기록) 유효 — 비면 요약=팁 본문이라 행 전체 숨김
+ *       ∧ (HEALTH ∨ 독성·섭취 태그) 이면 vetReview(수의 검수 표시) 유효(TIP_VET_REVIEW_REQUIRED 플래그). 둘 다 validate W-TIP-SC·W-TIP-VET 경고.
  */
 export function isBudgetTipExposable(cat: EngineCatalog, animalTypeId: string, tip: BudgetTipForExposure, asOf: string): boolean {
   const day = asOfDay(asOf);
@@ -215,6 +217,7 @@ export function isBudgetTipExposable(cat: EngineCatalog, animalTypeId: string, t
   if (!Array.isArray(tip.hazards) || !tip.hazards.every((h) => isTipHazard(h))) return false;
   if (tip.hazards.some((h) => TIP_HEALTH_HAZARDS.includes(h)) && tip.contentKind !== 'HEALTH') return false;
   if (!tipHazardSourcesOk(tip.hazards, tip.references)) return false;
+  if (!tipReviewRecordsOk(tip, day)) return false;
   if (tip.animalTypeIds !== undefined && !(Array.isArray(tip.animalTypeIds) && tip.animalTypeIds.includes(animalTypeId))) return false;
   if (!animalTypeOk(cat, animalTypeId, day)) return false;
   const at = cat.animalTypes.get(animalTypeId);

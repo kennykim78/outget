@@ -10,6 +10,7 @@ import { COPY } from '../prerender/copy.js';
 import { lintText } from '../seed/lint.js';
 import type { BudgetTipRec, SeedBundle } from '../engine/index.js';
 import { FIXTURE_AS_OF, promoted, realSeed } from './fixtures/prerender-seed.js';
+import { stripTipChecks, withTipChecks } from './fixtures/tip-records.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..', '..', '..');
@@ -18,8 +19,9 @@ const ORIGIN = 'https://withsmall.example';
 const AS_OF = '2026-11-22';
 
 const REF = { title: '수납함 집 만들기 기록', url: 'https://namu.wiki/w/test-123', siteName: '예시 블로그', checkedAt: '2026-11-20' };
+// 총괄 ORDERS 11/22 18:4x: 시험용 검수 기록(summaryCheck·vetReview)을 채운다 — p 에 키가 있으면(null 포함) 그대로.
 function tip(p: Partial<BudgetTipRec> = {}): BudgetTipRec {
-  return {
+  return withTipChecks({
     id: 'tip-test-cage',
     kind: 'REFERENCE',
     careProfileId: 'cp-hamster-syrian',
@@ -41,7 +43,7 @@ function tip(p: Partial<BudgetTipRec> = {}): BudgetTipRec {
     contentKind: 'CARE',
     source: [],
     ...p,
-  };
+  });
 }
 
 const build = (seed: SeedBundle): SiteBuild => buildSite(seed, { template: TEMPLATE, origin: ORIGIN, seedDigest: 'c'.repeat(64), asOf: AS_OF });
@@ -53,6 +55,15 @@ describe('팁 0건 — 라우트·링크·sitemap 0', () => {
   it.each([
     ['빈 배열', [] as BudgetTipRec[]],
     ['노출 불가 팁만(참조 없음·ETC)', [tip({ references: [] }), tip({ id: 'tip-etc', supplyItemId: 'carrier' })]],
+    // 총괄 ORDERS 11/22 18:4x — 요약 원문 대조 기록 없음 · HEALTH·섭취 팁 수의 검수 표시 없음 → 비노출
+    [
+      '검수 기록 빈 팁만(summaryCheck null · HEALTH vetReview null)',
+      [
+        tip({ summaryCheck: null }),
+        tip({ id: 'tip-h', supplyItemId: 'bedding', hazards: ['INGESTION'], contentKind: 'HEALTH', references: [REF, { ...REF, url: 'https://brunch.co.kr/@a/1' }], vetReview: null }),
+      ],
+    ],
+    ['실시드 팁(사람 대조·수의 검수 기록 null — 의도된 전부 비노출)', realSeed().budgetTips ?? []],
   ])('%s', (_n, tips) => {
     const b = build(withTips(tips));
     expect(b.routes.some((r) => r.kind === 'TIPS')).toBe(false);
@@ -63,8 +74,13 @@ describe('팁 0건 — 라우트·링크·sitemap 0', () => {
     expect(b.files.get('sitemap.xml')).not.toContain('/tips');
   });
 
-  it('실제 시드(budget-tips.json 5행, 2026-11-22) → 골든 /tips 1라우트 · 노출 팁 4(wheel 은 /tips 섹션 밖 W-TIP-CAT)', () => {
-    const b = build(realSeed());
+  it('실제 시드(budget-tips.json 5행, 2026-11-22) → 검수 기록 null 이라 /tips 0 · 같은 행에 시험용 기록만 채우면 골든 /tips 1라우트 · 노출 팁 4(wheel 은 /tips 섹션 밖 W-TIP-CAT)', () => {
+    // 총괄 ORDERS 11/22 18:4x: 실시드엔 사람 대조(summaryCheck)·수의 검수(vetReview) 기록이 없다 → 팁 페이지·진입 링크 전부 비노출(의도된 결과).
+    const real = build(realSeed());
+    expect(real.routes.filter((r) => r.kind === 'TIPS')).toEqual([]);
+    expect(allHtml(real)).not.toContain('/tips');
+    const s = realSeed();
+    const b = build({ ...s, budgetTips: (s.budgetTips ?? []).map((t) => withTipChecks(stripTipChecks(t))) });
     expect(b.routes.filter((r) => r.kind === 'TIPS').map((r) => r.path)).toEqual(['/hamster/golden/tips']);
     const html = b.files.get('hamster/golden/tips/index.html') as string;
     expect([...html.matchAll(/data-ws-id="budgetTips#([^"]+)"/g)].map((m) => m[1])).toEqual([

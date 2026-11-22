@@ -212,7 +212,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
       '/hamster',
       '/hamster/golden',
       '/hamster/golden/setup',
-      '/hamster/golden/tips', // 308: 실시드 budget-tips(cage·hideout·water·bedding 노출)
+      // 315 총괄 11/22: 실시드 팁은 검수 기록(summaryCheck·vetReview) null → /hamster/golden/tips 없음(308 의 +1 되돌림 — 팁 라우트는 prerender.tips 시험이 시험용 기록으로 본다)
       '/hamster/golden/supplies/cage',
       '/hamster/golden/check/cage',
       '/hamster/golden/supplies/wheel',

@@ -25,6 +25,8 @@
 //                        kind === 'REFERENCE' ∧ references ≥ 1 모두 유효(키 4개·title·siteName·글 페이지 https URL·checkedAt 0~STALE_DAYS)
 //                        ∧ hazards 전부 알려진 태그 ∧ (독성·섭취 → contentKind HEALTH) ∧ 용품 카테고리 ∈ /tips 섹션
 //                        ∧ (hazards ≥ 1 → 참조 사이트 도메인 서로 다른 2곳 이상, 총괄 ②(b))
+//                        ∧ summaryCheck 유효(키 3개·sources = references[].url 집합·checkedAt 0~STALE_DAYS·checkedBy ≠ AI_DRAFT)
+//                        ∧ (contentKind HEALTH ∨ 독성·섭취 태그 → TIP_VET_REVIEW_REQUIRED 이면 vetReview 유효(키 3개·VET 등급·reviewedAt 0~STALE_DAYS·source))
 //                        ∧ ∃ 노출 type t: t.careProfileId === careProfileId ∧ (animalTypeIds 없음 ∨ 포함) ∧ (t,item) 노출
 //   같은 id 가 여러 행이면 전부 노출일 때만 노출.
 import { createHash } from 'node:crypto';
@@ -245,6 +247,45 @@ export function tipReferencesValid(refs, asOfDay) {
     const d = dayNumber(r.checkedAt);
     return d !== null && asOfDay - d >= 0 && asOfDay - d <= STALE_DAYS;
   });
+}
+
+// ── 총괄 ORDERS 11/22 18:4x — 수의 검수 표시(vetReview)·요약 원문 대조 기록(summaryCheck). 독립 구현(engine/tips.ts 와 패리티 시험) ──
+// 되돌리기 쉬운 플래그 — engine/tips.ts TIP_VET_REVIEW_REQUIRED 와 같은 값이어야 한다.
+export const TIP_VET_REVIEW_REQUIRED = true;
+export const TIP_VET_REVIEWER_TYPES = Object.freeze(['VET_PUBLISHED_SOURCE', 'OFFICIAL_SOURCE', 'VET']);
+
+const keysExactly = (o, ks) => {
+  const own = Object.keys(o);
+  return own.length === ks.length && ks.every((k) => own.includes(k));
+};
+const ageOk = (v, asOfDay) => {
+  const d = dayNumber(v);
+  return d !== null && asOfDay - d >= 0 && asOfDay - d <= STALE_DAYS;
+};
+
+export function tipNeedsVetReview(x) {
+  return x.contentKind === 'HEALTH' || (Array.isArray(x.hazards) && x.hazards.some((h) => TIP_HEALTH_HAZARDS.has(h)));
+}
+
+export function tipVetReviewValid(v, asOfDay) {
+  if (!isObj(v) || !keysExactly(v, ['reviewerType', 'reviewedAt', 'source'])) return false;
+  return TIP_VET_REVIEWER_TYPES.includes(v.reviewerType) && nonEmpty(v.source) && ageOk(v.reviewedAt, asOfDay);
+}
+
+export function tipSummaryCheckValid(sc, refs, asOfDay) {
+  if (!isObj(sc) || !keysExactly(sc, ['sources', 'checkedAt', 'checkedBy'])) return false;
+  if (!nonEmpty(sc.checkedBy) || sc.checkedBy.normalize('NFKC').toUpperCase().replace(/[^A-Z]/g, '').includes('AIDRAFT')) return false;
+  if (!ageOk(sc.checkedAt, asOfDay)) return false;
+  const src = sc.sources;
+  if (!Array.isArray(src) || src.length === 0 || !src.every(nonEmpty) || new Set(src).size !== src.length) return false;
+  if (!Array.isArray(refs) || refs.length === 0 || !refs.every((r) => isObj(r) && typeof r.url === 'string')) return false;
+  const urls = new Set(refs.map((r) => r.url));
+  return src.length === urls.size && src.every((u) => urls.has(u));
+}
+
+export function tipReviewRecordsValid(x, asOfDay) {
+  if (!tipSummaryCheckValid(x.summaryCheck, x.references, asOfDay)) return false;
+  return !(TIP_VET_REVIEW_REQUIRED && tipNeedsVetReview(x) && !tipVetReviewValid(x.vetReview, asOfDay));
 }
 
 /**
@@ -508,6 +549,7 @@ export function computeExposure(seed, asOf) {
     if (!Array.isArray(x.hazards) || !x.hazards.every((h) => TIP_HAZARDS.has(h))) return false;
     if (x.hazards.some((h) => TIP_HEALTH_HAZARDS.has(h)) && x.contentKind !== 'HEALTH') return false;
     if (x.hazards.length > 0 && tipDomainCount(x.references) < 2) return false; // 총괄 ②(b)
+    if (!tipReviewRecordsValid(x, asOfDay)) return false; // 총괄 ORDERS 11/22 18:4x — summaryCheck·vetReview
     if (!TIP_SECTION_CATEGORIES.includes(itemCategory(x.supplyItemId))) return false;
     return [...types].some(([tid, t]) => tipOkFor(x, tid, t));
   });
