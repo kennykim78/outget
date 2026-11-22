@@ -254,7 +254,14 @@ export function isTipSummaryCheckValid(sc: unknown, refs: unknown, asOfDay: numb
     urls.push((r as Record<string, unknown>).url as string);
   }
   const urlSet = new Set(urls);
-  return src.length === urlSet.size && src.every((s) => urlSet.has(s as string));
+  if (!(src.length === urlSet.size && src.every((s) => urlSet.has(s as string)))) return false;
+  // QA D4: 대조일 ≥ 가장 늦은 참조 확인일 — 참조를 다시 확인(원문이 바뀌었을 수 있음)한 뒤엔 대조도 다시 해야 한다.
+  const checked = isoDayNumber(rec.checkedAt);
+  for (const r of refs) {
+    const rd = isoDayNumber((r as Record<string, unknown>).checkedAt);
+    if (rd === null || checked === null || checked < rd) return false;
+  }
+  return true;
 }
 
 /**

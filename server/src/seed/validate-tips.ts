@@ -6,6 +6,7 @@ import {
   TIP_HEALTH_HAZARDS,
   TIP_MAX_LIST,
   TIP_MAX_TEXT,
+  STALE_DAYS,
   TIP_MAX_TOTAL,
   TIP_VET_REVIEWER_TYPES,
   TIP_VET_REVIEW_REQUIRED,
@@ -19,7 +20,7 @@ import {
   tipReferenceUrlProblem,
   type SpecValues,
 } from '../engine/index.js';
-import { asRec, asSeedBundle, isIsoDate, isNonEmptyStr, SEED_KEYS, type RawSeed, type Rec } from './common.js';
+import { asRec, asSeedBundle, daysBetween, isIsoDate, isNonEmptyStr, SEED_KEYS, type RawSeed, type Rec } from './common.js';
 import type { Ctx } from './context.js';
 import { sentenceCount } from './lint.js';
 
@@ -89,6 +90,13 @@ export function tipTextProblems(text: string): string[] {
  *   W-TIP-VET(WARN) HEALTH·섭취 위험 팁에 vetReview 없음 → 노출 안 됨(TIP_VET_REVIEW_REQUIRED).
  *   날짜 나이(STALE_DAYS)는 노출 판정(엔진)이 본다 — 여기선 형식만.
  */
+/** QA D3: 미래 날짜이거나 STALE_DAYS 초과인 검수·대조일은 엔진이 조용히 숨기므로 여기서 경고한다. */
+function dateWarn(ctx: Ctx, id: string, path: string, date: string, code: 'W-TIP-SC' | 'W-TIP-VET'): void {
+  const age = daysBetween(date, ctx.now);
+  if (age < 0) ctx.out.warn(code, KEY, id, path, `기준일(${ctx.now})보다 미래 날짜 — 노출 판정에서 숨김`);
+  else if (age > STALE_DAYS) ctx.out.warn(code, KEY, id, path, `${age}일 경과(>${STALE_DAYS}) — 다시 기록해야 노출(숨김)`);
+}
+
 function checkReviewRecords(ctx: Ctx, id: string, r: Rec): void {
   const { out } = ctx;
   const refUrls = new Set<string>();
@@ -103,6 +111,13 @@ function checkReviewRecords(ctx: Ctx, id: string, r: Rec): void {
     else {
       for (const k of Object.keys(o)) if (!['sources', 'checkedAt', 'checkedBy'].includes(k)) out.error('V-TIP-SC', KEY, id, `summaryCheck.${k}`, '알 수 없는 키(sources·checkedAt·checkedBy 만)');
       if (!isIsoDate(o.checkedAt)) out.error('V-TIP-SC', KEY, id, 'summaryCheck.checkedAt', 'YYYY-MM-DD');
+      else {
+        dateWarn(ctx, id, 'summaryCheck.checkedAt', o.checkedAt, 'W-TIP-SC');
+        const lateRef = Array.isArray(r.references)
+          ? r.references.map((x) => asRec(x)?.checkedAt).filter((d): d is string => isIsoDate(d)).filter((d) => daysBetween(o.checkedAt as string, d) > 0)
+          : [];
+        if (lateRef.length > 0) out.warn('W-TIP-SC', KEY, id, 'summaryCheck.checkedAt', `참조 확인일(${lateRef.sort().pop()})이 대조일보다 늦다 — 다시 대조해야 노출(숨김)`);
+      }
       if (!isNonEmptyStr(o.checkedBy)) out.error('V-TIP-SC', KEY, id, 'summaryCheck.checkedBy', 'checkedBy 필수(원문과 대조한 사람)');
       else if (isAiDraftMarker(o.checkedBy)) out.error('V-TIP-SC', KEY, id, 'summaryCheck.checkedBy', 'AI_DRAFT 는 원문 대조자가 될 수 없다(불변식 7 — 사람 대조 기록만)');
       if (!Array.isArray(o.sources) || o.sources.length === 0) out.error('V-TIP-SC', KEY, id, 'summaryCheck.sources', '확인한 참조 URL 1개 이상');
@@ -135,6 +150,7 @@ function checkReviewRecords(ctx: Ctx, id: string, r: Rec): void {
     out.error('V-TIP-VET', KEY, id, 'vetReview.reviewerType', `${TIP_VET_REVIEWER_TYPES.join('·')} 중 하나 (현재 ${JSON.stringify(v.reviewerType)}) — AI_DRAFT 등 불가`);
   }
   if (!isIsoDate(v.reviewedAt)) out.error('V-TIP-VET', KEY, id, 'vetReview.reviewedAt', 'YYYY-MM-DD');
+  else dateWarn(ctx, id, 'vetReview.reviewedAt', v.reviewedAt, 'W-TIP-VET');
   if (!isNonEmptyStr(v.source)) out.error('V-TIP-VET', KEY, id, 'vetReview.source', '출처 표기 필수');
   else if (URL_LIKE.test(v.source)) out.error('V-TIP-VET', KEY, id, 'vetReview.source', 'URL·도메인 표기 금지(출처 이름만 — 외부 주소는 references[].url 에만)');
 }

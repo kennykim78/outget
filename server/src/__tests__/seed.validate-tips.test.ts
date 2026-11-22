@@ -270,6 +270,14 @@ describe('V-TIP-SC · W-TIP-SC — summaryCheck 형식', () => {
     }
   });
 
+  it('D3·D4: 미래·만료·참조일보다 이른 대조일은 ERROR 아닌 경고(숨김)', () => {
+    for (const checkedAt of ['2026-11-30', '2026-01-01', '2026-11-19']) {
+      const res = run([tip({ summaryCheck: { ...SC, checkedAt } })]);
+      expect(sc(res), checkedAt).toEqual([]);
+      expect(warnSc(res).length, checkedAt).toBeGreaterThanOrEqual(1);
+    }
+  });
+
   it('checkedBy 가 AI_DRAFT(변형 포함)면 ERROR', () => {
     for (const by of ['AI_DRAFT', 'ai-draft', ' Ai Draft ']) {
       expect(sc(run([tip({ summaryCheck: { ...SC, checkedBy: by } })])), by).toEqual(['summaryCheck.checkedBy']);

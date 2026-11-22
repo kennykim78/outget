@@ -506,6 +506,7 @@ describe('총괄 11/22 — summaryCheck·vetReview 노출 조건(엔진·미러 
     ['checkedAt 형식 오류', { ...SC, checkedAt: '2026/11/21' }, [REF]],
     ['checkedAt 미래', { ...SC, checkedAt: '2026-11-23' }, [REF]],
     ['checkedAt 오래됨(STALE_DAYS+1)', { ...SC, checkedAt: '2026-05-25' }, [REF]],
+    ['D4 대조일이 참조 확인일보다 이름', { ...SC, checkedAt: '2026-11-19' }, [REF]],
     ['알 수 없는 키', { ...SC, note: 'x' }, [REF]],
     ['키 누락', { sources: SC.sources, checkedAt: SC.checkedAt }, [REF]],
     ['배열', [SC], [REF]],
@@ -519,7 +520,8 @@ describe('총괄 11/22 — summaryCheck·vetReview 노출 조건(엔진·미러 
   it('summaryCheck 경계: STALE_DAYS 째 날은 유효, 참조 2곳을 모두 대조하면 유효', () => {
     const back = new Date((D - STALE_DAYS) * 86400000).toISOString().slice(0, 10);
     const cases: Array<[unknown, unknown]> = [
-      [{ ...SC, checkedAt: back }, [REF]],
+      [{ ...SC, checkedAt: back }, [{ ...REF, checkedAt: back }]], // D4: 대조일 ≥ 참조 확인일 이어야 하므로 참조일도 같은 날
+      [{ ...SC, checkedAt: REF.checkedAt }, [REF]], // 대조일 = 참조 확인일은 유효
       [{ ...SC, sources: [REF2.url, REF.url] }, [REF, REF2]],
     ];
     for (const [sc, refs] of cases) {

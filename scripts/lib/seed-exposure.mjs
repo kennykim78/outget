@@ -280,7 +280,13 @@ export function tipSummaryCheckValid(sc, refs, asOfDay) {
   if (!Array.isArray(src) || src.length === 0 || !src.every(nonEmpty) || new Set(src).size !== src.length) return false;
   if (!Array.isArray(refs) || refs.length === 0 || !refs.every((r) => isObj(r) && typeof r.url === 'string')) return false;
   const urls = new Set(refs.map((r) => r.url));
-  return src.length === urls.size && src.every((u) => urls.has(u));
+  if (!(src.length === urls.size && src.every((u) => urls.has(u)))) return false;
+  // QA D4: 대조일 ≥ 가장 늦은 참조 확인일(engine tipSummaryCheckValid 와 동일).
+  const checked = dayNumber(sc.checkedAt);
+  return refs.every((r) => {
+    const rd = dayNumber(r.checkedAt);
+    return rd !== null && checked !== null && checked >= rd;
+  });
 }
 
 export function tipReviewRecordsValid(x, asOfDay) {
