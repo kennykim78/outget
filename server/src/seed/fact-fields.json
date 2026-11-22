@@ -10,7 +10,9 @@
   "signatureExtraFields": [
     "displayName", "aliases", "careOverrides", "name", "lifecycle", "specSchema",
     "replaceCycleDays", "inspectCycleDays", "priority", "supplyItemId", "a", "b",
-    "itemIds", "tier", "title", "contentKind", "source"
+    "itemIds", "tier", "title", "contentKind", "source",
+    "kind", "substitute", "sourceHint", "materials", "steps", "dimensions", "cautions", "hazards", "mustCheck",
+    "specExample", "references", "animalTypeIds"
   ],
   "signatureStripKeys": ["optionLabels"]
 }

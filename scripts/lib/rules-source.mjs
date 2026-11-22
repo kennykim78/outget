@@ -16,6 +16,7 @@ import {
   dayNumber,
   isPhotoUsableRow,
   photoSourceUrlAllowed,
+  tipReferenceUrlAllowed,
 } from './seed-exposure.mjs';
 
 // e2e: R6 — 데모 E2E 하네스도 스캔(@playwright/test 외 금지 라이브러리·외부 fetch·시크릿 등은 그대로 적용).
@@ -1289,6 +1290,8 @@ const lastKey = (path) => {
 function stemFailRow(row) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
   if (row.reviewStatus === 'VERIFIED') return true;
+  // 301(Kenny 2026-11-22): REFERENCE 팁은 검수 없이 노출되는 별도 경로 — 상태와 무관하게 노출 후보로 본다(어간도 FAIL).
+  if (row.kind === 'REFERENCE') return true;
   if (row.verification && typeof row.verification === 'object' && row.verification.status === 'VERIFIED') return true;
   return row.status === 'APPROVED';
 }
@@ -1323,7 +1326,9 @@ function scanSeedFile(rel, text, ctx) {
       const key = lastKey(n.path);
       // C1-SEEDURL — http(s) 는 source[].url·sourceUrl 만 + photos.licenseUrl(creativecommons.org 증서 허용목록만, S1 M-3)
       const ccLicense = file === SEED_FILES.photos && n.path === 'licenseUrl' && ccLicenseOfUrl(n.value) !== null;
-      if (/(?:https?|wss?|ftp):\/\//i.test(n.value) && !/(^|\.)source\[\d+\]\.url$/.test(n.path) && key !== 'sourceUrl' && !ccLicense) {
+      // 301·312: 팁 원문 링크는 budget-tips.json references[i].url 에만, 글 사이트 허용 목록(TIP_ARTICLE_HOSTS) ∧ 글 페이지 규칙(IP 리터럴·판매처·상품 경로·제휴 쿼리 거부) 통과분만.
+      const tipRef = file === SEED_FILES.budgetTips && /^references\[\d+\]\.url$/.test(n.path) && tipReferenceUrlAllowed(n.value);
+      if (/(?:https?|wss?|ftp):\/\//i.test(n.value) && !/(^|\.)source\[\d+\]\.url$/.test(n.path) && key !== 'sourceUrl' && !ccLicense && !tipRef) {
         add('C1-SEEDURL', 'FAIL', rel, null, `${where} ${safeLabel(n.path)}: 외부 URL 은 source[].url·sourceUrl 에만(사진 licenseUrl 은 CC 증서만)`);
       }
       // C4-BANNED — 제외: id/url/sourceUrl/source.title/verifiedBy/slug, photos.query·scene

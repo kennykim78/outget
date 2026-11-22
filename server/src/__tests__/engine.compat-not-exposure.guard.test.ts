@@ -74,7 +74,7 @@ describe('가드 ①: 노출·검증·프리렌더 경로는 호환 가상 입�
 
   // ── 보상 단언(작업 228) ──────────────────────────────────────────────
   const qualitySrc = stripComments(readFileSync(join(SRC, ...COMPAT_QUALITY.split('/')), 'utf8'));
-  const NOW = '2026-11-16'; // 실서명일 이상(옛 값 2026-11-03)
+  const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03)
   /** 주입 바탕 = 서명 전 기준(4 패킷 미서명, 메모리) — ERROR 유무만 바꿔 R07c·R07e 를 보는 시험이라 서명 상태와 무관해야 한다. */
   const SEED_BASE: RawSeed = unsignRaw(readSeedDirRaw(join(SRC, '..', 'seed')).raw);
   const RULE = 'cr-syrian-wheel-cage-bedding'; // a = wheel, b = cage(seed.validate-compat-quality.test.ts 와 같은 자리)

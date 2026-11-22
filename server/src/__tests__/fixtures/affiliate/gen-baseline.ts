@@ -108,7 +108,7 @@ async function main(argv: string[]): Promise<number> {
     const template = readFileSync(join(dir, 'client', 'index.html'), 'utf8');
     // baseline.ts BASELINE_CASES 와 같은 이름·asOf(REAL_AS_OF 2026-11-16).
     const cases: Array<[string, () => ReturnType<SeedMod['realSeed']>, string]> = [
-      ['real', fx.realSeed, '2026-11-16'],
+      ['real', fx.realSeed, '2026-11-22'],
       ['promotedTwo', () => fx.promotedTwo(), fx.FIXTURE_AS_OF],
       ['dwarfPreview', fx.dwarfPreview, fx.DWARF_PREVIEW_AS_OF],
     ];

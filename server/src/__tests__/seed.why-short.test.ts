@@ -18,7 +18,7 @@ import { REAL_AS_OF, baseOptions } from './fixtures/affiliate/baseline.js';
 import { DWARF_PREVIEW_AS_OF, REAL_SIGNED_AT, dwarfSignedWith, realSeed, realSignedTargets, unsignRaw, unsignedRealSeed } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const NOW = '2026-11-16'; // 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지
+const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지
 const DISK_READ = readSeedDirRaw(join(here, '..', '..', 'seed'));
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
 const BASE = DISK_READ.raw;

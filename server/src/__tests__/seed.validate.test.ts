@@ -12,7 +12,7 @@ import { unsignRaw } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03)
+const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03)
 
 const loaded = readSeedDirRaw(SEED_DIR);
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후 — 4 패킷 107행 VERIFIED). */
@@ -89,12 +89,13 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     expect(res.errors).toEqual([]);
   });
 
-  it('경고 baseline 18 = (2026-11-16 서명으로 골든 노출 → W-EXPOSURE-ZERO 1 해소, 서명 전 19) W-RULESCOPED 2(271 bird-food.forSpecies +1 — 앵무 요구사항 행 0 · S9 요구사항이 S3 6필드 참조 → playpen floorType 1만 남음 — playpen 은 min 없음·rec 크기만, Kenny 2026-10-27) · L03 12(caution 6(S9 req-guineapig-cage Kenny 확정 2문장 +1) + 번들 note 단위 1 + Taxon note 5(S7 기니피그 +1, 햄스터와 같은 틀 · 저빌 126 신고 안내 제21조제3항 +1) — 드워프 hideout why 「3곳」 L03 −1: 2026-11-15 총괄 W02 셈 단위 「곳」 판정으로 lint UNIT_RE 에 곳 추가 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
+  it('경고 baseline 19 = (308: budget-tips 5행 → W-TIP-CAT 1(wheel 은 /tips 섹션 밖) · W-TIP-REF2 0(위험 태그 2행 모두 도메인 2곳)) · 2026-11-16 서명으로 골든 노출 → W-EXPOSURE-ZERO 1 해소, 서명 전 19) W-RULESCOPED 2(271 bird-food.forSpecies +1 — 앵무 요구사항 행 0 · S9 요구사항이 S3 6필드 참조 → playpen floorType 1만 남음 — playpen 은 min 없음·rec 크기만, Kenny 2026-10-27) · L03 12(caution 6(S9 req-guineapig-cage Kenny 확정 2문장 +1) + 번들 note 단위 1 + Taxon note 5(S7 기니피그 +1, 햄스터와 같은 틀 · 저빌 126 신고 안내 제21조제3항 +1) — 드워프 hideout why 「3곳」 L03 −1: 2026-11-15 총괄 W02 셈 단위 「곳」 판정으로 lint UNIT_RE 에 곳 추가 — BE92 골든 초안 편집: caution 1문장 3건·번들 note 단위 1건 해소, 골든 Taxon note 드워프 문구로 +1) · L05 4 · L02 0(2026-10-14 Kenny: \'안전\' 2건 교체) · W-OPTLABEL 0(CU 라벨 입력 후) · W-COHERENCE 0(R7-B SupplyItem 13 VERIFIED) (R3 C5: W-SLUG 삭제, L06 0)', () => {
     const byRule: Record<string, number> = {};
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
-    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4 });
-    expect(res.warnings).toHaveLength(18);
+    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4, 'W-TIP-CAT': 1 });
+    expect(res.warnings).toHaveLength(19);
+    expect(res.warnings.filter((i) => i.rule === 'W-TIP-CAT').map((i) => i.id)).toEqual(['tip-syrian-wheel-check-posture']);
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
     //   271: 앵무 bird-food.forSpecies(ruleScoped) 는 요구사항 행이 없어(사실값 대기) 참조 0 → +1.
     expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
@@ -122,10 +123,10 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     expect(errorRules(strict)).toEqual([]);
   });
 
-  it('서명 전 기준(4 패킷 미서명, 메모리): 경고 19(W-EXPOSURE-ZERO 1 포함) · 노출 0 · --strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
+  it('서명 전 기준(4 패킷 미서명, 메모리): 경고 20(W-EXPOSURE-ZERO 1 · 308 W-TIP-CAT 1 포함) · 노출 0 · --strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
     const pre = validateSeed(BASE, { now: NOW });
     expect(pre.errors).toEqual([]);
-    expect(pre.warnings).toHaveLength(19);
+    expect(pre.warnings).toHaveLength(20);
     expect(pre.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO').map((i) => i.id)).toEqual(['hamster-golden']);
     expect(pre.summary).toEqual({ types: 0, requirements: 0, products: 0, testimonials: 0, vets: 0 });
     const strict = validateSeed(BASE, { now: NOW, strict: true });
@@ -212,7 +213,8 @@ const CASES: Case[] = [
   { name: 'S08 curationReasons 비어있지 않음', rule: 'S08', inject: (s) => { row(s, 'curatedProducts', 'cp-001').curationReasons = ['인기']; } },
   { name: 'S08 후기 rating', rule: 'S08', inject: (s) => { row(s, 'testimonials', 't-001').rating = 5; } },
   { name: 'S09 알 수 없는 키', rule: 'S09', sev: 'WARN', inject: (s) => { row(s, 'supplyItems', 'cage').foo = 1; } },
-  { name: 'R01 ACTIVE 인데 careProfileId null', rule: 'R01', inject: (s) => { row(s, 'animalTypes', 'hamster-golden').careProfileId = null; } },
+  // 308: 실시드 budget-tips 5행이 animalTypeIds ['hamster-golden'] — 프로필이 사라지면 V-TIP-0(프로필 불일치)도 함께 난다.
+  { name: 'R01 ACTIVE 인데 careProfileId null', rule: 'R01', also: ['V-TIP-0'], inject: (s) => { row(s, 'animalTypes', 'hamster-golden').careProfileId = null; } },
   { name: 'R01 taxonId 없음', rule: 'R01', inject: (s) => { row(s, 'animalTypes', 'hamster-golden').taxonId = 'x'; } },
   { name: 'R02 별칭 중복', rule: 'R02', inject: (s) => { (row(s, 'animalTypes', 'budgie').aliases as string[]).push('저빌'); } },
   { name: 'R02 별칭 = 다른 displayName', rule: 'R02', inject: (s) => { (row(s, 'animalTypes', 'budgie').aliases as string[]).push('기니피그'); } },

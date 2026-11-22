@@ -21,6 +21,11 @@
 //   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
 //                        ∧ 출처별 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 원본·카드 슬롯(L8)
 //                        ∧ (CC_BY·CC_BY_SA → licenseUrl 이 같은 종류의 creativecommons.org 증서, M-3)
+//   budgetTip          = REFERENCE 별도 경로(Kenny 2026-11-22 — 검수 메타를 보지 않는다, 불변식 7 명시 예외):
+//                        kind === 'REFERENCE' ∧ references ≥ 1 모두 유효(키 4개·title·siteName·글 페이지 https URL·checkedAt 0~STALE_DAYS)
+//                        ∧ hazards 전부 알려진 태그 ∧ (독성·섭취 → contentKind HEALTH) ∧ 용품 카테고리 ∈ /tips 섹션
+//                        ∧ (hazards ≥ 1 → 참조 사이트 도메인 서로 다른 2곳 이상, 총괄 ②(b))
+//                        ∧ ∃ 노출 type t: t.careProfileId === careProfileId ∧ (animalTypeIds 없음 ∨ 포함) ∧ (t,item) 노출
 //   같은 id 가 여러 행이면 전부 노출일 때만 노출.
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -38,6 +43,7 @@ export const SEED_FILES = {
   testimonials: 'testimonials.json',
   vetClinics: 'vet-clinics.json',
   photos: 'photos.json',
+  budgetTips: 'budget-tips.json',
 };
 export const SEED_KEYS = Object.keys(SEED_FILES);
 
@@ -155,6 +161,90 @@ export function isPhotoUsableRow(p) {
   if (!photoSourceUrlAllowed(p.source, p.sourceUrl)) return false;
   if (!ccBySaPlacementOk(p)) return false;
   return p.license === 'CC0' || nonEmpty(p.author);
+}
+
+// ── 저렴 대체 팁 참조 규칙(독립 구현 — engine/tips.ts 와 패리티 테스트 tips.parity) ─────────────
+// Kenny 11/22 지시 범위 4종(케이지·은신처·급수·바닥재) — TOY 제거(309 m-2·310 LOW-3).
+export const TIP_SECTION_CATEGORIES = Object.freeze(['CAGE', 'HIDE', 'WATER', 'BEDDING']);
+export const TIP_HAZARDS = new Set(['TOXIC_MATERIAL', 'INGESTION', 'ENTRAPMENT', 'ESCAPE', 'VENTILATION', 'HEAT', 'TIP_OVER']);
+const TIP_HEALTH_HAZARDS = new Set(['TOXIC_MATERIAL', 'INGESTION']);
+// 1차 방어 = 글 사이트 허용 목록(310 MED-2, 접미사 일치). 호스트 추가는 PM 결정 행(_workspace/decisions.md) 필요 — engine/tips.ts 와 같은 목록.
+export const TIP_ARTICLE_HOSTS = Object.freeze(['namu.wiki', 'brunch.co.kr', 'mirochuu.com', 'gall.dcinside.com', 'vegannews.co.kr']);
+// 2차 방어 = 판매처·단축 URL 차단 목록(허용 목록이 잘못 넓어질 때의 안전망).
+export const TIP_COMMERCE_HOSTS = Object.freeze([
+  'coupang.com', 'gmarket.co.kr', '11st.co.kr', 'auction.co.kr', 'ssg.com', 'emart.com', 'lotteon.com', 'lotteimall.com',
+  'wemakeprice.com', 'tmon.co.kr', 'interpark.com', 'kurly.com', 'musinsa.com', 'homeplus.co.kr', 'gsshop.com', 'cjonmall.com',
+  'hmall.com', 'danawa.com', 'enuri.com',
+  'smartstore.naver.com', 'shopping.naver.com', 'brand.naver.com', 'search.shopping.naver.com',
+  'shop.kakao.com', 'store.kakao.com', 'gift.kakao.com',
+  'daiso.co.kr', 'daisomall.co.kr', 'ikea.com', 'ohou.se', 'costco.co.kr', 'costco.com',
+  'aliexpress.com', 'aliexpress.us', 'temu.com', 'amazon.com', 'amazon.co.jp', 'ebay.com', 'qoo10.com', 'qoo10.jp',
+  'shopee.com', 'shopee.sg', 'shopee.tw', 'shopee.co.id', 'shopee.com.my', 'shopee.ph', 'shopee.vn', 'shopee.co.th',
+  'iherb.com', 'taobao.com', 'tmall.com', '1688.com', 'rakuten.co.jp',
+  'petfriends.co.kr', 'aboutpet.co.kr',
+  'ali.ski', 'amzn.to', 'link.naver.com', 'naver.me', 'bit.ly', 'han.gl', 'vo.la', 'tinyurl.com', 'me2.do', 'linktr.ee',
+  'inpock.co.kr', 'goo.gl', 't.co', 'is.gd', 'cutt.ly', 'shorturl.at', 'rebrand.ly', 'buly.kr', 'url.kr', 'lrl.kr',
+]);
+const TIP_AFF_KEY = /^(?:aff|affiliate|aff_?id|aff_?code|ref|referrer|refer|partner|partner_?id|tracking|track|subid|sub_?id|clickid|click_?id|pid|ad|adid|ad_?id|lptag|itemid|vendoritemid|productid|goodsno|utm_[a-z0-9_]*)$/i;
+const TIP_PRODUCT_PATH = /\/(?:products?|goods|vp\/products|item|items|itm|dp|gp\/product|shop|store|cart|deal|deals)(?:\/|$)/i;
+
+/** 원문 URL 이 글 페이지로 허용되는가(fail-closed). */
+export function tipReferenceUrlAllowed(url) {
+  if (typeof url !== 'string' || url === '' || url.trim() !== url) return false;
+  if (!HTTPS_DOTTED_URL.test(url)) return false;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:' || u.username !== '' || u.password !== '' || u.port !== '') return false;
+  const rest = url.slice('https://'.length);
+  const next = rest.charAt(u.hostname.length);
+  if (!rest.startsWith(u.hostname) || !(next === '' || next === '/' || next === '?' || next === '#')) return false;
+  // 306 D2: 끝 점 호스트(`a.com.`)는 판매처 판정 전에 정규화 — 그리고 비정규형이므로 어차피 거부(fail-closed).
+  const host = u.hostname.replace(/\.+$/, '');
+  // IP 리터럴(IPv6 대괄호·콜론, 마지막 라벨이 10진·0x 16진) 별도 거부.
+  if (host.startsWith('[') || host.includes(':') || /^(?:\d+|0x[0-9a-f]*)$/.test(host.slice(host.lastIndexOf('.') + 1))) return false;
+  if (TIP_COMMERCE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return false;
+  if (!TIP_ARTICLE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return false;
+  if (host !== u.hostname) return false;
+  if (TIP_PRODUCT_PATH.test(u.pathname)) return false;
+  for (const k of u.searchParams.keys()) if (TIP_AFF_KEY.test(k)) return false;
+  return u.hash === '';
+}
+
+// 2단계 공개 접미사(server/src/seed/hostname.ts 와 같은 목록 — 시험이 동일성 확인).
+export const TIP_MULTI_LABEL_SUFFIXES = new Set([
+  'co.kr', 'or.kr', 'go.kr', 'ac.kr', 'ne.kr', 're.kr', 'pe.kr', 'ms.kr', 'hs.kr', 'es.kr', 'sc.kr', 'kg.kr', 'mil.kr',
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'nhs.uk', 'com.au', 'org.au', 'gov.au', 'edu.au',
+  'co.jp', 'or.jp', 'ac.jp', 'go.jp', 'com.cn', 'co.nz', 'org.nz',
+]);
+
+/** 총괄 ②(b): 참조의 서로 다른 사이트 도메인 수(허용 안 되는 URL 은 세지 않음). */
+export function tipDomainCount(refs) {
+  if (!Array.isArray(refs)) return 0;
+  const seen = new Set();
+  for (const r of refs) {
+    if (!isObj(r) || !tipReferenceUrlAllowed(r.url)) continue;
+    const parts = new URL(r.url).hostname.split('.');
+    const tail2 = parts.slice(parts.length - 2).join('.');
+    const take = TIP_MULTI_LABEL_SUFFIXES.has(tail2) ? 3 : 2;
+    if (parts.length >= take) seen.add(parts.slice(parts.length - take).join('.'));
+  }
+  return seen.size;
+}
+
+export function tipReferencesValid(refs, asOfDay) {
+  if (!Array.isArray(refs) || refs.length === 0) return false;
+  return refs.every((r) => {
+    if (!isObj(r)) return false;
+    const ks = Object.keys(r);
+    if (ks.length !== 4 || !['title', 'url', 'siteName', 'checkedAt'].every((k) => ks.includes(k))) return false;
+    if (!nonEmpty(r.title) || !nonEmpty(r.siteName) || !tipReferenceUrlAllowed(r.url)) return false;
+    const d = dayNumber(r.checkedAt);
+    return d !== null && asOfDay - d >= 0 && asOfDay - d <= STALE_DAYS;
+  });
 }
 
 /**
@@ -290,6 +380,7 @@ function idsWhere(rows, pred) {
  *   vetRegions: Set<string>,
  *   ccByPhotos: string[],                  // 사용 가능 CC_BY·CC_BY_SA 사진 id
  *   licenseUrls: Map<string, string>,      // ccByPhotos id → licenseUrl(C6 /credits 링크 대조)
+ *   tipTypes: Set<string>,                 // `${typeId}|${tipId}` 노출 팁(REFERENCE 경로)
  * }}
  * @param {Record<string, unknown[]>} seed
  * @param {string} asOf 노출 기준일 YYYY-MM-DD(필수, M-1)
@@ -407,7 +498,24 @@ export function computeExposure(seed, asOf) {
     vetClinics: vetIds,
     photos: photoIds,
   };
+  // 저렴 대체 팁(REFERENCE 별도 경로) — tipTypes = `${typeId}|${tipId}`.
+  const itemCategory = (id) => (verifiedItem(id) ? items.get(id)[0].category : undefined);
+  const tipTypes = new Set();
+  const tipOkFor = (x, tid, t) =>
+    t.careProfileId === x.careProfileId && (x.animalTypeIds === undefined || (Array.isArray(x.animalTypeIds) && x.animalTypeIds.includes(tid))) && pairs.has(`${tid}|${x.supplyItemId}`);
+  ids.budgetTips = idsWhere(rows('budgetTips'), (x) => {
+    if (x.kind !== 'REFERENCE' || !tipReferencesValid(x.references, asOfDay)) return false;
+    if (!Array.isArray(x.hazards) || !x.hazards.every((h) => TIP_HAZARDS.has(h))) return false;
+    if (x.hazards.some((h) => TIP_HEALTH_HAZARDS.has(h)) && x.contentKind !== 'HEALTH') return false;
+    if (x.hazards.length > 0 && tipDomainCount(x.references) < 2) return false; // 총괄 ②(b)
+    if (!TIP_SECTION_CATEGORIES.includes(itemCategory(x.supplyItemId))) return false;
+    return [...types].some(([tid, t]) => tipOkFor(x, tid, t));
+  });
+  for (const x of rows('budgetTips')) {
+    if (!isObj(x) || !ids.budgetTips.has(x.id)) continue;
+    for (const [tid, t] of types) if (tipOkFor(x, tid, t)) tipTypes.add(`${tid}|${x.id}`);
+  }
   const licenseUrls = new Map();
   for (const p of rows('photos')) if (isObj(p) && ccByPhotos.includes(p.id)) licenseUrls.set(p.id, p.licenseUrl);
-  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls };
+  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes };
 }

@@ -44,6 +44,28 @@ export const CONTENT_KINDS = ['SPEC', 'CARE', 'FOOD', 'HEALTH', 'LEGAL'] as cons
 export type ContentKind = (typeof CONTENT_KINDS)[number];
 export const isContentKind = guard(CONTENT_KINDS);
 
+// ── 저렴 대체 팁(budget-tips.json, 300 계획 · Kenny 2026-11-22) ──────────────
+/** 팁 행 종류 — REFERENCE(외부 글 모음) 하나뿐. 이 값은 budgetTips 행에만 허용(다른 파일의 `kind` 키는 V-TIP-K ERROR). */
+export const TIP_KINDS = ['REFERENCE'] as const;
+export type TipKind = (typeof TIP_KINDS)[number];
+export const isTipKind = guard(TIP_KINDS);
+
+/** 구할 곳 힌트 — 상호명 대신 고정 카피(prerender COPY.tips.sourceHint) 한 곳으로만 표기. */
+export const SOURCE_HINTS = ['LIVING_GOODS_STORE', 'ONLINE_GENERAL_MARKET', 'HARDWARE_STORE', 'AT_HOME'] as const;
+export type SourceHint = (typeof SOURCE_HINTS)[number];
+export const isSourceHint = guard(SOURCE_HINTS);
+
+/** 위험 태그 — TOXIC_MATERIAL·INGESTION 은 contentKind HEALTH 강제(V-TIP-1). */
+export const TIP_HAZARDS = ['TOXIC_MATERIAL', 'INGESTION', 'ENTRAPMENT', 'ESCAPE', 'VENTILATION', 'HEAT', 'TIP_OVER'] as const;
+export type TipHazard = (typeof TIP_HAZARDS)[number];
+export const isTipHazard = guard(TIP_HAZARDS);
+export const TIP_HEALTH_HAZARDS: readonly TipHazard[] = ['TOXIC_MATERIAL', 'INGESTION'];
+
+/** 팁 본문 길이 상한(Kenny 2026-11-22: 링크를 열지 않아도 알 만한 개요 5~10문장 — 짧게 걸지 않는다). */
+export const TIP_MAX_TEXT = 1500; // 문자열 하나(문단·단계 한 개)
+export const TIP_MAX_TOTAL = 6000; // 행 하나의 자유 텍스트 합
+export const TIP_MAX_LIST = 30; // 배열 하나의 항목 수
+
 // 제품기획 §5 집합(D-6). 시드 초안 값은 R2 에서 재매핑.
 export const SUPPLY_CATEGORIES = [
   'CAGE',

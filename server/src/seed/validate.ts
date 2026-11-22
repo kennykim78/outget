@@ -14,6 +14,7 @@ import { checkReview } from './validate-review.js';
 import { checkSlugs } from './validate-slug.js';
 import { checkSignatures } from './signatures.js';
 import { checkStructure } from './validate-structure.js';
+import { checkTips } from './validate-tips.js';
 import { checkWhyShort } from './validate-why-short.js';
 import { SEED_KEYS } from './common.js';
 
@@ -43,6 +44,8 @@ export function validateSeed(raw: RawSeed, opts: ValidateOptions): ValidateResul
   const structurallySound = !out.issues.some((i) => i.severity === 'ERROR');
   checkProducts(ctx, structurallySound ? meetsMinSpecFn(raw) : null, structurallySound ? specRefersFn(raw) : null);
   checkPeople(ctx);
+  // V-TIP-0~5·K(저렴 대체 팁, Kenny 2026-11-22). V-TIP-3 엔진 판정은 구조·참조가 온전할 때만.
+  checkTips(ctx, raw, structurallySound);
   for (const key of SEED_KEYS) {
     for (const { rec, id } of ctx.rows[key]) lintRecord(key, id, rec, out);
   }

@@ -975,14 +975,14 @@ aside.ws-layer .ws-spec-unit {
 }
 
 /* F1 정적 본문(credits·404·supplies·setup 등) 기본 흐름 — 프리렌더 main.ws-page[data-ws-route] 를 직접 겨냥(하이드레이션 전 DOM 포함) */
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) {
   display: flex;
   flex-direction: column;
   gap: var(--ws-space-3);
   padding-top: var(--ws-space-8);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) h1 {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) h1 {
   font-size: var(--ws-type-title-size);
   line-height: var(--ws-type-title-lh);
   font-weight: var(--ws-type-title-weight);
@@ -990,7 +990,7 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
 }
 
 @media (min-width: 768px) {
-  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) h1 {
+  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) h1 {
     font-size: var(--ws-type-display-size);
     line-height: var(--ws-type-display-lh);
     font-weight: var(--ws-type-display-weight);
@@ -998,20 +998,20 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
   }
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) h2 {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) h2 {
   margin-top: var(--ws-space-6);
   font-size: var(--ws-type-section-size);
   line-height: var(--ws-type-section-lh);
   font-weight: var(--ws-type-section-weight);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) ul:not([class]) {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) ul:not([class]) {
   display: flex;
   flex-direction: column;
   gap: var(--ws-space-2);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) a:not([class]) {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) a:not([class]) {
   color: var(--ws-brand-text);
   font-weight: var(--ws-type-cta-weight);
 }
@@ -1140,15 +1140,242 @@ main.ws-page[data-ws-route='FAMILY'] {
 }
 
 /* m-9 정적 /setup · /supplies 행 (프리렌더 마크업 셀렉터) */
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'])[data-ws-route='SETUP'] {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS'])[data-ws-route='SETUP'] {
   --ws-reading-w: var(--ws-modal-w);
   width: 100%;
   max-width: var(--ws-reading-w);
   margin-inline: auto;
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-bundle ul,
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) ul.ws-supply-rows {
+/* 305 /{slug}/tips(302 r2) — /setup 과 같은 720 단일 열 읽기 페이지. 팁 = 카드가 아니라 위 1px 선으로 나눈 행(D-T1),
+   「꼭 확인할 것」만 bg-100 밴드(D-T2). 본문 34em(D-T10), 접기 없음. 기존 토큰만 — 상태색·그림자·그라데이션 0. */
+main.ws-page[data-ws-route='TIPS'] {
+  --ws-reading-w: var(--ws-modal-w);
+  width: 100%;
+  max-width: var(--ws-reading-w);
+  margin-inline: auto;
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tips-disclaimer {
+  padding-bottom: var(--ws-space-3);
+  border-bottom: 1px solid var(--ws-line);
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+  font-weight: var(--ws-type-meta-weight);
+}
+
+main.ws-page[data-ws-route='TIPS'] > p:not([class]),
+main.ws-page[data-ws-route='TIPS'] .ws-tips-closing {
+  max-width: 34em;
+  color: var(--ws-ink-body);
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tips-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-3);
+  margin-top: var(--ws-space-6);
+}
+
+/* 311 N-1: 정적 h2 의 위 여백(space-6)을 섹션으로 옮긴다 — ≥768 머리 줄 세로 가운데 정렬이 h2 여백에 밀리지 않게(간격은 같음). */
+main.ws-page[data-ws-route='TIPS'] .ws-tips-sec > h2 {
+  margin-top: 0;
+}
+
+/* ≥768: 섹션 머리 h2 와 첫 기준 링크를 같은 줄(링크 우측), 나머지는 전체 폭. ≤767 은 링크가 h2 아래 줄. */
+@media (min-width: 768px) {
+  main.ws-page[data-ws-route='TIPS'] .ws-tips-sec {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--ws-space-4);
+    row-gap: var(--ws-space-3);
+  }
+  main.ws-page[data-ws-route='TIPS'] .ws-tips-sec > * {
+    grid-column: 1 / -1;
+  }
+  main.ws-page[data-ws-route='TIPS'] .ws-tips-sec > h2 {
+    grid-column: 1;
+  }
+  /* 311 N-1: 기준 링크(44 상자)를 h2 와 세로 가운데 정렬. */
+  main.ws-page[data-ws-route='TIPS'] .ws-tips-sec > h2 + .ws-tips-std {
+    grid-column: 2;
+    align-self: center;
+  }
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tips-std a,
+main.ws-page[data-ws-route='TIPS'] .ws-tips-closing a,
+main.ws-page[data-ws-route='TIPS'] .ws-tip-check a,
+.ws-tips-entry a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-cta-weight);
+}
+
+main.ws-page[data-ws-route='TIPS'] article.ws-tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-6);
+  margin-top: var(--ws-space-8);
+  padding-top: var(--ws-space-8);
+  border-top: 1px solid var(--ws-line);
+}
+
+main.ws-page[data-ws-route='TIPS'] article.ws-tip > h3 {
+  color: var(--ws-ink);
+  font-size: var(--ws-type-section-size);
+  line-height: var(--ws-type-section-lh);
+  font-weight: var(--ws-type-section-weight);
+}
+
+/* 구하는 곳 한 줄 — h3 바로 아래(space-1). article gap(space-6)을 이 줄만 당긴다. */
+main.ws-page[data-ws-route='TIPS'] .ws-tip-source-hint {
+  margin-top: calc(var(--ws-space-1) - var(--ws-space-6));
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+
+/* 311 S-1: 위험 상자 뒤에 오는 구하는 곳 줄은 상자와 떼어(space-3) 팁 제목에 딸린 줄로 읽히게. */
+main.ws-page[data-ws-route='TIPS'] .ws-tip-hazard + .ws-tip-source-hint {
+  margin-top: calc(var(--ws-space-3) - var(--ws-space-6));
+}
+
+/* 311 S-2: 위험 상자·확인 밴드는 열 전체 폭(302 §3.1) — 34em 은 파트 본문만. */
+main.ws-page[data-ws-route='TIPS'] article.ws-tip > [data-ws-tip-part]:not(.ws-tip-check):not(.ws-tip-hazard) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  max-width: 34em;
+  color: var(--ws-ink-body);
+}
+
+main.ws-page[data-ws-route='TIPS'] [data-ws-tip-part] h4,
+main.ws-page[data-ws-route='TIPS'] .ws-tip-min {
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+  letter-spacing: var(--ws-type-label-tracking);
+}
+
+main.ws-page[data-ws-route='TIPS'] [data-ws-tip-part] :is(ul, ol) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding-left: var(--ws-space-6);
+  list-style-position: outside;
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+}
+
+main.ws-page[data-ws-route='TIPS'] [data-ws-tip-part] ul {
+  list-style-type: disc;
+}
+
+main.ws-page[data-ws-route='TIPS'] [data-ws-tip-part] ol {
+  list-style-type: decimal;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 치수와 개수 = 글쓴이 숫자 — 보통 굵기 + tabular 만(D-T9, spec 스타일은 밴드 안 우리 최소 규격만). */
+main.ws-page[data-ws-route='TIPS'] [data-ws-tip-part='dimensions'] li {
+  font-variant-numeric: tabular-nums;
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tip-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-4);
+  border-radius: var(--ws-radius-lg);
+  background: var(--ws-bg-100);
+  color: var(--ws-ink);
+}
+
+@media (min-width: 768px) {
+  main.ws-page[data-ws-route='TIPS'] .ws-tip-check {
+    padding: var(--ws-space-6);
+  }
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tip-check > h4 {
+  color: var(--ws-ink);
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+  font-weight: var(--ws-type-cta-weight);
+  letter-spacing: normal;
+}
+
+/* 308 총괄 ② — 위험 태그 팁 상단 고정 주의 상자: 밴드와 같은 bg-100·radius-lg(상태색·왼쪽 막대·그림자 0). */
+main.ws-page[data-ws-route='TIPS'] article.ws-tip > .ws-tip-hazard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-4);
+  border-radius: var(--ws-radius-lg);
+  background: var(--ws-bg-100);
+  color: var(--ws-ink);
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tip-hazard-label,
+main.ws-page[data-ws-route='TIPS'] .ws-tip-writer {
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-label-size);
+  line-height: var(--ws-type-label-lh);
+  font-weight: var(--ws-type-label-weight);
+  letter-spacing: var(--ws-type-label-tracking);
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tip-hazard > h4 {
+  color: var(--ws-ink);
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+  font-weight: var(--ws-type-cta-weight);
+  letter-spacing: normal;
+}
+
+/* 상자 안 위험 한 줄 — 상자는 전체 폭(S-2), 글줄만 34em·ink-body(이전 겉모양 유지). */
+main.ws-page[data-ws-route='TIPS'] .ws-tip-hazard > ul {
+  max-width: 34em;
+  color: var(--ws-ink-body);
+}
+
+/* 우리 최소 규격(엔진 ruleText) — 숫자 규칙 본문만 .ws-t-spec 18/700 tabular(D-T9, tokens.css 유틸).
+   311 N-2: 숫자 없는 규칙(재질·향 첨가 없음)은 body 600 ink, 조건 접두(「형태 철망일 때 — 」)는 body 400. */
+main.ws-page[data-ws-route='TIPS'] .ws-tip-min + ul li {
+  font-size: var(--ws-type-body-size);
+  line-height: var(--ws-type-body-lh);
+  font-weight: var(--ws-type-cta-weight);
+}
+
+main.ws-page[data-ws-route='TIPS'] .ws-tip-min + ul .ws-tip-when {
+  font-weight: var(--ws-type-body-weight);
+}
+
+main.ws-page[data-ws-route='TIPS'] ul.ws-tip-refs {
+  display: flex;
+  flex-direction: column;
+  color: var(--ws-ink-muted);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}
+
+main.ws-page[data-ws-route='TIPS'] a.ws-tip-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ws-touch);
+  color: var(--ws-brand-text);
+  font-weight: var(--ws-type-cta-weight);
+  text-decoration: underline;
+}
+
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-bundle ul,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) ul.ws-supply-rows {
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1156,8 +1383,8 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
   padding: 0;
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-bundle li > a,
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) a.ws-supply-row {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-bundle li > a,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) a.ws-supply-row {
   display: flex;
   align-items: center;
   gap: var(--ws-space-3);
@@ -1165,11 +1392,11 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
   border-top: 1px solid var(--ws-line);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-supply-name {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-supply-name {
   flex: 1;
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-row-priority {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-row-priority {
   margin-left: var(--ws-space-1);
   color: var(--ws-ink-muted);
   font-size: var(--ws-type-label-size);
@@ -1177,13 +1404,13 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
   font-weight: var(--ws-type-label-weight);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-row-chevron,
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-supply-chevron {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-row-chevron,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-supply-chevron {
   margin-left: auto;
   color: var(--ws-ink-muted);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-bundle h3 {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-bundle h3 {
   color: var(--ws-ink-muted);
   font-size: var(--ws-type-label-size);
   line-height: var(--ws-type-label-lh);
@@ -1191,24 +1418,24 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
 }
 
 /* DR-3 m-14 · n-12 */
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-bundle .ws-range-note,
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-bundle .ws-bundle-note {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-bundle .ws-range-note,
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-bundle .ws-bundle-note {
   color: var(--ws-ink-muted);
   font-size: var(--ws-type-meta-size);
   line-height: var(--ws-type-meta-lh);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-supply-name {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-supply-name {
   font-weight: var(--ws-type-cta-weight);
 }
 
-main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) .ws-bundle > h2:first-child {
+main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) .ws-bundle > h2:first-child {
   margin-top: 0;
 }
 
 /* DR-3 m-15 */
 @media (min-width: 768px) {
-  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) ul.ws-supply-rows {
+  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) ul.ws-supply-rows {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: var(--ws-space-6);
@@ -1216,7 +1443,7 @@ main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-rout
 }
 
 @media (min-width: 1024px) {
-  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY']) ul.ws-supply-rows {
+  main.ws-page:is([data-ws-route='SETUP'],[data-ws-route='SUPPLIES'],[data-ws-route='SUPPLY_ITEM'],[data-ws-route='SUPPLY_ITEM_TYPE'],[data-ws-route='FAMILY'],[data-ws-route='CREDITS'],[data-ws-route='NOT_FOUND'],[data-ws-route='PRIVACY'],[data-ws-route='TIPS']) ul.ws-supply-rows {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

@@ -20,7 +20,7 @@
 4. **플랫폼 자금 미보유.** 결제·에스크로·정산 코드 0.
 5. **의료 판단 금지.** "병원에 문의할 상황"까지만. 콘텐츠 린트 금지어: 괜찮다·안전하다·최저가·판매순·베스트·정확도·전문가 N명·회원가입·구매.
 6. **사육·법적 정보는 마스터 데이터가 결정.** `AnimalType(사용자 언어) → Taxon(법) → CareProfile(사육) → SupplyRequirement → SupplyItem`. 셋을 섞지 않는다. 최종값 계산은 `resolveRequirement` 한 곳(SupplyItem 기본 → SupplyRequirement → AnimalType.careOverrides).
-7. **콘텐츠는 출처·검수자 유형·검수일·상태를 갖는다.** VERIFIED만 노출. contentKind별 최소 검수 등급(SPEC/CARE ≥ EXPERIENCED_KEEPER, FOOD/HEALTH ≥ VET_PUBLISHED_SOURCE + 출처 2). **`AI_DRAFT`는 어떤 경우에도 VERIFIED가 될 수 없다.** 후기(Testimonial)는 `APPROVED ∧ verifiedUsage`만, 임의·AI 작성 금지.
+7. **콘텐츠는 출처·검수자 유형·검수일·상태를 갖는다.** VERIFIED만 노출. contentKind별 최소 검수 등급(SPEC/CARE ≥ EXPERIENCED_KEEPER, FOOD/HEALTH ≥ VET_PUBLISHED_SOURCE + 출처 2). **`AI_DRAFT`는 어떤 경우에도 VERIFIED가 될 수 없다.** 후기(Testimonial)는 `APPROVED ∧ verifiedUsage`만, 임의·AI 작성 금지. **예외(Kenny 11/22):** 「알뜰 꾸미기 팁」(`budgetTips`, `/{group}/{type}/tips`)은 REFERENCE 행 — 인터넷 글 링크(허용 호스트 목록)·요약을 보여 주며 검수자 없이 노출하되, 참조 ≥2곳(서로 다른 도메인)·위험 태그 주의 상자(「수의사가 확인하지 않은 참고 정보」)·최소 규격 기준 병기를 지킨다. 이 예외는 `budgetTips` 에만 적용(다른 파일의 `kind` 는 ERROR)하며 `AI_DRAFT`→VERIFIED 금지는 그대로다.
 8. **실시간 위치 저장 안 함.** 시군구 텍스트 + 게시글 옵션 핀.
 
 ## 하네스: WithSmall delivery (다중 에이전트)

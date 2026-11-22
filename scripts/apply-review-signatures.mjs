@@ -43,6 +43,7 @@ export const CONTENT_FILES = Object.freeze([
   'compatibility-rules.json',
   'setup-bundles.json',
   'curated-products.json',
+  'budget-tips.json',
 ]);
 const PRODUCTS = 'curated-products.json';
 /** 이 스크립트가 바꿀 수 있는 키(그 밖은 바이트 그대로 — 자기 검사). */

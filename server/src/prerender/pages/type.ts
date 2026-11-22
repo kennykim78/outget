@@ -5,7 +5,7 @@ import { PICK_PATH, chipSpecText, figureValueText, minSpecFigure, reasonLine, ha
 import { affiliateDisclosureOn, renderableSearchLinks } from '../affiliate.js';
 import { COPY, formatCopy, objectParticle } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h } from '../html.js';
-import type { RequirementModel, SiteModel, TypeModel } from '../project.js';
+import type { RequirementModel, SiteModel, TipModel, TypeModel } from '../project.js';
 import {
   LIKE_PLACEHOLDER,
   SCRIM,
@@ -317,6 +317,10 @@ function searchBlock(r: RequirementModel): string {
  *   (고지 B) → 「{동물} · {용품}」 → 메타 → 사진 자리(빈 블록) → (지금은 필요 없어요) → 왜 → 조건(최소/권장) → 주의 → 피할 것 → 대안
  *   → 상품 2~3 → 검수 내용(마지막 검수 · 출처) → [규격 확인] + 찾기(상인 링크).
  */
+/**
+ * 313(311 S-3): 팁 진입 링크는 L4 안에 넣지 않는다. /supplies/{item}/{type} 의 정적 aside 는 하이드레이션 후 사라지므로(309 D6)
+ *   레이어 안 링크는 JS 끔에서만 보여 링크 수·위치가 JS 켬/끔에서 달라졌다 → 본문(main) 「ws-tips-entries」 한 곳만 남긴다(renderSupplyItem).
+ */
 export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = base(t)): string {
   const p = r.pub;
   const schema = r.item.specSchema;
@@ -584,6 +588,7 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
     renderHeader(t.pub, navCurrent(ctx.route), setupData),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.homeB.bundlesTitle)}</h1>`,
+    ...(t.tips.length > 0 ? [tipsEntry(t)] : []), // 301: 팁 0 이면 줄 자체를 넣지 않는다(기존 바이트 동일)
     ...cards,
     '</main>',
     renderFooter(false, ctx.privacyPage !== false),
@@ -596,5 +601,143 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
     }),
     body,
     data: wsData(ctx, setupData),
+  };
+}
+
+// ── 301 /{slug}/tips — 저렴 대체 팁(REFERENCE, Kenny 2026-11-22 · 302 r2) ──────────────────────────
+//   검수 라벨·검수일 0 · 이미지 0 · 외부 요청 0(<a href> 만) · ws-data 에 팁 없음(HTML 전용) · 상단 고정 고지.
+
+/** 팁 페이지 경로(노출 팁 0 이면 null — 링크를 만들지 않는다). anchorCat 이 있으면 그 섹션 앵커. */
+export function tipsHrefOf(t: TypeModel, itemId?: string): string | null {
+  if (t.tips.length === 0) return null;
+  if (itemId === undefined) return hrefOf(`${base(t)}/tips`);
+  const tip = t.tips.find((x) => x.supplyItemId === itemId);
+  return tip ? `${hrefOf(`${base(t)}/tips`)}#ws-tips-${tip.category.toLowerCase()}` : null;
+}
+
+/** /setup 등 진입 링크(팁 0 이면 빈 문자열). */
+export function tipsEntry(t: TypeModel): string {
+  const href = tipsHrefOf(t);
+  return href === null ? '' : `<p class="ws-tips-entry"><a href="${a(href)}">${h(COPY.tips.entry)}</a></p>`;
+}
+
+/** 팁 전용 외부 링크(공용 externalLink 와 별개 — rel 에 ugc, ↗ 는 aria-hidden, 스크린리더 「새 창, 외부 사이트」). */
+export function tipSourceLink(href: string, text: string): string {
+  return `<a class="ws-tip-source" href="${a(href)}" target="_blank" rel="noopener noreferrer nofollow ugc">${h(text)}<span aria-hidden="true"> ↗</span><span class="ws-visually-hidden">${h(` ${COPY.tips.externalNewWindow}`)}</span></a>`;
+}
+
+function tipList(tag: 'ul' | 'ol', title: string, xs: readonly string[], part: string, meta?: string): string {
+  if (xs.length === 0) return '';
+  const m = meta === undefined ? '' : `<span class="ws-t-meta"> · ${h(meta)}</span>`;
+  return `<section data-ws-tip-part="${a(part)}"><h4>${h(title)}${m}</h4>
+<${tag}>
+${xs.map((x) => `<li>${h(x)}</li>`).join('\n')}
+</${tag}></section>`;
+}
+
+/** 총괄 ② — 위험 태그 팁 상단 고정 주의 상자: 라벨 「수의사가 확인하지 않은 참고 정보」 + 태그별 고정 한 줄(COPY, 시드 문구 아님). */
+function tipHazardBox(x: TipModel): string {
+  if (x.hazards.length === 0) return '';
+  return `<section class="ws-tip-hazard" data-ws-tip-part="hazard"><p class="ws-tip-hazard-label">${h(COPY.tips.hazardLabel)}</p><h4>${h(COPY.tips.hazardTitle)}</h4>
+<ul>
+${x.hazards.map((z) => `<li data-ws-hazard="${a(z)}">${h(COPY.tips.hazardNotes[z])}</li>`).join('\n')}
+</ul></section>`;
+}
+
+function tipArticle(t: TypeModel, x: TipModel, r: RequirementModel): string {
+  const fieldType = (key: string): string | undefined => r.item.specSchema.fields.find((f) => f.key === key)?.type;
+  const shown = r.pub.minSpec.rules.flatMap((rule) => {
+    const text = ruleText(r.item.specSchema, rule);
+    if (text === null) return [];
+    // 311 N-2: 조건 접두(「형태 철망일 때 — 」)는 본문 굵기로 떼고, spec 18/700 은 숫자 규칙 본문에만(D-T9). 같은 ruleText 의 when 없는 꼴로 나눈다.
+    const main = rule.when === undefined ? text : ruleText(r.item.specSchema, { ...rule, when: undefined });
+    const cut = main !== null && main !== text && text.endsWith(main) ? text.length - main.length : 0;
+    return [{ when: text.slice(0, cut), main: text.slice(cut), numeric: fieldType(rule.key) === 'number' }];
+  });
+  const mins = shown.map((m0) => {
+    const when = m0.when ? `<span class="ws-tip-when">${h(m0.when)}</span>` : '';
+    return `<li>${when}${m0.numeric ? `<span class="ws-t-spec">${h(m0.main)}</span>` : h(m0.main)}</li>`;
+  });
+  // 306 D6: 숫자 규칙이 있으면 「크기」, 재질·종류 규칙만이면 「조건」, 보여 줄 규칙이 없으면 판정 링크 없음.
+  const checkCopy = shown.some((m0) => m0.numeric) ? COPY.tips.checkSize : shown.length > 0 ? COPY.tips.checkSpec : null;
+  const band =
+    mins.length + x.mustCheck.length === 0
+      ? [] // 302 r2 #7: 둘 다 비면 밴드 생략
+      : [
+          `<section class="ws-tip-check" data-ws-tip-part="must-check"><h4>${h(COPY.tips.mustCheck)}</h4>`,
+          mins.length ? `<p class="ws-tip-min">${h(COPY.tips.ourMin)}</p>
+<ul>
+${mins.join('\n')}
+</ul>` : '',
+          x.mustCheck.length ? `<p class="ws-tip-writer">${h(COPY.tips.writerCaution)}</p>
+<ul>
+${x.mustCheck.map((c) => `<li>${h(c)}</li>`).join('\n')}
+</ul>` : '',
+          checkCopy === null ? '' : `<p><a href="${a(hrefOf(`${base(t)}/check/${r.item.id}`))}">${h(formatCopy(checkCopy, { name: r.item.name }))}</a></p>`,
+          '</section>',
+        ];
+  return [
+    `<article class="ws-tip" data-ws-id="budgetTips#${a(x.id)}">`,
+    `<h3>${h(x.substitute)}</h3>`,
+    tipHazardBox(x),
+    `<p class="ws-tip-source-hint">${h(COPY.tips.sourceHint)} · ${h(COPY.tips.sourceHints[x.sourceHint])}</p>`,
+    tipList('ul', COPY.tips.materials, x.materials, 'materials'),
+    tipList('ol', COPY.tips.steps, x.steps, 'steps'),
+    tipList('ul', COPY.tips.dimensions, x.dimensions, 'dimensions', COPY.tips.dimensionsBasis),
+    tipList('ul', COPY.tips.cautions, x.cautions, 'cautions'),
+    ...band,
+    `<ul class="ws-tip-refs">
+${x.references
+      .map((ref) => `<li>${tipSourceLink(ref.url, COPY.tips.original)} · ${h(ref.siteName)}</li>`)
+      .join('\n')}
+</ul>`,
+    '</article>',
+  ]
+    .filter((s0) => s0 !== '')
+    .join('\n');
+}
+
+/** /{slug}/tips — 노출 팁 ≥ 1 일 때만 생성(routes.ts). 섹션 순서 CAGE→HIDE→WATER→BEDDING→TOY(project.ts 정렬). */
+export function renderTipsPage(m: SiteModel, ctx: PageContext, t: TypeModel): RenderedPage {
+  const crumbs = [...crumbsOf(t), { name: COPY.tips.title, path: ctx.route.path }];
+  const cats = [...new Set(t.tips.map((x) => x.category))];
+  const sections = cats.map((c) => {
+    const tips = t.tips.filter((x) => x.category === c);
+    const items = [...new Set(tips.map((x) => x.supplyItemId))]
+      .map((id) => t.requirements.find((r) => r.item.id === id))
+      .filter((r): r is RequirementModel => r !== undefined);
+    return [
+      `<section class="ws-tips-sec" id="ws-tips-${a(c.toLowerCase())}" data-ws-tips-cat="${a(c)}">`,
+      `<h2>${h(COPY.categories[c])}</h2>`,
+      ...items.map(
+        (r) => `<p class="ws-tips-std"><a href="${a(hrefOf(`${base(t)}/supplies/${r.item.id}`))}">${h(formatCopy(COPY.tips.sectionLink, { name: r.item.name }))}</a></p>`,
+      ),
+      ...tips.flatMap((x) => {
+        const r = t.requirements.find((q) => q.item.id === x.supplyItemId);
+        return r ? [tipArticle(t, x, r)] : [];
+      }),
+      '</section>',
+    ].join('\n');
+  });
+  const tipsData = { ...typeData(m, t), products: [] };
+  const body = [
+    renderHeader(t.pub, navCurrent(ctx.route), tipsData),
+    mainOpen(ctx, t.id),
+    `<h1>${h(t.pub.displayName)} · ${h(COPY.tips.title)}</h1>`,
+    `<p class="ws-tips-disclaimer">${h(COPY.tips.disclaimer)}</p>`,
+    `<p>${h(COPY.tips.lead)}</p>`,
+    ...sections,
+    `<p class="ws-tips-closing">${h(COPY.tips.closing)} <a href="${a(`/vet?treats=${encodeURIComponent(t.id)}`)}">${h(formatCopy(COPY.tips.vetLink, { animal: t.pub.displayName }))}</a></p>`,
+    '</main>',
+    renderFooter(false, ctx.privacyPage !== false),
+  ].join('\n');
+  return {
+    head: renderHead(ctx, {
+      title: `${t.pub.displayName} ${COPY.tips.title}${COPY.site.titleSuffix}`,
+      description: COPY.tips.disclaimer,
+      crumbs,
+    }),
+    body,
+    data: wsData(ctx, tipsData),
   };
 }

@@ -15,7 +15,7 @@ import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, pro
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
 const DISK_READ = readSeedDirRaw(SEED_DIR);
 const DISK: RawSeed = DISK_READ.raw;
@@ -96,6 +96,8 @@ describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K
       if (b.careProfileId === 'cp-hamster-syrian') b.itemIds = (b.itemIds as string[]).filter((i) => i !== 'hideout');
     }
     s.curatedProducts = (s.curatedProducts as Rec[]).filter((p) => p.supplyItemId !== 'hideout');
+    // 308: budget-tips 의 hideout 팁도 참조 정리(V-TIP-0 「요구사항 없음」) — 행만 깔끔히 지운 경우.
+    s.budgetTips = ((s.budgetTips ?? []) as Rec[]).filter((t) => t.supplyItemId !== 'hideout');
     const res = validateSeed(s, { now: FIXTURE_AS_OF });
     expect(res.errors.filter((i) => i.rule !== 'X01')).toEqual([]);
     const x = errs(res, 'X01');
@@ -609,8 +611,8 @@ describe('L-1 — ACTIVE(노출 후보) 타입은 taxonId 비어 있지 않음(R
 });
 
 describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 차단은 검수(노출 판정·X01·R01)뿐 · 앵무 X01 fail-closed', () => {
-  // 위반·승격은 메모리 사본에만. NOW_W1 = 작업일(271).
-  const NOW_W1 = '2026-11-02';
+  // 위반·승격은 메모리 사본에만. NOW_W1 = 작업일(271) — 308: budget-tips checkedAt 2026-11-22 가 미래(S07)가 되지 않게 11-02→11-22(시드 checkedAt 은 그대로).
+  const NOW_W1 = '2026-11-22';
   const active = (typeId: string): Required<RawSeed> => {
     const s = fresh();
     row(s, 'animalTypes', typeId).status = 'ACTIVE';

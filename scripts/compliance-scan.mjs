@@ -16,6 +16,7 @@
 //       C4-BANNED C4-CODE(R4 FAIL) C4-STEM(R6: 산출물·VERIFIED/APPROVED 시드 FAIL, DRAFT 시드 WARN) · C5-GEO(+R5 위치 API 0) · C6-IMG · C7-SECRET · C8-OUT-SAFE C8-SRC-SAFE ·
 //       C9-STORAGE(웹 저장소 lib/storage.ts 만·document.cookie 0) C9-COOKIE(서버 쿠키 발급 2파일) ·
 //       C9-PRIVACY(/privacy 존재·모든 라우트 링크·기간 숫자 = server/src/privacy/policy.ts FAIL, {{KENNY: 자리표시 WARN — 차단은 운영 기동 검사; 294 manifest.privacyPage:false 면 /privacy·링크·자리표시 0·비공개를 FAIL 로) · C0-SEED C0-OUTPUT ·
+//       C9-TIPS(301 — /tips 고지 원문·외부 a rel ugc·검수 라벨 0·팁 id 는 노출 타입 /tips 에만; C1-SEEDURL 은 budget-tips references[i].url 글 페이지만 예외, REFERENCE 행 어간 FAIL) ·
 //       C10-AFF-IMPORT C10-AFF-RUNTIME(WARN) C10-AFF-HOST C10-AFF-REDIRECT C10-AFF-FIELD C10-AFF-OUT(258 단계 7 — 검색 딥링크 제휴 격리, scripts/lib/rules-affiliate.mjs)
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';

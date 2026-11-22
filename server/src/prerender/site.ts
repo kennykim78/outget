@@ -11,7 +11,7 @@ import { buildSitemap, normalizeOrigin } from './sitemap.js';
 import { injectTemplate } from './template.js';
 import { COLOR_SCHEME_META, type PageContext, type RenderedPage } from './pages/common.js';
 import { renderCredits, renderFamily, renderHome, renderNotFound, renderPick, renderPrivacy, renderSave, renderSupplies, renderSupplyItem, renderVet } from './pages/misc.js';
-import { renderSetupPage, renderTypePage } from './pages/type.js';
+import { renderSetupPage, renderTipsPage, renderTypePage } from './pages/type.js';
 
 export interface BuildSiteOptions {
   /** client/dist/index.html 원문(마커 2개). */
@@ -115,6 +115,8 @@ function render(m: SiteModel, ctx: PageContext, policy: PrivacyPolicy): Rendered
       return renderTypePage(m, ctx, typeOf());
     case 'SETUP':
       return renderSetupPage(m, ctx, typeOf());
+    case 'TIPS':
+      return renderTipsPage(m, ctx, typeOf());
     case 'SUPPLIES':
       return renderSupplies(m, ctx);
     case 'SUPPLY_ITEM':

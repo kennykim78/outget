@@ -15,7 +15,7 @@ import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, dwarfPreview, promotedTwo, realSeed
 const here = dirname(fileURLToPath(import.meta.url));
 export const BASELINE_FILE = join(here, 'off-baseline.sha256.json');
 export const TEMPLATE = readFileSync(join(here, '..', '..', '..', '..', '..', 'client', 'index.html'), 'utf8');
-export const REAL_AS_OF = '2026-11-16'; // 실서명일 이상(옛 값 2026-11-02) — 디스크 verifiedAt 2026-11-16 이 노출 기준일보다 미래가 되지 않게
+export const REAL_AS_OF = '2026-11-22'; // 팁 checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-02) — 디스크 verifiedAt 2026-11-16 이 노출 기준일보다 미래가 되지 않게
 
 export interface BaselineCase {
   name: string;

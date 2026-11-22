@@ -24,6 +24,8 @@ export const ROUTE_KINDS = [
   'FAMILY',
   'TYPE',
   'SETUP',
+  // 301(Kenny 2026-11-22): /{slug}/tips — 저렴 대체 팁(REFERENCE). 노출 팁 ≥ 1 일 때만. 클라이언트는 정적 본문(StaticMain).
+  'TIPS',
   'SUPPLIES',
   'SUPPLY_ITEM',
   'SUPPLY_ITEM_TYPE',

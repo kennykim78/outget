@@ -14,12 +14,13 @@ export const SEED_FILES = {
   testimonials: 'testimonials.json',
   vetClinics: 'vet-clinics.json',
   photos: 'photos.json',
+  budgetTips: 'budget-tips.json',
 } as const;
 
 export type SeedKey = keyof typeof SEED_FILES;
 export const SEED_KEYS = Object.keys(SEED_FILES) as SeedKey[];
 
-/** 부록 B 공통 필드를 갖는 8개 콘텐츠 파일(A-18: 후기·병원·사진은 자체 규칙). */
+/** 부록 B 공통 필드를 갖는 9개 콘텐츠 파일(A-18: 후기·병원·사진은 자체 규칙). budgetTips 는 기록용 메타(노출은 REFERENCE 별도 경로). */
 export const CONTENT_KEYS: readonly SeedKey[] = [
   'animalTypes',
   'taxa',
@@ -29,6 +30,7 @@ export const CONTENT_KEYS: readonly SeedKey[] = [
   'compatibilityRules',
   'setupBundles',
   'curatedProducts',
+  'budgetTips',
 ];
 
 /** 파일별 JSON 배열(읽기 실패·누락 = undefined). */
@@ -159,5 +161,6 @@ export function asSeedBundle(raw: RawSeed): SeedBundle {
     testimonials: pick(raw.testimonials),
     vetClinics: pick(raw.vetClinics),
     photos: pick(raw.photos),
+    budgetTips: pick(raw.budgetTips),
   };
 }

@@ -81,6 +81,8 @@ export function planRoutes(m: SiteModel, opts: PlanRoutesOptions = {}): RoutePla
     const typeId = t.id;
     add({ path: base, kind: 'TYPE', indexable: true, lastmod: t.lastmod, typeId, layer: null });
     if (t.bundles.length > 0) add({ path: `${base}/setup`, kind: 'SETUP', indexable: true, lastmod: t.lastmod, typeId, layer: null });
+    // 301: 노출 팁 ≥ 1 일 때만(0건 = 라우트·링크·sitemap 0). 색인 포함 — lastmod 는 타입 것(팁은 검수일이 없다).
+    if (t.tips.length > 0) add({ path: `${base}/tips`, kind: 'TIPS', indexable: true, lastmod: t.lastmod, typeId, layer: null });
     for (const r of t.requirements) {
       const itemId = segment(r.item.id, 'SupplyItem');
       add({ path: `${base}/supplies/${itemId}`, kind: 'TYPE', indexable: true, lastmod: t.lastmod, typeId, itemId, layer: { kind: 'L4', typeId, itemId } });

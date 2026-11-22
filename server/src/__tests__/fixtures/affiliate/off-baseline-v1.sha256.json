@@ -1,6 +1,6 @@
 {
-  "head": "1b1fe2d+overlay",
-  "note": "2026-11-16 확인표 5종 서명(4 패킷 107행 VERIFIED, ORDERS 11/16 16:4x) — gen-baseline --rev HEAD(1b1fe2d) --overlay server/seed --overlay server/src/__tests__/fixtures --wire 1. real 의 ws-data 만 변경(골든 노출: 추가 54·변경 8, REAL_AS_OF 2026-11-02→2026-11-16). promotedTwo·dwarfPreview 차이 0(바탕 = 서명 전 기준 unsignedRealSeed)",
+  "head": "cf9a7b4+overlay",
+  "note": "308 저렴 대체 팁 — gen-baseline --rev HEAD(cf9a7b4) --overlay server/seed --overlay server/src --overlay scripts --wire 1. 차이 2 = real·promotedTwo 의 hamster/golden/tips 추가뿐(기존 파일 ws-data JSON 변경 0 — 팁은 HTML 전용). 제휴 관련 바이트 차이 0(wire 2 기준선 note 의 증명 참고)",
   "templateSha256": "3e13f48faee605886ac0e00a7cdc0ebc4ee71f4e0269e3ddbe25dc3fa675ceab",
   "cases": {
     "real": {
@@ -33,6 +33,7 @@
       "hamster/golden/supplies/tubes/index.html": "1b7ce7f26fdf65cfca854983d0680afdfed3dae16cdd8d924045c33e4b1b484d",
       "hamster/golden/supplies/water/index.html": "6bcbb05338d140d70266b6a34df25cfb3957f25969e130d646f92042bb7a2c01",
       "hamster/golden/supplies/wheel/index.html": "989a6dc09d58b31559c8b1f4faeb157fb05001c5ca34d2df7e5e41eaf36cf59d",
+      "hamster/golden/tips/index.html": "d4d9d7f281583aa644396796bd25845384bf66b9a6687ab4ac979095db96d993",
       "hamster/index.html": "55ae6a56b819e08726206ec8ae22a61fc7e22ee197c05df3f58e6f2944b597d9",
       "index.html": "434b8b53e7a721b9780c802733369992d21b4a650bf9150a13be2f9123369630",
       "pick/index.html": "bf94587302966e637308a3d45d3d0b4fd8d218ba30ad06a7d70858cf84c82fcf",
@@ -84,6 +85,7 @@
       "hamster/golden/setup/index.html": "a54f44d02c15cee031937d195f933b5df6fc142a2ba3f7ff8e64e381070eceb0",
       "hamster/golden/supplies/cage/index.html": "ed100542902e72028af10cf094b647d74233bcb709066f60995c08d70e0cefea",
       "hamster/golden/supplies/wheel/index.html": "61c6191a271c87f4f34a5e73aa594f3cf99e8c7dfb76fc3871547082aed572cf",
+      "hamster/golden/tips/index.html": "fc751ea4270030a2712f6a3cdeb6f1fe5b799c4a60b5d929f8586e7f025c9260",
       "hamster/index.html": "0467cc5ba418e76cc3e193560293f568d2e7d1cb617475daa0a53a7f19ac4773",
       "index.html": "c9f5ee2f85d007c4f9714f324f97c8defb68414a7937eaa0dfbab61f5e816e54",
       "pick/index.html": "0124e2fcdea8d5c1c779941802ee22fa622bd3677045c60befa926cdddb44a5b",

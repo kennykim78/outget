@@ -116,7 +116,7 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
         }
       }
     }
-    expect(n).toBe(2 * 149); // 콘텐츠 8파일 149행 × 2 (283 앵무 크기 묶음: Taxon +2 · CP 합침 2→3 +1 · AnimalType +2) (271: 1차 종 골격 Taxon +3 · CP +2 · SupplyItem +7 · AnimalType +1, BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
+    expect(n).toBe(2 * 154); // 콘텐츠 9파일 154행 × 2 (308: budget-tips 5행 +5 · 283 앵무 크기 묶음: Taxon +2 · CP 합침 2→3 +1 · AnimalType +2) (271: 1차 종 골격 Taxon +3 · CP +2 · SupplyItem +7 · AnimalType +1, BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
   });
   it('해시는 키 순서·optionLabels·검수 메타와 무관, 사실 1글자 변경에는 반응', () => {
     const r = clone(rowOf(realSeed(), 'supplyRequirements', 'req-dwarf-cage'));
@@ -178,7 +178,7 @@ describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매�
     // FOOD/HEALTH VERIFIED 는 출처 2개 이상(불변식 7) — 패킷 밖 저울(HEALTH)·저빌 사료는 DRAFT.
     for (const r of v.filter((x) => x.contentKind === 'FOOD' || x.contentKind === 'HEALTH')) expect([r.id, (r.source as unknown[]).length >= 2]).toEqual([r.id, true]);
     const rest = rows.filter(({ r }) => r.reviewStatus !== 'VERIFIED').map(({ r }) => r);
-    expect(rest).toHaveLength(149 - 107);
+    expect(rest).toHaveLength(154 - 107); // 308: budget-tips 5행(REFERENCE·AI_DRAFT·DRAFT) +5
     for (const r of rest) expect([r.id, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
     for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale', 'req-gerbil-food']) expect(rest.map((r) => r.id)).toContain(id);
   });
@@ -373,6 +373,8 @@ describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 �
   /** 변경 전 requiredBasis 정책 사본(whyShort 없는 행은 이것과 같아야 한다). */
   const oldPolicy = (key: string, r: Row): string | null => {
     if (key === 'curatedProducts') return 'ROW_CHECKED';
+    // 301 팁 정책(whyShort 와 무관): 위험 태그·규격 예시가 있는 팁 행은 행별 확인만.
+    if (key === 'budgetTips' && ((Array.isArray(r.hazards) && (r.hazards as unknown[]).length > 0) || (r.specExample !== null && typeof r.specExample === 'object'))) return 'ROW_CHECKED';
     const ne = (rs: unknown): boolean => Array.isArray((rs as Row | null)?.rules) && ((rs as Row).rules as unknown[]).length > 0;
     if (key === 'supplyRequirements' && ne(r.minSpec)) return 'ROW_CHECKED';
     if (key === 'animalTypes') {
@@ -438,7 +440,7 @@ describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 �
         }
       }
     }
-    expect(n).toBe(2 * 149);
+    expect(n).toBe(2 * 154); // 308: budget-tips 5행 +5
     expect(withKey).toBe(2 * 17); // 2026-11-15 whyShort 17건(채택 14 + 드워프 hideout + 드워프 saucer·저빌 thermo)(요구사항 행만, override 0)
     // 새 정책이 일괄 승인을 막는 행 = 최소 규격 없는 재서술 whyShort 행(시드 2벌 × 5행 — 드워프 saucer·hideout·모래 목욕 2 + 기니피그 놀이 울타리). 저빌 thermo 는 원문 발췌라 빠짐.
     expect([...new Set(added)].sort()).toEqual([...DWARF_K1_ROWS, ...GP_K1_ROWS].sort());

@@ -13,7 +13,7 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
 ];
 
 /** 둘째 세그먼트로 쓸 수 없는 값 — 타입 하위 라우트(/{type}/setup 등, SL05). */
-export const RESERVED_SECOND_SEGMENTS: readonly string[] = ['setup', 'supplies', 'check', 'products'];
+export const RESERVED_SECOND_SEGMENTS: readonly string[] = ['setup', 'supplies', 'check', 'products', 'tips'];
 
 /** 비SLOT 병원 region: 한글 토큰 2~3개, 단일 공백 구분(D12 — URL 은 공백→'-' 후 percent-encode). */
 export const VET_REGION_RE = /^[가-힣]+( [가-힣]+){1,2}$/;

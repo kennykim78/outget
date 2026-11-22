@@ -212,6 +212,7 @@ describe('(b) golden 체인 승격(메모리) → §4 전체 트리', () => {
       '/hamster',
       '/hamster/golden',
       '/hamster/golden/setup',
+      '/hamster/golden/tips', // 308: 실시드 budget-tips(cage·hideout·water·bedding 노출)
       '/hamster/golden/supplies/cage',
       '/hamster/golden/check/cage',
       '/hamster/golden/supplies/wheel',
