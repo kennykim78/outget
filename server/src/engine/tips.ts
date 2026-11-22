@@ -1,7 +1,7 @@
 // 저렴 대체 팁(budget-tips.json, kind=REFERENCE) — 외부 글 참조 규칙의 단일 출처(Kenny 2026-11-22, 302 r2 O-4).
 //   순수 모듈. 노출 판정 자체는 exposure.ts isBudgetTipExposable(이 모듈의 규칙을 쓴다).
 //   scripts/lib/seed-exposure.mjs 가 독립 재구현(패리티 테스트 tips.parity) — 둘 중 하나만 바꾸면 시험이 깨진다.
-import { STALE_DAYS, isoDayNumber } from './domain.js';
+import { STALE_DAYS, TIP_HEALTH_HAZARDS, isoDayNumber } from './domain.js';
 import type { SupplyCategory } from './domain.js';
 import type { TipReference } from './types.js';
 
@@ -198,7 +198,7 @@ const SUMMARY_CHECK_KEYS = ['sources', 'checkedAt', 'checkedBy'];
 /** 수의 검수 표시가 필요한 팁인가: contentKind HEALTH ∨ 독성·섭취 위험 태그(TIP_HEALTH_HAZARDS — INGESTION 포함). */
 export function tipNeedsVetReview(contentKind: unknown, hazards: unknown): boolean {
   if (contentKind === 'HEALTH') return true;
-  return Array.isArray(hazards) && hazards.some((h) => h === 'TOXIC_MATERIAL' || h === 'INGESTION');
+  return Array.isArray(hazards) && hazards.some((h) => (TIP_HEALTH_HAZARDS as readonly unknown[]).includes(h));
 }
 
 /** checkedBy 가 AI 초안 표지인가(대소문자·공백·하이픈 무시 — `ai draft`·`AI-DRAFT` 도 같다). */
