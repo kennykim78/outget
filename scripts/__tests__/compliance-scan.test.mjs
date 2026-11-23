@@ -4048,3 +4048,62 @@ test('274 ⑨ 감시 목록(QA D5)·별칭 표(QA D6): 265 신규 파일 도달 
   expectAff(await affScan({ [d]: "import { x } from '#aff';\nexport const y = x;\n" }), 'C10-AFF-IMPORT', d, '# 지정자(package imports)');
   expectNoAff(await affScan({ [TS]: tsRaw, [VITE]: viteRaw }), 'C10-AFF-IMPORT', '실제 tsconfig·vite 복사본');
 });
+
+// ── 354(Kenny 2026-11-23): 생성 이미지 사진 기록 C6-IMG AI 분기 · 상품 칸 생성 이미지 금지 C6-IMG-AI-PRODUCT ─────────────
+const aiPhoto = (over = {}) => ({
+  id: 'ph-02', scene: 'x', slot: 'intro-2', query: 'q', source: 'CODEX', license: 'AI_GENERATED', author: null, sourceUrl: null, licenseUrl: null,
+  downloadedAt: null, modified: false, status: 'READY', generatedAt: '2026-09-20', promptPath: 'docs/assets/prompts/intro-2.md',
+  asset: '/assets/photos/intro-2.webp', speciesCheck: { checkedBy: 'op', checkedAt: '2026-09-21' }, ...over,
+});
+const aiFiles = (s) => {
+  s['docs/assets/prompts/intro-2.md'] = '# intro-2 prompt\n';
+  s['client/public/assets/photos/intro-2.webp'] = 'RIFF';
+};
+
+test('C6-IMG(354): 완전한 AI_GENERATED 사진 + 프롬프트·배포 파일 실재 → C6 없음', async () => {
+  const res = scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto()); } }));
+  assert.ok(!rulesOf(res, 'FAIL').includes('C6-IMG'), JSON.stringify(res.json?.findings));
+});
+
+test('C6-IMG(354): AI_GENERATED 기록 누락·기계 서명·원본 URL·파일 없음 → 실패', async () => {
+  const bad = [
+    { source: 'WIKIMEDIA' },
+    { generatedAt: null },
+    { promptPath: 'prompts/intro-2.md' },
+    { asset: '/assets/products/intro-2.webp' },
+    { speciesCheck: null },
+    { speciesCheck: { checkedBy: 'AI_DRAFT', checkedAt: '2026-09-21' } },
+    { speciesCheck: { checkedBy: 'Codex', checkedAt: '2026-09-21' } },
+    { speciesCheck: { checkedBy: 'op', checkedAt: '2026-09-19' } },
+    { sourceUrl: j(HTTPS, 'commons.wikimedia.org/wiki/File:p.jpg') },
+  ];
+  for (const over of bad) {
+    expectFail(scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto(over)); } })), 'C6-IMG');
+  }
+  // 파일이 저장소에 없으면 실패(프롬프트·배포 파일 각각).
+  expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(aiPhoto()); } })), 'C6-IMG');
+  const noPrompt = (s) => { s['client/public/assets/photos/intro-2.webp'] = 'RIFF'; };
+  expectFail(scan(await makeRoot({ source: noPrompt, seed: (d) => { d['photos.json'].push(aiPhoto()); } })), 'C6-IMG');
+});
+
+test('C6-IMG-AI-PRODUCT(354): 상품 행에 생성 사용권·생성 도구·생성 기록 키·사진 경로 → 실패, 정상 상품은 없음', async () => {
+  const ok = scan(await makeRoot({}));
+  assert.ok(!rulesOf(ok).includes('C6-IMG-AI-PRODUCT'), JSON.stringify(ok.json?.findings));
+  const bad = [
+    { imageLicense: 'AI_GENERATED' },
+    { imageLicense: 'ai-generated' },
+    { imageLicense: 'CODEX' },
+    { imageLicense: 'agy' },
+    { imageAsset: '/assets/items/cage.webp' },
+    { imageAsset: '/assets/photos/intro-1.webp' },
+    { promptPath: 'docs/assets/prompts/cage.md' },
+    { generatedAt: '2026-09-20' },
+    { speciesCheck: { checkedBy: 'op', checkedAt: '2026-09-21' } },
+  ];
+  for (const over of bad) {
+    expectFail(scan(await makeRoot({ seed: (d) => { Object.assign(d['curated-products.json'][0], over); } })), 'C6-IMG-AI-PRODUCT');
+  }
+  // 상품 행이 아닌 사진 행의 AI_GENERATED 는 이 규칙 대상이 아니다.
+  const ph = scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto()); } }));
+  assert.ok(!rulesOf(ph).includes('C6-IMG-AI-PRODUCT'), JSON.stringify(ph.json?.findings));
+});

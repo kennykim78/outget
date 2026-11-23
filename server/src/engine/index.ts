@@ -53,6 +53,33 @@ export {
 } from './exposure.js';
 export type { BudgetTipForExposure, CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
 export {
+  PHOTO_AI_LICENSE,
+  PHOTO_AI_SOURCES,
+  PHOTO_ASSET_RE,
+  PHOTO_PROMPT_PATH_RE,
+  aiPhotoRecordProblems,
+  isAiGeneratedPhoto,
+  isAiPhotoRecordOk,
+  isMachineSignerMarker,
+} from './photo-ai.js';
+export {
+  HOME_A_SCENE_PHOTOS,
+  ITEM_SCENE_FALLBACK,
+  ITEM_SCENE_PHOTOS,
+  PHOTO_SCOPE_KEYS,
+  PHOTO_TYPE_USES,
+  PHOTO_USES,
+  TYPE_SCENE_PHOTOS,
+  photoLevels,
+  photoPlacements,
+  photoScopeKey,
+  resolvePhoto,
+  resolvePlacement,
+  resolveScenePhoto,
+  scenePhotoIdFor,
+} from './photo-resolve.js';
+export type { PhotoLevel, PhotoPlacement, PhotoQuery, PhotoUse, ResolvedPhoto } from './photo-resolve.js';
+export {
   TIP_ARTICLE_HOSTS,
   TIP_COMMERCE_HOSTS,
   TIP_HAZARD_MIN_DOMAINS,

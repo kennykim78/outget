@@ -18,7 +18,9 @@
 //   taxon              = verified ∧ (노출 type 의 taxonId ∨ 노출 careProfile 의 taxonIds 중 비노출 type 의 taxonId 아닌 것, 277 QA M-1) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
-//   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
+//   photo              = status ∈ {READY} ∧ (license === AI_GENERATED → 생성 기록 전부(source CODEX|AGY·generatedAt·promptPath·asset
+//                        ·사람 speciesCheck·원본 URL 없음, 354) | 아래 실사 규칙)
+//                        실사: license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author) ∧ (asset 있으면 경로 형식)
 //                        ∧ 출처별 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 원본·카드 슬롯(L8)
 //                        ∧ (CC_BY·CC_BY_SA → licenseUrl 이 같은 종류의 creativecommons.org 증서, M-3)
 //   budgetTip          = REFERENCE 별도 경로(Kenny 2026-11-22 — 검수 메타를 보지 않는다, 불변식 7 명시 예외):
@@ -152,9 +154,52 @@ export function ccBySaPlacementOk(p) {
   return CC_BY_SA_SLOT_EXACT.has(p.slot) || CC_BY_SA_SLOT_PREFIX.test(p.slot);
 }
 
+// ── 354(Kenny 2026-11-23 「빈 이미지 칸 0」): 생성 이미지 기록 규칙(독립 구현 — engine/photo-ai.ts 와 패리티 시험) ─────────────
+export const PHOTO_AI_LICENSE = 'AI_GENERATED';
+export const PHOTO_AI_SOURCES = new Set(['CODEX', 'AGY']);
+/** 배포 파일 /assets/(photos|items)/<kebab>[--<kebab>].webp — 경로 순회·대문자·다른 확장자 금지. */
+export const PHOTO_ASSET_PATH_RE = /^\/assets\/(?:photos|items)\/[a-z0-9]+(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?\.webp$/;
+/** 프롬프트 파일 docs/assets/prompts/<kebab>[--<kebab>].md(저장소 상대). */
+export const PHOTO_PROMPT_RE = /^docs\/assets\/prompts\/[a-z0-9]+(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?\.md$/;
+const MACHINE_SIGNER_EXACT = new Set(['AI', 'AGY', 'GPT']);
+const MACHINE_SIGNER_PART = ['AIDRAFT', 'AIGENERATED', 'CODEX', 'ANTIGRAVITY', 'CHATGPT', 'OPENAI', 'GEMINI', 'CLAUDE', 'GPTIMAGE', 'IMAGEGEN'];
+
+/** 종 확인 서명자가 사람이 아닌 표지(AI_DRAFT 변형·생성 도구·모델 이름)인가. */
+export function machineSigner(v) {
+  if (typeof v !== 'string') return false;
+  const letters = v.normalize('NFKC').toUpperCase().replace(/[^A-Z]/g, '');
+  return MACHINE_SIGNER_EXACT.has(letters) || MACHINE_SIGNER_PART.some((m) => letters.includes(m));
+}
+
+/** AI_GENERATED 행의 누락·위반 필드 이름 목록(빈 배열 = 기록 완전). */
+export function aiPhotoRowMissing(p) {
+  const miss = [];
+  if (!isObj(p)) return ['row'];
+  if (!PHOTO_AI_SOURCES.has(p.source)) miss.push('source(CODEX|AGY)');
+  if (p.sourceUrl !== null && p.sourceUrl !== undefined) miss.push('sourceUrl(null 이어야 함)');
+  if (p.licenseUrl !== null && p.licenseUrl !== undefined) miss.push('licenseUrl(null 이어야 함)');
+  const gen = dayNumber(p.generatedAt);
+  if (gen === null) miss.push('generatedAt');
+  if (typeof p.promptPath !== 'string' || !PHOTO_PROMPT_RE.test(p.promptPath)) miss.push('promptPath(docs/assets/prompts/<kebab>.md)');
+  if (typeof p.asset !== 'string' || !PHOTO_ASSET_PATH_RE.test(p.asset)) miss.push('asset(/assets/(photos|items)/<kebab>.webp)');
+  const sc = p.speciesCheck;
+  if (!isObj(sc)) {
+    miss.push('speciesCheck');
+    return miss;
+  }
+  const ks = Object.keys(sc);
+  if (ks.length !== 2 || !ks.includes('checkedBy') || !ks.includes('checkedAt')) miss.push('speciesCheck(키 checkedBy·checkedAt 만)');
+  if (!nonEmpty(sc.checkedBy) || machineSigner(sc.checkedBy)) miss.push('speciesCheck.checkedBy(사람 — AI_DRAFT·생성 도구 금지)');
+  const chk = dayNumber(sc.checkedAt);
+  if (chk === null || (gen !== null && chk < gen)) miss.push('speciesCheck.checkedAt(생성일 이후 날짜)');
+  return miss;
+}
+
 /** engine isPhotoUsable 과 정확히 같은 판정(S-R4 L-D, 패리티 테스트) — 이보다 넓으면 안 된다. */
 export function isPhotoUsableRow(p) {
   if (!isObj(p) || !PHOTO_USABLE_STATUSES.has(p.status)) return false;
+  if (p.license === PHOTO_AI_LICENSE) return aiPhotoRowMissing(p).length === 0;
+  if (p.asset !== undefined && p.asset !== null && (typeof p.asset !== 'string' || !PHOTO_ASSET_PATH_RE.test(p.asset))) return false;
   if ((p.license === 'CC_BY' || p.license === 'CC_BY_SA') && ccLicenseOfUrl(p.licenseUrl) !== p.license) return false;
   if (!PHOTO_LICENSES.has(p.license)) return false;
   if (!nonEmpty(p.source)) return false;

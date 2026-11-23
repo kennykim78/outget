@@ -650,7 +650,18 @@ export const COPY = deepFreeze({
       OWN: '직접 촬영',
       SELLER: '제조사 제공',
       AFFILIATE: '제휴 이미지',
+      // 354(Kenny 2026-11-23): 생성 도구 — /credits 는 지금 CC BY 계열만 싣지만 표시명 누락은 막는다.
+      CODEX: 'Codex 생성 이미지',
+      AGY: 'Antigravity 생성 이미지',
     },
+  },
+  /**
+   * 354(Kenny 2026-11-23 「빈 이미지 칸 0」, 351 K1 권장 유지) — 생성 이미지 자리의 작은 표기, 상품 대체 타일의 품목 그림 표기.
+   *   표기 위치·크기는 design-liaison 스펙, 연결은 프리렌더 마크업(351 단계 6)·클라(단계 7)에서.
+   */
+  photoNotice: {
+    aiGenerated: '생성 이미지 · 임시',
+    exampleIllustration: '예시 그림',
   },
   /**
    * PRD US-001 그룹, US-008 카테고리 그리드(SupplyCategory 순서).

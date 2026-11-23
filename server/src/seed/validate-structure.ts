@@ -97,6 +97,8 @@ const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
     id: 'string', scene: 'string', slot: 'string', query: 'string', source: 'string|null', license: 'string|null',
     author: 'string|null', sourceUrl: 'string|null', licenseUrl: 'string|null?', downloadedAt: 'string|null', modified: 'boolean',
     status: 'string',
+    // 354(Kenny 2026-11-23 생성 이미지 허용) — 형식·필수 여부는 validate-people I04·I05(engine photo-ai.ts 와 같은 규칙).
+    asset: 'string|null?', promptPath: 'string|null?', generatedAt: 'string|null?', speciesCheck: 'object|null?', scope: 'object|null?',
   },
   // 저렴 대체 팁(REFERENCE, Kenny 2026-11-22) — 본문은 구조화 배열(개요 5~10문장 분량, 길이 상한은 V-TIP-5).
   budgetTips: {
@@ -112,8 +114,9 @@ const VERIFICATION_FIELDS: Record<string, FieldSpec> = {
   status: 'string', method: 'string', verifiedAt: 'string|null', note: 'string|null',
 };
 
-export const PHOTO_SOURCES = ['WIKIMEDIA', 'UNSPLASH', 'PEXELS', 'PIXABAY', 'OWN', 'SELLER', 'AFFILIATE'] as const;
-export const PHOTO_LICENSES = ['CC0', 'CC_BY', 'CC_BY_SA', 'SITE_LICENSE', 'PERMISSION'] as const;
+// 354: CODEX·AGY(생성 도구) / AI_GENERATED — 사진(photos.json)만. 상품 imageLicense(domain.ts IMAGE_LICENSES)에는 넣지 않는다(총괄 예외).
+export const PHOTO_SOURCES = ['WIKIMEDIA', 'UNSPLASH', 'PEXELS', 'PIXABAY', 'OWN', 'SELLER', 'AFFILIATE', 'CODEX', 'AGY'] as const;
+export const PHOTO_LICENSES = ['CC0', 'CC_BY', 'CC_BY_SA', 'SITE_LICENSE', 'PERMISSION', 'AI_GENERATED'] as const;
 
 const SLOT = 'SLOT';
 const ENUMS: Record<SeedKey, Record<string, readonly string[]>> = {
@@ -382,7 +385,11 @@ function dateFields(key: SeedKey, r: Rec): Array<[string, unknown]> {
   if (key === 'curatedProducts') out.push(['specVerifiedAt', r.specVerifiedAt]);
   if (key === 'testimonials') out.push(['consentAt', r.consentAt]);
   if (key === 'vetClinics') out.push(['verification.verifiedAt', asRec(r.verification)?.verifiedAt]);
-  if (key === 'photos') out.push(['downloadedAt', r.downloadedAt]);
+  if (key === 'photos') {
+    out.push(['downloadedAt', r.downloadedAt]);
+    out.push(['generatedAt', r.generatedAt]);
+    out.push(['speciesCheck.checkedAt', asRec(r.speciesCheck)?.checkedAt]);
+  }
   if (key === 'budgetTips' && Array.isArray(r.references)) r.references.forEach((x, i) => out.push([`references[${i}].checkedAt`, asRec(x)?.checkedAt]));
   return out;
 }

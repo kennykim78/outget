@@ -7,10 +7,14 @@ import { PRODUCT_IMAGE_ASSET_RE, REVIEWER_IMAGE_RE } from './asset-patterns.mjs'
 import { lintText } from './normalize.mjs';
 import { tags } from './html.mjs';
 import {
+  PHOTO_AI_LICENSE,
+  PHOTO_ASSET_PATH_RE,
   PHOTO_LICENSES,
+  PHOTO_PROMPT_RE,
   PHOTO_USABLE_STATUSES,
   PRODUCT_IMAGE_LICENSES,
   SEED_FILES,
+  aiPhotoRowMissing,
   ccBySaPlacementOk,
   ccLicenseOfUrl,
   dayNumber,
@@ -1296,6 +1300,20 @@ function stemFailRow(row) {
   return row.status === 'APPROVED';
 }
 
+/** 상품 행에서 생성 이미지 흔적(C6-IMG-AI-PRODUCT) — 사유 목록, 없으면 빈 배열. 정상 값(OWN_PHOTO 등·/assets/products/)은 통과. */
+export function aiProductImageReasons(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return [];
+  const why = [];
+  const letters = (v) => (typeof v === 'string' ? v.normalize('NFKC').toUpperCase().replace(/[^A-Z]/g, '') : '');
+  const lic = letters(row.imageLicense);
+  if (lic === 'AI' || lic === 'AGY' || /GENERAT|CODEX|ANTIGRAVITY|SYNTH|AIIMAGE|AIART/.test(lic)) why.push(`imageLicense=${safeLabel(row.imageLicense)}`);
+  if (typeof row.imageAsset === 'string' && /^\/assets\/(?:photos|items)\//.test(row.imageAsset)) why.push(`imageAsset 이 사진·품목 그림 경로(${safeLabel(row.imageAsset)})`);
+  for (const k of ['promptPath', 'generatedAt', 'speciesCheck', 'asset']) {
+    if (Object.prototype.hasOwnProperty.call(row, k)) why.push(`생성 기록 키 ${k}`);
+  }
+  return why;
+}
+
 function scanSeedFile(rel, text, ctx) {
   const { add, bw } = ctx;
   const file = basename(rel);
@@ -1347,10 +1365,24 @@ function scanSeedFile(rel, text, ctx) {
     if (!row || typeof row !== 'object') return;
     // L3(R5 B3-2): SLOT 이 아닌 사진은 isPhotoUsableRow(engine isPhotoUsable 패리티)와 같은 엄격도 — READY 상태만,
     //   https + 점 있는 호스트, 출처별 호스트 허용목록·userinfo 거부(M-1), 달력상 downloadedAt, CC BY-SA 원본·카드 슬롯(L8).
-    if (file === SEED_FILES.photos && row.status !== 'SLOT') {
+    // 354(Kenny 2026-11-23): AI_GENERATED 는 생성 기록 분기(aiPhotoRowMissing) + 저장소에 프롬프트 파일·배포 파일 실재.
+    if (file === SEED_FILES.photos && row.status !== 'SLOT' && row.license === PHOTO_AI_LICENSE) {
+      const miss = [];
+      if (!PHOTO_USABLE_STATUSES.has(row.status)) miss.push(`status(${safeLabel(row.status)})`);
+      miss.push(...aiPhotoRowMissing(row));
+      if (ctx.root && typeof row.promptPath === 'string' && PHOTO_PROMPT_RE.test(row.promptPath) && !existsSync(join(ctx.root, ...row.promptPath.split('/')))) {
+        miss.push('promptPath(파일 없음)');
+      }
+      if (ctx.root && typeof row.asset === 'string' && PHOTO_ASSET_PATH_RE.test(row.asset) && !existsSync(join(ctx.root, 'client', 'public', ...row.asset.slice(1).split('/')))) {
+        miss.push('asset(client/public 에 파일 없음)');
+      }
+      if (!miss.length && !isPhotoUsableRow(row)) miss.push('사용 가능 판정 불일치');
+      if (miss.length) add('C6-IMG', 'FAIL', rel, null, `${where}: 생성 이미지 기록 누락·위반 ${miss.join(', ')}`);
+    } else if (file === SEED_FILES.photos && row.status !== 'SLOT') {
       const miss = [];
       if (!PHOTO_USABLE_STATUSES.has(row.status)) miss.push(`status(${safeLabel(row.status)})`);
       if (!PHOTO_LICENSES.has(row.license)) miss.push(`license(${safeLabel(row.license)})`);
+      if (row.asset !== undefined && row.asset !== null && (typeof row.asset !== 'string' || !PHOTO_ASSET_PATH_RE.test(row.asset))) miss.push('asset(/assets/(photos|items)/<kebab>.webp)');
       if (typeof row.source !== 'string' || row.source.trim() === '') miss.push('source');
       if (typeof row.sourceUrl !== 'string' || !photoSourceUrlAllowed(row.source, row.sourceUrl)) miss.push('sourceUrl(https·출처별 호스트 허용목록·userinfo 금지)');
       if (dayNumber(row.downloadedAt) === null) miss.push('downloadedAt');
@@ -1362,6 +1394,12 @@ function scanSeedFile(rel, text, ctx) {
     }
     if (file === SEED_FILES.curatedProducts && row.imageAsset !== null && row.imageAsset !== undefined && row.imageAsset !== '') {
       if (!PRODUCT_IMAGE_LICENSES.has(row.imageLicense)) add('C6-IMG', 'FAIL', rel, null, `${where}: imageAsset 있는데 imageLicense=${safeLabel(row.imageLicense)}`);
+    }
+    // C6-IMG-AI-PRODUCT(354, Kenny 2026-11-23 총괄 예외): 특정 판매 상품 카드에 지어낸 상품 사진 금지 — 상품 칸은 API 상품 이미지,
+    //   없으면 품목 그림 + 「예시 그림」(화면 쪽). 상품 행에 생성 사용권·생성 도구·생성 기록 키·사진/품목 그림 경로가 있으면 FAIL.
+    if (file === SEED_FILES.curatedProducts) {
+      const why = aiProductImageReasons(row);
+      if (why.length) add('C6-IMG-AI-PRODUCT', 'FAIL', rel, null, `${where}: 상품 카드에 생성 이미지 금지 — ${why.join(', ')}`);
     }
     if (file === SEED_FILES.testimonials && row.reviewerImage !== null && row.reviewerImage !== undefined && row.reviewerImage !== '') {
       if (row.reviewerImageConsent !== true) add('C6-IMG', 'FAIL', rel, null, `${where}: reviewerImage 동의 없음`);
@@ -1469,7 +1507,7 @@ export function scanSources(root, ctx, notes) {
     if (rel === 'client/index.html') scanSourceHtml(rel, text, add);
     if (CODE_EXT.has(ext)) scanCode(rel, text, ctx);
     else if (ext === '.prisma' && rel.startsWith('server/prisma/')) scanPrisma(rel, text, ctx);
-    else if (ext === '.json' && rel.startsWith('server/seed/') && !rel.slice('server/seed/'.length).includes('/')) scanSeedFile(rel, text, ctx);
+    else if (ext === '.json' && rel.startsWith('server/seed/') && !rel.slice('server/seed/'.length).includes('/')) scanSeedFile(rel, text, { ...ctx, root });
   }
   checkGuardTests(root, add);
   checkTrackedEnv(root, add, notes);

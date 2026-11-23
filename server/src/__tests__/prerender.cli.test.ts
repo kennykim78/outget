@@ -210,6 +210,36 @@ describe('prerender CLI', () => {
     expect((await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub])).code).toBe(0);
   });
 
+  it('354: 사용 가능 생성 이미지 행의 asset 파일이 없으면 exit 1, public 에 있으면 통과', async () => {
+    const out = outDir();
+    const pub = tmp('pub');
+    const seedDir = tmp('seed');
+    const s = promoted({ publishable: true });
+    patch(s, 'photos', 'ph-01', {
+      status: 'READY', license: 'AI_GENERATED', source: 'CODEX', sourceUrl: null, licenseUrl: null,
+      generatedAt: '2026-11-20', promptPath: 'docs/assets/prompts/intro-1.md', asset: '/assets/photos/intro-1.webp',
+      speciesCheck: { checkedBy: 'Kenny', checkedAt: '2026-11-21' },
+    });
+    writeSeedDir(seedDir, s);
+    const r = await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub]);
+    expect(r.code).toBe(1);
+    expect(r.err.join('\n')).toContain('참조 자산 없음: /assets/photos/intro-1.webp');
+    expect(existsSync(join(out, 'prerender-manifest.json'))).toBe(false);
+    mkdirSync(join(pub, 'assets', 'photos'), { recursive: true });
+    writeFileSync(join(pub, 'assets', 'photos', 'intro-1.webp'), 'x');
+    expect((await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub])).code).toBe(0);
+  });
+
+  it('354: SLOT·기록 미비 사진의 asset 은 실재를 요구하지 않는다(사용 불가 = 화면에 안 나감)', async () => {
+    const out = outDir();
+    const pub = tmp('pub');
+    const seedDir = tmp('seed');
+    const s = promoted({ publishable: true });
+    patch(s, 'photos', 'ph-01', { asset: '/assets/photos/intro-1.webp' });
+    writeSeedDir(seedDir, s);
+    expect((await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub])).code).toBe(0);
+  });
+
   it('마커 없는 템플릿·잘못된 인자 → exit 2', async () => {
     const out = tmp('dist');
     writeFileSync(join(out, 'index.html'), '<html><title>x</title><div id="root"></div></html>');

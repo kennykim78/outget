@@ -8,6 +8,7 @@ import { STALE_DAYS, TIP_HEALTH_HAZARDS, isTipHazard, isoDayNumber, reviewerRank
 import { listResolvedRequirements, resolveRequirement } from './resolve.js';
 import { checkAnimalMinSpec } from './spec-check.js';
 import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
+import { PHOTO_AI_LICENSE, PHOTO_ASSET_RE, isAiPhotoRecordOk } from './photo-ai.js';
 import type {
   BudgetTipRec,
   CompatibilityRuleRec,
@@ -348,13 +349,18 @@ export function isCcBySaPlacementOk(p: { license?: unknown; slot?: unknown; modi
  *   ·내려받은 날짜(달력상 YYYY-MM-DD) 기록 ∧ CC0 외엔 저작자
  *   ∧ CC_BY·CC_BY_SA 는 같은 종류의 creativecommons.org 증서 licenseUrl(M-3 — 없으면 표기 불가 → 사용 불가)
  *   ∧ 출처 코드별 원본 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 는 원본 그대로·카드 슬롯(L8).
+ *   354(Kenny 2026-11-23): license === AI_GENERATED 는 별도 분기 — 원본 URL·호스트·저작자 대신 생성 기록 전부
+ *   (source CODEX|AGY · generatedAt · promptPath · asset · 사람 speciesCheck, photo-ai.ts isAiPhotoRecordOk). 하나라도 빠지면 사용 불가.
  *   scripts/lib/seed-exposure.mjs isPhotoUsableRow 와 정확히 같은 판정(패리티 테스트).
  */
 export function isPhotoUsable(
   p: Pick<PhotoRec, 'status' | 'license' | 'source' | 'sourceUrl' | 'downloadedAt' | 'author' | 'licenseUrl'> &
-    Partial<Pick<PhotoRec, 'slot' | 'modified'>>,
+    Partial<Pick<PhotoRec, 'slot' | 'modified' | 'asset' | 'promptPath' | 'generatedAt' | 'speciesCheck' | 'scope'>>,
 ): boolean {
   if (!(PHOTO_USABLE_STATUSES as readonly unknown[]).includes(p.status)) return false;
+  if (p.license === PHOTO_AI_LICENSE) return isAiPhotoRecordOk(p as unknown as Record<string, unknown>);
+  // 실사(비 AI) 행의 asset 은 선택이지만, 있으면 같은 경로 형식(빈 칸·외부 경로 금지).
+  if (p.asset !== undefined && p.asset !== null && (typeof p.asset !== 'string' || !PHOTO_ASSET_RE.test(p.asset))) return false;
   if ((p.license === 'CC_BY' || p.license === 'CC_BY_SA') && parseCcLicenseUrl(p.licenseUrl)?.license !== p.license) return false;
   if (typeof p.license !== 'string' || !PHOTO_LICENSES.includes(p.license)) return false;
   if (!nonEmpty(p.source)) return false;

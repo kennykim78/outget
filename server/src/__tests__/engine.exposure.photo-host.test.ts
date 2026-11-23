@@ -33,7 +33,7 @@ function validatePasses(p: Record<string, unknown>): boolean {
   const row = (s.photos as Rec[]).find((r) => r.id === 'ph-01') as Rec;
   Object.assign(row, p);
   const res = validateSeed(s, { now: NOW });
-  return !res.errors.some((i) => i.file === 'photos.json' && ['I01', 'I02', 'I03', 'S03'].includes(i.rule));
+  return !res.errors.some((i) => i.file === 'photos.json' && ['I01', 'I02', 'I03', 'I04', 'S03'].includes(i.rule));
 }
 
 const BASE = {
@@ -129,6 +129,7 @@ describe('사진 호스트·CC BY-SA 패리티 테이블 — engine ↔ mjs ↔ 
   });
 
   it('실제 시드 사진 슬롯은 모두 CC BY-SA 카드 슬롯(현재 장면 리스트 = 카드)', () => {
-    for (const r of BASE_SEED.photos as Rec[]) expect(CC_BY_SA_CARD_SLOT_RE.test(String(r.slot)), String(r.slot)).toBe(true);
+    // 354: 종·품목 단위 행(scope 있음)은 장면 슬롯이 아니라 화면 자리(scope)로 붙는다 — 장면 행만 본다.
+    for (const r of (BASE_SEED.photos as Rec[]).filter((x) => x.scope === null || x.scope === undefined)) expect(CC_BY_SA_CARD_SLOT_RE.test(String(r.slot)), String(r.slot)).toBe(true);
   });
 });
