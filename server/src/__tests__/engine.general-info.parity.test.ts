@@ -17,7 +17,7 @@ const mjs = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'seed-expos
   computeExposure: (seed: Record<string, unknown[]>, asOf: string) => { ids: Record<string, Set<string>> };
 };
 
-const AS_OF = FIXTURE_AS_OF; // 2026-11-22
+const AS_OF = FIXTURE_AS_OF; // 2026-11-23(356)
 const DRAFTED = '2026-11-20';
 const CC = { tool: 'CODEX_DISCUSS', checkedAt: '2026-11-21', result: 'AGREE' };
 const GI = (extra: Row = {}): Row => ({
@@ -31,7 +31,8 @@ function engineIds(seed: SeedBundle) {
   const m = projectSite(seed, AS_OF);
   return {
     animalTypes: m.types.map((t) => t.id).sort(),
-    supplyRequirements: m.types.flatMap((t) => t.requirements.map((r) => r.requirementId)).sort(),
+    // 356: 프로필을 공유하는 타입(사랑앵무·벚꽃모란앵무 등)은 같은 요구사항 행을 타입마다 가진다 — 행 id 집합으로 비교(mjs 는 Set).
+    supplyRequirements: [...new Set(m.types.flatMap((t) => t.requirements.map((r) => r.requirementId)))].sort(),
     careProfiles: m.catalog.careProfiles.map((p) => p.id).sort(),
     supplyItems: m.catalog.supplyItems.map((i) => i.id).sort(),
     curatedProducts: [...new Set(m.types.flatMap((t) => t.requirements.flatMap((r) => r.products.map((p) => p.id))))].sort(),
@@ -94,23 +95,12 @@ function gerbilActive(): SeedBundle {
   return s;
 }
 
-/** 실시드 사본 + 사랑앵무 ACTIVE·cp-parrot-small·bird-cage GENERAL_INFO + 자리표시 요구사항 1행. */
+/** 실시드 사본 — 356 이후 디스크에 사랑앵무 ACTIVE·cp-parrot-small·bird-cage·요구사항이 이미 GENERAL_INFO 체인이다.
+ *  (이전엔 자리표시 요구사항 행을 주입했으나, 디스크 req-parrot-small-bird-cage 와 (프로필,용품) 쌍이 겹쳐 R06 무효 입력이 된다.) */
 function budgieActive(): SeedBundle {
   const s = structuredClone(realSeed());
-  patch(s, 'animalTypes', 'budgie', { status: 'ACTIVE', ...GI({ contentKind: 'CARE' }) });
-  patch(s, 'careProfiles', 'cp-parrot-small', GI({ contentKind: 'CARE' }));
-  patch(s, 'supplyItems', 'bird-cage', GI({ contentKind: 'SPEC' }));
-  const src = s.supplyRequirements.find((r) => r.id === 'req-gerbil-cage');
-  if (!src) throw new Error('fixture: req-gerbil-cage 없음');
-  s.supplyRequirements.push({
-    ...structuredClone(src),
-    id: 'req-fixture-parrot-cage',
-    careProfileId: 'cp-parrot-small',
-    supplyItemId: 'bird-cage',
-    minSpec: { rules: [] },
-    recommendedSpec: { rules: [] },
-    ...GI({ contentKind: 'SPEC' }),
-  } as typeof src);
+  const t = s.animalTypes.find((r) => r.id === 'budgie');
+  if (t?.status !== 'ACTIVE' || t.reviewStatus !== 'GENERAL_INFO') throw new Error('fixture: 디스크 budgie ACTIVE·GENERAL_INFO 아님');
   return s;
 }
 
@@ -132,6 +122,7 @@ describe('체인 노출 패리티(실시드 메모리 주입)', () => {
   it('저빌 사료 GENERAL_INFO 인데 crossCheck 없음 → 양쪽 모두 사료 행만 비노출', () => {
     const s = gerbilActive();
     patch(s, 'supplyRequirements', 'req-gerbil-food', GI());
+    delete (s.supplyRequirements.find((r) => r.id === 'req-gerbil-food') as Row).crossCheck; // 356: 디스크 행엔 crossCheck 가 있다
     const e = engineIds(s);
     expect(e).toEqual(mjsIds(s));
     expect(e.animalTypes).toContain('gerbil-mongolian');
@@ -146,19 +137,27 @@ describe('체인 노출 패리티(실시드 메모리 주입)', () => {
     expect(e.animalTypes).toContain('budgie');
     expect(e.careProfiles).toContain('cp-parrot-small');
     expect(e.supplyItems).toContain('bird-cage');
-    expect(e.supplyRequirements).toContain('req-fixture-parrot-cage');
+    expect(e.supplyRequirements).toContain('req-parrot-small-bird-cage');
   });
 
   it.each([
     ['프로필 draftedAt 181일', (s: SeedBundle) => patch(s, 'careProfiles', 'cp-parrot-small', { draftedAt: '2026-05-25' })],
     ['타입 draftedAt 없음', (s: SeedBundle) => patch(s, 'animalTypes', 'budgie', { draftedAt: null })],
-    ['용품 LEGAL', (s: SeedBundle) => patch(s, 'supplyItems', 'bird-cage', { contentKind: 'LEGAL' })],
   ] as const)('사랑앵무 체인 무효(%s) → 양쪽 모두 사랑앵무 비노출', (_n, inject) => {
     const s = budgieActive();
     inject(s);
     const e = engineIds(s);
     expect(e).toEqual(mjsIds(s));
     expect(e.animalTypes).not.toContain('budgie');
+  });
+
+  it('사랑앵무 용품 bird-cage 를 LEGAL 로 → 양쪽 모두 bird-cage 용품·요구사항 행만 비노출(356: 디스크엔 다른 요구사항 행이 있어 타입은 남는다 — 필수 집합 누락은 validate X01 이 막는다)', () => {
+    const s = budgieActive();
+    patch(s, 'supplyItems', 'bird-cage', { contentKind: 'LEGAL' });
+    const e = engineIds(s);
+    expect(e).toEqual(mjsIds(s));
+    expect(e.supplyItems).not.toContain('bird-cage');
+    expect(e.supplyRequirements).not.toContain('req-parrot-small-bird-cage');
   });
 
   it('목록 밖 타입(골든·드워프·저빌 공유 용품 cage)을 GENERAL_INFO 로 → 골든·드워프 cage 행 비노출, 저빌 cage 는 노출(양쪽 동일)', () => {

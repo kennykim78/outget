@@ -7,11 +7,13 @@
 import type {
   AnimalGroup,
   BundleTier,
+  ContentKind,
   ImageLicense,
   LinkedAction,
   OrderHint,
   Priority,
   ReviewerType,
+  ReviewStatus,
   Situation,
   SupplyCategory,
 } from './domain.js';
@@ -204,7 +206,22 @@ export interface WsPageData {
   };
 }
 
-/** 공개 카탈로그 = createCatalog 입력 형태(노출 행만) + 결속값. 클라이언트 specCheck 입력. */
+/**
+ * 공개 카탈로그 행 메타의 런타임 형태(356 단계 10, 총괄 결정): 검수자 이름 없음(verifiedBy null).
+ *   - GENERAL_INFO 행: reviewerType 키 없음 + generalInfo: true(검수 기록이 아니다 — `"reviewerType":"AI_DRAFT"` 미노출).
+ *   - 그 밖 행: reviewerType 있음, generalInfo 키 없음.
+ *   compliance C3-OUT-REVIEWMETA 가 산출물 카탈로그에서 이 형태를 검사한다(scripts/lib/rules-output.mjs checkCatalogMeta).
+ *   PublicCatalog 의 정적 타입은 CatalogInput 호환(클라 createCatalog 입력)이라 reviewerType 이 필수로 보이지만,
+ *   카탈로그 소비처(규격 판정)는 reviewerType 을 읽지 않는다 — 노출 재판정에 쓰면 안 된다.
+ */
+export type PublicCatalogMeta = {
+  verifiedBy: null;
+  verifiedAt: string | null;
+  contentKind: ContentKind;
+  source: Array<{ url: string; title: string; accessedAt: string }>;
+} & ({ reviewStatus: 'GENERAL_INFO'; generalInfo: true } | { reviewStatus: ReviewStatus; reviewerType: ReviewerType });
+
+/** 공개 카탈로그 = createCatalog 입력 형태(노출 행만) + 결속값. 클라이언트 specCheck 입력. 행 메타 런타임 형태는 PublicCatalogMeta. */
 export interface PublicCatalog extends CatalogInput {
   v: 1;
   seedDigest: string;

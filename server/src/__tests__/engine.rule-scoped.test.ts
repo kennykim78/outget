@@ -129,7 +129,7 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
     });
   }
 
-  it('스키마 자체엔 ruleScoped 9필드가 있다(S8 playpen.floorType +1, 154 food.coversThisAnimal +1, 271 bird-food.forSize +1)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
+  it('스키마 자체엔 ruleScoped 12필드가 있다(S8 playpen.floorType +1, 154 food.coversThisAnimal +1, 271 bird-food.forSize +1, 356 bird-food.coversThisAnimal·bird-bath.shortSideCm·bird-bath.depthCm +3)(라벨 완전 — 숨김 사유는 ruleScoped 하나뿐)', () => {
     const scoped = realSeed().supplyItems.flatMap((i) => i.specSchema.fields.filter((f) => f.ruleScoped === true).map((f) => [`${i.id}.${f.key}`, hasCompleteOptionLabels(f), f.optional === true]));
     expect(scoped).toEqual([
       ['cage.floorType', true, true],
@@ -141,6 +141,9 @@ describe('L5 폼 필드 스냅샷 — S3 전후 동일(새 ruleScoped 필드 미
       ['hideout.entrances', true, true],
       ['playpen.floorType', true, true],
       ['bird-food.forSize', true, true],
+      ['bird-food.coversThisAnimal', true, true],
+      ['bird-bath.shortSideCm', true, true],
+      ['bird-bath.depthCm', true, true],
     ]);
   });
 
@@ -227,7 +230,7 @@ describe("isFieldOptionalForDisplay(field, minSpec) — '· 선택' 표시", () 
 });
 
 describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
-  const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03)
+  const NOW = '2026-11-23'; // 356: 6종 draftedAt(2026-11-23) 이상 · 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03)
   /** 메커니즘 주입 바탕 = 서명 전 기준(메모리). */
   const fresh = () => unsignRaw(readSeedDirRaw(SEED_DIR).raw);
   /** 디스크 그대로(2026-11-16 서명 후). */
@@ -246,15 +249,16 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
   const scopedWarns = (raw: ReturnType<typeof fresh>) =>
     validateSeed(raw, { now: NOW }).warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`);
 
-  it('실시드: S9 요구사항 착지 후 playpen.floorType + 271 bird-food.forSize(앵무 요구사항 행 0) 2필드만 WARN(ERROR 아님)', () => {
+  const SCOPED_DISK = ['playpen.specSchema.floorType', 'bird-food.specSchema.coversThisAnimal', 'bird-bath.specSchema.shortSideCm', 'bird-bath.specSchema.depthCm'];
+  it('실시드: playpen.floorType + 356 앵무 3필드(bird-food.coversThisAnimal·bird-bath.shortSideCm·depthCm — 앵무 요구사항이 참조 안 함) 4필드만 WARN(ERROR 아님; bird-food.forSize 는 356 앵무 요구사항이 참조해 해소)', () => {
     const d = disk();
     const res = validateSeed(d.raw, { now: NOW, signatures: d.signatures });
     expect(res.errors).toEqual([]);
-    expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`)).toEqual(['playpen.specSchema.floorType', 'bird-food.specSchema.forSize']);
-    expect(scopedWarns(fresh())).toEqual(['playpen.specSchema.floorType', 'bird-food.specSchema.forSize']);
+    expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`)).toEqual(SCOPED_DISK);
+    expect(scopedWarns(fresh())).toEqual(SCOPED_DISK);
   });
-  it('기니피그·저빌 요구사항을 빼면 9필드 전부 WARN(S9 가 6필드 경고를 해소한 출처, 154 food.coversThisAnimal +1, 271 bird-food.forSize +1)', () => {
-    expect(scopedWarns(withoutGp())).toHaveLength(9);
+  it('기니피그·저빌 요구사항을 빼면 11필드 WARN(스키마 12 중 bird-food.forSize 는 356 앵무 요구사항이 참조; S9 가 6필드 경고를 해소한 출처, 154 food.coversThisAnimal +1, 356 앵무 +3)', () => {
+    expect(scopedWarns(withoutGp())).toHaveLength(11);
   });
 
   it('요구사항 행의 when key 가 참조하면 그 필드 경고 해소', () => {
@@ -262,7 +266,7 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
     const req = find(raw.supplyRequirements, 'req-syrian-cage') as { recommendedSpec: RuleSet };
     req.recommendedSpec = { rules: [...req.recommendedSpec.rules, { key: 'heightCm', op: 'gte', value: 30, reason: '픽스처', when: [{ key: 'floorType', op: 'eq', value: 'MESH' }] }] };
     expect(scopedWarns(raw)).not.toContain('cage.specSchema.floorType');
-    expect(scopedWarns(raw)).toHaveLength(8); // playpen.floorType·bird-food.forSize(271) 는 별도 SupplyItem 이라 남는다(154 food.coversThisAnimal 포함)
+    expect(scopedWarns(raw)).toHaveLength(10); // 356: 11 − cage.floorType. playpen.floorType·앵무 3필드는 별도 SupplyItem 이라 남는다(154 food.coversThisAnimal 포함)
   });
 
   it('AnimalType.careOverrides 의 규칙만 참조해도 해소(해석 후 규칙 기준)', () => {

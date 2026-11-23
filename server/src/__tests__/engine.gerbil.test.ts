@@ -50,14 +50,15 @@ describe('S5 요구사항 14행 — 구성·검수 상태(불변식 7)', () => {
       rows.includes(r as never) ? 'supply-requirements.json' : r.id === 'meriones-unguiculatus' ? 'taxa.json' : r.id === CP ? 'care-profiles.json' : r.id === G ? 'animal-types.json' : 'compatibility-rules.json';
     for (const r of metas) {
       const t = targets.get(`${fileOf(r)}#${r.id}`);
-      const want = t ? ['VERIFIED', t.reviewerType, t.basis, 'kenny', REAL_SIGNED_AT] : ['DRAFT', 'AI_DRAFT', null, null, null];
+      // 356: 패킷 밖 req-gerbil-food 는 GENERAL_INFO(AI_DRAFT·검수자 없음 — VERIFIED 아님, 불변식 7)
+      const want = t ? ['VERIFIED', t.reviewerType, t.basis, 'kenny', REAL_SIGNED_AT] : ['GENERAL_INFO', 'AI_DRAFT', null, null, null];
       expect([r.id, r.reviewStatus, r.reviewerType, r.reviewBasis, r.verifiedBy, r.verifiedAt]).toEqual([r.id, ...want]);
     }
     expect(metas.filter((r) => r.reviewStatus !== 'VERIFIED').map((r) => r.id)).toEqual(['req-gerbil-food']);
     expect(metas.filter((r) => r.reviewStatus === 'VERIFIED')).toHaveLength(17);
     expect(seed.taxa.find((t) => t.id === 'meriones-unguiculatus')?.reviewerType).toBe('OFFICIAL_SOURCE');
     expect(metas.filter((r) => r.reviewStatus === 'VERIFIED' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
-    expect(seed.animalTypes.find((t) => t.id === G)?.status).toBe('PLANNED');
+    expect(seed.animalTypes.find((t) => t.id === G)?.status).toBe('ACTIVE'); // 356 6종 활성화
   });
   it('priority·orderHint: 필수 7(cage·bedding·water·food·hideout·sand-bath·sand-bath-box), 쳇바퀴·건초는 권장', () => {
     const p = Object.fromEntries(rows.map((r) => [r.supplyItemId, `${r.priority}/${r.orderHint}`]));

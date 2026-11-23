@@ -155,7 +155,7 @@ describe('(a) 노출 0 시드(서명 전 기준 실시드 — 4 패킷 미서명
 });
 
 
-describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 + 2026-11-23 드워프·기니피그 활성화) → 골든·드워프·기니피그 노출', () => {
+describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 + 2026-11-23 9종 활성화 — VERIFIED 4 · GENERAL_INFO 5) → 9타입 노출', () => {
   const seed = realSeed();
   const b = build(seed);
   const GOLDEN_REQ = [
@@ -163,23 +163,26 @@ describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 + 2026-11-23
     'req-syrian-sand-bath', 'req-syrian-chew', 'req-syrian-carrier', 'req-syrian-thermo', 'req-syrian-tubes', 'req-syrian-saucer',
   ];
 
-  it('타입 3(골든·드워프·기니피그 — 2026-11-23 활성화) · 그룹 /hamster · 각 하위 경로 · PLANNED 종(저빌·앵무·로보) 경로 0', () => {
-    expect(b.model.types.map((x) => x.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'guinea-pig']);
+  it('타입 9(356 6종 활성화) · 그룹 /hamster·/gerbil·/parrot · 각 하위 경로', () => {
+    expect(b.model.types.map((x) => x.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'gerbil-mongolian', 'guinea-pig', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure', 'hamster-robo']);
     const ps = paths(b);
     for (const p of ['/', '/hamster', '/hamster/golden', '/hamster/golden/supplies/cage', '/hamster/golden/check/wheel', '/hamster/dwarf', '/guinea-pig', '/supplies', '/vet', '/save', '/pick', '/credits', '/privacy', '/404']) expect(ps, p).toContain(p);
-    expect(ps.filter((p) => /^\/(gerbil|parrot)(\/|$)|^\/hamster\/robo(\/|$)/.test(p))).toEqual([]);
+    for (const p of ['/gerbil', '/parrot', '/parrot/budgie', '/parrot/cockatiel', '/parrot/lovebird-peach', '/parrot/sun-conure', '/hamster/robo']) expect(ps, p).toContain(p);
     expect(ps.filter((p) => p.startsWith('/hamster/golden/products/'))).toEqual([]); // 골든 상품 SLOT·DRAFT → 상품 0
   });
 
-  it('공개 카탈로그 = 노출 3타입 체인만: 요구사항 42(골든 13 · 드워프 14 · 기니피그 15 — 저울 HEALTH DRAFT 3행 제외)·타입 3, 노출 집합 밖 id 0', () => {
-    expect(b.catalog.animalTypes.map((x) => x.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'guinea-pig']);
+  it('공개 카탈로그 = 노출 9타입 체인만: 요구사항 행 92(골든 13 · 드워프 14 · 기니피그 15 · 저빌 14 · 로보 14 · 앵무 소형 11 · 중형 11 — 저울 행 제외)·타입 9, 노출 집합 밖 id 0', () => {
+    expect(b.catalog.animalTypes.map((x) => x.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'gerbil-mongolian', 'guinea-pig', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure', 'hamster-robo']);
     const reqIds = b.catalog.supplyRequirements.map((x) => x.id);
-    expect(reqIds).toHaveLength(42);
+    expect(reqIds).toHaveLength(92); // validate summary 114 는 타입×행(앵무 프로필 공유 4타입)
     expect(reqIds.filter((id) => id.startsWith('req-syrian-')).sort()).toEqual([...GOLDEN_REQ].sort());
     expect(reqIds.filter((id) => id.startsWith('req-dwarf-'))).toHaveLength(14);
     expect(reqIds.filter((id) => id.startsWith('req-guineapig-'))).toHaveLength(15);
-    expect(reqIds.filter((id) => id.startsWith('req-gerbil-'))).toEqual([]);
-    for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale']) expect(reqIds).not.toContain(id);
+    expect(reqIds.filter((id) => id.startsWith('req-gerbil-'))).toHaveLength(14);
+    expect(reqIds.filter((id) => id.startsWith('req-robo-'))).toHaveLength(14);
+    expect(reqIds.filter((id) => id.startsWith('req-parrot-small-'))).toHaveLength(11);
+    expect(reqIds.filter((id) => id.startsWith('req-parrot-medium-'))).toHaveLength(11);
+    expect(reqIds.filter((id) => id.endsWith('-scale'))).toEqual([]);
     expect(leaks(b, seed)).toEqual([]);
   });
 

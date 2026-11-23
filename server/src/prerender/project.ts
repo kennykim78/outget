@@ -29,6 +29,7 @@ import {
   type PhotoRec,
   type PublicAnimalType,
   type PublicBundle,
+  type PublicCatalogMeta,
   type PublicProduct,
   type PublicRequirement,
   type PublicTestimonial,
@@ -170,19 +171,40 @@ function sources(m: ContentMeta): Array<{ url: string; title: string }> {
   return Array.isArray(m.source) ? m.source.map((s) => ({ url: String(s.url), title: String(s.title) })) : [];
 }
 
-/** ContentMeta 공개형: 검수자 이름 제거. */
+/**
+ * ContentMeta 공개형(공개 카탈로그 행): 검수자 이름 제거.
+ *   356 단계 10(총괄 결정): GENERAL_INFO 행은 reviewerType 키를 싣지 않고 generalInfo: true 를 싣는다 — 카탈로그에
+ *   `"reviewerType":"AI_DRAFT"` 문자열이 나가지 않게(검수 기록이 아니다). 키 순서는 reviewerType 자리에 generalInfo(그 밖 행 바이트 불변).
+ *   런타임 형태는 PublicCatalogMeta(public.ts). 클라이언트 소비처(speccheck/engine.ts → createCatalog)는 reviewerType 을 읽지 않는다
+ *   (규격 판정만 — 노출 재판정 없음). 정적 타입은 CatalogInput(=ContentMeta) 호환을 유지하려고 한 곳에서만 단언한다.
+ */
 function publicMeta(m: ContentMeta): ContentMeta {
+  if (isGeneralInfo(m)) {
+    const gi: PublicCatalogMeta = {
+      reviewStatus: 'GENERAL_INFO',
+      generalInfo: true,
+      verifiedBy: null,
+      verifiedAt: m.verifiedAt,
+      contentKind: m.contentKind,
+      source: publicSources(m),
+    };
+    return gi as unknown as ContentMeta;
+  }
   return {
     reviewStatus: m.reviewStatus,
     reviewerType: m.reviewerType,
     verifiedBy: null,
     verifiedAt: m.verifiedAt,
     contentKind: m.contentKind,
-    // 키 허용목록(보안 L-2): SourceRef 의 url·title·accessedAt 만 — 시드에 덧붙은 메모 키가 카탈로그로 새지 않게.
-    source: Array.isArray(m.source)
-      ? m.source.map((s) => ({ url: String(s.url), title: String(s.title), accessedAt: String(s.accessedAt) }))
-      : [],
+    source: publicSources(m),
   };
+}
+
+/** 키 허용목록(보안 L-2): SourceRef 의 url·title·accessedAt 만 — 시드에 덧붙은 메모 키가 카탈로그로 새지 않게. */
+function publicSources(m: ContentMeta): PublicCatalogMeta['source'] {
+  return Array.isArray(m.source)
+    ? m.source.map((s) => ({ url: String(s.url), title: String(s.title), accessedAt: String(s.accessedAt) }))
+    : [];
 }
 
 function projectRequirement(

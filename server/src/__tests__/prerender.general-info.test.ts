@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decodeWsPage, encodeWsPage, type WsPageData } from '../engine/index.js';
+import { createCatalog, createEngine, decodeWsPage, encodeWsPage, type CatalogInput, type WsPageData } from '../engine/index.js';
 import { readSeedDir } from '../seed/read.js';
 import { projectSite } from '../prerender/project.js';
 import { planRoutes } from '../prerender/routes.js';
@@ -106,6 +106,48 @@ describe('356 M11 — ws-wire 왕복', () => {
     expect(wire.data.requirements.every((r) => r.generalInfo === true)).toBe(true);
     const back = decodeWsPage(JSON.parse(JSON.stringify(wire)));
     expect(back).toEqual(JSON.parse(JSON.stringify(page)));
+  });
+});
+
+describe('356 단계 10 — 공개 카탈로그 행 메타(PublicCatalogMeta)', () => {
+  const KEYS = ['animalTypes', 'careProfiles', 'supplyItems', 'supplyRequirements', 'compatibilityRules'] as const;
+  const rows = KEYS.flatMap((k) => (site.catalog[k] as unknown as Array<Record<string, unknown>>).map((r) => ({ k, r })));
+  const gi = rows.filter(({ r }) => r.reviewStatus === 'GENERAL_INFO');
+
+  it('GENERAL_INFO 행이 있다(6종 활성화) — 전부 reviewerType 키 없음 · generalInfo true', () => {
+    expect(gi.length).toBeGreaterThan(0);
+    for (const { k, r } of gi) {
+      expect('reviewerType' in r, `${k}#${String(r.id)}`).toBe(false);
+      expect(r.generalInfo, `${k}#${String(r.id)}`).toBe(true);
+      expect(r.verifiedBy).toBe(null);
+    }
+  });
+
+  it('그 밖 행은 reviewerType 유지 · generalInfo 키 없음(기존 바이트 형태)', () => {
+    for (const { k, r } of rows.filter(({ r }) => r.reviewStatus !== 'GENERAL_INFO')) {
+      expect(typeof r.reviewerType, `${k}#${String(r.id)}`).toBe('string');
+      expect('generalInfo' in r, `${k}#${String(r.id)}`).toBe(false);
+      expect(Object.keys(r).slice(0, 3)).toEqual(['reviewStatus', 'reviewerType', 'verifiedBy']);
+    }
+  });
+
+  it('직렬화한 카탈로그에 AI_DRAFT 문자열 0 · draftedAt·crossCheck 0', () => {
+    const text = JSON.stringify(site.catalog);
+    expect(text).not.toContain('AI_DRAFT');
+    expect(text).not.toContain('draftedAt');
+    expect(text).not.toContain('crossCheck');
+  });
+
+  it('클라이언트 소비 경로(createCatalog → createEngine)로 6종 용품 규격 판정이 그대로 된다', () => {
+    const engine = createEngine(createCatalog(JSON.parse(JSON.stringify(site.catalog)) as CatalogInput));
+    const server = createEngine(site.cat);
+    for (const id of ['budgie', 'hamster-robo', 'hamster-golden']) {
+      const items = typeOf(id).requirements.map((q) => q.item.id);
+      expect(items.length).toBeGreaterThan(0);
+      for (const itemId of items) {
+        expect(engine.specCheck(id, itemId, {}), `${id}/${itemId}`).toEqual(server.specCheck(id, itemId, {}));
+      }
+    }
   });
 });
 

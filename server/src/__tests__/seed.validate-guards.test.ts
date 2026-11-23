@@ -15,7 +15,7 @@ import { DWARF_PREVIEW_AS_OF, FIXTURE_AS_OF, SECOND, dwarfPreview, promoted, pro
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+const NOW = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지. // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
 const DISK_READ = readSeedDirRaw(SEED_DIR);
 const DISK: RawSeed = DISK_READ.raw;
@@ -34,6 +34,15 @@ function row(s: RawSeed, key: SeedKey, id: string): Rec {
 }
 const verify = (r: Rec, reviewerType: string): void => {
   Object.assign(r, { reviewStatus: 'VERIFIED', reviewerType, verifiedBy: 'reviewer-handle', verifiedAt: '2026-09-30', reviewBasis: 'ROW_CHECKED' });
+  // 356: 디스크 GENERAL_INFO 행(예: req-gerbil-food)을 메모리에서 VERIFIED 로 올릴 때 draftedAt·crossCheck 는 지운다(V12 — GENERAL_INFO 행 전용 키).
+  delete r.draftedAt;
+  delete r.crossCheck;
+};
+/** 메모리에서 DRAFT(AI_DRAFT)로 되돌린다 — GENERAL_INFO 전용 키(draftedAt·crossCheck)도 함께 지운다(V12). */
+const toDraft = (r: Rec): void => {
+  Object.assign(r, { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+  delete r.draftedAt;
+  delete r.crossCheck;
 };
 const errs = (res: ValidateResult, rule: string) => res.errors.filter((i) => i.rule === rule);
 /** 드워프 미리보기에서 사료 행만 D1 미☑ 상태(DRAFT·AI_DRAFT)로 — BE92 이후 미리보기(전 ☑·C)는 SupplyItem food 도 C 일괄로 서명돼 X01 0. */
@@ -44,11 +53,11 @@ const dwarfPreviewFoodDraft = (): Required<RawSeed> => {
 };
 
 describe('실시드 — 새 규칙 오탐 0', () => {
-  it('server/seed(서명 후, 매니페스트 포함): X01·V08·R01 ERROR 0 · X02 없음(280 제거) — 골든 ACTIVE 노출(필수 6 VERIFIED, 사료 VET_PUBLISHED_SOURCE·국내 출처), 2026-11-23 활성화로 드워프·기니피그도 ACTIVE 노출(X01 0), 저빌 PLANNED', () => {
+  it('server/seed(서명 후, 매니페스트 포함): X01·V08·R01 ERROR 0 · X02 없음(280 제거) — 골든 ACTIVE 노출(필수 6 VERIFIED, 사료 VET_PUBLISHED_SOURCE·국내 출처), 2026-11-23 활성화로 드워프·저빌·기니피그 + GENERAL_INFO 5(로보·앵무 4)도 ACTIVE 노출(X01 0)', () => {
     const res = validateSeed(disk(), { now: NOW, signatures: DISK_READ.signatures });
     expect(res.errors).toEqual([]);
     for (const rule of ['X01', 'X02', 'V08', 'R01']) expect(errs(res, rule)).toEqual([]);
-    expect(res.summary.types).toBe(3);
+    expect(res.summary.types).toBe(9);
   });
   it('서명 전 기준(메모리): 같은 규칙 ERROR 0 (골든 ACTIVE 비노출)', () => {
     const res = validateSeed(fresh(), { now: NOW });
@@ -313,9 +322,9 @@ const gerbilActive = (): Required<RawSeed> => {
 const gerbilX = (s: RawSeed, rule: string) => errs(validateSeed(s, { now: NOW }), rule).filter((i) => i.id === 'gerbil-mongolian');
 
 describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 는 280 에서 제거)', () => {
-  it('디스크(2026-11-16 서명 후): gerbil-mongolian PLANNED·VERIFIED(EXPERIENCED_KEEPER·C 일괄) · Taxon meriones-unguiculatus VERIFIED·OFFICIAL_SOURCE(행 확인) · legal act6 false/cites false/화이트리스트 null', () => {
+  it('디스크(2026-11-16 서명 · 2026-11-23 활성화 후): gerbil-mongolian ACTIVE·VERIFIED(EXPERIENCED_KEEPER·C 일괄) · Taxon meriones-unguiculatus VERIFIED·OFFICIAL_SOURCE(행 확인) · legal act6 false/cites false/화이트리스트 null', () => {
     const at = row(DISK, 'animalTypes', 'gerbil-mongolian');
-    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType, at.verifiedBy, at.verifiedAt, at.reviewBasis]).toEqual(['PLANNED', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'VERIFIED', 'EXPERIENCED_KEEPER', 'kenny', '2026-11-16', 'AI_RESEARCH_BULK']);
+    expect([at.status, at.taxonId, at.careProfileId, at.reviewStatus, at.reviewerType, at.verifiedBy, at.verifiedAt, at.reviewBasis]).toEqual(['ACTIVE', 'meriones-unguiculatus', 'cp-gerbil-mongolian', 'VERIFIED', 'EXPERIENCED_KEEPER', 'kenny', '2026-11-16', 'AI_RESEARCH_BULK']);
     const t = row(DISK, 'taxa', 'meriones-unguiculatus');
     expect([t.reviewStatus, t.reviewerType, t.verifiedBy, t.verifiedAt, t.reviewBasis]).toEqual(['VERIFIED', 'OFFICIAL_SOURCE', 'kenny', '2026-11-16', 'ROW_CHECKED']);
     expect(t.legal).toMatchObject({ animalProtectionAct6: false, cites: false, designatedWildlifeWhitelist: null });
@@ -405,7 +414,7 @@ describe('저빌 ACTIVE 전 게이트(126 S2 — X01 sand-bath · X02 는 280 �
 
   it('X01: 사료 행 DRAFT(FOOD 미검수) → X01 requirements.food', () => {
     const s = gerbilActive();
-    Object.assign(row(s, 'supplyRequirements', 'req-gerbil-food'), { reviewStatus: 'DRAFT', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null });
+    toDraft(row(s, 'supplyRequirements', 'req-gerbil-food'));
     expect(gerbilX(s, 'X01').map((i) => i.path)).toEqual(['requirements.food']);
   });
 
@@ -612,7 +621,7 @@ describe('L-1 — ACTIVE(노출 후보) 타입은 taxonId 비어 있지 않음(R
 
 describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 차단은 검수(노출 판정·X01·R01)뿐 · 앵무 X01 fail-closed', () => {
   // 위반·승격은 메모리 사본에만. NOW_W1 = 작업일(271) — 308: budget-tips checkedAt 2026-11-22 가 미래(S07)가 되지 않게 11-02→11-22(시드 checkedAt 은 그대로).
-  const NOW_W1 = '2026-11-22';
+  const NOW_W1 = '2026-11-23';
   /**
    * 354b(356 ⑦ 충돌 H): 앵무(PARROT) 자리는 장면 행(햄스터 사진)으로 메우지 않는다 — ACTIVE 앵무는 종 단위 사진 행이 없으면 I06.
    *   이 묶음은 법·검수 게이트를 보는 시험이라, 앵무를 올릴 때 종 자리 3개의 빈 사진 행(SLOT)을 메모리에서 함께 둔다.
@@ -623,49 +632,52 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
       ...(['habitat', 'now-lead', 'spec'] as const).map((use): [string, Rec] => [`ph-${typeId}-${use}`, { use, animalTypeId: typeId }]),
     ];
     for (const [id, scope] of rows) {
+      if ((s.photos as Rec[]).some((p) => p.id === id)) continue; // 356: 디스크에 6종 종 자리 SLOT 행이 생겼다 — 있으면 그대로 쓴다.
       (s.photos as Rec[]).push({ id, scene: '합성 빈 자리', query: id, slot: id, status: 'SLOT', license: null, source: null, sourceUrl: null, author: null, licenseUrl: null, downloadedAt: null, modified: false, scope });
     }
   };
+  /** 356: 바탕 = 디스크(서명·활성화 후). 서명 전 기준(fresh)은 공유 용품(water 등)이 미서명이라 6종 GENERAL_INFO 체인이 X01 로 막힌다. */
   const active = (typeId: string): Required<RawSeed> => {
-    const s = fresh();
+    const s = disk();
     const at = row(s, 'animalTypes', typeId);
     at.status = 'ACTIVE';
     if (at.group === 'PARROT') parrotPhotoSlots(s, typeId);
     return s;
   };
   const exposable = (s: RawSeed, typeId: string): boolean => isAnimalTypeExposable(createCatalog(asSeedBundle(s)), typeId, NOW_W1);
-  /** 로보 ACTIVE(메모리): 디스크는 careProfileId null(271 보안 MED #2 — 드워프 프로필과 분리)이라 R01 을 피하려 메모리에서만 드워프 프로필에 잇는다. */
+  /** 로보 ACTIVE(메모리). 356: 디스크에 로보 전용 프로필(cp-hamster-robo)이 생겨 드워프 프로필에 잇는 메모리 연결은 없앴다. */
   const roboActive = (legal?: Rec): Required<RawSeed> => {
     const s = active('hamster-robo');
-    row(s, 'animalTypes', 'hamster-robo').careProfileId = 'cp-hamster-dwarf';
-    (row(s, 'careProfiles', 'cp-hamster-dwarf').taxonIds as string[]).push('phodopus-roborovskii');
     if (legal) Object.assign(row(s, 'taxa', 'phodopus-roborovskii').legal as Rec, legal);
     return s;
   };
 
-  it('(i) 디스크: 로보는 드워프 프로필과 분리(careProfileId null · cp-hamster-dwarf.taxonIds 에 없음) · 별칭 유지 · legal 정보용 메모 그대로(act6 null·cites false·화이트리스트 null)', () => {
+  it('(i) 디스크(356 활성화 후): 로보 ACTIVE · 전용 프로필 cp-hamster-robo(드워프 프로필과 분리 — cp-hamster-dwarf.taxonIds 에 없음) · 별칭 · legal 정보용 메모 그대로(act6 null·cites false·화이트리스트 null)', () => {
     const s = disk();
     const at = row(s, 'animalTypes', 'hamster-robo');
-    expect([at.status, at.careProfileId, at.aliases]).toEqual(['PLANNED', null, ['로보', '로보로브스키']]);
+    expect([at.status, at.careProfileId, at.aliases]).toEqual(['ACTIVE', 'cp-hamster-robo', ['로보', '로보로브스키', '로보로브스키햄스터', '로보로프스키', '로보로프스키햄스터']]);
     expect(row(s, 'careProfiles', 'cp-hamster-dwarf').taxonIds).toEqual(['phodopus-sungorus', 'phodopus-campbelli']);
+    expect(row(s, 'careProfiles', 'cp-hamster-robo').taxonIds).toEqual(['phodopus-roborovskii']);
     const t = row(s, 'taxa', 'phodopus-roborovskii');
     expect([t.reviewStatus, t.reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
     // 277(271 보류분 적용): 1차 출처 접근일 2026-11-02. 280: legal 은 정보용 메모(지우지 않음) — 공개 조건 아님.
     expect(t.legal).toEqual({ animalProtectionAct6: null, cites: false, designatedWildlifeWhitelist: null, note: null });
     expect((t.source as Rec[]).map((x) => x.accessedAt)).toEqual(Array(5).fill('2026-11-02'));
     expect(t.verifiedBy).toBeNull();
-    // 디스크 그대로 ACTIVE 로 올리면 careProfileId 가 없어 R01(공개 불가) — 데이터 연결 규칙(법 아님).
-    expect(errs(validateSeed(active('hamster-robo'), { now: NOW_W1 }), 'R01').map((i) => `${i.id} ${i.path}`)).toContain('hamster-robo status');
+    // ACTIVE 인데 careProfileId 가 없으면 R01(공개 불가) — 데이터 연결 규칙(법 아님). 메모리에서 끊어 확인.
+    const cut = active('hamster-robo');
+    row(cut, 'animalTypes', 'hamster-robo').careProfileId = null;
+    expect(errs(validateSeed(cut, { now: NOW_W1 }), 'R01').map((i) => `${i.id} ${i.path}`)).toContain('hamster-robo status');
   });
 
-  it('(i) 로보 ACTIVE(메모리 연결): legal 값 무엇이든(디스크 null·드워프 선례값·act6 true/false) ERROR 0 · X02 0 — 타입 미검수라 비노출(검수가 유일한 차단)', () => {
+  it('(i) 로보 ACTIVE: legal 값 무엇이든(디스크 null·드워프 선례값·act6 true/false) ERROR 0 · X02 0 — 노출 여부는 검수 등급(356: GENERAL_INFO 체인)만 정한다', () => {
     const dwarfLegal = { ...(row(fresh(), 'taxa', 'phodopus-sungorus').legal as Rec), note: null };
     for (const p of [undefined, dwarfLegal, { animalProtectionAct6: true, cites: false }, { animalProtectionAct6: false, cites: false }, { animalProtectionAct6: null, cites: null }]) {
       const s = roboActive(p);
       const res = validateSeed(s, { now: NOW_W1 });
       expect([p, res.errors]).toEqual([p, []]);
       expect([p, res.warnings.filter((i) => i.rule === 'X02')]).toEqual([p, []]);
-      expect([p, exposable(s, 'hamster-robo')]).toEqual([p, false]); // AnimalType hamster-robo 미검수(DRAFT·AI_DRAFT)
+      expect([p, exposable(s, 'hamster-robo')]).toEqual([p, true]); // 356: 일반 참고 정보(GENERAL_INFO) 체인 — 법 값과 무관하게 노출(Taxon DRAFT 여도)
     }
     expect(row(fresh(), 'animalTypes', 'hamster-robo').reviewStatus).not.toBe('VERIFIED');
   });
@@ -697,7 +709,7 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
         Object.assign(row(s, 'taxa', taxonId).legal as Rec, p);
         const res = validateSeed(s, { now: NOW_W1 });
         expect([p, res.errors]).toEqual([p, []]);
-        expect([p, exposable(s, typeId)]).toEqual([p, false]); // AnimalType·CareProfile 미검수 — 검수 전 공개 차단
+        expect([p, exposable(s, typeId)]).toEqual([p, true]); // 356: AnimalType·CareProfile 이 GENERAL_INFO 체인 — legal 값과 무관하게 노출(Taxon DRAFT 여도)
       }
       // VERIFIED 경로: V04(출처)를 형식만 채운 합성값. legal 불리언은 null(280: V06 필수 아님).
       const reviewed = active(typeId);
@@ -711,52 +723,36 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
 
   // 356 M10: cp-parrot-small·medium 에 필수 집합이 생겼다 → X01 이 「집합 없음」 대신 빠진 필수 항목(perch·bird-food·water)을 보고.
   //   「집합 없음 → careProfileId」 fail-closed 는 cp-parrot-large(집합 없음)로 계속 지킨다(아래 첫 expect).
-  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + cp-parrot-small 필수 집합(356 M10) 중 bird-cage 만 → X01 빠진 필수 3 · Taxon 미검수여도 X02 0', () => {
+  it('(iii) budgie ACTIVE·노출 가능(디스크 GENERAL_INFO 체인) + cp-parrot-small 필수 집합(356 M10) 중 bird-cage 만 → X01 빠진 필수 3 · Taxon 미검수여도 X02 0', () => {
     expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-large')).toBe(false);
     expect(REQUIRED_ITEMS_BY_PROFILE['cp-parrot-small']).toEqual(['bird-cage', 'perch', 'bird-food', 'water']);
     expect(REQUIRED_ITEMS_BY_PROFILE['cp-parrot-medium']).toEqual(['bird-cage', 'perch', 'bird-food', 'water']);
     const s = active('budgie');
-    const src = structuredClone(row(s, 'animalTypes', 'hamster-golden').source);
-    // 형식만 채우는 합성값(V07·V04 통과용) — 앵무 사실이 아니다. 디스크 시드는 그대로.
-    const at = row(s, 'animalTypes', 'budgie');
-    verify(at, 'EXPERIENCED_KEEPER');
-    at.source = structuredClone(src);
-    const cp = row(s, 'careProfiles', 'cp-parrot-small');
-    verify(cp, 'EXPERIENCED_KEEPER');
-    Object.assign(cp, { facts: structuredClone(row(s, 'careProfiles', 'cp-hamster-dwarf').facts), careNotes: ['합성 시험 문장이다.'], source: structuredClone(src) });
-    const item = row(s, 'supplyItems', 'bird-cage');
-    verify(item, 'EXPERIENCED_KEEPER');
-    item.source = structuredClone(src);
-    const req = structuredClone(row(s, 'supplyRequirements', 'req-dwarf-cage'));
-    Object.assign(req, {
-      id: 'req-synth-bird-cage',
-      careProfileId: 'cp-parrot-small',
-      supplyItemId: 'bird-cage',
-      priority: 'REQUIRED',
-      notNowReason: null,
-      minSpec: { rules: [{ key: 'heightCm', op: 'gte', value: 111, reason: '합성 규칙이다.' }] },
-      recommendedSpec: { rules: [] },
-      source: structuredClone(src),
+    // 356: 디스크에 필수 4행(GENERAL_INFO)이 있다 — 메모리에서 perch·bird-food·water 행(과 그 행을 가리키는 품목 사진 칸)만 빼 「bird-cage 만」 상태를 만든다.
+    const drop = new Set(['perch', 'bird-food', 'water']);
+    s.supplyRequirements = (s.supplyRequirements as Rec[]).filter((r) => !(r.careProfileId === 'cp-parrot-small' && drop.has(r.supplyItemId as string)));
+    s.photos = (s.photos as Rec[]).filter((p) => {
+      const sc = p.scope as Rec | null;
+      return !(sc && sc.careProfileId === 'cp-parrot-small' && drop.has(sc.supplyItemId as string));
     });
-    verify(req, 'EXPERIENCED_KEEPER');
-    (s.supplyRequirements as Rec[]).push(req);
-    // 품목 자리(bird-cage)도 종 단위 빈 행 — 장면 대체 없음(354b). 종 자리 3개는 active() 가 이미 둠.
-    (s.photos as Rec[]).push({ id: 'ph-budgie-bird-cage', scene: '합성 빈 자리', query: 'ph-budgie-bird-cage', slot: 'ph-budgie-bird-cage', status: 'SLOT', license: null, source: null, sourceUrl: null, author: null, licenseUrl: null, downloadedAt: null, modified: false, scope: { use: 'item', animalTypeId: 'budgie', supplyItemId: 'bird-cage' } });
+    expect(row(s, 'supplyRequirements', 'req-parrot-small-bird-cage').priority).toBe('REQUIRED');
     // 앵무 Taxon 은 DRAFT·AI_DRAFT 그대로 — 280 이전엔 X02 도 났다.
     expect(row(s, 'taxa', 'melopsittacus-undulatus').reviewStatus).toBe('DRAFT');
     expect(exposable(s, 'budgie')).toBe(true);
-    const res = validateSeed(s, { now: NOW_W1 });
-    expect(res.errors.map((i) => `${i.rule} ${i.id} ${i.path}`).sort()).toEqual([
+    const res = validateSeed(s, { now: NOW_W1, signatures: DISK_READ.signatures });
+    // 같은 프로필을 쓰는 lovebird-peach(ACTIVE)도 같은 X01 3건이 난다 — 여기서는 budgie 만 본다.
+    expect(res.errors.filter((i) => i.rule === 'X01' && i.id === 'lovebird-peach').length).toBe(3);
+    expect(res.errors.filter((i) => i.id === 'budgie' || i.rule === 'X02').map((i) => `${i.rule} ${i.id} ${i.path}`).sort()).toEqual([
       'X01 budgie requirements.bird-food',
       'X01 budgie requirements.perch',
       'X01 budgie requirements.water',
     ]);
   });
 
-  it('실시드(디스크, 서명 후): 새 타입 3은 PLANNED·DRAFT(서명 대상 밖) → X01 대상 아님(ERROR 0)', () => {
+  it('실시드(디스크, 356 활성화 후): 새 타입 3은 ACTIVE·GENERAL_INFO(서명 대상 밖) → 필수 집합 충족(X01 0 · ERROR 0)', () => {
     const res = validateSeed(disk(), { now: NOW, signatures: DISK_READ.signatures });
     expect(res.errors).toEqual([]);
-    for (const id of ['budgie', 'cockatiel', 'hamster-robo']) expect([id, row(disk(), 'animalTypes', id).status, row(disk(), 'animalTypes', id).reviewStatus]).toEqual([id, 'PLANNED', 'DRAFT']);
+    for (const id of ['budgie', 'cockatiel', 'hamster-robo']) expect([id, row(disk(), 'animalTypes', id).status, row(disk(), 'animalTypes', id).reviewStatus]).toEqual([id, 'ACTIVE', 'GENERAL_INFO']);
     expect(validateSeed(fresh(), { now: NOW_W1 }).errors).toEqual([]);
   });
 });

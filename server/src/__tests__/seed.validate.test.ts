@@ -12,7 +12,7 @@ import { unsignRaw } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03)
+const NOW = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지. // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03)
 
 const loaded = readSeedDirRaw(SEED_DIR);
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후 — 4 패킷 107행 VERIFIED). */
@@ -95,14 +95,18 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
     // 315 총괄 11/22: 팁 5행 summaryCheck null → W-TIP-SC 5 · HEALTH·섭취(bedding) vetReview null → W-TIP-VET 1 (+6 = 25)
     // 354: 빈 사진 칸 수 I07 WARN 1줄(생성 라운드 진척 지표, 0 이 목표) (+1 = 26)
-    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4, 'W-TIP-CAT': 1, 'W-TIP-SC': 5, 'W-TIP-VET': 1, I07: 1 });
-    expect(res.warnings).toHaveLength(26);
+    // 356(6종 GENERAL_INFO 병합, 356c): 새 요구사항 caution 1문장 권장 L03 +31(6 → 37) · W-RULESCOPED 2 → 4(앵무 요구사항 행이 생겨 bird-food.forSize 해소,
+    //   bird-food.coversThisAnimal·bird-bath shortSideCm·depthCm 는 규칙이 아직 참조하지 않음) (+33 = 59)
+    expect(byRule).toEqual({ 'W-RULESCOPED': 4, L03: 43, L05: 4, 'W-TIP-CAT': 1, 'W-TIP-SC': 5, 'W-TIP-VET': 1, I07: 1 });
+    expect(res.warnings).toHaveLength(59);
     expect(res.warnings.filter((i) => i.rule === 'W-TIP-VET').map((i) => i.id)).toEqual(['tip-syrian-bedding-plain-paper']);
     expect(res.warnings.filter((i) => i.rule === 'W-TIP-CAT').map((i) => i.id)).toEqual(['tip-syrian-wheel-check-posture']);
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
     //   271: 앵무 bird-food.forSpecies(ruleScoped) 는 요구사항 행이 없어(사실값 대기) 참조 0 → +1.
     expect(res.warnings.filter((i) => i.rule === 'W-RULESCOPED').map((i) => `${i.id}.${i.path}`).sort()).toEqual([
-      'bird-food.specSchema.forSize',
+      'bird-bath.specSchema.depthCm',
+      'bird-bath.specSchema.shortSideCm',
+      'bird-food.specSchema.coversThisAnimal',
       'playpen.specSchema.floorType',
     ]);
     // S9: req-guineapig-cage caution = Kenny 확정 2문장(2026-10-27) → L03 1건(경고, 문장 그대로).
@@ -113,12 +117,12 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     //   req-dwarf-hideout why '3곳'(v0.2 5-8 서명)은 2026-11-15 총괄 판정(「곳」 = 셈 단위, lint UNIT_RE)으로 L03 해소 → 0건.
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'taxa.json' && i.path === 'legal.note').map((i) => i.id).sort()).toEqual(['cavia-porcellus', 'meriones-unguiculatus', 'mesocricetus-auratus', 'phodopus-campbelli', 'phodopus-sungorus']);
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.id === 'req-dwarf-hideout')).toHaveLength(0);
-    expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(6);
+    expect(res.warnings.filter((i) => i.rule === 'L03' && i.path === 'caution')).toHaveLength(37); // 356: 6종 요구사항 caution +31
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(1);
   });
 
-  it('노출(2026-11-23 드워프·기니피그 활성화 후): 3타입(골든·드워프·기니피그) · 요구사항 42(저울 HEALTH 행은 DRAFT라 제외) · 상품 14(골든 상품 SLOT·DRAFT 0 + 드워프 서명 상품) · 후기 0 · 병원 0', () => {
-    expect(res.summary).toEqual({ types: 3, requirements: 42, products: 14, testimonials: 0, vets: 0 });
+  it('노출(2026-11-23 전 종 활성화 후): 9타입(VERIFIED 타입 4 — 골든·드워프·저빌·기니피그 + GENERAL_INFO 타입 5 — 로보·앵무 4) · 요구사항 114(저울 HEALTH 행은 DRAFT라 제외) · 상품 14 · 후기 0 · 병원 0', () => {
+    expect(res.summary).toEqual({ types: 9, requirements: 114, products: 14, testimonials: 0, vets: 0 });
   });
 
   it('--strict 도 errors 0(노출 0 이 아니라 W-EXPOSURE-ZERO 없음)', () => {
@@ -129,7 +133,7 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
   it('서명 전 기준(4 패킷 미서명, 메모리): 경고 20(W-EXPOSURE-ZERO 1 · 308 W-TIP-CAT 1 포함) · 노출 0 · --strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
     const pre = validateSeed(BASE, { now: NOW });
     expect(pre.errors).toEqual([]);
-    expect(pre.warnings).toHaveLength(27); // 315 W-TIP-SC 5 · W-TIP-VET 1 · 354 I07 1
+    expect(pre.warnings).toHaveLength(60); // 315 W-TIP-SC 5 · W-TIP-VET 1 · 354 I07 1 · 356 L03 +31 · W-RULESCOPED +2
     expect(pre.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO').map((i) => i.id)).toEqual(['hamster-golden']);
     expect(pre.summary).toEqual({ types: 0, requirements: 0, products: 0, testimonials: 0, vets: 0 });
     const strict = validateSeed(BASE, { now: NOW, strict: true });

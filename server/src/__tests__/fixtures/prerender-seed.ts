@@ -88,7 +88,17 @@ export function realSignedTargets(): Map<string, { basis: 'ROW_CHECKED' | 'AI_RE
  *   서명 전 기준(unsignedRealSeed·unsignRaw·writeUnsignedSeedDir 기본)은 서명 당시 상태라 이 타입들을 PLANNED 로 되돌린다
  *   (메모리 — 디스크는 바꾸지 않는다). 디스크가 ACTIVE 가 아니면 픽스처가 낡은 것이므로 throw.
  */
-export const ACTIVATED_AFTER_SIGNING = ['hamster-dwarf', 'guinea-pig'] as const;
+//   356(2026-11-23): 나머지 6종(GENERAL_INFO 등급, 코드 고정)도 같은 날 ACTIVE — 서명 당시엔 PLANNED 였다.
+export const ACTIVATED_AFTER_SIGNING = [
+  'hamster-dwarf',
+  'guinea-pig',
+  'hamster-robo',
+  'gerbil-mongolian',
+  'budgie',
+  'cockatiel',
+  'lovebird-peach',
+  'sun-conure',
+] as const;
 export const ACTIVATED_AT = '2026-11-23';
 export function preActivation(rows: Row[]): Row[] {
   const out = clone(rows);
@@ -187,7 +197,7 @@ export const V = { reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER',
  * 노출 기준일(asOf) — 승격 픽스처를 쓰는 모든 테스트는 이 고정값을 프리렌더 --now·buildSite asOf·computeExposure 에 넣는다.
  *   실시계(io.today·localToday)와 결합 금지(F14 시한폭탄: V.verifiedAt + 180일 = 2027-03-29 이후 강등).
  */
-export const FIXTURE_AS_OF = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(REAL_SIGNED_AT, 2026-11-16) 이상 — 디스크 verifiedAt 이 S07 미래 날짜가 되지 않게(옛 값 2026-11-03 = 출처 접근일 최댓값 2026-11-02 이상, 277). V.verifiedAt + 180 = 2027-03-29 전이라 강등 경계 의미 불변.
+export const FIXTURE_AS_OF = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — 디스크 draftedAt 이 S07 미래 날짜가 되지 않게. 팁 references checkedAt(2026-11-22) 이상 · 실서명일(REAL_SIGNED_AT, 2026-11-16) 이상 — 디스크 verifiedAt 이 S07 미래 날짜가 되지 않게(옛 값 2026-11-03 = 출처 접근일 최댓값 2026-11-02 이상, 277). V.verifiedAt + 180 = 2027-03-29 전이라 강등 경계 의미 불변.
 /** V.verifiedAt + 180일(마지막 노출일) / + 181일(강등 첫날). */
 export const FIXTURE_LAST_FRESH = '2027-03-29';
 export const FIXTURE_FIRST_STALE = '2027-03-30';
@@ -299,7 +309,7 @@ export function demoteUnpromotedRequired(seed: SeedBundle, careProfileId: string
  *   실시계 결합 금지(F14): 2026-10-24 + 180일 = 2027-04-22 까지 노출, 그 뒤 강등.
  */
 export const DWARF_SIGNED_AT = '2026-10-24';
-export const DWARF_PREVIEW_AS_OF = '2026-11-22'; // 팁 checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03). DWARF_SIGNED_AT + 180 = 2027-04-22 전이라 노출 유지.
+export const DWARF_PREVIEW_AS_OF = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상(S07). 팁 checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03). DWARF_SIGNED_AT + 180 = 2027-04-22 전이라 노출 유지.
 
 /**
  * 드워프 패킷 전 항목 ☑(A·B·D + K1 행별 확인) + C 서명(가짜 확인표 결과 — 테스트 전용, 날짜 기본 DWARF_SIGNED_AT).

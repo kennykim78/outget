@@ -17,7 +17,7 @@ import { SEED_FILES, type RawSeed, type Rec, type SeedKey } from '../seed/common
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-22';
+const NOW = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지.
 const DISK: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 const BASE: RawSeed = unsignRaw(DISK);
 const DRAFTED = '2026-11-20';
@@ -40,7 +40,7 @@ const warns = (r: ValidateResult, rule: string): ValidateResult['warnings'] => r
 const at = (r: ValidateResult, rule: string, key: SeedKey, id: string, field?: string) =>
   r.errors.filter((i) => i.rule === rule && i.file === SEED_FILES[key] && i.id === id && (field === undefined || i.path === field));
 
-describe('디스크 시드 — GENERAL_INFO 0행: 새 규칙 무발화', () => {
+describe('디스크 시드 — 356 6종 GENERAL_INFO 착지 후: 새 규칙 위반 0', () => {
   it('errors 0 · V12·W-GENERAL-STALE 0', () => {
     const res = run(disk());
     expect(res.errors).toEqual([]);
@@ -117,6 +117,7 @@ describe('M7 V12 — 거부', () => {
   it('FOOD 인데 crossCheck 없음 → V12', () => {
     const s = fresh();
     gi(row(s, 'supplyRequirements', 'req-gerbil-food'));
+    delete row(s, 'supplyRequirements', 'req-gerbil-food').crossCheck; // 356: 디스크 행엔 crossCheck 가 있다
     expect(at(run(s), 'V12', 'supplyRequirements', 'req-gerbil-food', 'crossCheck').length).toBe(1);
   });
 
@@ -155,7 +156,7 @@ describe('M7 V12 — 거부', () => {
 
   it('draftedAt·crossCheck.checkedAt 미래 → S07', () => {
     const s = fresh();
-    gi(row(s, 'supplyItems', 'bird-cage'), { draftedAt: '2026-11-23' });
+    gi(row(s, 'supplyItems', 'bird-cage'), { draftedAt: '2026-11-24' }); // NOW 다음 날
     gi(row(s, 'supplyRequirements', 'req-gerbil-food'), { crossCheck: { ...CC, checkedAt: '2026-11-30' } });
     const res = run(s);
     expect(at(res, 'S07', 'supplyItems', 'bird-cage', 'draftedAt').length).toBe(1);
@@ -200,12 +201,16 @@ describe('M7 V12 — 거부', () => {
 describe('M8 V07 — GENERAL_INFO CareProfile 도 facts 5키·careNotes', () => {
   it('cp-parrot-small 빈 facts·careNotes → V07 6건', () => {
     const s = fresh();
-    gi(row(s, 'careProfiles', 'cp-parrot-small'));
+    gi(row(s, 'careProfiles', 'cp-parrot-small'), { facts: {}, careNotes: [] }); // 356: 디스크엔 facts·careNotes 가 채워져 있다 — 메모리에서 비운다
     const v = at(run(s), 'V07', 'careProfiles', 'cp-parrot-small');
     expect(v.length).toBe(6);
   });
   it('DRAFT CareProfile 은 대상 아님(기존 동작)', () => {
-    expect(at(run(fresh()), 'V07', 'careProfiles', 'cp-parrot-small')).toEqual([]);
+    const s = fresh();
+    Object.assign(row(s, 'careProfiles', 'cp-parrot-small'), { reviewStatus: 'DRAFT', facts: {}, careNotes: [] });
+    delete row(s, 'careProfiles', 'cp-parrot-small').draftedAt;
+    delete row(s, 'careProfiles', 'cp-parrot-small').crossCheck;
+    expect(at(run(s), 'V07', 'careProfiles', 'cp-parrot-small')).toEqual([]);
   });
 });
 
@@ -218,17 +223,15 @@ describe('M10 X01 — 6종 필수 집합(코드 고정)', () => {
   });
 
   it('사랑앵무 ACTIVE·GENERAL_INFO 체인에 bird-cage 요구사항만 → X01(perch·bird-food·water 빠짐)', () => {
-    const s = fresh();
-    gi(row(s, 'animalTypes', 'budgie'), { status: 'ACTIVE' });
-    gi(row(s, 'careProfiles', 'cp-parrot-small'), {
-      facts: { social: 'X', activity: 'X', adultLengthCm: 1, tempC: [1, 2], lifespanYears: [1, 2] },
-      careNotes: ['자리표시'],
+    // 356: 디스크에 필수 4행이 있다 — 메모리에서 perch·bird-food·water 행(과 그 행 품목 사진 칸)만 뺀다.
+    const s = disk();
+    expect(row(s, 'animalTypes', 'budgie').status).toBe('ACTIVE');
+    const drop = new Set(['perch', 'bird-food', 'water']);
+    s.supplyRequirements = (s.supplyRequirements as Rec[]).filter((r) => !(r.careProfileId === 'cp-parrot-small' && drop.has(r.supplyItemId as string)));
+    s.photos = (s.photos as Rec[]).filter((p) => {
+      const sc = p.scope as Rec | null;
+      return !(sc && sc.careProfileId === 'cp-parrot-small' && drop.has(sc.supplyItemId as string));
     });
-    gi(row(s, 'supplyItems', 'bird-cage'));
-    const src = structuredClone(row(s, 'supplyRequirements', 'req-gerbil-cage'));
-    s.supplyRequirements.push(
-      gi({ ...src, id: 'req-fixture-parrot-cage', careProfileId: 'cp-parrot-small', supplyItemId: 'bird-cage', minSpec: { rules: [] }, recommendedSpec: { rules: [] } }),
-    );
     const res = run(s);
     const x = errs(res, 'X01').filter((i) => i.id === 'budgie');
     expect(x.map((i) => i.path).sort()).toEqual(['requirements.bird-food', 'requirements.perch', 'requirements.water']);
