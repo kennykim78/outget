@@ -94,13 +94,15 @@ describe('spa — 실시드 dist(manifest 있음)', () => {
     expect(r.headers['content-security-policy']).toBe(SPA_CSP);
   });
 
-  it('/hamster/golden → 200(2026-11-16 서명 후 골든 노출) · /hamster/dwarf·/gerbil·/guinea-pig → 404(PLANNED) + 404.html 본문', async () => {
-    const g = await request(app).get('/hamster/golden');
-    expect(g.status).toBe(200);
-    expect(g.text).toContain('data-ws-prerendered="1"');
-    expect(g.text).not.toContain('data-ws-route="NOT_FOUND"');
-    expect(g.headers['content-security-policy']).toBe(SPA_CSP);
-    for (const p of ['/hamster/dwarf', '/gerbil', '/guinea-pig']) {
+  it('/hamster/golden·/hamster/dwarf·/guinea-pig → 200(2026-11-16 서명 + 2026-11-23 활성화) · /gerbil → 404(PLANNED) + 404.html 본문', async () => {
+    for (const p of ['/hamster/golden', '/hamster/dwarf', '/guinea-pig']) {
+      const g = await request(app).get(p);
+      expect([p, g.status]).toEqual([p, 200]);
+      expect(g.text).toContain('data-ws-prerendered="1"');
+      expect(g.text).not.toContain('data-ws-route="NOT_FOUND"');
+      expect(g.headers['content-security-policy']).toBe(SPA_CSP);
+    }
+    for (const p of ['/gerbil']) {
       const r = await request(app).get(p);
       expect([p, r.status]).toEqual([p, 404]);
       expect(r.text).toContain('data-ws-route="NOT_FOUND"');

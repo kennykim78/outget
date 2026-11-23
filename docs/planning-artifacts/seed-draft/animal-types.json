@@ -52,7 +52,7 @@
     "slug": "hamster/dwarf",
     "group": "SMALL_MAMMAL",
     "displayName": "드워프햄스터",
-    "status": "PLANNED",
+    "status": "ACTIVE",
     "aliases": [
       "정글리안",
       "윈터화이트",
@@ -152,7 +152,7 @@
     "slug": "guinea-pig",
     "group": "SMALL_MAMMAL",
     "displayName": "기니피그",
-    "status": "PLANNED",
+    "status": "ACTIVE",
     "aliases": [
       "기니",
       "모르모트",

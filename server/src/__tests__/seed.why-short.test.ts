@@ -3,7 +3,7 @@
 //   실시드는 디스크 그대로 읽고, 가짜 whyShort 는 메모리 사본에만 주입한다(실시드 파일 불변).
 //   실시드 whyShort 17건 = Kenny 2026-11-15 채택분 14(ORDERS §14:0x 결정 2) + req-dwarf-hideout(총괄 14:1x 「곳」 셈 단위 판정 뒤 입력)
 //   + req-dwarf-saucer(NOT_NOW, 재서술)·req-gerbil-thermo(원문 발췌)(Kenny 결정 뒤 PM 입력). 2026-11-16 확인표 5종 서명으로 17행 전부 VERIFIED —
-//   노출은 ACTIVE 타입(골든)의 2행뿐(드워프·저빌·기니피그는 PLANNED). 주입 시험의 바탕은 서명 전 기준(unsignRaw, 메모리).
+//   노출은 ACTIVE 타입(골든·드워프·기니피그 — 2026-11-23 활성화)의 12행(저빌은 PLANNED). 주입 시험의 바탕은 서명 전 기준(unsignRaw, 메모리 — 활성화 전).
 import { describe, expect, it } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,7 +78,7 @@ describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 �
       for (const rule of W_RULES) expect([...of(res, rule), ...of(res, rule, 'warnings')]).toEqual([]);
     }
   });
-  it('17행 전부 2026-11-16 서명(VERIFIED·kenny·패킷 basis, 재서술은 ROW_CHECKED) — 공개 산출물엔 노출 타입(골든) 2행 값만, PLANNED 종(드워프·저빌·기니피그) 행 값 0(원문 발췌가 공개 용품 설명과 같은 2행 제외)', () => {
+  it('17행 전부 2026-11-16 서명(VERIFIED·kenny·패킷 basis, 재서술은 ROW_CHECKED) — 공개 산출물엔 노출 타입(골든·드워프·기니피그, 2026-11-23 활성화) 12행 값만, PLANNED 종(저빌) 행 값 0(원문 발췌가 공개 용품 설명과 같은 행 제외)', () => {
     const targets = realSignedTargets();
     for (const id of ADOPTED) {
       const t = targets.get(`supply-requirements.json#${id}`);
@@ -86,20 +86,22 @@ describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 �
       expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: t?.reviewerType, verifiedBy: 'kenny', verifiedAt: REAL_SIGNED_AT, reviewBasis: t?.basis });
     }
     const b = buildSite(realSeed(), baseOptions(REAL_AS_OF));
-    const golden = ['req-syrian-wheel', 'req-syrian-food-bowl'];
+    const EXPOSED_PROFILES = ['cp-hamster-syrian', 'cp-hamster-dwarf', 'cp-guineapig'];
+    const shown = ADOPTED.filter((id) => EXPOSED_PROFILES.includes(String(row(BASE, 'supplyRequirements', id).careProfileId)));
+    expect(shown).toHaveLength(12); // 골든 2 · 드워프 9 · 기니피그 1
     const all = [...b.files.values()].join('\n');
-    for (const id of golden) expect([id, all.includes(row(BASE, 'supplyRequirements', id).whyShort as string)]).toEqual([id, true]);
-    // 공개 카탈로그: whyShort 를 가진 요구사항 = 노출 타입(골든) 2행뿐.
+    for (const id of shown) expect([id, all.includes(row(BASE, 'supplyRequirements', id).whyShort as string)]).toEqual([id, true]);
+    // 공개 카탈로그: whyShort 를 가진 요구사항 = 노출 타입 12행뿐, 요구사항은 노출 타입 프로필만.
     const catReqs = b.catalog.supplyRequirements as unknown as Rec[];
-    expect(catReqs.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id).sort()).toEqual([...golden].sort());
-    expect(catReqs.every((r) => String(r.careProfileId) === 'cp-hamster-syrian')).toBe(true);
-    // 나머지 15행 값: 원문 발췌라 같은 문장이 동물 무관 SupplyItem 설명(골든 노출로 공개)에 들어 있는 행만 산출물에 문자열로 보인다 —
+    expect(catReqs.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id).sort()).toEqual([...shown].sort());
+    expect(catReqs.every((r) => EXPOSED_PROFILES.includes(String(r.careProfileId)))).toBe(true);
+    // 나머지(저빌 5행) 값: 원문 발췌라 같은 문장이 동물 무관 SupplyItem 설명(노출로 공개)에 들어 있는 행만 산출물에 문자열로 보인다 —
     //   그 행은 출처가 정확히 공개된 용품 설명임을 단언하고, 그 밖의 행 값은 어떤 산출물에도 없어야 한다.
     const itemDescs = (b.catalog.supplyItems as unknown as Rec[]).map((i) => String(i.description ?? ''));
-    const hidden = ADOPTED.filter((id) => !golden.includes(id));
-    expect(hidden).toHaveLength(15);
+    const hidden = ADOPTED.filter((id) => !shown.includes(id));
+    expect(hidden).toHaveLength(5);
     const viaItem = hidden.filter((id) => itemDescs.some((d) => d.includes(row(BASE, 'supplyRequirements', id).whyShort as string)));
-    expect(viaItem).toEqual(['req-dwarf-carrier', 'req-dwarf-thermo']);
+    expect(viaItem).toEqual([]); // 저빌 5행 중 공개 용품 설명과 같은 원문 발췌 없음(옛 드워프 carrier·thermo 2행은 이제 노출 타입 행)
     for (const id of viaItem) expect([id, row(BASE, 'supplyRequirements', id).reviewBasis]).toEqual([id, 'AI_RESEARCH_BULK']); // 원문 발췌(일괄 허용)
     for (const id of hidden.filter((x) => !viaItem.includes(x))) {
       const v = row(BASE, 'supplyRequirements', id).whyShort as string;

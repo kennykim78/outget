@@ -116,8 +116,8 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     expect(res.warnings.filter((i) => i.rule === 'L03' && i.file === 'setup-bundles.json' && i.path === 'note')).toHaveLength(1);
   });
 
-  it('노출: 골든햄스터 1타입 · 요구사항 13(cp-hamster-syrian VERIFIED 13 — 저울 req-syrian-scale(HEALTH)만 DRAFT) · 상품 0(골든 상품 SLOT·DRAFT, 드워프 상품은 PLANNED 타입) · 후기 0 · 병원 0', () => {
-    expect(res.summary).toEqual({ types: 1, requirements: 13, products: 0, testimonials: 0, vets: 0 });
+  it('노출(2026-11-23 드워프·기니피그 활성화 후): 3타입(골든·드워프·기니피그) · 요구사항 42(저울 HEALTH 행은 DRAFT라 제외) · 상품 14(골든 상품 SLOT·DRAFT 0 + 드워프 서명 상품) · 후기 0 · 병원 0', () => {
+    expect(res.summary).toEqual({ types: 3, requirements: 42, products: 14, testimonials: 0, vets: 0 });
   });
 
   it('--strict 도 errors 0(노출 0 이 아니라 W-EXPOSURE-ZERO 없음)', () => {

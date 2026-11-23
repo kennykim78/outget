@@ -44,11 +44,11 @@ const dwarfPreviewFoodDraft = (): Required<RawSeed> => {
 };
 
 describe('실시드 — 새 규칙 오탐 0', () => {
-  it('server/seed(서명 후, 매니페스트 포함): X01·V08·R01 ERROR 0 · X02 없음(280 제거) — 골든 ACTIVE 노출(필수 6 VERIFIED, 사료 VET_PUBLISHED_SOURCE·국내 출처), 드워프·저빌·기니피그 PLANNED', () => {
+  it('server/seed(서명 후, 매니페스트 포함): X01·V08·R01 ERROR 0 · X02 없음(280 제거) — 골든 ACTIVE 노출(필수 6 VERIFIED, 사료 VET_PUBLISHED_SOURCE·국내 출처), 2026-11-23 활성화로 드워프·기니피그도 ACTIVE 노출(X01 0), 저빌 PLANNED', () => {
     const res = validateSeed(disk(), { now: NOW, signatures: DISK_READ.signatures });
     expect(res.errors).toEqual([]);
     for (const rule of ['X01', 'X02', 'V08', 'R01']) expect(errs(res, rule)).toEqual([]);
-    expect(res.summary.types).toBe(1);
+    expect(res.summary.types).toBe(3);
   });
   it('서명 전 기준(메모리): 같은 규칙 ERROR 0 (골든 ACTIVE 비노출)', () => {
     const res = validateSeed(fresh(), { now: NOW });

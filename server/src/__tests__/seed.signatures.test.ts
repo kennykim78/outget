@@ -64,10 +64,11 @@ afterAll(() => {
   for (const d of temps) rmSync(d, { recursive: true, force: true });
 });
 /** 서명 전 기준 시드 디렉터리 사본(4 패킷 미서명·매니페스트 []) — 확인표 적용 round-trip 의 출발점. */
-function unsignedCopy(src: string): string {
+/** 서명 전 기준 사본(기본: 활성화 전 — preActivation). keepActivation: 디스크 status 그대로(「재현 = 디스크 바이트」 전용). */
+function unsignedCopy(src: string, opts: { keepActivation?: boolean } = {}): string {
   const dir = mkdtempSync(join(tmpdir(), 'withsmall-sigu-'));
   temps.push(dir);
-  return writeUnsignedSeedDir(dir, src);
+  return writeUnsignedSeedDir(dir, src, opts);
 }
 async function validateCli(dir: string): Promise<{ code: number; out: string[] }> {
   const out: string[] = [];
@@ -183,8 +184,9 @@ describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매�
     for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale', 'req-gerbil-food']) expect(rest.map((r) => r.id)).toContain(id);
   });
   it('재현: 서명 전 기준 사본 + 실서명 결과 4개(--stage review 4회 → --stage final 4회) = 디스크 바이트 동일, review 단계는 NEEDS_REVIEW 107·매니페스트 []·validate 0', async () => {
-    const seed = unsignedCopy(SEED_DIR);
-    const draft = unsignedCopy(DRAFT_DIR);
+    // 2026-11-23 활성화(status 만)는 apply 스크립트가 건드리지 않는 키라 서명과 순서 무관 — 디스크 바이트 재현은 활성화 상태 그대로 둔다.
+    const seed = unsignedCopy(SEED_DIR, { keepActivation: true });
+    const draft = unsignedCopy(DRAFT_DIR, { keepActivation: true });
     const apply = (stage: 'review' | 'final'): void => {
       for (const n of REAL_PACKETS) {
         const r = applyCli(['--packet', realPacketPath(n), '--result', signedResult(n), '--seed', seed, '--draft', draft, '--stage', stage, '--now', REAL_SIGNED_AT]);

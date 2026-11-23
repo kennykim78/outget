@@ -204,17 +204,18 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
     expect(fam.html).toContain('<title>햄스터');
   });
 
-  it('2) PLANNED 드워프: 이름·별칭·한 줄 소개가 HTML·ws-data 에 0 — R7-B 시드 행은 VERIFIED(메모리 서명)여도 PLANNED(게이트 G 전)라 비노출', () => {
-    // 디스크도 2026-11-16 확인표 서명으로 VERIFIED·PLANNED — 서명된 상태(메모리 dwarfSigned·디스크 realSeed)에서도 PLANNED 면 0 임을 고정.
+  it('2) PLANNED 드워프: 이름·별칭·한 줄 소개가 HTML·ws-data 에 0 — R7-B 시드 행은 VERIFIED(메모리 서명)여도 PLANNED 면 비노출', () => {
+    // 메모리 서명(dwarfSigned — 활성화 전 기준)은 VERIFIED·PLANNED: 서명돼도 PLANNED 면 0 임을 고정.
+    // 디스크는 2026-11-23 활성화로 VERIFIED·ACTIVE → /hamster 에 드워프 카드가 나온다(검수자 이름 kenny 는 여전히 0).
     const signed = dwarfSigned();
     const row = signed.animalTypes.find((t) => t.id === 'hamster-dwarf');
     expect(row?.status).toBe('PLANNED');
     expect(row?.reviewStatus).toBe('VERIFIED');
     expect(row?.reviewerType).toBe('EXPERIENCED_KEEPER');
     const disk = realSeed().animalTypes.find((t) => t.id === 'hamster-dwarf');
-    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType]).toEqual(['PLANNED', 'VERIFIED', 'EXPERIENCED_KEEPER']);
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType]).toEqual(['ACTIVE', 'VERIFIED', 'EXPERIENCED_KEEPER']);
     const famSigned = pageAt(build(promotedTwo({ base: signed })), '/hamster');
-    const famDisk = pageAt(build(realSeed()), '/hamster'); // 디스크 실시드(골든만 ACTIVE)
+    const famDisk = pageAt(build(realSeed()), '/hamster'); // 디스크 실시드(골든·드워프 ACTIVE)
     const ws = JSON.stringify(wsDataOf(famSigned.html));
     const wsDisk = JSON.stringify(wsDataOf(famDisk.html));
     expect(fam.html.length).toBeGreaterThan(0);
@@ -222,9 +223,10 @@ describe('G3 그룹 페이지 /hamster (56)', () => {
       expect(famSigned.html, w).not.toContain(w);
       expect(fam.html, w).not.toContain(w);
       expect(ws, w).not.toContain(w);
-      expect(famDisk.html, w).not.toContain(w);
-      expect(wsDisk, w).not.toContain(w);
     }
+    expect(famDisk.html).toContain('hamster/dwarf');
+    expect(famDisk.html).not.toContain('kenny');
+    expect(wsDisk).not.toContain('kenny');
   });
 
   it('3) 두 타입 = 카드 2개 시드 순, 브레드크럼 JSON-LD 에 그룹명 "햄스터"', () => {

@@ -164,10 +164,10 @@ describe('R7-B 검수 메타 — 디스크는 2026-11-16 Kenny 확인표 5종 �
       expect([id, byId.get(id)?.reviewStatus, byId.get(id)?.reviewerType]).toEqual([id, 'DRAFT', 'AI_DRAFT']);
     }
   });
-  it('드워프 AnimalType 은 서명돼도 PLANNED(게이트 G 전) — 메모리 서명·디스크(2026-11-16 서명) 둘 다 VERIFIED·PLANNED', () => {
+  it('드워프 AnimalType 서명은 status 를 바꾸지 않는다 — 메모리 서명(활성화 전 기준) VERIFIED·PLANNED, 디스크(2026-11-16 서명 + 2026-11-23 활성화) VERIFIED·ACTIVE', () => {
     const at = dwarfSigned().animalTypes.find((x) => x.id === D);
     expect([at?.status, at?.reviewStatus]).toEqual(['PLANNED', 'VERIFIED']);
     const disk = seed.animalTypes.find((x) => x.id === D);
-    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType, disk?.verifiedAt]).toEqual(['PLANNED', 'VERIFIED', 'EXPERIENCED_KEEPER', REAL_SIGNED_AT]);
+    expect([disk?.status, disk?.reviewStatus, disk?.reviewerType, disk?.verifiedAt]).toEqual(['ACTIVE', 'VERIFIED', 'EXPERIENCED_KEEPER', REAL_SIGNED_AT]);
   });
 });
