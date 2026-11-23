@@ -709,9 +709,12 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     });
   }
 
-  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + X01 집합 없는 cp-parrot-small → X01 careProfileId 만(fail-closed) · Taxon 미검수여도 X02 0', () => {
-    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-small')).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-medium')).toBe(false);
+  // 356 M10: cp-parrot-small·medium 에 필수 집합이 생겼다 → X01 이 「집합 없음」 대신 빠진 필수 항목(perch·bird-food·water)을 보고.
+  //   「집합 없음 → careProfileId」 fail-closed 는 cp-parrot-large(집합 없음)로 계속 지킨다(아래 첫 expect).
+  it('(iii) budgie ACTIVE·노출 가능(합성 승격) + cp-parrot-small 필수 집합(356 M10) 중 bird-cage 만 → X01 빠진 필수 3 · Taxon 미검수여도 X02 0', () => {
+    expect(Object.prototype.hasOwnProperty.call(REQUIRED_ITEMS_BY_PROFILE, 'cp-parrot-large')).toBe(false);
+    expect(REQUIRED_ITEMS_BY_PROFILE['cp-parrot-small']).toEqual(['bird-cage', 'perch', 'bird-food', 'water']);
+    expect(REQUIRED_ITEMS_BY_PROFILE['cp-parrot-medium']).toEqual(['bird-cage', 'perch', 'bird-food', 'water']);
     const s = active('budgie');
     const src = structuredClone(row(s, 'animalTypes', 'hamster-golden').source);
     // 형식만 채우는 합성값(V07·V04 통과용) — 앵무 사실이 아니다. 디스크 시드는 그대로.
@@ -743,7 +746,11 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     expect(row(s, 'taxa', 'melopsittacus-undulatus').reviewStatus).toBe('DRAFT');
     expect(exposable(s, 'budgie')).toBe(true);
     const res = validateSeed(s, { now: NOW_W1 });
-    expect(res.errors.map((i) => `${i.rule} ${i.id} ${i.path}`)).toEqual(['X01 budgie careProfileId']);
+    expect(res.errors.map((i) => `${i.rule} ${i.id} ${i.path}`).sort()).toEqual([
+      'X01 budgie requirements.bird-food',
+      'X01 budgie requirements.perch',
+      'X01 budgie requirements.water',
+    ]);
   });
 
   it('실시드(디스크, 서명 후): 새 타입 3은 PLANNED·DRAFT(서명 대상 밖) → X01 대상 아님(ERROR 0)', () => {

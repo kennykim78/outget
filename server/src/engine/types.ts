@@ -121,6 +121,20 @@ export interface ContentMeta {
   reviewBasis?: 'ROW_CHECKED' | 'AI_RESEARCH_BULK' | null;
   contentKind: ContentKind;
   source: SourceRef[];
+  /**
+   * 356 GENERAL_INFO 전용(engine/general-info.ts isGeneralInfoMeta): 초안 작성일 YYYY-MM-DD — 노출은 0~180일.
+   *   GENERAL_INFO 가 아닌 행은 생략·null(validate V12).
+   */
+  draftedAt?: string | null;
+  /** 356 GENERAL_INFO ∧ FOOD·HEALTH 필수: 위험 수치 교차 확인 기록(그 밖은 생략·null). */
+  crossCheck?: CrossCheck | null;
+}
+
+/** 356: 교차 확인 기록 — 키 3개 정확히. */
+export interface CrossCheck {
+  tool: 'CODEX_DISCUSS';
+  checkedAt: string;
+  result: 'AGREE' | 'REVISED';
 }
 
 // ── careOverrides(A-11) ───────────────────────────────────────

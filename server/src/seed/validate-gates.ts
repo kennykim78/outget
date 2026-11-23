@@ -26,6 +26,11 @@ export const REQUIRED_ITEMS_BY_PROFILE: Readonly<Record<string, readonly string[
   'cp-guineapig': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'hay']),
   // 몽골리안저빌(126 S2, 2026-10-27): 쳇바퀴는 권장(RECOMMENDED — 104 T1·R2 '선택적 제공')이라 넣지 않는다 · 모래 목욕(sand-bath)이 필수.
   'cp-gerbil-mongolian': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'sand-bath']),
+  // 356 M10(6종 GENERAL_INFO): 로보는 드워프 모델 그대로. 앵무(small·medium)는 새장·횃대·사료·물 최소 4 — 시드 병합 때
+  //   요구사항 행의 supplyItemId 와 맞춰 본다(물은 기존 'water' 용품 공유 가정; 다르면 이 집합을 고치고 결정 행을 남긴다).
+  'cp-hamster-robo': Object.freeze(['cage', 'food', 'water', 'bedding', 'hideout', 'wheel']),
+  'cp-parrot-small': Object.freeze(['bird-cage', 'perch', 'bird-food', 'water']),
+  'cp-parrot-medium': Object.freeze(['bird-cage', 'perch', 'bird-food', 'water']),
 });
 
 function requiredItemsFor(careProfileId: string): readonly string[] | null {

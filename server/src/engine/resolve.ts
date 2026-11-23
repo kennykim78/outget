@@ -54,6 +54,9 @@ function meta(m: ContentMeta): ContentMeta {
     verifiedAt: m.verifiedAt,
     contentKind: m.contentKind,
     source: Array.isArray(m.source) ? m.source.map((s) => ({ ...s })) : [],
+    // 356: GENERAL_INFO 체인 판정(exposure okChainMeta)이 읽는다 — 없으면 키를 만들지 않는다(기존 산출물 바이트 불변).
+    ...(m.draftedAt !== undefined ? { draftedAt: m.draftedAt } : {}),
+    ...(m.crossCheck !== undefined ? { crossCheck: m.crossCheck === null ? null : { ...m.crossCheck } } : {}),
   };
 }
 

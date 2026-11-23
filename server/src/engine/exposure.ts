@@ -4,11 +4,14 @@
 //   contentKind 별 최소 등급(MIN_GRADE)은 validator 에만 있다(D15).
 //   M-1(R4 D5): 검수 나이 — 모든 노출 함수는 필수 asOf(YYYY-MM-DD)를 받고, 체인의 모든 ContentMeta 에
 //   isVerified ∧ isFresh(verifiedAt + STALE_DAYS ≥ asOf)를 요구한다. 시계를 읽지 않는다(호출자가 기준일을 넣는다).
+//   356 예외 2(Kenny 2026-11-23): 코드 고정 6종(general-info.ts)의 체인 메타 네 개(type·requirement·item·careProfile)는
+//   isGeneralInfoMeta 로도 통과(okChainMeta). 상품·구성안·호환·Taxon·후기 자기 메타는 VERIFIED 만(okMeta 그대로).
 import { STALE_DAYS, TIP_HEALTH_HAZARDS, isTipHazard, isoDayNumber, reviewerRank, type VetStatus } from './domain.js';
 import { listResolvedRequirements, resolveRequirement } from './resolve.js';
 import { checkAnimalMinSpec } from './spec-check.js';
 import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
 import { PHOTO_AI_LICENSE, PHOTO_ASSET_RE, isAiPhotoRecordOk } from './photo-ai.js';
+import { generalInfoOkAt, isGeneralInfoTypeId } from './general-info.js';
 import type {
   BudgetTipRec,
   CompatibilityRuleRec,
@@ -56,9 +59,17 @@ export function isFresh(m: Pick<ContentMeta, 'verifiedAt'>, asOf: string): boole
   return freshAt(m, asOfDay(asOf));
 }
 
-/** 노출 가능한 검수 기록: isVerified ∧ isFresh. */
+/** 노출 가능한 검수 기록: isVerified ∧ isFresh. 상품·구성안·호환·Taxon 은 이것만(356 M5 — GENERAL_INFO 불가). */
 function okMeta(m: Pick<ContentMeta, 'reviewStatus' | 'reviewerType' | 'verifiedAt'>, day: number): boolean {
   return isVerified(m) && freshAt(m, day);
+}
+
+/**
+ * 356 M3~M4: 체인 메타(AnimalType·SupplyRequirement·SupplyItem·CareProfile) 노출 판정 — okMeta ∨
+ *   (체인의 animalTypeId 가 코드 고정 6종 ∧ isGeneralInfoMeta). 6종 밖 타입의 체인에 GENERAL_INFO 행(공유 용품 등)이 끼면 그 체인은 비노출.
+ */
+function okChainMeta(m: ContentMeta, animalTypeId: string, day: number): boolean {
+  return okMeta(m, day) || (isGeneralInfoTypeId(animalTypeId) && generalInfoOkAt(m, day));
 }
 
 /**
@@ -81,10 +92,10 @@ function requirementOk(cat: EngineCatalog, r: ResolvedRequirement, day: number):
   const at = cat.animalTypes.get(r.animalTypeId);
   if (!at || at.status !== 'ACTIVE') return false;
   return (
-    okMeta(r.review.animalType, day) &&
-    okMeta(r.review.requirement, day) &&
-    okMeta(r.review.item, day) &&
-    okMeta(r.review.careProfile, day)
+    okChainMeta(r.review.animalType, at.id, day) &&
+    okChainMeta(r.review.requirement, at.id, day) &&
+    okChainMeta(r.review.item, at.id, day) &&
+    okChainMeta(r.review.careProfile, at.id, day)
   );
 }
 
@@ -95,9 +106,9 @@ export function isRequirementExposable(cat: EngineCatalog, r: ResolvedRequiremen
 
 function animalTypeOk(cat: EngineCatalog, animalTypeId: string, day: number): boolean {
   const at = cat.animalTypes.get(animalTypeId);
-  if (!at || at.status !== 'ACTIVE' || !okMeta(at, day) || !at.careProfileId) return false;
+  if (!at || at.status !== 'ACTIVE' || !okChainMeta(at, at.id, day) || !at.careProfileId) return false;
   const profile = cat.careProfiles.get(at.careProfileId);
-  if (!profile || !okMeta(profile, day)) return false;
+  if (!profile || !okChainMeta(profile, at.id, day)) return false;
   return listResolvedRequirements(cat, at.id).some((r) => requirementOk(cat, r, day));
 }
 

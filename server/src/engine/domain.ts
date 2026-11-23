@@ -19,7 +19,9 @@ export const TAXON_RANKS = ['SPECIES', 'GROUP'] as const;
 export type TaxonRank = (typeof TAXON_RANKS)[number];
 export const isTaxonRank = guard(TAXON_RANKS);
 
-export const REVIEW_STATUSES = ['DRAFT', 'NEEDS_REVIEW', 'VERIFIED'] as const;
+// 356(Kenny 2026-11-23, 불변식 7 「예외 2」): GENERAL_INFO = 일반 참고 정보 등급. VERIFIED 승격이 아니다(V01 유지).
+//   코드 고정 6종(engine/general-info.ts GENERAL_INFO_TYPE_IDS)의 type·requirement·item·careProfile 에만 쓴다(validate V12).
+export const REVIEW_STATUSES = ['DRAFT', 'NEEDS_REVIEW', 'VERIFIED', 'GENERAL_INFO'] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 export const isReviewStatus = guard(REVIEW_STATUSES);
 

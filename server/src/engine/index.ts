@@ -53,6 +53,20 @@ export {
 } from './exposure.js';
 export type { BudgetTipForExposure, CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
 export {
+  CROSS_CHECK_CONTENT_KINDS,
+  CROSS_CHECK_KEYS,
+  CROSS_CHECK_RESULTS,
+  CROSS_CHECK_TOOLS,
+  GENERAL_INFO_CONTENT_KINDS,
+  GENERAL_INFO_MAX_AGE_DAYS,
+  GENERAL_INFO_STATUS,
+  GENERAL_INFO_TYPE_IDS,
+  isCrossCheckShape,
+  isGeneralInfoMeta,
+  isGeneralInfoTypeId,
+} from './general-info.js';
+export type { GeneralInfoTypeId } from './general-info.js';
+export {
   PHOTO_AI_LICENSE,
   PHOTO_AI_SOURCES,
   PHOTO_ASSET_RE,

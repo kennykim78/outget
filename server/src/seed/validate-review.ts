@@ -1,10 +1,20 @@
-// 검수 규칙 V01~V05·V08~V11 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
+// 검수 규칙 V01~V05·V08~V12 + W-STALE·W-GENERAL-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
 import { CONTENT_KEYS, daysBetween, has, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
 import { isReviewBasis, requiredBasis, requiredBasisReason, REVIEW_BASES } from './signatures.js';
 import { registrableDomainOfUrl } from './hostname.js';
 import { isAiHandle } from './ai-handle.js';
+import {
+  CROSS_CHECK_CONTENT_KINDS,
+  GENERAL_INFO_CONTENT_KINDS,
+  GENERAL_INFO_MAX_AGE_DAYS,
+  GENERAL_INFO_STATUS,
+  GENERAL_INFO_TYPE_IDS,
+  isCrossCheckShape,
+  isGeneralInfoTypeId,
+} from '../engine/general-info.js';
+import { GENERAL_INFO_FILES } from './validate-structure.js';
 import type { Ctx } from './context.js';
 
 /** contentKind 별 최소 검수 등급(제품기획 §7.3 + A-7). LEGAL 은 정확히 OFFICIAL_SOURCE. */
@@ -52,6 +62,7 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   for (const f of ['verifiedBy', 'specVerifiedBy'] as const) {
     if (isAiHandle(r[f])) out.error('V11', key, id, f, `${f}=${JSON.stringify(r[f])} 는 AI/봇 핸들 — 검수자는 사람만(불변식 7)`);
   }
+  checkGeneralInfo(ctx, key, id, r);
   if (!verified) return;
 
   // V10 — 행별 출처 확인이 근거인 행(상품·최소 규격)은 ROW_CHECKED 만(일괄 승인 불가, Kenny 2026-10-24 H-1).
@@ -90,6 +101,53 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   // W-STALE — 경계는 engine isFresh 와 동일(days > STALE_DAYS → 경고 + 노출 판정에서 비노출, M-1).
   if (isIsoDate(r.verifiedAt) && daysBetween(r.verifiedAt, ctx.now) > STALE_DAYS) {
     out.warn('W-STALE', key, id, 'verifiedAt', `검수 ${daysBetween(r.verifiedAt, ctx.now)}일 경과(>${STALE_DAYS}) — 재검수 필요, 노출 판정에서 빠진다`);
+  }
+}
+
+/**
+ * V12(356, Kenny 2026-11-23 — 불변식 7 「예외 2」): GENERAL_INFO(일반 참고 정보) 기록 규칙. VERIFIED 승격이 아니다(V01 그대로).
+ *   - 체인 네 파일(animalTypes·careProfiles·supplyItems·supplyRequirements)에만. 상품·구성안·호환·Taxon·후기 → ERROR.
+ *   - animalTypes 행은 코드 고정 6종(engine/general-info.ts)만.
+ *   - 검수자 필드 없음: verifiedBy·verifiedAt null(reviewBasis 는 V09 가 본다).
+ *   - draftedAt(YYYY-MM-DD) 필수 · contentKind ∈ SPEC·CARE·FOOD·HEALTH(LEGAL 불가).
+ *   - FOOD·HEALTH 는 crossCheck{tool,checkedAt,result} 필수, draftedAt ≤ checkedAt(미래는 S07).
+ *   - draftedAt·crossCheck 값은 GENERAL_INFO 행에만(다른 상태 행에 남아 있으면 ERROR — VERIFIED 로 올릴 때 지운다).
+ *   - draftedAt 이 GENERAL_INFO_MAX_AGE_DAYS 초과 → W-GENERAL-STALE(노출 판정에서 빠진다 — engine isGeneralInfoMeta).
+ */
+function checkGeneralInfo(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
+  const { out } = ctx;
+  if (r.reviewStatus !== GENERAL_INFO_STATUS) {
+    for (const f of ['draftedAt', 'crossCheck'] as const) {
+      if (has(r, f) && r[f] !== null) out.error('V12', key, id, f, `${f} 는 GENERAL_INFO 행에만(현재 ${String(r.reviewStatus)}) — 다른 상태로 옮길 때 지운다`);
+    }
+    return;
+  }
+  if (!GENERAL_INFO_FILES.includes(key)) {
+    out.error('V12', key, id, 'reviewStatus', `GENERAL_INFO 는 ${GENERAL_INFO_FILES.join('·')} 에만(356 — 상품·구성안·호환·Taxon·후기는 VERIFIED 만)`);
+    return;
+  }
+  if (key === 'animalTypes' && !isGeneralInfoTypeId(id)) {
+    out.error('V12', key, id, 'reviewStatus', `GENERAL_INFO 동물 타입은 코드 고정 ${GENERAL_INFO_TYPE_IDS.join('·')} 만(engine/general-info.ts)`);
+  }
+  for (const f of ['verifiedBy', 'verifiedAt'] as const) {
+    if (has(r, f) && r[f] !== null) out.error('V12', key, id, f, `GENERAL_INFO 는 검수 기록이 아니다 — ${f} 는 null`);
+  }
+  const kind = r.contentKind as string;
+  if (!(GENERAL_INFO_CONTENT_KINDS as readonly string[]).includes(kind)) {
+    out.error('V12', key, id, 'contentKind', `GENERAL_INFO contentKind 는 ${GENERAL_INFO_CONTENT_KINDS.join('/')} 만(LEGAL 불가, 현재 ${String(kind)})`);
+  }
+  const drafted = isIsoDate(r.draftedAt) ? r.draftedAt : null;
+  if (drafted === null) {
+    out.error('V12', key, id, 'draftedAt', 'GENERAL_INFO 는 draftedAt(YYYY-MM-DD) 필수');
+  } else if (daysBetween(drafted, ctx.now) > GENERAL_INFO_MAX_AGE_DAYS) {
+    out.warn('W-GENERAL-STALE', key, id, 'draftedAt', `초안 ${daysBetween(drafted, ctx.now)}일 경과(>${GENERAL_INFO_MAX_AGE_DAYS}) — 다시 정리 필요, 노출 판정에서 빠진다`);
+  }
+  if ((CROSS_CHECK_CONTENT_KINDS as readonly string[]).includes(kind)) {
+    if (!isCrossCheckShape(r.crossCheck)) {
+      out.error('V12', key, id, 'crossCheck', `GENERAL_INFO ${kind} 는 교차 확인 기록 crossCheck{tool,checkedAt,result} 필수`);
+    } else if (drafted !== null && (asRec(r.crossCheck)?.checkedAt as string) < drafted) {
+      out.error('V12', key, id, 'crossCheck', `crossCheck.checkedAt 이 draftedAt(${drafted}) 보다 앞선다`);
+    }
   }
 }
 

@@ -5,11 +5,15 @@
 //   verified(r)        = reviewStatus === 'VERIFIED' ∧ rank(reviewerType) ≥ rank(OPERATOR)   (AI_DRAFT·미지값 제외)
 //                        ∧ fresh(r, asOf): verifiedAt 달력 날짜 ∧ 0 ≤ (asOf − verifiedAt) ≤ STALE_DAYS(180)   (M-1, R4 D5)
 //                        computeExposure(seed, asOf) — asOf 필수(YYYY-MM-DD 아니면 RangeError). 아래 "verified" 는 전부 이 뜻.
-//   careProfile        = verified
-//   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified(Taxon 은 보지 않음 — Kenny 2026-10-24 K-4 되돌림)
-//   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ verified(r) ∧ item verified
+//   chainOk(r, t)      = verified(r) ∨ (t ∈ GENERAL_INFO_TYPE_IDS(코드 고정 6종) ∧ generalInfoRowOk(r))   (356 예외 2, Kenny 2026-11-23)
+//                        generalInfoRowOk = reviewStatus GENERAL_INFO ∧ 알려진 reviewerType ∧ contentKind ∈ {SPEC,CARE,FOOD,HEALTH}
+//                        ∧ draftedAt 0~STALE_DAYS ∧ (FOOD·HEALTH → crossCheck 키 3개{CODEX_DISCUSS, checkedAt, AGREE|REVISED}
+//                        ∧ draftedAt ≤ checkedAt ≤ asOf). 체인 메타 네 개(type·profile·requirement·item)에만 — 아래 나머지는 verified 그대로.
+//   careProfile        = 노출 type 의 프로필(그 type 기준 chainOk)
+//   animalType(base)   = status ACTIVE ∧ chainOk(t,t) ∧ careProfile 존재·chainOk(Taxon 은 보지 않음 — Kenny 2026-10-24 K-4 되돌림)
+//   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ chainOk(r,t) ∧ item chainOk(·,t)
 //   animalType         = base ∧ 노출 requirement ≥ 1
-//   supplyItem         = verified ∧ 어떤 노출 (type,item) 쌍의 item
+//   supplyItem         = 어떤 노출 (type,item) 쌍의 item(그 type 기준 chainOk)
 //   curatedProduct     = status ACTIVE ∧ verified ∧ meetsMinSpec === true ∧ ∃ 노출 type t:
 //                        t.careProfileId ∈ careProfileIds ∧ (t,item) 노출 ∧ minSpec(base ⊕ override, (key,op) 교체) 전부 충족
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
@@ -64,6 +68,29 @@ export function isVerifiedRow(r) {
 
 /** 검수 유효 일수 — server/src/engine/domain.ts STALE_DAYS 와 같아야 한다(패리티 테스트 engine.exposure.parity). */
 export const STALE_DAYS = 180;
+
+/** 356: 일반 참고 정보 등급 허용 6종 — server/src/engine/general-info.ts 와 같아야 한다(패리티 engine.general-info.parity). */
+export const GENERAL_INFO_TYPE_IDS = Object.freeze(['hamster-robo', 'gerbil-mongolian', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure']);
+export const GENERAL_INFO_MAX_AGE_DAYS = STALE_DAYS;
+const GI_KINDS = new Set(['SPEC', 'CARE', 'FOOD', 'HEALTH']);
+const GI_CROSS_KINDS = new Set(['FOOD', 'HEALTH']);
+
+/** 356: GENERAL_INFO 행 유효(타입 범위는 보지 않음 — computeExposure 가 체인 type 으로 본다). 엔진과 독립 구현, fail-closed. */
+export function generalInfoRowOk(r, asOfDay) {
+  if (!isObj(r) || r.reviewStatus !== 'GENERAL_INFO') return false;
+  if (!REVIEWER_RANK.includes(r.reviewerType)) return false;
+  if (!GI_KINDS.has(r.contentKind)) return false;
+  const d = dayNumber(r.draftedAt);
+  if (d === null || asOfDay - d < 0 || asOfDay - d > GENERAL_INFO_MAX_AGE_DAYS) return false;
+  if (!GI_CROSS_KINDS.has(r.contentKind)) return true;
+  const cc = r.crossCheck;
+  if (!isObj(cc)) return false;
+  const ks = Object.keys(cc).sort();
+  if (ks.length !== 3 || ks[0] !== 'checkedAt' || ks[1] !== 'result' || ks[2] !== 'tool') return false;
+  if (cc.tool !== 'CODEX_DISCUSS' || (cc.result !== 'AGREE' && cc.result !== 'REVISED')) return false;
+  const c = dayNumber(cc.checkedAt);
+  return c !== null && c >= d && c <= asOfDay;
+}
 
 /** YYYY-MM-DD(달력상 존재) → 정수 일 번호, 아니면 null. 엔진과 독립 구현(Date 왕복 검사). */
 export function dayNumber(v) {
@@ -481,19 +508,26 @@ export function computeExposure(seed, asOf) {
   const asOfDay = dayNumber(asOf);
   if (asOfDay === null) throw new RangeError(`computeExposure: asOf 는 YYYY-MM-DD 여야 한다 (${String(asOf)})`);
   const ok = (r) => isVerifiedRow(r) && isFreshRow(r, asOfDay);
+  // 356: 체인 메타 전용 — 코드 고정 6종 type 의 체인이면 GENERAL_INFO 행도 통과. 상품·구성안·호환·Taxon 은 ok 만.
+  const giTypes = new Set(GENERAL_INFO_TYPE_IDS);
+  const chainOk = (r, typeId) => ok(r) || (giTypes.has(typeId) && generalInfoRowOk(r, asOfDay));
   const rows = (k) => (Array.isArray(seed[k]) ? seed[k] : []);
   const profiles = groupById(rows('careProfiles'));
   const items = groupById(rows('supplyItems'));
-  const verifiedProfile = (id) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every(ok);
-  const verifiedItem = (id) => typeof id === 'string' && items.has(id) && items.get(id).every(ok);
+  const chainProfile = (id, typeId) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every((r) => chainOk(r, typeId));
+  const chainItem = (id, typeId) => typeof id === 'string' && items.has(id) && items.get(id).every((r) => chainOk(r, typeId));
 
   const typeRows = groupById(rows('animalTypes'));
-  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId);
+  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && chainOk(t, t.id) && chainProfile(t.careProfileId, t.id);
 
   const reqs = rows('supplyRequirements').filter(isObj);
   const reqIdGroups = groupById(reqs);
   const reqExposedForType = (t, r) =>
-    baseType(t) && r.careProfileId === t.careProfileId && ok(r) && verifiedItem(r.supplyItemId) && reqIdGroups.get(r.id)?.every(ok) !== false;
+    baseType(t) &&
+    r.careProfileId === t.careProfileId &&
+    chainOk(r, t.id) &&
+    chainItem(r.supplyItemId, t.id) &&
+    reqIdGroups.get(r.id)?.every((x) => chainOk(x, t.id)) !== false;
 
   const pairs = new Set();
   const pairReq = new Map(); // typeId|itemId → req rows (같은 프로필·아이템 중복이면 전부 노출일 때만)
@@ -575,8 +609,9 @@ export function computeExposure(seed, asOf) {
   const ids = {
     animalTypes: new Set(types.keys()),
     taxa: idsWhere(rows('taxa'), (x) => ok(x) && typeTaxa.has(x.id)),
-    careProfiles: idsWhere(rows('careProfiles'), (x) => ok(x) && typeProfiles.has(x.id)),
-    supplyItems: idsWhere(rows('supplyItems'), (x) => ok(x) && exposedItemIds.has(x.id)),
+    // 356: 노출 type 의 baseType·쌍 판정이 이미 그 type 기준 chainOk(같은 id 전 행)를 봤다 — 여기서 ok 를 다시 요구하면 GENERAL_INFO 6종이 빠진다.
+    careProfiles: idsWhere(rows('careProfiles'), (x) => typeProfiles.has(x.id)),
+    supplyItems: idsWhere(rows('supplyItems'), (x) => exposedItemIds.has(x.id)),
     supplyRequirements: exposedReqIds,
     // M4: 프로필 범위 규칙은 노출 타입의 프로필일 때만(엔진 projectCatalog 와 같은 조건).
     compatibilityRules: idsWhere(
@@ -591,7 +626,8 @@ export function computeExposure(seed, asOf) {
     photos: photoIds,
   };
   // 저렴 대체 팁(REFERENCE 별도 경로) — tipTypes = `${typeId}|${tipId}`.
-  const itemCategory = (id) => (verifiedItem(id) ? items.get(id)[0].category : undefined);
+  // 356: 용품 검수는 tipOkFor 의 pairs(type 기준 chainOk)가 본다 — 엔진 isBudgetTipExposable(requirementOk) 미러.
+  const itemCategory = (id) => (typeof id === 'string' && items.has(id) && items.get(id).length === 1 ? items.get(id)[0].category : undefined);
   const tipTypes = new Set();
   const tipOkFor = (x, tid, t) =>
     t.careProfileId === x.careProfileId && (x.animalTypeIds === undefined || (Array.isArray(x.animalTypeIds) && x.animalTypeIds.includes(tid))) && pairs.has(`${tid}|${x.supplyItemId}`);
