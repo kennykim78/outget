@@ -123,9 +123,11 @@ describe('isBudgetTipExposable — REFERENCE 경로', () => {
     expect(isBudgetTipExposable(cat(), 'hamster-golden', tipFixture({ references: [stale] }), AS_OF)).toBe(false);
   });
 
-  it('PLANNED 동물(난쟁이)·다른 프로필·animalTypeIds 밖이면 비노출', () => {
+  it('PLANNED 동물(저빌)·다른 프로필·animalTypeIds 밖이면 비노출', () => {
     const c = cat();
-    expect(isBudgetTipExposable(c, 'hamster-dwarf', tipFixture({ careProfileId: 'cp-hamster-dwarf' }), AS_OF)).toBe(false);
+    // 2026-11-23 활성화: 드워프는 ACTIVE(대조군 — 자기 프로필 팁은 노출), PLANNED 대표는 저빌.
+    expect(isBudgetTipExposable(c, 'hamster-dwarf', tipFixture({ careProfileId: 'cp-hamster-dwarf' }), AS_OF)).toBe(true);
+    expect(isBudgetTipExposable(c, 'gerbil-mongolian', tipFixture({ careProfileId: 'cp-gerbil-mongolian' }), AS_OF)).toBe(false);
     expect(isBudgetTipExposable(c, 'hamster-golden', tipFixture({ careProfileId: 'cp-hamster-dwarf' }), AS_OF)).toBe(false);
     expect(isBudgetTipExposable(c, 'hamster-golden', tipFixture({ animalTypeIds: ['hamster-dwarf'] }), AS_OF)).toBe(false);
     expect(isBudgetTipExposable(c, 'hamster-golden', tipFixture({ animalTypeIds: ['hamster-golden'] }), AS_OF)).toBe(true);
@@ -309,12 +311,15 @@ describe('패리티 — engine ↔ scripts/lib/seed-exposure.mjs(독립 재구�
     ];
     s.budgetTips = tips;
     const c = createCatalog(s);
-    const engine = new Set(tips.filter((t) => isBudgetTipExposable(c, 'hamster-golden', t, AS_OF)).map((t) => t.id));
+    // 2026-11-23 활성화 뒤 노출 타입이 여럿 — 엔진 쪽도 시드의 모든 타입에 대해 판정해 합친다(독립 구현은 원래 전 타입).
+    const pairs = s.animalTypes.flatMap((a) => tips.filter((t) => isBudgetTipExposable(c, a.id, t, AS_OF)).map((t) => `${a.id}|${t.id}`));
+    const engine = new Set(pairs.map((p) => p.split('|')[1]));
     const raw = Object.fromEntries(Object.entries(s)) as Record<string, unknown[]>;
     const ex = mjs.computeExposure(raw, AS_OF);
     expect([...ex.ids.budgetTips].sort()).toEqual([...engine].sort());
-    expect([...engine].sort()).toEqual(['t-hide', 't-ok', 't-toxic-h', 't-vent-2']);
-    expect([...ex.tipTypes].sort()).toEqual(['hamster-golden|t-hide', 'hamster-golden|t-ok', 'hamster-golden|t-toxic-h', 'hamster-golden|t-vent-2']);
+    expect([...ex.tipTypes].sort()).toEqual([...pairs].sort());
+    expect([...engine].sort()).toEqual(['t-dwarf', 't-hide', 't-ok', 't-toxic-h', 't-vent-2']);
+    expect([...ex.tipTypes].sort()).toEqual(['hamster-dwarf|t-dwarf', 'hamster-golden|t-hide', 'hamster-golden|t-ok', 'hamster-golden|t-toxic-h', 'hamster-golden|t-vent-2']);
   });
 });
 

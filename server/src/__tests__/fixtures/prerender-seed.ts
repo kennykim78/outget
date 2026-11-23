@@ -84,7 +84,24 @@ export function realSignedTargets(): Map<string, { basis: 'ROW_CHECKED' | 'AI_RE
 }
 
 /**
- * 서명 전 기준 실시드(메모리): 디스크 시드에서 4 패킷 서명만 되돌린 사본 — 매니페스트 [].
+ * 2026-11-23 활성화(Kenny 「구현된 동물은 전부 활성화」) — 2026-11-16 실서명 뒤 AnimalType.status 만 PLANNED → ACTIVE 로 바뀐 타입.
+ *   서명 전 기준(unsignedRealSeed·unsignRaw·writeUnsignedSeedDir 기본)은 서명 당시 상태라 이 타입들을 PLANNED 로 되돌린다
+ *   (메모리 — 디스크는 바꾸지 않는다). 디스크가 ACTIVE 가 아니면 픽스처가 낡은 것이므로 throw.
+ */
+export const ACTIVATED_AFTER_SIGNING = ['hamster-dwarf', 'guinea-pig'] as const;
+export const ACTIVATED_AT = '2026-11-23';
+export function preActivation(rows: Row[]): Row[] {
+  const out = clone(rows);
+  for (const id of ACTIVATED_AFTER_SIGNING) {
+    const r = out.find((x) => x.id === id);
+    if (!r || r.status !== 'ACTIVE') throw new Error(`fixture: 시드(server/seed 정본·seed-draft 사본 모두) ${id} 는 ACTIVE 여야 한다(${ACTIVATED_AT} 활성화)`);
+    r.status = 'PLANNED';
+  }
+  return out;
+}
+
+/**
+ * 서명 전 기준 실시드(메모리): 디스크 시드에서 4 패킷 서명만 되돌린 사본 — 매니페스트 [] · 활성화 전(preActivation).
  *   메모리 승격 픽스처(promoted·dwarfSigned·dwarfPreview·promotedTwo)와 규칙 주입 시험의 바탕. 디스크는 바꾸지 않는다.
  *   디스크 상태(서명 후)를 보는 시험은 realSeed() 를 쓴다.
  */
@@ -92,6 +109,7 @@ export function unsignedRealSeed(): SeedBundle {
   const s = clone(realSeed());
   const files = unsignFiles(filesOf(s));
   for (const k of CONTENT_KEYS) (s as unknown as Record<string, unknown[]>)[k] = files[SEED_FILES[k]];
+  s.animalTypes = preActivation(s.animalTypes as unknown as Row[]) as unknown as SeedBundle['animalTypes'];
   return s;
 }
 
@@ -100,19 +118,23 @@ export function unsignRaw<T extends object>(raw: T): T {
   const s = clone(raw) as unknown as Record<string, unknown[]>;
   const files = unsignFiles(Object.fromEntries(CONTENT_KEYS.map((k) => [SEED_FILES[k], s[k] ?? []])));
   for (const k of CONTENT_KEYS) s[k] = files[SEED_FILES[k]];
+  if (Array.isArray(s.animalTypes)) s.animalTypes = preActivation(s.animalTypes as Row[]);
   return s as unknown as T;
 }
 
 /**
  * 서명 전 기준 시드 디렉터리(CLI·dist 시험용): 디스크 시드(src, 기본 server/seed — seed-draft 사본도 가능) 전 파일 복사 → 콘텐츠 8파일을 unsignFiles 결과로, 매니페스트 '[]'.
  *   JSON 2칸 들여쓰기·끝 개행 없음(apply 스크립트 형식). dir 은 호출자가 만든 임시 디렉터리.
+ *   기본은 활성화 전(preActivation — 서명 당시 상태). keepActivation: 디스크 status 그대로(「서명 전 사본 + 실서명 = 디스크 바이트」
+ *   재현용 — apply 스크립트는 status 를 바꾸지 않으므로 활성화와 서명은 순서 무관).
  */
-export function writeUnsignedSeedDir(dir: string, src: string = SEED_DIR): string {
+export function writeUnsignedSeedDir(dir: string, src: string = SEED_DIR, opts: { keepActivation?: boolean } = {}): string {
   mkdirSync(dir, { recursive: true });
   cpSync(src, dir, { recursive: true });
   const files: Record<string, unknown[]> = {};
   for (const k of CONTENT_KEYS) files[SEED_FILES[k]] = JSON.parse(readFileSync(join(src, SEED_FILES[k]), 'utf8')) as unknown[];
   const out = unsignFiles(files);
+  if (!opts.keepActivation) out[SEED_FILES.animalTypes] = preActivation(out[SEED_FILES.animalTypes] as Row[]);
   for (const [f, rows] of Object.entries(out)) writeFileSync(join(dir, f), JSON.stringify(rows, null, 2));
   writeFileSync(join(dir, SIGNATURE_FILE), '[]');
   return dir;
@@ -325,7 +347,7 @@ export function dwarfSigned(): SeedBundle {
 export function dwarfPreview(): SeedBundle {
   const s = dwarfSigned();
   const at = s.animalTypes.find((x) => x.id === 'hamster-dwarf');
-  if (!at || at.status !== 'PLANNED') throw new Error('fixture: 디스크 hamster-dwarf 는 PLANNED 여야 한다(게이트 G 전)');
+  if (!at || at.status !== 'PLANNED') throw new Error('fixture: 서명 전 기준(활성화 전) hamster-dwarf 는 PLANNED 여야 한다');
   at.status = 'ACTIVE';
   return s;
 }

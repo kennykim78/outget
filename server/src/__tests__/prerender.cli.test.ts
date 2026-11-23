@@ -75,7 +75,7 @@ describe('seedDigest — lane E 구현과 동일', () => {
 });
 
 describe('prerender CLI', () => {
-  it('실시드(2026-11-16 서명 후): 요약 한 줄(골든 1타입), 파일 생성, 2회 실행 트리 동일, 셸 보존 · 서명 전 기준은 types 0', async () => {
+  it('실시드(2026-11-16 서명 + 2026-11-23 활성화): 요약 한 줄(골든·드워프·기니피그 3타입), 파일 생성, 2회 실행 트리 동일, 셸 보존 · 서명 전 기준은 types 0', async () => {
     const pre = outDir();
     const pr = await run(['--out', pre, '--public-dir', tmp('pub'), '--seed-dir', writeUnsignedSeedDir(tmp('seed-unsigned'))]);
     expect([pr.code, pr.out]).toEqual([0, ['prerender — pages 7 (+404), indexable 2, types 0']]);
@@ -84,10 +84,10 @@ describe('prerender CLI', () => {
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 61 (+404), indexable 44, types 1' /* 308 /tips +1 → 315 총괄 11/22: 실시드 팁 검수 기록(summaryCheck·vetReview) null → /tips 0(−1) */]);
-    // 노출은 ACTIVE 골든뿐 — PLANNED 드워프·저빌·기니피그(서명됐어도) 경로 0.
-    for (const f of ['hamster/index.html', 'hamster/golden/index.html', 'hamster/golden/supplies/cage/index.html', 'hamster/golden/check/wheel/index.html']) expect(existsSync(join(out, f)), f).toBe(true);
-    for (const f of ['hamster/dwarf', 'gerbil', 'guinea-pig', 'parrot']) expect(existsSync(join(out, f)), f).toBe(false);
+    expect(r1.out).toEqual(['prerender — pages 171 (+404), indexable 125, types 3' /* 2026-11-23 드워프·기니피그 활성화(옛 61·44·1) · 315 총괄 11/22: 실시드 팁 검수 기록(summaryCheck·vetReview) null → /tips 0 */]);
+    // 노출은 ACTIVE 골든·드워프·기니피그 — PLANNED 저빌·앵무(서명됐어도) 경로 0.
+    for (const f of ['hamster/index.html', 'hamster/golden/index.html', 'hamster/golden/supplies/cage/index.html', 'hamster/golden/check/wheel/index.html', 'hamster/dwarf/index.html', 'guinea-pig/index.html']) expect(existsSync(join(out, f)), f).toBe(true);
+    for (const f of ['gerbil', 'parrot']) expect(existsSync(join(out, f)), f).toBe(false);
     for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', 'credits/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
       expect(existsSync(join(out, f)), f).toBe(true);
     }

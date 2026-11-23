@@ -155,7 +155,7 @@ describe('(a) 노출 0 시드(서명 전 기준 실시드 — 4 패킷 미서명
 });
 
 
-describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 후) → 골든햄스터만 노출', () => {
+describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 + 2026-11-23 드워프·기니피그 활성화) → 골든·드워프·기니피그 노출', () => {
   const seed = realSeed();
   const b = build(seed);
   const GOLDEN_REQ = [
@@ -163,18 +163,23 @@ describe('(a2) 디스크 실시드(2026-11-16 확인표 5종 서명 후) → 골
     'req-syrian-sand-bath', 'req-syrian-chew', 'req-syrian-carrier', 'req-syrian-thermo', 'req-syrian-tubes', 'req-syrian-saucer',
   ];
 
-  it('타입 1(hamster-golden) · 그룹 /hamster · 골든 하위 경로 · PLANNED 종(드워프·저빌·기니피그·앵무·로보) 경로 0', () => {
-    expect(b.model.types.map((x) => x.id)).toEqual(['hamster-golden']);
+  it('타입 3(골든·드워프·기니피그 — 2026-11-23 활성화) · 그룹 /hamster · 각 하위 경로 · PLANNED 종(저빌·앵무·로보) 경로 0', () => {
+    expect(b.model.types.map((x) => x.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'guinea-pig']);
     const ps = paths(b);
-    for (const p of ['/', '/hamster', '/hamster/golden', '/hamster/golden/supplies/cage', '/hamster/golden/check/wheel', '/supplies', '/vet', '/save', '/pick', '/credits', '/privacy', '/404']) expect(ps, p).toContain(p);
-    expect(ps.filter((p) => /^\/(gerbil|guinea-pig|parrot)(\/|$)|^\/hamster\/(dwarf|robo)(\/|$)/.test(p))).toEqual([]);
+    for (const p of ['/', '/hamster', '/hamster/golden', '/hamster/golden/supplies/cage', '/hamster/golden/check/wheel', '/hamster/dwarf', '/guinea-pig', '/supplies', '/vet', '/save', '/pick', '/credits', '/privacy', '/404']) expect(ps, p).toContain(p);
+    expect(ps.filter((p) => /^\/(gerbil|parrot)(\/|$)|^\/hamster\/robo(\/|$)/.test(p))).toEqual([]);
     expect(ps.filter((p) => p.startsWith('/hamster/golden/products/'))).toEqual([]); // 골든 상품 SLOT·DRAFT → 상품 0
   });
 
-  it('공개 카탈로그 = 골든 체인만: 요구사항 13(저울 HEALTH DRAFT 제외)·타입 1, 노출 집합 밖 id 0', () => {
-    expect(b.catalog.animalTypes.map((x) => x.id)).toEqual(['hamster-golden']);
-    expect(b.catalog.supplyRequirements.map((x) => x.id).sort()).toEqual([...GOLDEN_REQ].sort());
-    expect(b.catalog.supplyRequirements.map((x) => x.id)).not.toContain('req-syrian-scale');
+  it('공개 카탈로그 = 노출 3타입 체인만: 요구사항 42(골든 13 · 드워프 14 · 기니피그 15 — 저울 HEALTH DRAFT 3행 제외)·타입 3, 노출 집합 밖 id 0', () => {
+    expect(b.catalog.animalTypes.map((x) => x.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'guinea-pig']);
+    const reqIds = b.catalog.supplyRequirements.map((x) => x.id);
+    expect(reqIds).toHaveLength(42);
+    expect(reqIds.filter((id) => id.startsWith('req-syrian-')).sort()).toEqual([...GOLDEN_REQ].sort());
+    expect(reqIds.filter((id) => id.startsWith('req-dwarf-'))).toHaveLength(14);
+    expect(reqIds.filter((id) => id.startsWith('req-guineapig-'))).toHaveLength(15);
+    expect(reqIds.filter((id) => id.startsWith('req-gerbil-'))).toEqual([]);
+    for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale']) expect(reqIds).not.toContain(id);
     expect(leaks(b, seed)).toEqual([]);
   });
 

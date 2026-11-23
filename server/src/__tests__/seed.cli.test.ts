@@ -44,11 +44,11 @@ async function run(argv: string[]): Promise<{ code: number; out: string[]; err: 
 }
 
 describe('seed:validate CLI', () => {
-  it('실제 시드(2026-11-16 서명 후) → exit 0, errors 0, warnings 25(308 W-TIP-CAT +1 · 315 W-TIP-SC 5 · W-TIP-VET 1), 노출 골든 1타입·요구사항 13, W-EXPOSURE-ZERO 없음', async () => {
+  it('실제 시드(2026-11-16 서명 후) → exit 0, errors 0, warnings 25(308 W-TIP-CAT +1 · 315 W-TIP-SC 5 · W-TIP-VET 1), 노출 3타입(골든·드워프·기니피그, 2026-11-23 활성화)·요구사항 42·상품 14, W-EXPOSURE-ZERO 없음', async () => {
     const r = await run(NOW);
     expect(r.code).toBe(0);
     const summary = r.out[r.out.length - 1];
-    expect(summary).toBe('seed:validate — errors 0, warnings 25, exposable: types 1, requirements 13, products 0, testimonials 0, vets 0');
+    expect(summary).toBe('seed:validate — errors 0, warnings 25, exposable: types 3, requirements 42, products 14, testimonials 0, vets 0');
     expect(r.out.some((l) => l.includes('W-EXPOSURE-ZERO'))).toBe(false);
   });
 

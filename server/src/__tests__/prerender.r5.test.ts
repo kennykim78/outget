@@ -319,9 +319,11 @@ describe('홈 ws-data types[].specCheckItemId(R6 G3b)', () => {
     for (const p of HOME_PATHS) expect(data(b, p).data.types, p).toEqual([]);
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('specCheckItemId');
   });
-  it('디스크 실시드(2026-11-16 서명 후): 홈 types = 골든 1 · specCheckItemId cage', () => {
+  it('디스크 실시드(2026-11-16 서명 + 2026-11-23 활성화): 홈 types = 골든·드워프·기니피그 · specCheckItemId 모두 cage', () => {
     const b = build(realSeed());
-    for (const p of HOME_PATHS) expect(data(b, p).data.types.map((t) => [t.id, t.specCheckItemId]), p).toEqual([['hamster-golden', 'cage']]);
+    for (const p of HOME_PATHS) {
+      expect(data(b, p).data.types.map((t) => [t.id, t.specCheckItemId]), p).toEqual([['hamster-golden', 'cage'], ['hamster-dwarf', 'cage'], ['guinea-pig', 'cage']]);
+    }
   });
 });
 
@@ -357,10 +359,17 @@ describe('홈 ws-data types[].setupAvailable(286 U3b — 시작 카드 「구성
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('setupAvailable');
     for (const p of HOME_PATHS) expect(b.pages.find((x) => x.route.path === p)!.html, p).not.toContain('data-ws-section="starters"');
   });
-  it('디스크 실시드(2026-11-16 서명 후): 골든 구성안 3종은 패킷 밖(DRAFT) → setupAvailable 키 없음 · 시작 카드 섹션은 있음(노출 타입 1)', () => {
+  it('디스크 실시드(2026-11-16 서명 + 2026-11-23 활성화): 골든 구성안 3종은 패킷 밖(DRAFT) → 골든 키 없음 · 드워프 구성안 3종 VERIFIED → 드워프만 setupAvailable true(/setup 실재) · 기니피그 구성안 0 → 키 없음 · 시작 카드 섹션 있음', () => {
     const b = build(realSeed());
     expect(realSeed().setupBundles.filter((x) => x.careProfileId === 'cp-hamster-syrian').map((x) => x.reviewStatus)).toEqual(['DRAFT', 'DRAFT', 'DRAFT']);
-    expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('setupAvailable');
-    for (const p of HOME_PATHS) expect(b.pages.find((x) => x.route.path === p)!.html, p).toContain('data-ws-section="starters"');
+    for (const p of HOME_PATHS) {
+      const types = data(b, p).data.types;
+      expect(types.filter((t) => t.setupAvailable === true).map((t) => t.id), p).toEqual(['hamster-dwarf']);
+      for (const t of types) expect([p, t.id, t.setupAvailable === true]).toEqual([p, t.id, b.pages.some((x) => x.route.path === `/${t.slug}/setup`)]);
+      expect(b.pages.find((x) => x.route.path === p)!.html, p).toContain('data-ws-section="starters"');
+    }
+    for (const p of b.pages.filter((x) => !HOME_PATHS.includes(x.route.path))) {
+      for (const t of p.data.data.types) expect('setupAvailable' in t, p.route.path).toBe(false);
+    }
   });
 });
