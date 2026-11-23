@@ -48,7 +48,8 @@ describe('seed:validate CLI', () => {
     const r = await run(NOW);
     expect(r.code).toBe(0);
     const summary = r.out[r.out.length - 1];
-    expect(summary).toBe('seed:validate — errors 0, warnings 25, exposable: types 3, requirements 42, products 14, testimonials 0, vets 0');
+    // 354: 빈 사진 칸 수 I07 WARN +1 → 26
+    expect(summary).toBe('seed:validate — errors 0, warnings 26, exposable: types 3, requirements 42, products 14, testimonials 0, vets 0');
     expect(r.out.some((l) => l.includes('W-EXPOSURE-ZERO'))).toBe(false);
   });
 
@@ -64,7 +65,7 @@ describe('seed:validate CLI', () => {
     writeUnsignedSeedDir(dir);
     const r = await run([...NOW, '--dir', dir]);
     expect(r.code).toBe(0);
-    expect(r.out[r.out.length - 1]).toBe('seed:validate — errors 0, warnings 26, exposable: types 0, requirements 0, products 0, testimonials 0, vets 0');
+    expect(r.out[r.out.length - 1]).toBe('seed:validate — errors 0, warnings 27, exposable: types 0, requirements 0, products 0, testimonials 0, vets 0');
     expect(r.out.some((l) => l.startsWith('WARN [W-EXPOSURE-ZERO] animal-types.json#hamster-golden'))).toBe(true);
     const s = await run([...NOW, '--dir', dir, '--strict']);
     expect(s.code).toBe(1);

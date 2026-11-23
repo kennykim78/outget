@@ -94,8 +94,9 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
     for (const r of warnRules(res)) byRule[r] = (byRule[r] ?? 0) + 1;
     // 규칙별 정확한 건수 — 다른 규칙(W-SLUG·L06·S09 …)이 끼어들면 toEqual 이 실패한다.
     // 315 총괄 11/22: 팁 5행 summaryCheck null → W-TIP-SC 5 · HEALTH·섭취(bedding) vetReview null → W-TIP-VET 1 (+6 = 25)
-    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4, 'W-TIP-CAT': 1, 'W-TIP-SC': 5, 'W-TIP-VET': 1 });
-    expect(res.warnings).toHaveLength(25);
+    // 354: 빈 사진 칸 수 I07 WARN 1줄(생성 라운드 진척 지표, 0 이 목표) (+1 = 26)
+    expect(byRule).toEqual({ 'W-RULESCOPED': 2, L03: 12, L05: 4, 'W-TIP-CAT': 1, 'W-TIP-SC': 5, 'W-TIP-VET': 1, I07: 1 });
+    expect(res.warnings).toHaveLength(26);
     expect(res.warnings.filter((i) => i.rule === 'W-TIP-VET').map((i) => i.id)).toEqual(['tip-syrian-bedding-plain-paper']);
     expect(res.warnings.filter((i) => i.rule === 'W-TIP-CAT').map((i) => i.id)).toEqual(['tip-syrian-wheel-check-posture']);
     // 기니피그 S9: 요구사항 16행이 S3 ruleScoped 6필드를 참조 → playpen.floorType 만 남는다(playpen 은 rec 크기만).
@@ -128,7 +129,7 @@ describe('seed:validate — 실제 시드 baseline(디스크, 2026-11-16 서명 
   it('서명 전 기준(4 패킷 미서명, 메모리): 경고 20(W-EXPOSURE-ZERO 1 · 308 W-TIP-CAT 1 포함) · 노출 0 · --strict 이면 W-EXPOSURE-ZERO 가 ERROR', () => {
     const pre = validateSeed(BASE, { now: NOW });
     expect(pre.errors).toEqual([]);
-    expect(pre.warnings).toHaveLength(26); // 315 W-TIP-SC 5 · W-TIP-VET 1
+    expect(pre.warnings).toHaveLength(27); // 315 W-TIP-SC 5 · W-TIP-VET 1 · 354 I07 1
     expect(pre.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO').map((i) => i.id)).toEqual(['hamster-golden']);
     expect(pre.summary).toEqual({ types: 0, requirements: 0, products: 0, testimonials: 0, vets: 0 });
     const strict = validateSeed(BASE, { now: NOW, strict: true });
@@ -159,7 +160,8 @@ interface Case {
 const CASES: Case[] = [
   { name: 'S01 파일 누락', rule: 'S01', inject: (s) => { delete (s as RawSeed).testimonials; } },
   { name: 'S02 id 중복', rule: 'S02', inject: (s) => { s.supplyItems.push(structuredClone(row(s, 'supplyItems', 'cage'))); } },
-  { name: 'S02 id 형식', rule: 'S02', inject: (s) => { row(s, 'photos', 'ph-01').id = 'Photo_1'; } },
+  // 354: ph-01 은 장면 행(종 자리 habitat·홈 A startSetup 대체) — id 가 바뀌면 그 자리가 빈 칸이 되어 I06 도 함께 난다.
+  { name: 'S02 id 형식', rule: 'S02', also: ['I06'], inject: (s) => { row(s, 'photos', 'ph-01').id = 'Photo_1'; } },
   { name: 'S03 enum 밖 category', rule: 'S03', inject: (s) => { row(s, 'supplyItems', 'cage').category = 'HOUSING'; } },
   { name: 'S03 SLOT 은 상태 필드에만', rule: 'S03', inject: (s) => { row(s, 'animalTypes', 'budgie').status = 'SLOT'; } },
   { name: 'S04 contentKind 누락', rule: 'S04', also: ['V05'] /* Taxon 은 contentKind LEGAL 필수 — 누락은 V05 도 */, inject: (s) => { delete row(s, 'taxa', 'mesocricetus-auratus').contentKind; } },

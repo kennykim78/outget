@@ -61,6 +61,9 @@ describe('engine purity', () => {
         'home-a.ts',
         'index.ts',
         'links.ts',
+        // 354: 생성 이미지 기록 판정·종·품목 단위 사진 고르기(순수·결정론).
+        'photo-ai.ts',
+        'photo-resolve.ts',
         'providers.ts',
         'public.ts',
         'resolve.ts',

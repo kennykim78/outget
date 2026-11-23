@@ -235,9 +235,12 @@ describe('prerender CLI', () => {
     const pub = tmp('pub');
     const seedDir = tmp('seed');
     const s = promoted({ publishable: true });
-    patch(s, 'photos', 'ph-01', { asset: '/assets/photos/intro-1.webp' });
+    // promoted() 픽스처는 ph-01 을 READY·CC_BY(사용 가능)로 올린다 — 여기서는 SLOT 으로 되돌린다.
+    //   (READY 인데 생성 기록이 빠진 AI 행은 validate I04 ERROR 로 먼저 막힌다 — engine.photo-ai.test.ts.)
+    patch(s, 'photos', 'ph-01', { status: 'SLOT', asset: '/assets/photos/intro-1.webp' });
     writeSeedDir(seedDir, s);
-    expect((await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub])).code).toBe(0);
+    const rr = await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub]);
+    expect(rr.code, rr.err.join('\n')).toBe(0);
   });
 
   it('마커 없는 템플릿·잘못된 인자 → exit 2', async () => {

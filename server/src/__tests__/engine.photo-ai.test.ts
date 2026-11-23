@@ -13,6 +13,8 @@ import {
   photoPlacements,
   photoScopeKey,
   resolvePhoto,
+  SCENE_PHOTO_GROUPS,
+  sceneFallbackAllowed,
   type PhotoRec,
 } from '../engine/index.js';
 import { readSeedDirRaw } from '../seed/read.js';
@@ -131,7 +133,7 @@ const sceneRows = (): PhotoRec[] =>
   ['ph-01', 'ph-02', 'ph-03', 'ph-08', 'ph-09', 'ph-10', 'ph-12'].map((id) => ({ id, slot: 'intro-1', status: 'SLOT', license: null }) as unknown as PhotoRec);
 
 describe('resolvePhoto — 종+품목 → 케어프로필+품목 → 품목 → 장면', () => {
-  const gp = { use: 'item' as const, animalTypeId: 'guinea-pig', careProfileId: 'cp-guineapig', supplyItemId: 'cage' };
+  const gp = { use: 'item' as const, animalTypeId: 'guinea-pig', group: 'SMALL_MAMMAL' as const, careProfileId: 'cp-guineapig', supplyItemId: 'cage' };
 
   it('종+품목 행이 가장 먼저', () => {
     const photos = [...sceneRows(), ready('cage', { use: 'item', supplyItemId: 'cage' }), ready('cage--cp-guineapig', { use: 'item', careProfileId: 'cp-guineapig', supplyItemId: 'cage' }), ready('cage--guinea-pig', { use: 'item', animalTypeId: 'guinea-pig', supplyItemId: 'cage' })];
@@ -157,14 +159,14 @@ describe('resolvePhoto — 종+품목 → 케어프로필+품목 → 품목 → 
 
   it('다른 종의 행은 고르지 않는다(골든햄스터 쳇바퀴 사진이 기니피그 자리에 오지 않음)', () => {
     const syrian = ready('wheel--hamster-syrian', { use: 'item', animalTypeId: 'hamster-syrian', supplyItemId: 'wheel' });
-    const r = resolvePhoto([...sceneRows(), syrian], { use: 'item', animalTypeId: 'guinea-pig', careProfileId: 'cp-guineapig', supplyItemId: 'wheel' });
+    const r = resolvePhoto([...sceneRows(), syrian], { use: 'item', animalTypeId: 'guinea-pig', group: 'SMALL_MAMMAL', careProfileId: 'cp-guineapig', supplyItemId: 'wheel' });
     expect(r?.level).toBe('SCENE');
     expect(r?.photo.id).toBe('ph-03');
   });
 
   it('종 자리: 종 → 케어프로필 → 장면, 장면 행 표는 클라이언트와 같다', () => {
     const prof = ready('habitat--cp-hamster-dwarf', { use: 'habitat', careProfileId: 'cp-hamster-dwarf' });
-    const q = { use: 'habitat' as const, animalTypeId: 'hamster-dwarf', careProfileId: 'cp-hamster-dwarf' };
+    const q = { use: 'habitat' as const, animalTypeId: 'hamster-dwarf', group: 'SMALL_MAMMAL' as const, careProfileId: 'cp-hamster-dwarf' };
     expect(resolvePhoto([...sceneRows(), prof], q)?.level).toBe('PROFILE');
     expect(resolvePhoto(sceneRows(), q)?.photo.id).toBe('ph-01');
     expect(resolvePhoto(sceneRows(), { ...q, use: 'now-lead' })?.photo.id).toBe('ph-03');
@@ -182,16 +184,48 @@ describe('resolvePhoto — 종+품목 → 케어프로필+품목 → 품목 → 
   });
 
   it('item 자리에 supplyItemId 없으면 null · scope 키 정규화', () => {
-    expect(resolvePhoto(sceneRows(), { use: 'item', animalTypeId: 'guinea-pig', careProfileId: null })).toBeNull();
+    expect(resolvePhoto(sceneRows(), { use: 'item', animalTypeId: 'guinea-pig', group: 'SMALL_MAMMAL', careProfileId: null })).toBeNull();
     expect(photoScopeKey({ supplyItemId: 'cage', use: 'item', animalTypeId: 'x' })).toBe('item|t:x|i:cage');
     expect(photoScopeKey({ use: 'item', other: 1 })).toBeNull();
     expect(photoScopeKey({ use: 'item', supplyItemId: '' })).toBeNull();
   });
 
+  it('356 ⑦ 충돌 H: 앵무(PARROT) 자리에는 장면 행(햄스터 사진)이 붙지 않는다 — 종·프로필 행 우선, 없으면 null', () => {
+    const budgie = { use: 'habitat' as const, animalTypeId: 'budgie', group: 'PARROT' as const, careProfileId: 'cp-parrot-small' };
+    // 장면 행만 있으면: 앵무 종 자리 3 · 품목 자리 전부 null(햄스터 ph-01·03·08·09·10 이 오지 않음)
+    for (const use of ['habitat', 'now-lead', 'spec'] as const) expect(resolvePhoto(sceneRows(), { ...budgie, use })).toBeNull();
+    for (const item of ['cage', 'bedding', 'food', 'perch']) {
+      expect(resolvePhoto(sceneRows(), { ...budgie, use: 'item', supplyItemId: item })).toBeNull();
+    }
+    // 장면 행이 사용 가능(READY)이어도 마찬가지
+    const readyScenes = sceneRows().map((p) => ready(p.id, undefined));
+    expect(resolvePhoto(readyScenes, budgie)).toBeNull();
+    expect(resolvePhoto(readyScenes, { ...budgie, group: 'SMALL_MAMMAL' })?.level).toBe('SCENE');
+    // 종 행 → 케어프로필 행 순으로는 그대로 고른다
+    const typeRow = ready('habitat--budgie', { use: 'habitat', animalTypeId: 'budgie' });
+    const profRow = ready('habitat--cp-parrot-small', { use: 'habitat', careProfileId: 'cp-parrot-small' });
+    expect(resolvePhoto([...readyScenes, profRow, typeRow], budgie)?.photo.id).toBe('habitat--budgie');
+    expect(resolvePhoto([...readyScenes, profRow], budgie)?.level).toBe('PROFILE');
+    // 종 행이 아직 SLOT 이면 장면 행이 아니라 그 종 행을 빈 자리로 돌려준다(usable=false → I07, I06 아님)
+    const slotType = { ...typeRow, status: 'SLOT' } as PhotoRec;
+    const slotRes = resolvePhoto([...readyScenes, slotType], budgie);
+    expect([slotRes?.photo.id, slotRes?.level, slotRes?.usable, slotRes?.aiGenerated]).toEqual(['habitat--budgie', 'TYPE', false, false]);
+    // 사용 가능한 프로필 행이 SLOT 종 행보다 먼저(사용 가능 우선 → 빈 자리는 마지막)
+    expect(resolvePhoto([...readyScenes, slotType, profRow], budgie)?.photo.id).toBe('habitat--cp-parrot-small');
+    const cockatiel = { ...budgie, animalTypeId: 'cockatiel' };
+    expect(resolvePhoto([...readyScenes, typeRow], cockatiel)).toBeNull(); // 다른 앵무 종 행도 안 붙음
+    // 그룹 모름(null)도 닫힌 쪽
+    expect(resolvePhoto(readyScenes, { ...budgie, group: null })).toBeNull();
+    expect(sceneFallbackAllowed('SMALL_MAMMAL')).toBe(true);
+    expect(sceneFallbackAllowed('PARROT')).toBe(false);
+    expect(sceneFallbackAllowed(undefined)).toBe(false);
+    expect(SCENE_PHOTO_GROUPS).toEqual(['SMALL_MAMMAL']);
+  });
+
   it('결정론: 같은 입력 같은 결과, 자리 전수에 홈 A 장면 5 + 종 자리 3', () => {
-    const pl = photoPlacements([{ id: 'guinea-pig', careProfileId: 'cp-guineapig' }], () => ['cage', 'hay']);
+    const pl = photoPlacements([{ id: 'guinea-pig', group: 'SMALL_MAMMAL', careProfileId: 'cp-guineapig' }], () => ['cage', 'hay']);
     expect(pl.length).toBe(5 + 3 + 2);
-    expect(JSON.stringify(photoPlacements([{ id: 'guinea-pig', careProfileId: 'cp-guineapig' }], () => ['cage', 'hay']))).toBe(JSON.stringify(pl));
+    expect(JSON.stringify(photoPlacements([{ id: 'guinea-pig', group: 'SMALL_MAMMAL', careProfileId: 'cp-guineapig' }], () => ['cage', 'hay']))).toBe(JSON.stringify(pl));
   });
 });
 
@@ -220,6 +254,25 @@ describe('validate 사진 scope·자리 전수', () => {
     });
     // ph-12 는 홈 A 장면 전용 — 대체 경로가 없으므로 오류.
     expect(rulesOf(s, 'I06').length).toBe(1);
+  });
+
+  it('I06(356 ⑦ 충돌 H): 앵무가 ACTIVE 가 되면 장면 행(햄스터 사진)으로 메우지 않고 종 자리마다 ERROR — 종·프로필 행이 있으면 해소', () => {
+    const activate = (s: Required<RawSeed>) => {
+      (s.animalTypes as Rec[]).find((r) => r.id === 'budgie')!.status = 'ACTIVE';
+      return s;
+    };
+    const budgieI06 = (s: Required<RawSeed>) => rulesOf(s, 'I06').filter((i) => i.message.includes('budgie'));
+    const e = budgieI06(activate(seedWith(() => {})));
+    expect(e.length).toBeGreaterThanOrEqual(3);
+    expect(e.every((i) => i.message.includes('PARROT') && i.message.includes('대체 밖'))).toBe(true);
+    // 종 자리 3개를 종 단위 행(SLOT 이라도 자리는 있음 — usable=false 는 I07)으로 채우면 그 3개 오류는 사라진다
+    const withRows = activate(seedWith((ph) => {
+      for (const use of ['habitat', 'now-lead', 'spec']) {
+        ph.push({ ...AI, id: `ph-budgie-${use}`, slot: `budgie-${use}`, scope: { use, animalTypeId: 'budgie' }, asset: `/assets/photos/budgie-${use}.webp`, promptPath: `docs/assets/prompts/budgie-${use}.md` } as Rec);
+      }
+    }));
+    const left = budgieI06(withRows);
+    expect(left.some((i) => / (habitat|now-lead|spec):/.test(i.message))).toBe(false);
   });
 
   const scoped = (scope: Record<string, unknown>, extra: Record<string, unknown> = {}) =>

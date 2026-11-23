@@ -69,6 +69,7 @@ export {
   PHOTO_SCOPE_KEYS,
   PHOTO_TYPE_USES,
   PHOTO_USES,
+  SCENE_PHOTO_GROUPS,
   TYPE_SCENE_PHOTOS,
   photoLevels,
   photoPlacements,
@@ -76,6 +77,7 @@ export {
   resolvePhoto,
   resolvePlacement,
   resolveScenePhoto,
+  sceneFallbackAllowed,
   scenePhotoIdFor,
 } from './photo-resolve.js';
 export type { PhotoLevel, PhotoPlacement, PhotoQuery, PhotoUse, ResolvedPhoto } from './photo-resolve.js';

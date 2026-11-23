@@ -613,9 +613,24 @@ describe('L-1 — ACTIVE(노출 후보) 타입은 taxonId 비어 있지 않음(R
 describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 차단은 검수(노출 판정·X01·R01)뿐 · 앵무 X01 fail-closed', () => {
   // 위반·승격은 메모리 사본에만. NOW_W1 = 작업일(271) — 308: budget-tips checkedAt 2026-11-22 가 미래(S07)가 되지 않게 11-02→11-22(시드 checkedAt 은 그대로).
   const NOW_W1 = '2026-11-22';
+  /**
+   * 354b(356 ⑦ 충돌 H): 앵무(PARROT) 자리는 장면 행(햄스터 사진)으로 메우지 않는다 — ACTIVE 앵무는 종 단위 사진 행이 없으면 I06.
+   *   이 묶음은 법·검수 게이트를 보는 시험이라, 앵무를 올릴 때 종 자리 3개의 빈 사진 행(SLOT)을 메모리에서 함께 둔다.
+   *   (사진 자리 규칙 자체는 engine.photo-ai.test.ts 「I06(356 ⑦ 충돌 H)」.)
+   */
+  const parrotPhotoSlots = (s: Required<RawSeed>, typeId: string): void => {
+    const rows: Array<[string, Rec]> = [
+      ...(['habitat', 'now-lead', 'spec'] as const).map((use): [string, Rec] => [`ph-${typeId}-${use}`, { use, animalTypeId: typeId }]),
+    ];
+    for (const [id, scope] of rows) {
+      (s.photos as Rec[]).push({ id, scene: '합성 빈 자리', query: id, slot: id, status: 'SLOT', license: null, source: null, sourceUrl: null, author: null, licenseUrl: null, downloadedAt: null, modified: false, scope });
+    }
+  };
   const active = (typeId: string): Required<RawSeed> => {
     const s = fresh();
-    row(s, 'animalTypes', typeId).status = 'ACTIVE';
+    const at = row(s, 'animalTypes', typeId);
+    at.status = 'ACTIVE';
+    if (at.group === 'PARROT') parrotPhotoSlots(s, typeId);
     return s;
   };
   const exposable = (s: RawSeed, typeId: string): boolean => isAnimalTypeExposable(createCatalog(asSeedBundle(s)), typeId, NOW_W1);
@@ -722,6 +737,8 @@ describe('271 1차 종 — 로보·앵무: 법 게이트 없음(280) · 공개 �
     });
     verify(req, 'EXPERIENCED_KEEPER');
     (s.supplyRequirements as Rec[]).push(req);
+    // 품목 자리(bird-cage)도 종 단위 빈 행 — 장면 대체 없음(354b). 종 자리 3개는 active() 가 이미 둠.
+    (s.photos as Rec[]).push({ id: 'ph-budgie-bird-cage', scene: '합성 빈 자리', query: 'ph-budgie-bird-cage', slot: 'ph-budgie-bird-cage', status: 'SLOT', license: null, source: null, sourceUrl: null, author: null, licenseUrl: null, downloadedAt: null, modified: false, scope: { use: 'item', animalTypeId: 'budgie', supplyItemId: 'bird-cage' } });
     // 앵무 Taxon 은 DRAFT·AI_DRAFT 그대로 — 280 이전엔 X02 도 났다.
     expect(row(s, 'taxa', 'melopsittacus-undulatus').reviewStatus).toBe('DRAFT');
     expect(exposable(s, 'budgie')).toBe(true);

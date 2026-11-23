@@ -6,11 +6,13 @@ import {
   PHOTO_USABLE_STATUSES,
   PHOTO_USES,
   aiPhotoRecordProblems,
+  isAnimalGroup,
   isoDayNumber,
   parseCcLicenseUrl,
   photoPlacements,
   photoScopeKey,
   resolvePlacement,
+  sceneFallbackAllowed,
   scenePhotoIdFor,
   type PhotoRec,
 } from '../engine/index.js';
@@ -222,7 +224,11 @@ function checkPhotoCoverage(ctx: Ctx): void {
   const photos = ctx.rows.photos.map((r) => r.rec as unknown as PhotoRec);
   const types = ctx.rows.animalTypes
     .filter(({ rec }) => rec.status === 'ACTIVE' && isNonEmptyStr(rec.id))
-    .map(({ rec }) => ({ id: rec.id as string, careProfileId: isNonEmptyStr(rec.careProfileId) ? rec.careProfileId : null }));
+    .map(({ rec }) => ({
+      id: rec.id as string,
+      group: isAnimalGroup(rec.group) ? rec.group : null,
+      careProfileId: isNonEmptyStr(rec.careProfileId) ? rec.careProfileId : null,
+    }));
   const itemsOf = (cp: string): string[] =>
     [...new Set(ctx.rows.supplyRequirements.filter(({ rec }) => rec.careProfileId === cp && isNonEmptyStr(rec.supplyItemId)).map(({ rec }) => rec.supplyItemId as string))];
   let empty = 0;
@@ -231,7 +237,10 @@ function checkPhotoCoverage(ctx: Ctx): void {
     total++;
     const r = resolvePlacement(photos, pl);
     const where = pl.kind === 'scene' ? `홈 A 장면 ${pl.photoId}` : `${pl.query.animalTypeId} ${pl.query.use}${pl.query.supplyItemId ? ` ${pl.query.supplyItemId}` : ''}`;
-    if (r === null) {
+    if (r === null && pl.kind === 'query' && !sceneFallbackAllowed(pl.query.group)) {
+      // 356 ⑦ 충돌 H: 장면 행(햄스터 사진)은 SCENE_PHOTO_GROUPS 종에만 붙는다 — 그 밖의 그룹은 종·케어프로필 단위 행이 있어야 한다.
+      out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 그룹 ${pl.query.group ?? '(모름)'} 은 장면 행(햄스터 사진) 대체 밖 — 종·케어프로필 단위 사진 행(scope)이 필요하다`);
+    } else if (r === null) {
       const scene = pl.kind === 'scene' ? pl.photoId : scenePhotoIdFor(pl.query.use, pl.query.supplyItemId);
       out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 종·품목 사진도 장면 행(${scene}, scope 없음)도 없다 — 빈 칸`);
     } else if (!r.usable) {
