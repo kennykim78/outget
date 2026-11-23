@@ -252,6 +252,15 @@ export const COPY = deepFreeze({
     /** R4-4(R4 시안 l4_supply): 검수 행(마지막 검수 · 출처 · 👍⚠) 섹션 머리 — 시안 원문. */
     reviewTitle: '검수 내용',
   },
+  /**
+   * 356(Kenny 2026-11-23 · 불변식 7 「예외 2」 K4): 일반 참고 정보(GENERAL_INFO, 코드 고정 6종) 표지.
+   *   notice = 종 페이지 컨텍스트 헤더 아래 1회(홈 B·레이어 딥링크 공통 main). sourceLabel = L4 「검수 내용」·L5 검수 meta 자리의 출처 라벨
+   *   (출처를 지어내지 않는다 — 실제 출처 배열은 비어 있다). VERIFIED 체인 타입에는 둘 다 그리지 않는다.
+   */
+  generalInfo: {
+    notice: sent('일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요'),
+    sourceLabel: '일반 사육 자료 종합',
+  },
   /** R5 C1 — L5 VerdictCard 판정 표시(스펙33 §3). 판정어는 정보일 뿐 추천 아님. 헤드라인 숫자는 표시 함수가 "최소 {v}{u} · 입력 {a}{u}"로 조립. */
   verdict: {
     productLine: '제품 규격',

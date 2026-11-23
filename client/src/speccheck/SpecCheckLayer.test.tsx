@@ -572,6 +572,27 @@ describe('L5 화면 규칙', () => {
     expect(window.location.pathname).toBe('/hamster/golden/supplies/saucer');
   });
 
+  it('356 일반 참고 정보 요구사항: 검수 meta 자리 = 출처 라벨(마지막 검수·출처 개수 0, 고지 문장 0 — 고지는 종 페이지 헤더 1회)', async () => {
+    const giPage = pageOf(
+      'TYPE',
+      { ...PAGE.data, requirements: PAGE.data.requirements.map((x) => (x.supplyItemId === 'wheel' ? { ...x, lastVerifiedAt: '', source: [], generalInfo: true as const } : x)) },
+      { typeId: golden.id, path: '/hamster/golden' },
+    );
+    render(
+      <LayerPageProvider page={giPage}>
+        <LayerHost registry={layerRegistry} />
+      </LayerPageProvider>,
+    );
+    act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'wheel' }, { url: '/hamster/golden/check/wheel' }));
+    const d = await screen.findByRole('dialog');
+    await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 });
+    await ready(d);
+    const r = await checkWheel(d, '27');
+    expect(within(r).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · ${COPY.supplyLayer.source} ${COPY.generalInfo.sourceLabel}`)).toBeInTheDocument();
+    expect(r.textContent).not.toContain(COPY.supplyLayer.lastVerified);
+    expect(d.textContent).not.toContain(COPY.generalInfo.notice);
+  });
+
   it('검색: buildSearchKeyword 검색어 + 쿠팡·네이버 링크(새 탭·nofollow), external_product_clicked', async () => {
     const d = await openL5('wheel');
     await ready(d);

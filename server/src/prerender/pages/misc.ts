@@ -40,7 +40,7 @@ import {
 } from './common.js';
 import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell, type PrivacyPolicy } from '../privacy-content.js';
 import { familyName } from './family.js';
-import { layerL4, specCheckTestimonials, tipsHrefOf } from './type.js';
+import { generalInfoNote, layerL4, specCheckTestimonials, tipsHrefOf } from './type.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
 
@@ -470,6 +470,8 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     crumbs,
     main: [
       `<h1 data-ws-id="supplyItems#${a(it.id)}">${h(it.name)}</h1>`,
+      // 356: /supplies/{item}/{type} 는 종 라우트(L4 딥링크) — 일반 참고 정보 타입이면 고지 1회(main 머리), L4 는 출처 라벨만.
+      ...(header && header.pub.generalInfo ? [generalInfoNote(header)] : []),
       `<p>${h(COPY.supplies.chooseAnimal)}</p>`,
       '<ul class="ws-types">',
       ...ts.map(

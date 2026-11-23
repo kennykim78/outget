@@ -257,6 +257,7 @@ export default function SpecCheckLayer({ props, close }: LayerContentProps) {
               searchLinks={links}
               lastVerifiedYm={yearMonth(requirement.lastVerifiedAt)}
               sourceCount={requirement.source.length}
+              generalInfo={requirement.generalInfo === true}
               seq={outcome.seq}
               describedId={describedId}
               contextRow={cageRow}

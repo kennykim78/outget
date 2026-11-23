@@ -295,13 +295,14 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
           ) : null}
 
           <section className="ws-supply-part ws-supply-verified" data-ws-part="verified">
-            <h3 className="ws-t-label ws-supply-head">{COPY.supplyLayer.reviewTitle}</h3>
-            <p className="ws-t-meta">
-              {lm ? `${COPY.supplyLayer.lastVerified} ${lm}` : null}
+            {/* 356 K4: 일반 참고 정보면 「검수 내용」·마지막 검수 대신 출처 라벨(고지 문장은 종 페이지 헤더 1회 — 여기 중복 0). */}
+            <h3 className="ws-t-label ws-supply-head">{r.generalInfo ? COPY.supplyLayer.source : COPY.supplyLayer.reviewTitle}</h3>
+            <p className="ws-t-meta" data-ws-source={r.generalInfo ? 'general-info' : undefined}>
+              {r.generalInfo ? COPY.generalInfo.sourceLabel : lm ? `${COPY.supplyLayer.lastVerified} ${lm}` : null}
               {r.source.length ? (
                 <>
-                  {lm ? ' · ' : null}
-                  {`${COPY.supplyLayer.source} `}
+                  {r.generalInfo || lm ? ' · ' : null}
+                  {r.generalInfo ? null : `${COPY.supplyLayer.source} `}
                   {r.source.map((s, i) => (
                     <span key={s.url}>
                       {i > 0 ? ' · ' : null}

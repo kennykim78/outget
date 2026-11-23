@@ -47,6 +47,8 @@ export interface VerdictCardProps {
   searchLinks: readonly SearchLink[];
   lastVerifiedYm: string | null;
   sourceCount: number;
+  /** 356: 일반 참고 정보(GENERAL_INFO) 요구사항 — 검수 meta 자리에 「출처 일반 사육 자료 종합」(고지 문장은 종 페이지 헤더 1회). */
+  generalInfo?: boolean;
   /** 제출 회차. */
   seq: number;
   /** 대화상자 aria-describedby 가 가리키는 「{동물} · {용품}」 줄의 id. */
@@ -113,8 +115,9 @@ const VerdictCard = forwardRef<HTMLHeadingElement, VerdictCardProps>(function Ve
   const basis = `${p.animalName} ${COPY.verdict.basisSuffix}`;
   const footMeta = [
     basis,
-    p.lastVerifiedYm ? `${COPY.supplyLayer.lastVerified} ${p.lastVerifiedYm}` : null,
-    p.sourceCount > 0 ? `${COPY.supplyLayer.source} ${p.sourceCount}` : null,
+    p.generalInfo ? `${COPY.supplyLayer.source} ${COPY.generalInfo.sourceLabel}` : null,
+    !p.generalInfo && p.lastVerifiedYm ? `${COPY.supplyLayer.lastVerified} ${p.lastVerifiedYm}` : null,
+    !p.generalInfo && p.sourceCount > 0 ? `${COPY.supplyLayer.source} ${p.sourceCount}` : null,
   ]
     .filter((x): x is string => x !== null)
     .join(' · ');
