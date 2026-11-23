@@ -59,7 +59,16 @@ export interface PublicAnimalType {
   oneLiner: string | null;
   mascot: string | null;
   careProfileId: string;
-  review: PublicReview;
+  /**
+   * 검수 기록(VERIFIED 타입만). 356 M11: 타입 자기 메타가 GENERAL_INFO(일반 참고 정보, 코드 고정 6종)면 키 자체가 없다 —
+   *   검수가 아니므로 검수일·검수자 유형을 싣지 않는다(reviewerType AI_DRAFT 문자열이 ws-data 에 나가지 않게).
+   */
+  review?: PublicReview;
+  /**
+   * 356 M11: 이 타입 페이지에 GENERAL_INFO 체인(타입·케어프로필·노출 요구사항의 type·profile·requirement·item 메타)이
+   *   하나라도 있으면 true — 종 페이지 고지(「일반 참고 정보」) 대상. 전부 VERIFIED 면 키 자체가 없다(기존 ws-data 바이트 불변).
+   */
+  generalInfo?: true;
   /**
    * R6 G3b — 홈(HOME·PICK·SAVE) ws-data 에서만: 이 타입의 "규격 확인 가능한 첫 항목" SupplyItem id
    *   (노출 요구사항 중 item.specSchema.fields.length > 0, 엔진 순서 orderHint → priority → 시드 순 첫 항목, 불변식 7).
@@ -111,8 +120,13 @@ export interface PublicRequirement {
   /** glyph: SupplyItem.glyph(이미지 대체 타일·용품 목록, 스펙22 §4-2 G5). */
   item: { id: string; name: string; category: SupplyCategory; glyph: string; specSchema: SpecSchema; alternativeIds: string[] };
   source: Array<{ url: string; title: string }>;
-  /** 체인(type·profile·requirement·item) verifiedAt 최솟값. */
+  /**
+   * 체인(type·profile·requirement·item) verifiedAt 최솟값. 356 M11: 체인에 GENERAL_INFO 가 있으면 '' —
+   *   검수하지 않은 칸이 섞인 행에 검수일(「마지막 검수」)을 붙이지 않는다(화면은 yearMonth('') = null → 표기 0).
+   */
   lastVerifiedAt: string;
+  /** 356 M11: 체인 메타 중 GENERAL_INFO 가 하나라도 있으면 true(lastVerifiedAt 뒤). 없으면 키 자체가 없다. */
+  generalInfo?: true;
 }
 
 export interface PublicProduct {

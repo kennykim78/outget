@@ -154,5 +154,508 @@
     "downloadedAt": null,
     "modified": false,
     "status": "SLOT"
+  },
+  {
+    "id": "ph-budgie-habitat",
+    "scene": "사랑앵무 새장 생활 모습",
+    "slot": "budgie-habitat",
+    "query": "budgerigar in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "budgie"
+    }
+  },
+  {
+    "id": "ph-budgie-now-lead",
+    "scene": "사랑앵무 횃대 위 모습",
+    "slot": "budgie-now-lead",
+    "query": "budgerigar on perch",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "budgie"
+    }
+  },
+  {
+    "id": "ph-budgie-spec",
+    "scene": "사랑앵무 새장 크기 비교",
+    "slot": "budgie-spec",
+    "query": "budgerigar cage size",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "budgie"
+    }
+  },
+  {
+    "id": "ph-cockatiel-habitat",
+    "scene": "왕관앵무 새장 생활 모습",
+    "slot": "cockatiel-habitat",
+    "query": "cockatiel in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "cockatiel"
+    }
+  },
+  {
+    "id": "ph-cockatiel-now-lead",
+    "scene": "왕관앵무 횃대 위 모습",
+    "slot": "cockatiel-now-lead",
+    "query": "cockatiel on perch",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "cockatiel"
+    }
+  },
+  {
+    "id": "ph-cockatiel-spec",
+    "scene": "왕관앵무 새장 크기 비교",
+    "slot": "cockatiel-spec",
+    "query": "cockatiel cage size",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "cockatiel"
+    }
+  },
+  {
+    "id": "ph-lovebird-peach-habitat",
+    "scene": "모란앵무 새장 생활 모습",
+    "slot": "lovebird-peach-habitat",
+    "query": "peach-faced lovebird in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "lovebird-peach"
+    }
+  },
+  {
+    "id": "ph-lovebird-peach-now-lead",
+    "scene": "모란앵무 횃대 위 모습",
+    "slot": "lovebird-peach-now-lead",
+    "query": "peach-faced lovebird on perch",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "lovebird-peach"
+    }
+  },
+  {
+    "id": "ph-lovebird-peach-spec",
+    "scene": "모란앵무 새장 크기 비교",
+    "slot": "lovebird-peach-spec",
+    "query": "peach-faced lovebird cage size",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "lovebird-peach"
+    }
+  },
+  {
+    "id": "ph-sun-conure-habitat",
+    "scene": "썬코뉴어 새장 생활 모습",
+    "slot": "sun-conure-habitat",
+    "query": "sun conure in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "sun-conure"
+    }
+  },
+  {
+    "id": "ph-sun-conure-now-lead",
+    "scene": "썬코뉴어 횃대 위 모습",
+    "slot": "sun-conure-now-lead",
+    "query": "sun conure on perch",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "sun-conure"
+    }
+  },
+  {
+    "id": "ph-sun-conure-spec",
+    "scene": "썬코뉴어 새장 크기 비교",
+    "slot": "sun-conure-spec",
+    "query": "sun conure cage size",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "sun-conure"
+    }
+  },
+  {
+    "id": "ph-item-bird-cage",
+    "scene": "새장 물건 사진(동물 없음)",
+    "slot": "item-bird-cage",
+    "query": "bird cage product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "bird-cage"
+    }
+  },
+  {
+    "id": "ph-item-perch",
+    "scene": "횃대 물건 사진(동물 없음)",
+    "slot": "item-perch",
+    "query": "perch product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "perch"
+    }
+  },
+  {
+    "id": "ph-item-bird-food",
+    "scene": "새 모이 물건 사진(동물 없음)",
+    "slot": "item-bird-food",
+    "query": "bird food product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "bird-food"
+    }
+  },
+  {
+    "id": "ph-item-mineral",
+    "scene": "미네랄 블록 물건 사진(동물 없음)",
+    "slot": "item-mineral",
+    "query": "mineral product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "mineral"
+    }
+  },
+  {
+    "id": "ph-item-bird-bath",
+    "scene": "새 목욕통 물건 사진(동물 없음)",
+    "slot": "item-bird-bath",
+    "query": "bird bath product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "bird-bath"
+    }
+  },
+  {
+    "id": "ph-item-foraging-toy",
+    "scene": "포리징 장난감 물건 사진(동물 없음)",
+    "slot": "item-foraging-toy",
+    "query": "foraging toy product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "foraging-toy"
+    }
+  },
+  {
+    "id": "ph-item-cage-cover",
+    "scene": "새장 덮개 물건 사진(동물 없음)",
+    "slot": "item-cage-cover",
+    "query": "cage cover product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "supplyItemId": "cage-cover"
+    }
+  },
+  {
+    "id": "ph-parrot-small-water",
+    "scene": "앵무용 급수기",
+    "slot": "parrot-small-water",
+    "query": "bird water",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-parrot-small-food-bowl",
+    "scene": "앵무용 먹이 그릇",
+    "slot": "parrot-small-food-bowl",
+    "query": "bird food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-parrot-small-carrier",
+    "scene": "앵무용 이동장",
+    "slot": "parrot-small-carrier",
+    "query": "bird carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-parrot-small-thermo",
+    "scene": "앵무용 온습도계",
+    "slot": "parrot-small-thermo",
+    "query": "bird thermo",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-parrot-small-scale",
+    "scene": "앵무용 저울",
+    "slot": "parrot-small-scale",
+    "query": "bird scale",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "scale"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-water",
+    "scene": "앵무용 급수기",
+    "slot": "parrot-medium-water",
+    "query": "bird water",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-food-bowl",
+    "scene": "앵무용 먹이 그릇",
+    "slot": "parrot-medium-food-bowl",
+    "query": "bird food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-carrier",
+    "scene": "앵무용 이동장",
+    "slot": "parrot-medium-carrier",
+    "query": "bird carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-thermo",
+    "scene": "앵무용 온습도계",
+    "slot": "parrot-medium-thermo",
+    "query": "bird thermo",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-scale",
+    "scene": "앵무용 저울",
+    "slot": "parrot-medium-scale",
+    "query": "bird scale",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
+      "supplyItemId": "scale"
+    }
   }
 ]

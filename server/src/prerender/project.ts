@@ -153,6 +153,19 @@ function minDate(ds: ReadonlyArray<string | null | undefined>): string | null {
   return out;
 }
 
+/** 356 M11: GENERAL_INFO(일반 참고 정보) 메타인가 — 공개 투영 표지(generalInfo)·검수일 표기 제외 판정. 노출 판정은 엔진(exposure.ts)이 한다. */
+function isGeneralInfo(m: Pick<ContentMeta, 'reviewStatus'>): boolean {
+  return m.reviewStatus === 'GENERAL_INFO';
+}
+
+/**
+ * 356 M12: lastmod 용 날짜 — verifiedAt, 없으면 GENERAL_INFO 행의 draftedAt(검수일이 없는 행도 sitemap lastmod 를 갖게).
+ *   GENERAL_INFO 가 아닌 행의 draftedAt 은 쓰지 않는다(V12 가 값 자체를 막는다).
+ */
+export function lastmodOf(m: Pick<ContentMeta, 'reviewStatus' | 'verifiedAt' | 'draftedAt'>): string | null {
+  return dateOf(m.verifiedAt) ?? (isGeneralInfo(m) ? dateOf(m.draftedAt) : null);
+}
+
 function sources(m: ContentMeta): Array<{ url: string; title: string }> {
   return Array.isArray(m.source) ? m.source.map((s) => ({ url: String(s.url), title: String(s.title) })) : [];
 }
@@ -179,8 +192,12 @@ function projectRequirement(
   affiliate: ReadonlyMap<string, AffiliateCodes> | undefined,
 ): Omit<PublicRequirement, 'requirementId'> {
   const keyword = buildSearchKeyword(at, r);
-  const lastVerifiedAt =
-    minDate([
+  const chain = [r.review.animalType, r.review.careProfile, r.review.requirement, r.review.item];
+  const generalInfo = chain.some(isGeneralInfo);
+  // 356 M11: 체인에 GENERAL_INFO 가 섞이면 검수일을 싣지 않는다('' → 화면 표기 0).
+  const lastVerifiedAt = generalInfo
+    ? ''
+    : minDate([
       dateOf(r.review.animalType.verifiedAt),
       dateOf(r.review.careProfile.verifiedAt),
       dateOf(r.review.requirement.verifiedAt),
@@ -212,10 +229,11 @@ function projectRequirement(
     },
     source: sources(r.review.requirement),
     lastVerifiedAt,
+    ...(generalInfo ? { generalInfo: true as const } : {}),
   };
 }
 
-function projectType(at: AnimalTypeRec, slug: string, careProfileId: string): PublicAnimalType {
+function projectType(at: AnimalTypeRec, slug: string, careProfileId: string, generalInfo: boolean): PublicAnimalType {
   return {
     id: at.id,
     slug,
@@ -225,7 +243,9 @@ function projectType(at: AnimalTypeRec, slug: string, careProfileId: string): Pu
     oneLiner: at.oneLiner ?? null,
     mascot: at.mascot ?? null,
     careProfileId,
-    review: { verifiedAt: dateOf(at.verifiedAt) ?? '', reviewerType: at.reviewerType },
+    // 356 M11: 타입 자기 메타가 GENERAL_INFO 면 review 키 없음(검수 기록이 아니다 — reviewerType AI_DRAFT 미노출).
+    ...(isGeneralInfo(at) ? {} : { review: { verifiedAt: dateOf(at.verifiedAt) ?? '', reviewerType: at.reviewerType } }),
+    ...(generalInfo ? { generalInfo: true as const } : {}),
   };
 }
 
@@ -322,16 +342,21 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
       slug: at.slug,
       family: segs.length === 2 ? segs[0] : null,
       rec: at,
-      pub: projectType(at, at.slug, at.careProfileId),
+      pub: projectType(
+        at,
+        at.slug,
+        at.careProfileId,
+        isGeneralInfo(at) || isGeneralInfo(profile) || requirements.some((r) => r.pub.generalInfo === true),
+      ),
       requirements,
       bundles,
       products,
       tips,
       lastmod: maxDate([
-        dateOf(at.verifiedAt),
-        dateOf(profile.verifiedAt),
-        ...exposed.map((r) => dateOf(r.review.requirement.verifiedAt)),
-        ...exposed.map((r) => dateOf(r.review.item.verifiedAt)),
+        lastmodOf(at),
+        lastmodOf(profile),
+        ...exposed.map((r) => lastmodOf(r.review.requirement)),
+        ...exposed.map((r) => lastmodOf(r.review.item)),
         ...bundleRows.map((b) => dateOf(b.verifiedAt)),
         ...productRows.map((p) => dateOf(p.verifiedAt)),
       ]),
@@ -344,14 +369,17 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
     const typeIds = types.filter((t) => t.requirements.some((r) => r.item.id === it.id)).map((t) => t.id);
     if (typeIds.length === 0) continue;
     const reqDates = types.flatMap((t) =>
-      t.requirements.filter((r) => r.item.id === it.id).map((r) => dateOf(reqRowById.get(r.requirementId)?.verifiedAt)),
+      t.requirements.filter((r) => r.item.id === it.id).map((r) => {
+        const row = reqRowById.get(r.requirementId);
+        return row ? lastmodOf(row) : null;
+      }),
     );
     items.push({
       id: it.id,
       name: it.name,
       category: it.category,
       typeIds,
-      lastmod: maxDate([dateOf(it.verifiedAt), ...reqDates]),
+      lastmod: maxDate([lastmodOf(it), ...reqDates]),
     });
   }
 
