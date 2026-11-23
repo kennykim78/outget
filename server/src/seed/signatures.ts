@@ -79,6 +79,8 @@ export function whyShortIsRephrased(o: Rec): boolean {
 /** 행 수준 basis 정책의 사유(V10 메시지용). 정책 없음 = null. */
 export function requiredBasisReason(key: SeedKey, r: Rec): string | null {
   if (key === 'curatedProducts') return '상품';
+  // 저렴 대체 팁: 위험 태그가 있거나 규격 예시가 있는 행은 행별 확인만(REFERENCE 노출은 검수와 무관하지만, VERIFIED 로 올릴 때의 규칙).
+  if (key === 'budgetTips' && ((Array.isArray(r.hazards) && r.hazards.length > 0) || asRec(r.specExample) !== null)) return '위험 태그·규격 예시가 있는 팁 행';
   const nonEmptyRules = (rs: unknown): boolean => {
     const rules = asRec(rs)?.rules;
     return Array.isArray(rules) && rules.length > 0;

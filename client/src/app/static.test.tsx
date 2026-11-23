@@ -48,6 +48,7 @@ const STATIC_KINDS: Array<[RouteKind, string]> = [
   // VET·VET_REGION 은 R5 F3-1 부터 React(vet/VetPage) — vet/VetPage.test.tsx.
   ['CREDITS', '/credits'],
   ['PRIVACY', '/privacy'],
+  ['TIPS', '/hamster/golden/tips'], // 305: 팁 본문은 프리렌더 HTML 전용(ws-data 에 없음)
   ['NOT_FOUND', '/404'],
 ];
 

@@ -84,7 +84,7 @@ describe('prerender CLI', () => {
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 61 (+404), indexable 44, types 1']);
+    expect(r1.out).toEqual(['prerender — pages 61 (+404), indexable 44, types 1' /* 308 /tips +1 → 315 총괄 11/22: 실시드 팁 검수 기록(summaryCheck·vetReview) null → /tips 0(−1) */]);
     // 노출은 ACTIVE 골든뿐 — PLANNED 드워프·저빌·기니피그(서명됐어도) 경로 0.
     for (const f of ['hamster/index.html', 'hamster/golden/index.html', 'hamster/golden/supplies/cage/index.html', 'hamster/golden/check/wheel/index.html']) expect(existsSync(join(out, f)), f).toBe(true);
     for (const f of ['hamster/dwarf', 'gerbil', 'guinea-pig', 'parrot']) expect(existsSync(join(out, f)), f).toBe(false);
@@ -136,7 +136,7 @@ describe('prerender CLI', () => {
     writeSeedDir(seedDir, promoted({ publishable: true }));
     const r = await run(['--out', out, '--seed-dir', seedDir]);
     expect(r.err).toEqual([]);
-    expect(r.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
+    expect(r.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 · 308 /tips +1 → 315 검수 기록 null 로 /tips 0(−1) */]);
     expect(existsSync(join(out, 'hamster', 'golden', 'supplies', 'cage', 'index.html'))).toBe(true);
     expect(existsSync(join(out, 'vet', '서울-마포구', 'index.html'))).toBe(true);
     // 이어서 노출 0 시드(서명 전 기준 디렉터리)로 재실행 — 이전 타입 페이지가 남지 않는다(디스크 실시드는 2026-11-16 서명 뒤 골든을 노출하므로 빈 상태 기준으로 본다).
@@ -157,7 +157,7 @@ describe('prerender CLI', () => {
     const fresh = outDir();
     const r1 = await run(['--out', fresh, '--seed-dir', seedDir, '--now', FIXTURE_LAST_FRESH]);
     expect(r1.err).toEqual([]);
-    expect(r1.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 */]);
+    expect(r1.out).toEqual(['prerender — pages 36 (+404), indexable 27, types 1' /* 보안 79 M-1: publishable 픽스처 = 필수 6항목 노출 · 308 /tips +1 → 315 검수 기록 null 로 /tips 0(−1) */]);
     const stale = outDir();
     const r2 = await run(['--out', stale, '--seed-dir', seedDir, '--now', FIXTURE_FIRST_STALE]);
     expect(r2.err).toEqual([]);

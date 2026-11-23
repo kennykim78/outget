@@ -54,6 +54,46 @@ let dwarfSite: SiteLite;
 let affSite: SiteLite;
 // 294: 운영 빌드 + 처리방침 자리표시 남음 → /privacy 비노출 빌드(#root data-ws-privacy="off"). 푸터 처리방침 링크 0 프리렌더 ↔ React.
 let hiddenSite: SiteLite;
+// 305: 팁 ≥ 1 승격 빌드(시험 픽스처 팁 — 실제 seed 파일 무관). /hamster/golden/tips 프리렌더 ↔ React.
+let tipsSite: SiteLite;
+// 308: 실시드 budget-tips 가 5행이 되어 승격 픽스처 기본(site)에도 팁이 있다 — 팁 0건 경로는 budgetTips [] 로 따로 만든다.
+let noTipsSite: SiteLite;
+
+// 팁 픽스처(사육 사실 아님 — 시험 고정값). 서버 prerender.tips.test.ts tip() 과 같은 모양. checkedAt 은 FIXTURE_AS_OF(2026-11-16) 기준 180일 안.
+const TIP_REF = { title: '시험 글 제목', url: 'https://brunch.co.kr/@tester/123', siteName: '예시 블로그', checkedAt: '2026-11-10' };
+// 총괄 ORDERS 11/22 18:4x: 팁은 요약 원문 대조 기록(summaryCheck)이 있어야 노출 — 시험용 기록을 채운다(사육 사실 아님).
+//   sources = 이 행 references[].url 전부 · checkedAt = 참조 확인일 중 가장 늦은 날. p 에 summaryCheck 키가 있으면 그대로.
+function tipFixture(p: Record<string, unknown> = {}): Record<string, unknown> {
+  const t = tipFixtureBase(p);
+  if (Object.hasOwn(p, 'summaryCheck')) return t;
+  const refs = t.references as Array<{ url: string; checkedAt: string }>;
+  return { ...t, summaryCheck: { sources: [...new Set(refs.map((r) => r.url))], checkedAt: refs.map((r) => r.checkedAt).sort().at(-1), checkedBy: '시험 운영자' } };
+}
+function tipFixtureBase(p: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: 'tip-fe-cage',
+    kind: 'REFERENCE',
+    careProfileId: 'cp-hamster-syrian',
+    supplyItemId: 'cage',
+    substitute: '시험 대체물',
+    sourceHint: 'LIVING_GOODS_STORE',
+    materials: ['시험 물품'],
+    steps: ['시험 단계 하나', '시험 단계 둘'],
+    dimensions: ['시험 치수 줄'],
+    cautions: ['시험 주의'],
+    hazards: [],
+    mustCheck: ['시험 확인'],
+    references: [TIP_REF],
+    reviewStatus: 'DRAFT',
+    reviewerType: 'AI_DRAFT',
+    verifiedBy: null,
+    verifiedAt: null,
+    reviewBasis: null,
+    contentKind: 'CARE',
+    source: [],
+    ...p,
+  };
+}
 
 beforeAll(async () => {
   const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
@@ -87,6 +127,20 @@ beforeAll(async () => {
     // 지금 본문이 채워진 뒤에도 자리표시 경로를 보도록 시행일 자리를 자리표시로 둔다(시험 안에서만).
     privacyPolicy: { ...privacyMod.PRIVACY_POLICY, effectiveDate: ['{{KEN', 'NY:effectiveDate}}'].join('') },
   });
+  noTipsSite = siteMod.buildSite({ ...(fx.promoted() as Record<string, unknown>), budgetTips: [] }, { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots });
+  tipsSite = siteMod.buildSite(
+    {
+      ...(fx.promoted() as Record<string, unknown>),
+      budgetTips: [
+        tipFixture(),
+        // 치수 없음 + 참조 2개(원문 링크 2줄, 도메인 2곳) — 파트 생략 경로 + 308 위험 태그 고정 주의 상자(하이드레이션 차이 0)
+        tipFixture({ id: 'tip-fe-cage-2', substitute: '시험 대체물 둘', dimensions: [], hazards: ['VENTILATION'], references: [TIP_REF, { ...TIP_REF, url: 'https://namu.wiki/w/test-7', siteName: '다른 블로그' }] }),
+        // 승격 픽스처에서 hideout 요구사항은 비노출 → 이 팁도 비노출(섹션 생략)
+        tipFixture({ id: 'tip-fe-hide', supplyItemId: 'hideout', substitute: '시험 은신처' }),
+      ],
+    },
+    { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots },
+  );
   dwarfSite = siteMod.buildSite(fx.dwarfPreview(), {
     template: TEMPLATE,
     origin: 'http://localhost:3001',
@@ -508,5 +562,112 @@ describe('294 /privacy 비노출 빌드 — 푸터 프리렌더 ↔ React', () =
     expect(after.hrefs).toEqual(['/credits']);
     expect(after.texts).toEqual(before.texts);
     expect(document.querySelector('a[href="/privacy"]')).toBeNull();
+  });
+});
+
+// 305(계획 300 단계 10): /{slug}/tips — 프리렌더 main 을 StaticMain 이 그대로 유지(하이드레이션 차이 0), 헤더·푸터도 같다.
+//   팁 0건이면 라우트 자체가 없다(308: 실시드 budget-tips 5행 → 팁 0건 빌드는 noTipsSite = budgetTips []).
+describe('305 /{slug}/tips — 프리렌더 ↔ 하이드레이션', () => {
+  const TIPS_PATH = '/hamster/golden/tips';
+
+  it('팁 0건 빌드(budgetTips [])엔 TIPS 라우트·/tips 링크 0', () => {
+    expect(noTipsSite.pages.some((p) => p.route.kind === 'TIPS')).toBe(false);
+    for (const p of noTipsSite.pages) expect({ path: p.route.path, tips: p.html.includes('/tips') }).toEqual({ path: p.route.path, tips: false });
+  });
+
+  it('팁 ≥ 1 빌드엔 TIPS 라우트 1개(골든), 노출 불가 팁(hideout) 0', () => {
+    expect(tipsSite.pages.filter((p) => p.route.kind === 'TIPS').map((p) => p.route.path)).toEqual([TIPS_PATH]);
+    const html = pageAt(TIPS_PATH, tipsSite).html;
+    expect(html).toContain('data-ws-id="budgetTips#tip-fe-cage"');
+    expect(html).toContain('data-ws-id="budgetTips#tip-fe-cage-2"');
+    expect(html).not.toContain('tip-fe-hide');
+  });
+
+  it('main 골격·클래스·텍스트 동일(허용 차이 없음), data-ws-static=main, 외부 링크 rel/target 유지', () => {
+    const p = pageAt(TIPS_PATH, tipsSite);
+    expect(p.route.kind).toBe('TIPS');
+    loadStatic(p);
+    expect((JSON.parse(document.getElementById('ws-data')?.textContent ?? 'null') as { v?: unknown } | null)?.v).toBe(2);
+    expect(readPageData(document)?.route.kind).toBe('TIPS');
+    const externals = (): string[][] =>
+      Array.from(mainEl().querySelectorAll('a[href^="http"]')).map((a) => [a.getAttribute('href') ?? '', a.getAttribute('target') ?? '', a.getAttribute('rel') ?? '', a.className]);
+    const before = skel(mainEl());
+    const beforeHtml = mainEl().outerHTML;
+    const beforeExt = externals();
+    expect(beforeExt).toHaveLength(3);
+    for (const [, target, rel, cls] of beforeExt) expect([target, rel, cls]).toEqual(['_blank', 'noopener noreferrer nofollow ugc', 'ws-tip-source']);
+    hydrate(p);
+    const m = mainEl();
+    expect(m.getAttribute('data-ws-route')).toBe('TIPS');
+    expect(m.closest('[data-ws-static="main"]')).not.toBeNull();
+    const d: string[] = [];
+    diff(before, skel(m), 'main', d);
+    expect(d).toEqual([]);
+    expect(m.outerHTML).toBe(beforeHtml);
+    expect(externals()).toEqual(beforeExt);
+    // 이미지·스크립트·iframe 외부 로드 0, 판정 글리프·검수 표기 0
+    expect(document.querySelector('main img, main iframe, main script')).toBeNull();
+    // 308 총괄 ②(310 LOW-1 문구): 위험 태그 상자 라벨 「수의사가 확인하지 않은 참고 정보」 만 허용(고정 문구 1회) — 그 밖의 검수 표기 0.
+    expect(m.querySelectorAll('.ws-tip-hazard [data-ws-hazard="VENTILATION"]')).toHaveLength(1);
+    expect(Array.from(m.querySelectorAll('.ws-tip-hazard-label')).map((e) => e.textContent)).toEqual(['수의사가 확인하지 않은 참고 정보']);
+    expect((m.textContent ?? '').replace('수의사가 확인하지 않은 참고 정보', '')).not.toMatch(/검수|확인됨/);
+  });
+
+  it('헤더(칩=골든, 메뉴 활성 0)·푸터(제휴 고지 0) 프리렌더 ↔ React 동일', () => {
+    const p = pageAt(TIPS_PATH, tipsSite);
+    loadStatic(p);
+    const chrome = () => {
+      const h = document.querySelector('header.ws-header') as Element;
+      const f = document.querySelector('footer.ws-footer') as Element;
+      return {
+        header: skel(h),
+        links: Array.from(h.querySelectorAll('a')).map((a) => [a.getAttribute('href'), a.getAttribute('aria-current'), norm(a.textContent)]),
+        footer: skel(f),
+        footerHrefs: Array.from(f.querySelectorAll('a')).map((a) => a.getAttribute('href')),
+        notes: f.querySelectorAll('[data-ws-aff="note-f"]').length,
+      };
+    };
+    const before = chrome();
+    expect(before.links.some(([, cur]) => cur === 'page')).toBe(false);
+    expect(before.notes).toBe(0);
+    hydrate(p);
+    const after = chrome();
+    const d: string[] = [];
+    diff(before.header, after.header, 'header', d);
+    diff(before.footer, after.footer, 'footer', d);
+    expect(d).toEqual([]);
+    expect(after.links).toEqual(before.links);
+    expect(after.footerHrefs).toEqual(before.footerHrefs);
+    expect(after.notes).toBe(0);
+  });
+
+  it('진입 링크 /setup → /tips 도 하이드레이션 후 유지', () => {
+    const p = pageAt('/hamster/golden/setup', tipsSite);
+    loadStatic(p);
+    expect(mainEl().querySelector('.ws-tips-entry a')?.getAttribute('href')).toBe(TIPS_PATH);
+    const before = skel(mainEl());
+    hydrate(p);
+    const d: string[] = [];
+    diff(before, skel(mainEl()), 'main', d);
+    expect(d).toEqual([]);
+    expect(mainEl().querySelector('.ws-tips-entry a')?.getAttribute('href')).toBe(TIPS_PATH);
+  });
+
+  // 311 S-3: /supplies/{item}/{type} — 진입 링크는 본문 ul.ws-tips-entries 1개(정적 L4 aside 안 0) → JS 켬/끔 같은 수·같은 자리.
+  it('진입 링크 /supplies/cage/hamster-golden: 하이드레이션 전후 1개·본문 같은 자리, 정적 레이어 안 0', () => {
+    const p = pageAt('/supplies/cage/hamster-golden', tipsSite);
+    loadStatic(p);
+    const entries = (): string[] =>
+      Array.from(document.querySelectorAll(`a[href^="${TIPS_PATH}"]`)).map((a) => `${a.closest('main ul.ws-tips-entries') ? 'main' : 'other'}|${a.getAttribute('href') ?? ''}`);
+    const before = entries();
+    expect(before).toEqual([`main|${TIPS_PATH}#ws-tips-cage`]);
+    expect(document.querySelector('aside.ws-layer')).not.toBeNull();
+    expect(document.querySelector('aside.ws-layer .ws-tips-entry, aside.ws-layer a[href^="/hamster/golden/tips"]')).toBeNull();
+    const beforeSkel = skel(mainEl());
+    hydrate(p);
+    const d: string[] = [];
+    diff(beforeSkel, skel(mainEl()), 'main', d);
+    expect(d).toEqual([]);
+    expect(entries()).toEqual(before);
   });
 });

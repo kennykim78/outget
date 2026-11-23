@@ -43,6 +43,33 @@ describe('app.css static pages', () => {
     expect(layersCss).not.toMatch(/\.ws-cond-table--2\s*\{[^}]*grid-template-columns/);
   });
 
+  it('305 TIPS: 정적 본문 목록에 TIPS, 읽기 폭 720(modal-w) 단일 열, 본문 34em, 외부 원문 링크 44 터치·밑줄, 밴드 bg-100·radius-lg(상태색·그림자 0)', () => {
+    const noComments = appCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const staticLists = noComments.match(/main\.ws-page:is\([^)]*\)/g) ?? [];
+    expect(staticLists.length).toBeGreaterThan(0);
+    for (const sel of staticLists) if (sel.includes("[data-ws-route='PRIVACY']")) expect(sel).toContain("[data-ws-route='TIPS']");
+    expect(noComments).toMatch(/main\.ws-page\[data-ws-route='TIPS'\]\s*\{[^}]*--ws-reading-w:\s*var\(--ws-modal-w\);[^}]*max-width:\s*var\(--ws-reading-w\);/);
+    // 311 S-2: 위험 상자·확인 밴드는 34em 에서 빠진다(열 전체 폭), 상자 안 글줄만 34em.
+    expect(noComments).toMatch(/\[data-ws-tip-part\]:not\(\.ws-tip-check\):not\(\.ws-tip-hazard\)\s*\{[^}]*max-width:\s*34em;/);
+    expect(noComments).not.toMatch(/article\.ws-tip > \.ws-tip-hazard\s*\{[^}]*max-width/);
+    expect(noComments).toMatch(/\.ws-tip-hazard > ul\s*\{[^}]*max-width:\s*34em;/);
+    expect(noComments).toMatch(/a\.ws-tip-source\s*\{[^}]*min-height:\s*var\(--ws-touch\);[^}]*text-decoration:\s*underline;/);
+    expect(noComments).toMatch(/\.ws-tip-check\s*\{[^}]*border-radius:\s*var\(--ws-radius-lg\);[^}]*background:\s*var\(--ws-bg-100\);/);
+    // 311 S-1: 위험 상자 뒤 구하는 곳 줄은 상자와 space-3 떼기(article gap space-6 보정).
+    expect(noComments).toMatch(/\.ws-tip-hazard \+ \.ws-tip-source-hint\s*\{[^}]*margin-top:\s*calc\(var\(--ws-space-3\) - var\(--ws-space-6\)\);/);
+    // 311 N-1: ≥768 섹션 머리 h2 ↔ 기준 링크 세로 가운데, h2 위 여백은 섹션으로.
+    expect(noComments).toMatch(/\.ws-tips-sec\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*center;/);
+    expect(noComments).toMatch(/\.ws-tips-sec > h2 \+ \.ws-tips-std\s*\{[^}]*align-self:\s*center;/);
+    expect(noComments).toMatch(/\.ws-tips-sec > h2\s*\{\s*margin-top:\s*0;\s*\}/);
+    // 311 N-2: 우리 최소 규격 줄 기본 = body 600, 조건 접두 = body 400(spec 18/700 은 .ws-t-spec 유틸만).
+    expect(noComments).toMatch(/\.ws-tip-min \+ ul li\s*\{[^}]*font-size:\s*var\(--ws-type-body-size\);[^}]*font-weight:\s*var\(--ws-type-cta-weight\);/);
+    expect(noComments).toMatch(/\.ws-tip-min \+ ul \.ws-tip-when\s*\{[^}]*font-weight:\s*var\(--ws-type-body-weight\);/);
+    expect(noComments).not.toMatch(/\.ws-tip-min \+ ul li\s*\{[^}]*--ws-type-spec-/);
+    const tipsRules = noComments.match(/[^{}]*data-ws-route='TIPS'\][^{}]*\{[^}]*\}/g) ?? [];
+    expect(tipsRules.length).toBeGreaterThan(5);
+    for (const r of tipsRules) expect(r).not.toMatch(/--ws-status-|box-shadow|gradient|max-height|details|summary/);
+  });
+
   it('U1(R3): 드로어 폐기 — 레이어 CSS 에 drawer 0, 모달·정적 aside 는 위 48·가로 가운데, 안쪽 여백 layer-pad 16/40', () => {
     const noComments = (appCss + layersCss).replace(/\/\*[\s\S]*?\*\//g, '');
     expect(noComments).not.toMatch(/drawer/);

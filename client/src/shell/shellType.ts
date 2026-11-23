@@ -33,6 +33,9 @@ export function navCurrentFor(kind: RouteKind): NavCurrent {
     case 'VET':
     case 'VET_REGION':
       return 'vet';
+    // 305: /{slug}/tips — 메뉴 활성 표시 없음(302 r2 §2 · 서버 pages/common.ts navCurrent 기본 null 과 같은 값).
+    case 'TIPS':
+      return null;
     default:
       return null;
   }

@@ -1,6 +1,6 @@
 {
-  "head": "1b1fe2d+overlay",
-  "note": "2026-11-16 확인표 5종 서명(4 패킷 107행 VERIFIED, ORDERS 11/16 16:4x) — gen-baseline --rev HEAD(1b1fe2d) --overlay server/seed --overlay server/src/__tests__/fixtures --wire 1. real 의 ws-data 만 변경(골든 노출: 추가 54·변경 8, REAL_AS_OF 2026-11-02→2026-11-16). promotedTwo·dwarfPreview 차이 0(바탕 = 서명 전 기준 unsignedRealSeed)",
+  "head": "51fe4fd+overlay",
+  "note": "315 팁 검수 기록 게이트(총괄 11/22 18:4x) — gen-baseline --rev HEAD(51fe4fd) --overlay server/seed --overlay server/src --overlay scripts --wire 1. 차이 2 = real·promotedTwo hamster/golden/tips 삭제뿐(기존 파일 ws-data JSON 변경 0). 실시드 팁 검수 기록 null → 비노출(의도)",
   "templateSha256": "3e13f48faee605886ac0e00a7cdc0ebc4ee71f4e0269e3ddbe25dc3fa675ceab",
   "cases": {
     "real": {

@@ -334,6 +334,62 @@ export interface SeedBundle {
   testimonials: TestimonialRec[];
   vetClinics: VetClinicSeedRec[];
   photos: PhotoRec[];
+  /** 저렴 대체 팁(REFERENCE — 외부 글 모음). 선택(구 픽스처 호환) — 없으면 0건. */
+  budgetTips?: BudgetTipRec[];
+}
+
+// ── 저렴 대체 팁(budget-tips.json, Kenny 2026-11-22) ───────────
+/** 외부 글 참조 — 외부 URL 은 이 필드에만(자유 텍스트 URL 금지 V-TIP-2). */
+export interface TipReference {
+  title: string;
+  url: string;
+  siteName: string;
+  checkedAt: string;
+}
+
+/**
+ * kind=REFERENCE: 외부 글을 모아 안내하는 행 — 사람 검수·VERIFIED 없이 노출되는 별도 경로(isBudgetTipExposable).
+ *   ContentMeta 는 기록용(대개 DRAFT·AI_DRAFT) — 노출 판정에 쓰지 않는다. VERIFIED 규칙(V01 등)은 그대로 적용.
+ */
+export interface BudgetTipRec extends ContentMeta {
+  id: string;
+  kind: 'REFERENCE';
+  careProfileId: string;
+  supplyItemId: string;
+  /** 프로필 안 일부 타입 한정(없으면 프로필의 모든 노출 타입). */
+  animalTypeIds?: string[];
+  /** 대체 물품 일반명(상호명 금지). */
+  substitute: string;
+  sourceHint: 'LIVING_GOODS_STORE' | 'ONLINE_GENERAL_MARKET' | 'HARDWARE_STORE' | 'AT_HOME';
+  /** 운영자 요약 개요(302 r2): 필요한 물품 → 만드는 순서 → 치수와 개수(글쓴이 기준) → 주의점. */
+  materials: string[];
+  steps: string[];
+  dimensions: string[];
+  cautions: string[];
+  hazards: Array<'TOXIC_MATERIAL' | 'INGESTION' | 'ENTRAPMENT' | 'ESCAPE' | 'VENTILATION' | 'HEAT' | 'TIP_OVER'>;
+  /** 「꼭 확인할 것」 밴드 — 사용자가 직접 확인할 문장. */
+  mustCheck: string[];
+  specExample?: SpecValues | null;
+  references: TipReference[];
+  /** 총괄 ①(ORDERS 11/22 18:4x): 수의 검수 표시 — HEALTH·섭취 위험 팁은 유효할 때만 노출(TIP_VET_REVIEW_REQUIRED). 없으면 숨김. */
+  vetReview?: TipVetReview | null;
+  /** 총괄 ②: AI 요약 원문 대조 기록 — 없거나 형식이 틀리면 팁(요약) 비노출. */
+  summaryCheck?: TipSummaryCheck | null;
+}
+
+/** 수의 검수 표시(검수자 유형·검수일·출처). reviewerType ∈ TIP_VET_REVIEWER_TYPES. */
+export interface TipVetReview {
+  reviewerType: 'VET_PUBLISHED_SOURCE' | 'OFFICIAL_SOURCE' | 'VET';
+  reviewedAt: string;
+  /** 출처 표기(문헌·기관명 — URL 아님, compliance C1-SEEDURL). */
+  source: string;
+}
+
+/** 요약 원문 대조 기록 — sources 는 이 행 references[].url 전부(확인한 참조 주소), checkedBy 는 사람(AI_DRAFT 불가). */
+export interface TipSummaryCheck {
+  sources: string[];
+  checkedAt: string;
+  checkedBy: string;
 }
 
 // ── 엔진 카탈로그 ─────────────────────────────────────────────

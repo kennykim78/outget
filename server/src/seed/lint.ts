@@ -271,6 +271,22 @@ export function textFieldsOf(key: SeedKey, r: Rec): TextField[] {
       break;
     case 'photos':
       break;
+    case 'budgetTips': {
+      // 팁 본문 전부(Kenny 2026-11-22: 사람 검수 없이 노출되는 REFERENCE 행 — 불변식 5 위험을 린트로 막는다).
+      push(out, 'substitute', r.substitute, 'name');
+      for (const f of ['materials', 'steps', 'dimensions', 'cautions', 'mustCheck'] as const) {
+        const arr = r[f];
+        if (Array.isArray(arr)) arr.forEach((x, i) => push(out, `${f}[${i}]`, x, 'prose'));
+      }
+      if (Array.isArray(r.references)) {
+        r.references.forEach((x, i) => {
+          const ref = asRec(x);
+          push(out, `references[${i}].title`, ref?.title, 'name');
+          push(out, `references[${i}].siteName`, ref?.siteName, 'name');
+        });
+      }
+      break;
+    }
   }
   return out;
 }

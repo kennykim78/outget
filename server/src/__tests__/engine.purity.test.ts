@@ -69,6 +69,8 @@ describe('engine purity', () => {
         'search-links.ts',
         'spec-check.ts',
         'spec-text.ts',
+        // 301: 저렴 대체 팁 참조 규칙(REFERENCE — URL·참조 유효성, 순수).
+        'tips.ts',
         'types.ts',
         'ws-wire.ts',
       ].sort(),

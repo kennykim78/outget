@@ -4,10 +4,12 @@
 //   contentKind 별 최소 등급(MIN_GRADE)은 validator 에만 있다(D15).
 //   M-1(R4 D5): 검수 나이 — 모든 노출 함수는 필수 asOf(YYYY-MM-DD)를 받고, 체인의 모든 ContentMeta 에
 //   isVerified ∧ isFresh(verifiedAt + STALE_DAYS ≥ asOf)를 요구한다. 시계를 읽지 않는다(호출자가 기준일을 넣는다).
-import { STALE_DAYS, isoDayNumber, reviewerRank, type VetStatus } from './domain.js';
+import { STALE_DAYS, TIP_HEALTH_HAZARDS, isTipHazard, isoDayNumber, reviewerRank, type VetStatus } from './domain.js';
 import { listResolvedRequirements, resolveRequirement } from './resolve.js';
 import { checkAnimalMinSpec } from './spec-check.js';
+import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
 import type {
+  BudgetTipRec,
   CompatibilityRuleRec,
   ContentMeta,
   CuratedProductRec,
@@ -190,6 +192,40 @@ export function isTestimonialPublic(
 ): boolean {
   const day = asOfDay(asOf);
   return isTestimonialExposable(t) && typeof t.animalTypeId === 'string' && animalTypeOk(cat, t.animalTypeId, day);
+}
+
+export type BudgetTipForExposure = Pick<
+  BudgetTipRec,
+  'kind' | 'careProfileId' | 'supplyItemId' | 'animalTypeIds' | 'references' | 'hazards' | 'contentKind' | 'vetReview' | 'summaryCheck'
+>;
+
+/**
+ * 저렴 대체 팁 노출 — REFERENCE 전용 별도 경로(Kenny 2026-11-22: 사람 검수·서명·VERIFIED 없이 노출, 불변식 7 의 명시 예외).
+ *   reviewStatus·reviewerType·verifiedAt 를 보지 않는다(okMeta 미사용). 그 밖의 콘텐츠 노출 함수는 이 경로를 쓰지 않는다.
+ *   조건(전부, fail-closed): kind === 'REFERENCE' ∧ 참조 ≥ 1 모두 유효(tipReferencesOk — 글 페이지 URL·확인 나이)
+ *     ∧ 동물 타입 노출(ACTIVE ∧ 검수 체인 — animalTypeOk) ∧ 타입 careProfileId = 팁 careProfileId ∧ animalTypeIds 없음 또는 포함
+ *     ∧ (타입, 용품) 요구사항 노출(resolveRequirement + requirementOk) ∧ 용품 카테고리가 /tips 섹션(ETC·BATH 등 미표시)
+ *     ∧ 독성·섭취 위험 태그면 contentKind HEALTH(V-TIP-1 과 같은 조건)
+ *     ∧ 위험 태그 ≥ 1 이면 참조 사이트 도메인 서로 다른 2곳 이상(총괄 ②(b), tipHazardSourcesOk — 1곳이면 숨김 + validate W-TIP-REF2). 고정 면책 문구 동반은 렌더러(renderTipsPage)·compliance C9-TIPS 가 강제.
+ *     ∧ 총괄 ORDERS 11/22 18:4x(tipReviewRecordsOk): summaryCheck(AI 요약 원문 대조 기록) 유효 — 비면 요약=팁 본문이라 행 전체 숨김
+ *       ∧ (HEALTH ∨ 독성·섭취 태그) 이면 vetReview(수의 검수 표시) 유효(TIP_VET_REVIEW_REQUIRED 플래그). 둘 다 validate W-TIP-SC·W-TIP-VET 경고.
+ */
+export function isBudgetTipExposable(cat: EngineCatalog, animalTypeId: string, tip: BudgetTipForExposure, asOf: string): boolean {
+  const day = asOfDay(asOf);
+  if (tip === null || typeof tip !== 'object' || tip.kind !== 'REFERENCE') return false;
+  if (!tipReferencesOk(tip.references, day)) return false;
+  if (!Array.isArray(tip.hazards) || !tip.hazards.every((h) => isTipHazard(h))) return false;
+  if (tip.hazards.some((h) => TIP_HEALTH_HAZARDS.includes(h)) && tip.contentKind !== 'HEALTH') return false;
+  if (!tipHazardSourcesOk(tip.hazards, tip.references)) return false;
+  if (!tipReviewRecordsOk(tip, day)) return false;
+  if (tip.animalTypeIds !== undefined && !(Array.isArray(tip.animalTypeIds) && tip.animalTypeIds.includes(animalTypeId))) return false;
+  if (!animalTypeOk(cat, animalTypeId, day)) return false;
+  const at = cat.animalTypes.get(animalTypeId);
+  if (!at || at.careProfileId !== tip.careProfileId) return false;
+  const item = cat.supplyItems.get(tip.supplyItemId);
+  if (!item || !isTipSectionCategory(item.category)) return false;
+  const r = resolveRequirement(cat, animalTypeId, tip.supplyItemId);
+  return r !== null && requirementOk(cat, r, day);
 }
 
 /** 병원 목록에 올라가는 유일한 상태(전화 확인). 리포지토리·Prisma where 가 이 상수를 쓴다. */

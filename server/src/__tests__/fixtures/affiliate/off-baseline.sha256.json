@@ -1,6 +1,6 @@
 {
-  "head": "1b1fe2d+overlay",
-  "note": "2026-11-16 확인표 5종 서명(4 패킷 107행 VERIFIED, ORDERS 11/16 16:4x) — gen-baseline --rev HEAD(1b1fe2d) --overlay server/seed --overlay server/src/__tests__/fixtures. real: 실시드가 골든햄스터를 노출(추가 55·변경 10·삭제 1, REAL_AS_OF 2026-11-02→2026-11-16). promotedTwo·dwarfPreview: 바탕을 서명 전 기준(unsignedRealSeed = HEAD 시드와 같음)으로 두어 차이는 privacy/index.html 1건뿐 — 이는 HEAD 1b1fe2d 처리방침 문안 변경(「연결할 때」)이 기준선에 반영되지 않았던 것(HEAD 그대로 생성해도 같은 3건 차이). FIXTURE_AS_OF·DWARF_PREVIEW_AS_OF 2026-11-03→2026-11-16 은 산출물에 날짜를 쓰지 않아 해시 무관",
+  "head": "51fe4fd+overlay",
+  "note": "315 팁 검수 기록 게이트(총괄 11/22 18:4x) — gen-baseline --rev HEAD(51fe4fd) --overlay server/seed --overlay server/src --overlay scripts --wire 2. 차이 18 = 전부 삭제(부분수열 검사 NON_REMOVAL 0): real·promotedTwo hamster/golden/tips 파일 삭제 + sitemap·prerender-manifest 의 /tips 줄 + /supplies/{cage,bedding,water,hideout}(+/hamster-golden, promotedTwo cage/fixture-second) ul.ws-tips-entries + promotedTwo setup p.ws-tips-entry. 실시드 팁 summaryCheck·vetReview null → 비노출(의도). 같은 코드에 시험용 기록만 채운 빌드 = 313 기준선 차이 0. 제휴 모듈 변경 0",
   "templateSha256": "3e13f48faee605886ac0e00a7cdc0ebc4ee71f4e0269e3ddbe25dc3fa675ceab",
   "cases": {
     "real": {

@@ -14,9 +14,11 @@ import {
   REVIEWER_TYPES,
   REVIEW_STATUSES,
   SITUATIONS,
+  SOURCE_HINTS,
   SPEC_OPS,
   SUPPLY_CATEGORIES,
   TESTIMONIAL_STATUSES,
+  TIP_KINDS,
   VET_STATUSES,
 } from '../engine/domain.js';
 import {
@@ -96,6 +98,14 @@ const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
     author: 'string|null', sourceUrl: 'string|null', licenseUrl: 'string|null?', downloadedAt: 'string|null', modified: 'boolean',
     status: 'string',
   },
+  // 저렴 대체 팁(REFERENCE, Kenny 2026-11-22) — 본문은 구조화 배열(개요 5~10문장 분량, 길이 상한은 V-TIP-5).
+  budgetTips: {
+    id: 'string', kind: 'string', careProfileId: 'string', supplyItemId: 'string', animalTypeIds: 'array?',
+    substitute: 'string', sourceHint: 'string', materials: 'array', steps: 'array', dimensions: 'array', cautions: 'array',
+    hazards: 'array', mustCheck: 'array', specExample: 'object|null?', references: 'array',
+    // 총괄 ORDERS 11/22 18:4x — 형식은 validate-tips V-TIP-VET·V-TIP-SC, 없거나 null 이면 비노출.
+    vetReview: 'object|null?', summaryCheck: 'object|null?',
+  },
 };
 
 const VERIFICATION_FIELDS: Record<string, FieldSpec> = {
@@ -118,6 +128,7 @@ const ENUMS: Record<SeedKey, Record<string, readonly string[]>> = {
   testimonials: { status: [...TESTIMONIAL_STATUSES, SLOT], situation: SITUATIONS, linkedAction: LINKED_ACTIONS },
   vetClinics: {},
   photos: { source: PHOTO_SOURCES, license: PHOTO_LICENSES },
+  budgetTips: { kind: TIP_KINDS, sourceHint: SOURCE_HINTS },
 };
 const META_ENUMS: Record<string, readonly string[]> = {
   reviewStatus: REVIEW_STATUSES,
@@ -162,6 +173,8 @@ const SUPPLY_ITEM_FORBIDDEN = ['priority', 'minSpec', 'recommendedSpec', 'notNow
 export const S08_ALLOWED_KEYS: Readonly<Partial<Record<SeedKey, ReadonlySet<string>>>> = {
   curatedProducts: new Set([...Object.keys(FIELDS.curatedProducts), ...Object.keys(META_FIELDS)]),
   testimonials: new Set(Object.keys(FIELDS.testimonials)),
+  // 팁: 가격·판매처·링크 키 금지 — 외부 URL 은 references[].url 에만(Kenny 2026-11-22).
+  budgetTips: new Set([...Object.keys(FIELDS.budgetTips), ...Object.keys(META_FIELDS)]),
 };
 
 function forbiddenKeys(key: SeedKey, r: Rec): string[] {
@@ -191,6 +204,7 @@ const ID_REF_FIELDS: Readonly<Record<SeedKey, readonly string[]>> = {
   testimonials: ['animalTypeId'],
   vetClinics: ['treats'],
   photos: ['slot'],
+  budgetTips: ['careProfileId', 'supplyItemId', 'animalTypeIds'],
 };
 
 /** id 로 쓸 수 없는 이름인가. 문제면 사유, 아니면 null. 대소문자 무시(forbidden-keys 매칭과 동일). */
@@ -369,6 +383,7 @@ function dateFields(key: SeedKey, r: Rec): Array<[string, unknown]> {
   if (key === 'testimonials') out.push(['consentAt', r.consentAt]);
   if (key === 'vetClinics') out.push(['verification.verifiedAt', asRec(r.verification)?.verifiedAt]);
   if (key === 'photos') out.push(['downloadedAt', r.downloadedAt]);
+  if (key === 'budgetTips' && Array.isArray(r.references)) r.references.forEach((x, i) => out.push([`references[${i}].checkedAt`, asRec(x)?.checkedAt]));
   return out;
 }
 

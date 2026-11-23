@@ -3,7 +3,7 @@
 // 금지어(불변식 5)·브리프 금지 표현·의료 단정 0 은 prerender.primitives.test.ts 가 lintText 로 강제.
 // 빈 상태 문구는 오케스트레이터 결정(결정 매트릭스) — `_workspace/19_backend_r3_laneF1.md` 표.
 
-import type { AnimalGroup } from '../engine/domain.js';
+import type { AnimalGroup, SourceHint, TipHazard } from '../engine/domain.js';
 
 const SENTENCES = new Set<string>();
 /** 문장형 문구 등록("~요" 존댓말 검사 대상). 값은 그대로 돌려준다. */
@@ -576,6 +576,56 @@ export const COPY = deepFreeze({
     usedMixNote: sent('가진 물품을 알려 주면 새로 준비할 것만 보여 드려요'),
     usedMixLink: '가진 물품 알려 주기 ›',
     title: '{animal} · 처음 준비한다면',
+  },
+  /**
+   * 301 /{slug}/tips — 저렴 대체 팁(REFERENCE, Kenny 2026-11-22). 검수 라벨·날짜 문구 0(302 r2).
+   *   disclaimer 는 Kenny 고정 문구 그대로(compliance C9-TIPS 가 출력에서 원문 일치 확인).
+   */
+  tips: {
+    title: '알뜰하게 준비하기',
+    disclaimer: '외부 글을 모아 안내해요. 내용은 글쓴이 책임이며, 우리 사육 기준(규격 판정)과 다를 수 있어요',
+    lead: sent('생활용품으로 대신 준비한 사례를 모았어요. 만들기 전에 우리 최소 규격과 주의점을 먼저 확인해 주세요.'),
+    sectionLink: '{name} 기준 보기 →',
+    sourceHint: '구하는 곳',
+    materials: '필요한 물품',
+    steps: '만드는 순서',
+    dimensions: '치수와 개수',
+    /** 302 r2 #5 — 라벨 뒤 meta 「· 글쓴이 기준」. */
+    dimensionsBasis: '글쓴이 기준',
+    cautions: '주의점',
+    mustCheck: '꼭 확인할 것',
+    ourMin: '우리 최소 규격',
+    /** 302 r2 #7 ② — 밴드 안 mustCheck[] 소제목. */
+    writerCaution: '글쓴이 주의점',
+    /** 숫자 규칙이 있는 용품만 「크기」(306 D6). 재질·종류 규칙만이면 checkSpec, 규칙 없으면 링크 없음. */
+    checkSize: '내 {name} 크기 확인하기 →',
+    checkSpec: '내 {name} 조건 확인하기 →',
+    original: '원문 보기',
+    externalNewWindow: '새 창, 외부 사이트',
+    closing: sent('이상한 점이 보이면 병원에 문의하세요.'),
+    /** 302 r2 맺음 — /vet?treats={typeId}. */
+    vetLink: '{animal} 진료하는 병원 찾기 →',
+    /** 총괄 ② — 위험 태그 팁 상단 고정 주의 상자(태그별 고정 한 줄, 의료 판단 없이 「병원에 문의」까지). */
+    /** 310 LOW-1: 검수가 예정된 것처럼 읽히지 않게 「수의사가 확인하지 않은」(compliance C9-TIPS ⑦ TIPS_HAZARD_LABEL 과 같아야 한다). */
+    hazardLabel: '수의사가 확인하지 않은 참고 정보',
+    hazardTitle: '미리 알아둘 위험',
+    hazardNotes: {
+      TOXIC_MATERIAL: sent('몸에 해로울 수 있는 재료가 들어가요. 갉거나 핥은 뒤 평소와 다르면 병원에 문의하세요.'),
+      INGESTION: sent('갉아 삼킬 수 있는 재료가 들어가요. 삼킨 것 같거나 평소와 다르면 병원에 문의하세요.'),
+      ENTRAPMENT: sent('틈이나 구멍에 몸이나 발이 끼일 수 있어요. 끼일 만한 곳을 확인하고, 다친 것 같으면 병원에 문의하세요.'),
+      ESCAPE: sent('틈이나 뚜껑으로 빠져나갈 수 있어요. 닫힘과 틈을 자주 확인하고, 빠져나갔다가 다친 것 같으면 병원에 문의하세요.'),
+      VENTILATION: sent('공기가 잘 통하지 않으면 열과 습기가 찰 수 있어요. 통기 구멍을 확인하고, 숨쉬기가 평소와 다르면 병원에 문의하세요.'),
+      HEAT: sent('뜨거워지는 곳 가까이 두면 열이 찰 수 있어요. 놓는 자리를 확인하고, 기운이 없어 보이면 병원에 문의하세요.'),
+      TIP_OVER: sent('쓰러지거나 뒤집혀 다칠 수 있어요. 흔들리지 않게 두고, 다친 것 같으면 병원에 문의하세요.'),
+    } satisfies Record<TipHazard, string>,
+    entry: '알뜰하게 준비하는 법 보기 →',
+    /** SOURCE_HINTS 고정 카피(Kenny 11/22: 상호·URL·가격 금지 — 「다이소 같은 생활용품점」 수준만). */
+    sourceHints: {
+      LIVING_GOODS_STORE: '다이소 같은 생활용품점',
+      ONLINE_GENERAL_MARKET: '온라인 종합 쇼핑몰',
+      HARDWARE_STORE: '철물점·공구점',
+      AT_HOME: '집에 있는 물건',
+    } satisfies Record<SourceHint, string>,
   },
   credits: {
     title: '사진 출처',

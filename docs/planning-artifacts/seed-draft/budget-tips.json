@@ -1,0 +1,264 @@
+[
+  {
+    "id": "tip-syrian-cage-storage-box",
+    "kind": "REFERENCE",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "cage",
+    "animalTypeIds": [
+      "hamster-golden"
+    ],
+    "substitute": "대형 플라스틱 수납함(리빙박스) 개조 케이지",
+    "sourceHint": "LIVING_GOODS_STORE",
+    "materials": [
+      "큰 플라스틱 수납함(뚜껑 있는 것)",
+      "뚜껑에 덧댈 철망",
+      "니퍼·전동드릴(그라인더 비트)·실톱·세공용 줄 같은 공구",
+      "자를 자리를 표시할 마커펜"
+    ],
+    "steps": [
+      "자를 자리를 먼저 마커펜으로 표시해 둔다(한 번에 자르면 실패하기 쉽다는 글쓴이 경고).",
+      "뚜껑 가운데를 잘라 내고 그 자리에 철망을 덧대 위쪽으로 공기가 통하게 한다.",
+      "구멍은 송곳으로 시작점을 낸 뒤 실톱으로 넓히거나, 홀쏘를 쓴다.",
+      "자른 테두리는 줄로 다듬는다.",
+      "공간을 늘릴 때는 위로 쌓기보다 옆으로 잇는다. 위로 쌓는다면 선반으로 상자 사이를 띄우고 경사가 완만한 통로로 잇는다.",
+      "뚜껑이 가벼우면 밀어 열 수 있으므로 뚜껑 고정까지 해 둔다."
+    ],
+    "dimensions": [
+      "나무위키 글쓴이 기준: 국내 권장 최소 189L·바닥 7200cm2·높이 60cm 이상. 팸타임스 글은 수치 없이 '드워프용 크기가 아닌 큰 수납함'만 언급."
+    ],
+    "cautions": [
+      "골든은 뛰어올라 빠져나가므로 뚜껑 개조·고정은 빼면 안 된다는 경고(가벼운 뚜껑을 밀고 나가 탈출한 사례 언급).",
+      "플라스틱은 갉을 수 있다는 언급(팸타임스).",
+      "생후 5주가 지나면 한 케이지에 한 마리(팸타임스)."
+    ],
+    "hazards": [
+      "ESCAPE",
+      "VENTILATION"
+    ],
+    "mustCheck": [],
+    "references": [
+      {
+        "title": "햄스터/사육 — 케이지 DIY 항목",
+        "url": "https://namu.wiki/w/%ED%96%84%EC%8A%A4%ED%84%B0/%EC%82%AC%EC%9C%A1",
+        "siteName": "나무위키",
+        "checkedAt": "2026-11-22"
+      },
+      {
+        "title": "골든 햄스터! 너무너무 사랑스럽쥐!",
+        "url": "https://brunch.co.kr/@famtimes/375",
+        "siteName": "브런치(팸타임스)",
+        "checkedAt": "2026-11-22"
+      }
+    ],
+    "vetReview": null,
+    "summaryCheck": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "tip-syrian-hideout-cardboard",
+    "kind": "REFERENCE",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "hideout",
+    "animalTypeIds": [
+      "hamster-golden"
+    ],
+    "substitute": "빈 종이 상자로 만드는 은신처",
+    "sourceHint": "AT_HOME",
+    "materials": [
+      "과자 상자·각티슈 상자·종이팩 같은 빈 종이 상자",
+      "가위나 칼"
+    ],
+    "steps": [
+      "상자 바닥면을 잘라 낸다.",
+      "옆면에 드나들 입구를 뚫는다.",
+      "다 자란 몸 크기와 뒷다리로 섰을 때 높이에 맞춰 상자를 고른다.",
+      "청소할 때는 임시 상자를 하나 더 두고 바꿔 넣는다.",
+      "종이 상자는 정기적으로 새것으로 바꾼다."
+    ],
+    "dimensions": [
+      "글쓴이 기준 수치 없음. '생후 2~3개월 사이 약 1.5배로 자란다'는 언급만 있어 처음부터 성체 크기로 고르라고 함."
+    ],
+    "cautions": [
+      "너무 크면 안에서 배변해 더러워지기 쉽다는 언급.",
+      "주 1회 정도 청소를 권함."
+    ],
+    "hazards": [],
+    "mustCheck": [],
+    "references": [
+      {
+        "title": "햄스터 은신처 선택 방법 및 청소법",
+        "url": "https://mirochuu.com/%ED%96%84%EC%8A%A4%ED%84%B0-%EC%9D%80%EC%8B%A0%EC%B2%98-%EC%84%A0%ED%83%9D-%EB%B0%A9%EB%B2%95-%EB%B0%8F-%EC%B2%AD%EC%86%8C%EB%B2%95/",
+        "siteName": "미로츄",
+        "checkedAt": "2026-11-22"
+      }
+    ],
+    "vetReview": null,
+    "summaryCheck": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "tip-syrian-water-heavy-bowl",
+    "kind": "REFERENCE",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "water",
+    "animalTypeIds": [
+      "hamster-golden"
+    ],
+    "substitute": "무겁고 납작한 그릇으로 물 주기",
+    "sourceHint": "LIVING_GOODS_STORE",
+    "materials": [
+      "바닥이 넓고 무거운 얕은 그릇(도자기류)"
+    ],
+    "steps": [
+      "케이지 구석에 두고 움직이지 않게 고정한다.",
+      "몸이 젖을 만큼 깊게 채우지 않는다.",
+      "하루에 여러 번 물을 간다(글쓴이 예: 8시간 간격)."
+    ],
+    "dimensions": [
+      "글쓴이 기준 수치 없음."
+    ],
+    "cautions": [
+      "물병과 물그릇은 장단점이 있어 함께 비교해 고르라는 글쓴이 의견.",
+      "물병을 쓴다면 소모품으로 보고 바꿔 준다."
+    ],
+    "hazards": [],
+    "mustCheck": [],
+    "references": [
+      {
+        "title": "햄스터 물 마실 때, 급수기 or 물그릇",
+        "url": "https://gall.dcinside.com/board/view/?id=animal&no=361820",
+        "siteName": "디시인사이드 동물 갤러리",
+        "checkedAt": "2026-11-22"
+      }
+    ],
+    "vetReview": null,
+    "summaryCheck": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "tip-syrian-bedding-plain-paper",
+    "kind": "REFERENCE",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "bedding",
+    "animalTypeIds": [
+      "hamster-golden"
+    ],
+    "substitute": "무늬 없는 종이를 찢어 둥지 재료로",
+    "sourceHint": "AT_HOME",
+    "materials": [
+      "무늬 없는 종이타월이나 휴지",
+      "판지·종이"
+    ],
+    "steps": [
+      "종이를 잘게 찢어 둥지 자리에 넣어 준다.",
+      "솜처럼 가늘게 풀리는 재료는 넣지 않는다."
+    ],
+    "dimensions": [
+      "글쓴이 기준 깊이 수치 없음(두 글 모두)."
+    ],
+    "cautions": [
+      "솜·카폭·대나무 솜털처럼 가는 섬유는 발에 엉키거나 삼킬 수 있어 피하라는 안내(비건뉴스, RSPCA 인용). 이상이 보이면 병원에 문의.",
+      "건초를 쓰면 진드기가 있을 수 있어 청소를 더 자주 하라는 언급(팸타임스).",
+      "탈지면이나 거친 재료는 피하라는 언급(팸타임스)."
+    ],
+    "hazards": [
+      "INGESTION"
+    ],
+    "mustCheck": [],
+    "references": [
+      {
+        "title": "햄스터 둥지용 솜, 가는 섬유가 발·소화기에 위험",
+        "url": "https://www.vegannews.co.kr/news/article.html?no=402475",
+        "siteName": "비건뉴스",
+        "checkedAt": "2026-11-22"
+      },
+      {
+        "title": "골든 햄스터! 너무너무 사랑스럽쥐!",
+        "url": "https://brunch.co.kr/@famtimes/375",
+        "siteName": "브런치(팸타임스)",
+        "checkedAt": "2026-11-22"
+      }
+    ],
+    "vetReview": null,
+    "summaryCheck": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "HEALTH",
+    "source": []
+  },
+  {
+    "id": "tip-syrian-wheel-check-posture",
+    "kind": "REFERENCE",
+    "careProfileId": "cp-hamster-syrian",
+    "supplyItemId": "wheel",
+    "animalTypeIds": [
+      "hamster-golden"
+    ],
+    "substitute": "쳇바퀴는 크기 표시보다 달리는 자세로 확인",
+    "sourceHint": "AT_HOME",
+    "materials": [
+      "이미 가진 쳇바퀴 또는 케이지에 딸려 온 쳇바퀴"
+    ],
+    "steps": [
+      "주행면이 막혀 있는지 본다(막대형·틈 있는 형태 제외).",
+      "햄스터가 스스로 들어가 달릴 때 옆에서 등과 고개 자세를 본다.",
+      "주변 구조물이나 바닥재에 걸리지 않는지 본다.",
+      "자라면서 맞지 않게 될 수 있어 주기적으로 다시 본다."
+    ],
+    "dimensions": [
+      "기사 기준(PDSA 인용): 시리안 지름 30cm 이상, 막힌 주행면."
+    ],
+    "cautions": [
+      "억지로 넣거나 손으로 돌려 달리게 하지 말 것.",
+      "등이 과하게 굽거나 몸이 한쪽으로 쏠리면 바퀴가 작다는 신호.",
+      "케이지에 딸려 온 제품도 따로 확인할 것.",
+      "발이 아파 보이면 바퀴를 잠시 빼고 병원에 문의(다른 기사, RSPCA 인용)."
+    ],
+    "hazards": [],
+    "mustCheck": [],
+    "references": [
+      {
+        "title": "햄스터 쳇바퀴, 달릴 때 등이 휘는지 살펴야",
+        "url": "https://www.vegannews.co.kr/news/article.html?no=386215",
+        "siteName": "비건뉴스",
+        "checkedAt": "2026-11-22"
+      },
+      {
+        "title": "햄스터 운동공, 감각 제한·충돌 위험…놀이펜 대안",
+        "url": "https://www.vegannews.co.kr/news/article.html?no=402406",
+        "siteName": "비건뉴스",
+        "checkedAt": "2026-11-22"
+      }
+    ],
+    "vetReview": null,
+    "summaryCheck": null,
+    "reviewStatus": "DRAFT",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "contentKind": "CARE",
+    "source": []
+  }
+]

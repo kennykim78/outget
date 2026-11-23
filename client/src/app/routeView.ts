@@ -1,5 +1,5 @@
 // 라우트 → 화면(계약 C-2 · C-R5-6): HOME·SAVE·/pick = 홈 A(SAVE 는 + L8, /pick 은 + L1 딥링크), TYPE = 홈 B(layer 있으면 + React 레이어 딥링크),
-//   나머지 = StaticMain.
+//   나머지 = StaticMain(TIPS 포함 — 305: /{slug}/tips 본문은 프리렌더 HTML 전용, 팁은 ws-data 에 없어 React 로 다시 그리지 않는다).
 import type { PublicAnimalType, WsPageData, WsRoute } from '@ws/engine';
 
 export type RouteView =

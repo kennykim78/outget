@@ -11,7 +11,7 @@ import type { RawSeed, Rec, SeedKey } from '../seed/common.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-16'; // 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
+const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일(2026-11-16) 이상 — 디스크 verifiedAt S07 방지(옛 값 2026-11-03, 277: 출처 접근일 2026-11-02 이상)
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
 const DISK_READ = readSeedDirRaw(SEED_DIR);
 const DISK: RawSeed = DISK_READ.raw;
@@ -53,16 +53,16 @@ function verifiedCare(): Required<RawSeed> {
 }
 
 describe('seed:validate — 승격 무결성(R7 A3)', () => {
-  it('실시드: errors 0 · warnings 23 · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts·careNotes 3 통과, Taxon VERIFIED 0; BE90 사료 caution 2문장 L03 +1; BE92 골든 초안 편집 −3; 기니피그 S3 W-RULESCOPED +6; S7 기니피그 Taxon note L03 +1 · S8 playpen floorType W-RULESCOPED +1 · S9 기니피그 요구사항 W-RULESCOPED −6 · cage caution(Kenny 확정 2문장) L03 +1 · 저빌(126) Taxon note L03 +1 · 2026-11-15 UNIT_RE 「곳」 추가로 드워프 hideout why L03 −1 — seed.validate.test baseline 참고)', () => {
-    // 2026-11-16 서명 후 디스크: 골든 노출로 W-EXPOSURE-ZERO 1 해소 → 18. 서명 전 기준(메모리)은 19(그대로).
+  it('실시드: errors 0 · warnings 19(서명 전 20) · V06/V07 0건(R7-B: cp-hamster-dwarf VERIFIED — facts·careNotes 3 통과, Taxon VERIFIED 0; BE90 사료 caution 2문장 L03 +1; BE92 골든 초안 편집 −3; 기니피그 S3 W-RULESCOPED +6; S7 기니피그 Taxon note L03 +1 · S8 playpen floorType W-RULESCOPED +1 · S9 기니피그 요구사항 W-RULESCOPED −6 · cage caution(Kenny 확정 2문장) L03 +1 · 저빌(126) Taxon note L03 +1 · 2026-11-15 UNIT_RE 「곳」 추가로 드워프 hideout why L03 −1 — seed.validate.test baseline 참고)', () => {
+    // 2026-11-16 서명 후 디스크: 골든 노출로 W-EXPOSURE-ZERO 1 해소 → 18. 308: budget-tips 5행 W-TIP-CAT +1 → 19.
     const res = run(disk());
     expect(res.errors).toEqual([]);
-    expect(res.warnings).toHaveLength(18);
+    expect(res.warnings).toHaveLength(25); // 315 총괄 11/22: W-TIP-SC 5 · W-TIP-VET 1
     expect(res.warnings.filter((i) => i.rule === 'W-EXPOSURE-ZERO')).toEqual([]);
     expect(res.errors.concat(res.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
     const pre = run(fresh());
     expect(pre.errors).toEqual([]);
-    expect(pre.warnings).toHaveLength(19); // 「곳」 단위 −1(hideout why). 271: bird-food.forSpecies W-RULESCOPED +1(앵무 요구사항 행 0 — 사실값 대기)
+    expect(pre.warnings).toHaveLength(26); // 315 W-TIP-SC 5 · W-TIP-VET 1.  308 W-TIP-CAT +1. 「곳」 단위 −1(hideout why). 271: bird-food.forSpecies W-RULESCOPED +1(앵무 요구사항 행 0 — 사실값 대기)
     expect(pre.errors.concat(pre.warnings).filter((i) => i.rule === 'V06' || i.rule === 'V07')).toEqual([]);
   });
 

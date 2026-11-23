@@ -7,6 +7,7 @@ import {
   buildSearchLinks,
   createCatalog,
   isAnimalTypeExposable,
+  isBudgetTipExposable,
   isBundleExposable,
   isCompatRuleExposable,
   isPhotoUsable,
@@ -36,6 +37,10 @@ import {
   type SeedBundle,
   type SupplyItemRec,
   type SupplyRequirementRec,
+  TIP_HAZARDS,
+  TIP_SECTION_CATEGORIES,
+  type TipHazard,
+  type SourceHint,
 } from '../engine/index.js';
 import { PRODUCT_IMAGE_ASSET_RE, PRODUCT_IMAGE_LICENSES_WITH_ASSET } from '../seed/validate-products.js';
 
@@ -68,7 +73,29 @@ export interface TypeModel {
   bundles: PublicBundle[];
   /** 요구사항 순서 → 항목 안 노출 순서. */
   products: PublicProduct[];
+  /** 301: 노출 팁(섹션 순서 CAGE→HIDE→WATER→BEDDING→TOY, 섹션 안 시드 순서). 0건이면 /tips 라우트·링크 0. */
+  tips: TipModel[];
   lastmod: string | null;
+}
+
+/**
+ * 301 저렴 대체 팁(REFERENCE 별도 경로 — isBudgetTipExposable, 검수 메타 미사용). 화면 필드만:
+ *   검수자·검수일·상태·checkedAt 은 싣지 않는다(302 r2: 검수 라벨·날짜 0). ws-data 에도 싣지 않는다(HTML 전용).
+ *   hazards 는 총괄 ②(a) 고정 주의 상자용 — 태그만(문구는 COPY.tips.hazardNotes 고정), TIP_HAZARDS 순서로 정렬·중복 제거.
+ */
+export interface TipModel {
+  id: string;
+  supplyItemId: string;
+  category: SupplyItemRec['category'];
+  substitute: string;
+  sourceHint: SourceHint;
+  materials: string[];
+  steps: string[];
+  dimensions: string[];
+  cautions: string[];
+  mustCheck: string[];
+  hazards: TipHazard[];
+  references: Array<{ title: string; url: string; siteName: string }>;
 }
 
 export interface ItemModel {
@@ -266,6 +293,29 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
     const products = requirements.flatMap((r) => r.products);
     const productRows = seed.curatedProducts.filter((p) => products.some((x) => x.id === p.id));
 
+    const tips: TipModel[] = [];
+    for (const cat0 of TIP_SECTION_CATEGORIES) {
+      for (const x of seed.budgetTips ?? []) {
+        if (!isBudgetTipExposable(cat, at.id, x, asOf)) continue;
+        const r = requirements.find((q) => q.item.id === x.supplyItemId);
+        if (!r || r.item.category !== cat0) continue;
+        tips.push({
+          id: x.id,
+          supplyItemId: x.supplyItemId,
+          category: r.item.category,
+          substitute: x.substitute,
+          sourceHint: x.sourceHint,
+          materials: [...x.materials],
+          steps: [...x.steps],
+          dimensions: [...x.dimensions],
+          cautions: [...x.cautions],
+          mustCheck: [...x.mustCheck],
+          hazards: TIP_HAZARDS.filter((h) => x.hazards.includes(h)),
+          references: x.references.map((ref) => ({ title: ref.title, url: ref.url, siteName: ref.siteName })),
+        });
+      }
+    }
+
     const segs = at.slug.split('/');
     types.push({
       id: at.id,
@@ -276,6 +326,7 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
       requirements,
       bundles,
       products,
+      tips,
       lastmod: maxDate([
         dateOf(at.verifiedAt),
         dateOf(profile.verifiedAt),

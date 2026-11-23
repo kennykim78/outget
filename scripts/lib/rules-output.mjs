@@ -1,4 +1,4 @@
-// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY.
+// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS.
 //   + 시드 노출 규칙 C3-TAXON(scanSeedExposure, 산출물 유무와 무관).
 //   노출 판단은 seed-exposure.mjs(원시 시드 독립 재구현, D9)만 쓴다.
 //
@@ -15,10 +15,10 @@ import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { jsonErrorWhere, safeLabel } from './rules-source.mjs';
-import { SEED_KEYS } from './seed-exposure.mjs';
+import { SEED_KEYS, tipReferenceUrlAllowed } from './seed-exposure.mjs';
 
-const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
-const TYPE_KINDS = new Set(['TYPE', 'SETUP']);
+const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'TIPS', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
+const TYPE_KINDS = new Set(['TYPE', 'SETUP', 'TIPS']);
 const WS_DATA_KEYS = { types: 'animalTypes', products: 'curatedProducts', bundles: 'setupBundles', vets: 'vetClinics', testimonials: 'testimonials' };
 const JSON_TEXT_SKIP = /^(id|slug|href|url|sourceUrl|path|catalogUrl|imageAsset|reviewerImage|seedDigest|file|item|@context|@type|@id|kind|provider|reviewerType|priority|orderHint|category|tier|verdict|reasonCodes|situation|linkedAction|group|imageLicense)$|Id$|Ids$|At$/;
 const TEXT_ATTRS = ['title', 'alt', 'aria-label', 'aria-description', 'placeholder'];
@@ -478,6 +478,86 @@ function checkPrivacy({ root, dist, m, routes, routeFiles, all, add }) {
 /**
  * @returns {'RUN'|'NOT RUN'}
  */
+/** 301 /tips 상단 고정 고지(Kenny 2026-11-22 원문 — server/src/prerender/copy.ts COPY.tips.disclaimer 와 같아야 한다). */
+export const TIPS_DISCLAIMER = '외부 글을 모아 안내해요. 내용은 글쓴이 책임이며, 우리 사육 기준(규격 판정)과 다를 수 있어요';
+/** /tips 화면에 두지 않는 표시(302 r2: 검수 라벨·날짜 0 — REFERENCE 는 검수 없이 노출). */
+const TIPS_FORBIDDEN_LABELS = ['검수됨', '확인됨', '검수 완료', '마지막 검수'];
+/** 총괄 ②(c) 위험 태그 팁 라벨·(a) 태그별 고정 한 줄 — COPY.tips.hazardLabel·hazardNotes 와 같아야 한다(compliance.tips-output 시험). */
+export const TIPS_HAZARD_LABEL = '수의사가 확인하지 않은 참고 정보';
+export const TIPS_HAZARD_NOTES = Object.freeze({
+  TOXIC_MATERIAL: '몸에 해로울 수 있는 재료가 들어가요. 갉거나 핥은 뒤 평소와 다르면 병원에 문의하세요.',
+  INGESTION: '갉아 삼킬 수 있는 재료가 들어가요. 삼킨 것 같거나 평소와 다르면 병원에 문의하세요.',
+  ENTRAPMENT: '틈이나 구멍에 몸이나 발이 끼일 수 있어요. 끼일 만한 곳을 확인하고, 다친 것 같으면 병원에 문의하세요.',
+  ESCAPE: '틈이나 뚜껑으로 빠져나갈 수 있어요. 닫힘과 틈을 자주 확인하고, 빠져나갔다가 다친 것 같으면 병원에 문의하세요.',
+  VENTILATION: '공기가 잘 통하지 않으면 열과 습기가 찰 수 있어요. 통기 구멍을 확인하고, 숨쉬기가 평소와 다르면 병원에 문의하세요.',
+  HEAT: '뜨거워지는 곳 가까이 두면 열이 찰 수 있어요. 놓는 자리를 확인하고, 기운이 없어 보이면 병원에 문의하세요.',
+  TIP_OVER: '쓰러지거나 뒤집혀 다칠 수 있어요. 흔들리지 않게 두고, 다친 것 같으면 병원에 문의하세요.',
+});
+
+/**
+ * C9-TIPS(301, Kenny 2026-11-22) — 저렴 대체 팁(REFERENCE) 산출물.
+ *   ① TIPS 라우트는 노출 팁(ex.tipTypes, seed-exposure 독립 재구현)이 있는 타입만 ② 고지 원문 ③ 외부 <a> 는 target=_blank ∧ rel ⊇ {noopener, noreferrer, nofollow, ugc}
+ *   ④ 검수 라벨 0 ⑤ data-ws-id budgetTips#id 는 TIPS 페이지에만, 그 타입에 노출되는 팁만 ⑥ 노출 팁 있는 타입엔 TIPS 라우트가 있어야 한다.
+ *   ⑦ 총괄 ②: 시드 hazards ≥ 1 인 팁 article 은 라벨 「수의사가 확인하지 않은 참고 정보」 + 태그마다 고정 한 줄(data-ws-hazard)을 담는다.
+ *   ⑧ 312(310 MED-2): TIPS 페이지 외부 <a> href 는 글 사이트 허용 목록 규칙(seed-exposure tipReferenceUrlAllowed) 통과분만.
+ */
+function checkTips({ root, dist, routes, all, ex, add, seed }) {
+  const hazardsOf = new Map();
+  for (const x of Array.isArray(seed?.budgetTips) ? seed.budgetTips : []) {
+    if (isObj(x) && typeof x.id === 'string' && Array.isArray(x.hazards)) hazardsOf.set(x.id, x.hazards.filter((z) => typeof z === 'string'));
+  }
+  const tipTypes = ex.tipTypes instanceof Set ? ex.tipTypes : new Set();
+  const withTips = new Set([...tipTypes].map((k) => k.split('|')[0]));
+  const tipsRoutes = routes.filter((r) => r.kind === 'TIPS' && typeof r.file === 'string');
+  const R = 'prerender-manifest.json';
+  for (const tid of withTips) {
+    if (!tipsRoutes.some((r) => r.typeId === tid)) add('C9-TIPS', 'FAIL', R, null, `노출 팁이 있는 타입 ${L(tid)} 에 /tips 라우트 없음`);
+  }
+  const tipsFiles = new Map();
+  for (const r of tipsRoutes) {
+    if (!withTips.has(r.typeId)) add('C9-TIPS', 'FAIL', R, null, `route ${L(r.path)}: 노출 팁 없는 타입 ${L(r.typeId)} 의 /tips`);
+    tipsFiles.set(resolve(dist, r.file), r);
+  }
+  for (const abs of all.filter((f) => f.endsWith('.html'))) {
+    const rel = relPosix(root, abs);
+    const html = readFileSync(abs, 'utf8');
+    const lineOf = lineIndex(html);
+    const route = tipsFiles.get(resolve(abs));
+    for (const t of tags(html)) {
+      const v = t.attrs['data-ws-id'];
+      if (typeof v !== 'string' || !v.startsWith('budgetTips#')) continue;
+      const id = v.slice('budgetTips#'.length);
+      if (!route) add('C9-TIPS', 'FAIL', rel, lineOf(t.index), `팁 ${L(id)} 이 /tips 밖 페이지에 있다`);
+      else if (!tipTypes.has(`${route.typeId}|${id}`)) add('C9-TIPS', 'FAIL', rel, lineOf(t.index), `팁 ${L(id)} 은 ${L(route.typeId)} 에 노출되지 않는다`);
+    }
+    if (!route) continue;
+    if (!textNodes(html).some((n) => n.text.trim() === TIPS_DISCLAIMER)) add('C9-TIPS', 'FAIL', rel, null, '상단 고정 고지 원문 없음');
+    for (const w of TIPS_FORBIDDEN_LABELS) if (html.includes(w)) add('C9-TIPS', 'FAIL', rel, null, `검수 라벨 ${L(w)} 금지(REFERENCE 는 검수 표시 없음)`);
+    // ⑦ 위험 태그 팁 고정 주의 상자
+    const artRe = /<article\s[^>]*\bdata-ws-id="budgetTips#([^"]*)"[^>]*>([\s\S]*?)<\/article>/g;
+    let am;
+    while ((am = artRe.exec(html)) !== null) {
+      const hz = hazardsOf.get(am[1]) ?? [];
+      if (hz.length === 0) continue;
+      const texts = textNodes(am[2]).map((n) => n.text.trim());
+      if (!texts.includes(TIPS_HAZARD_LABEL)) add('C9-TIPS', 'FAIL', rel, lineOf(am.index), `위험 태그 팁 ${L(am[1])}: 라벨 ${L(TIPS_HAZARD_LABEL)} 없음`);
+      for (const z of hz) {
+        const note = TIPS_HAZARD_NOTES[z];
+        if (typeof note !== 'string' || !am[2].includes(`data-ws-hazard="${z}"`) || !texts.includes(note)) add('C9-TIPS', 'FAIL', rel, lineOf(am.index), `위험 태그 팁 ${L(am[1])}: ${L(z)} 고정 주의 문구 없음`);
+      }
+    }
+    for (const t of tags(html)) {
+      if (t.name !== 'a' || t.attrs.href === undefined) continue;
+      const href = t.attrs.href.trim();
+      if (!isExternal(href) || /^(mailto|tel):/i.test(href)) continue;
+      const rels = (t.attrs.rel ?? '').toLowerCase().split(/\s+/);
+      const miss = ['noopener', 'noreferrer', 'nofollow', 'ugc'].filter((x) => !rels.includes(x));
+      if (miss.length || (t.attrs.target ?? '') !== '_blank') add('C9-TIPS', 'FAIL', rel, lineOf(t.index), `외부 <a> rel/target 부족(${miss.join(',') || 'target'}): ${L(href)}`);
+      if (!tipReferenceUrlAllowed(href)) add('C9-TIPS', 'FAIL', rel, lineOf(t.index), `외부 <a> 가 글 사이트 허용 목록·글 페이지 규칙 밖: ${L(href)}`);
+    }
+  }
+}
+
 export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, seed }) {
   const manPath = join(dist, 'prerender-manifest.json');
   if (!existsSync(manPath)) {
@@ -553,6 +633,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   const routeFiles = new Set(routes.filter((r) => typeof r.file === 'string').map((r) => resolve(dist, r.file)));
   const all = walk(dist);
   checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
+  checkTips({ root, dist, routes, all, ex, add, seed });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
     const html = readFileSync(abs, 'utf8');

@@ -40,7 +40,7 @@ import {
 } from './common.js';
 import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell, type PrivacyPolicy } from '../privacy-content.js';
 import { familyName } from './family.js';
-import { layerL4, specCheckTestimonials } from './type.js';
+import { layerL4, specCheckTestimonials, tipsHrefOf } from './type.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
 
@@ -458,6 +458,12 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     data.products = r.products;
     data.testimonials = specCheckTestimonials(m, t.id); // D6-B: 여기서 연 L4 → L5 결과 아래 후기(타입 페이지와 같은 1건)
   }
+  // 301: 이 항목 팁이 있는 타입만 — /{slug}/tips#ws-tips-{cat}. 없으면 0줄.
+  const tipLinks = ts.flatMap((t) => {
+    const href = tipsHrefOf(t, it.id);
+    return href === null ? [] : [`<li data-ws-id="animalTypes#${a(t.id)}"><a href="${a(href)}">${h(t.pub.displayName)} · ${h(COPY.tips.entry)}</a></li>`];
+  });
+  const tipEntries = tipLinks.length ? ['<ul class="ws-tips-entries">', ...tipLinks, '</ul>'] : [];
   return page(ctx, {
     title: `${it.name}${header ? ` · ${header.pub.displayName}` : ''}${COPY.site.titleSuffix}`,
     description: COPY.supplies.intro,
@@ -471,6 +477,7 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
           `<li data-ws-id="animalTypes#${a(t.id)}"><a href="${a(hrefOf(`/supplies/${it.id}/${t.id}`))}">${h(t.pub.displayName)}</a></li>`,
       ),
       '</ul>',
+      ...tipEntries,
     ],
     aside,
     typeId,

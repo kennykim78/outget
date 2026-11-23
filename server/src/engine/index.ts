@@ -34,6 +34,7 @@ export { naverMapSearchUrl } from './links.js';
 export {
   VET_LISTED_STATUS,
   isAnimalTypeExposable,
+  isBudgetTipExposable,
   isBundleExposable,
   isCompatRuleExposable,
   isFresh,
@@ -50,7 +51,32 @@ export {
   isVetStatusListed,
   orderExposableProducts,
 } from './exposure.js';
-export type { CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
+export type { BudgetTipForExposure, CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
+export {
+  TIP_ARTICLE_HOSTS,
+  TIP_COMMERCE_HOSTS,
+  TIP_HAZARD_MIN_DOMAINS,
+  TIP_MULTI_LABEL_SUFFIXES,
+  TIP_SECTION_CATEGORIES,
+  TIP_VET_REVIEWER_TYPES,
+  TIP_VET_REVIEW_REQUIRED,
+  isAiDraftMarker,
+  isIpLiteralHost,
+  isTipArticleHost,
+  isTipCommerceHost,
+  isTipReferenceValid,
+  isTipSectionCategory,
+  isTipSummaryCheckValid,
+  isTipVetReviewValid,
+  stripTrailingDots,
+  tipDistinctDomainCount,
+  tipHazardSourcesOk,
+  tipReferenceDomain,
+  tipReferenceUrlProblem,
+  tipNeedsVetReview,
+  tipReferencesOk,
+  tipReviewRecordsOk,
+} from './tips.js';
 export { buildSearchLinks, hasAffiliateLink, type AffiliateCodes, type SearchLink, type SearchLinkKind, type SearchProvider } from './search-links.js';
 export {
   COUPANG_AFFILIATE_CODE_RE,
