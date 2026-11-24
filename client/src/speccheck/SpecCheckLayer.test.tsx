@@ -506,7 +506,7 @@ describe('L5 화면 규칙', () => {
     expect(d.getAttribute('data-ws-layer')).toBe('L5');
     expect(within(d).getByText(`${golden.displayName} · 합성 쳇바퀴`)).toBeInTheDocument();
     expect(within(d).getByRole('heading', { name: formatCopy(COPY.checkLayer.ask, { name: '합성 쳇바퀴' }) })).toBeInTheDocument();
-    expect(within(d).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · 최소 28cm 이상 · 권장 30cm 이상`)).toBeInTheDocument();
+    expect(within(d).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · 최소 지름 28cm 이상 · 권장 지름 30cm 이상`)).toBeInTheDocument();
     const dia = within(d).getByLabelText(/지름/) as HTMLInputElement;
     expect(within(d).getByText('지름', { selector: 'label' })).toBeInTheDocument(); // 라벨은 이름만
     const unit = document.getElementById(dia.getAttribute('aria-describedby') ?? '');

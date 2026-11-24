@@ -121,12 +121,16 @@ export function figureValueText(f: Pick<MinSpecFigure, 'values'>): string {
 }
 
 /**
- * 칩·체크리스트 행 규격 요약(스펙33 §0 G-1): "28cm 이상", "60×40cm 이상".
+ * 칩·체크리스트 행 규격 요약(스펙33 §0 G-1): "지름 28cm 이상", "높이 50cm 이상", "60×40cm 이상".
  *   선택 규칙은 minSpecFigure(when 없는 숫자 gte, 스키마 순서, 같은 단위 최대 3값 / 섞이면 첫 값). 해당 규칙이 없으면 null.
+ *   값이 1개이고 필드 이름(라벨 앞부분 base)이 있으면 앞에 붙인다(356f S1 — 「권장 50」이 무엇의 숫자인지 읽히게). 2~3값은 숫자만.
  */
 export function chipSpecText(schema: SpecSchema, minSpec: RuleSet | null | undefined): string | null {
   const f = minSpecFigure(schema, minSpec);
-  return f ? `${figureValueText(f)}${f.unit} ${SPEC_WORDS.gte}` : null;
+  if (!f) return null;
+  const num = `${figureValueText(f)}${f.unit} ${SPEC_WORDS.gte}`;
+  const base = f.base?.trim() ?? '';
+  return base !== '' ? `${base} ${num}` : num;
 }
 
 // 이유 한 줄(286 U6 · D9 ①): 시드 원문(why·notNowReason)의 첫 문장을 기계적으로 자른다 — 요약·창작 없음(불변식 ⑦).
