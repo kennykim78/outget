@@ -971,6 +971,11 @@ function lines(s) {
   return s.split('\n');
 }
 
+// C6-IMG-SPECIES-SRC(359) — 사진 id 를 화면 경로 소스에 적으면 종 범위를 우회한다. 사진은 ws-data(엔진 resolvePhoto 결과)로만.
+//   장면 표를 가진 server/src/engine/photo-resolve.ts 는 대상 경로(client/src·server/src/prerender) 밖이다.
+const PHOTO_ID_LITERAL_RE = /(?<![A-Za-z0-9_-])ph-\d{2}(?![A-Za-z0-9_-])/;
+const PHOTO_SRC_SCOPE = (rel) => (rel.startsWith('client/src/') || rel.startsWith('server/src/prerender/')) && /\.tsx?$/.test(rel) && !isTestFile(rel);
+
 // ── 코드 파일 ───────────────────────────────────────────────
 function scanCode(rel, text, ctx) {
   const { add, bw } = ctx;
@@ -1099,6 +1104,12 @@ function scanCode(rel, text, ctx) {
       bareL.forEach((l, i) => {
         for (const seg of l.split(/[<>{}]/)) if (/[가-힣]/.test(seg)) report(seg, i + 1);
       });
+    }
+  }
+
+  if (PHOTO_SRC_SCOPE(rel)) {
+    for (const s of strings) {
+      if (PHOTO_ID_LITERAL_RE.test(s.text)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, s.line, '사진 id 는 ws-data(엔진 resolvePhoto)로만 — 소스에 고정하지 않는다');
     }
   }
 

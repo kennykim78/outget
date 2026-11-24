@@ -4196,7 +4196,7 @@ test('C6-IMG-AI-PRODUCT(354): 상품 행에 생성 사용권·생성 도구·생
 
 // ── 359 단계 6: C6-IMG-SPECIES — 사진 id 와 라우트 종·프로필·품목 범위(「앵무 라우트 햄스터 사진 id 0」), T19~T22 + 장면 표 패리티(T23 일부) ─────────────
 //   합성 픽스처(실제 종 사실 아님): budgie·lovebird-peach(PARROT) 와 hamster-dwarf(SMALL_MAMMAL, 장면 비허용)가 골든과 같은 cp-syrian 을 공유한다.
-//   소스 규칙 C6-IMG-SPECIES-SRC 는 다음 라운드(클라이언트 단계 5 뒤).
+//   소스 규칙 C6-IMG-SPECIES-SRC 시험은 이 파일 끝.
 const SP_PHOTO = (id, over = {}) => aiPhoto({ id, slot: 'intro-3', promptPath: `docs/assets/prompts/${id}.md`, asset: `/assets/photos/${id}.webp`, ...over });
 const SP_IDS = ['ph-08', 'ph-03', 'ph-budgie-spec', 'ph-cp-syrian-cage'];
 const spFiles = (s) => {
@@ -4339,3 +4339,32 @@ test('C6-IMG-SPECIES T23: seed-exposure 장면 표 == 엔진 photo-resolve.ts �
   assert.equal(se.sceneAllowedForType({ id: 'hamster-golden', group: 'SMALL_MAMMAL' }), true);
   for (const t of [{ id: 'hamster-golden', group: 'PARROT' }, { id: 'gerbil-mongolian', group: 'SMALL_MAMMAL' }, { id: 'budgie', group: 'PARROT' }, null]) assert.equal(se.sceneAllowedForType(t), false);
 });
+
+// ── 359 단계 6: C6-IMG-SPECIES-SRC — 화면 경로 소스에 고정 사진 id 0(사진은 ws-data = 엔진 resolvePhoto 로만), T23 ─────────────
+const srcPhotoOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C6-IMG-SPECIES-SRC');
+const scanSrcPhoto = async (rel, body) => scan(await makeRoot({ source: (s) => { s[rel] = body; } }));
+for (const [name, rel, body] of [
+  ['client tsx 작은따옴표', 'client/src/x.tsx', "export const P = 'ph-03';"],
+  ['client ts 객체 값', 'client/src/home/x.ts', 'export const M = { cage: "ph-08" };'],
+  ['client JSX 속성', 'client/src/y.tsx', 'export const Y = () => <span data-ws-photo="ph-01" />;'],
+  ['프리렌더 템플릿 문자열', 'server/src/prerender/pages/x.ts', 'export const h = `<span data-ws-photo="ph-12"></span>`;'],
+]) {
+  test(`C6-IMG-SPECIES-SRC: ${name} → FAIL`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    expectFail(res, 'C6-IMG-SPECIES-SRC');
+    assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === 1), JSON.stringify(srcPhotoOf(res)));
+  });
+}
+for (const [name, rel, body] of [
+  ['*.test.tsx 는 제외', 'client/src/x.test.tsx', "export const P = 'ph-03';"],
+  ['client/src/test/ 는 제외', 'client/src/test/fx.ts', "export const P = 'ph-03';"],
+  ['주석 안 id', 'client/src/z.ts', '// 예전에는 ph-03 을 고정했다\nexport const P = 1;'],
+  ['엔진 장면 표는 대상 밖', 'server/src/engine/photo-resolve.ts', "export const S = ['ph-08'];"],
+  ['두 자리가 아닌 id', 'client/src/w.ts', "export const P = 'ph-cp-syrian-cage';"],
+]) {
+  test(`C6-IMG-SPECIES-SRC clean: ${name}`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    assert.deepEqual(srcPhotoOf(res), []);
+    expectClean(res);
+  });
+}
