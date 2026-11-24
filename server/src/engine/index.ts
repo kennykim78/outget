@@ -50,8 +50,18 @@ export {
   isVetListed,
   isVetStatusListed,
   orderExposableProducts,
+  FEED_EXCLUDED_CATEGORIES,
+  selectFeedRows,
 } from './exposure.js';
-export type { BudgetTipForExposure, CcLicenseRef, ExposableProduct, ProductForExposure } from './exposure.js';
+export type {
+  BudgetTipForExposure,
+  CcLicenseRef,
+  ExposableProduct,
+  FeedSelectOptions,
+  FeedSelection,
+  ProductForExposure,
+  SelectedFeedRow,
+} from './exposure.js';
 export {
   CROSS_CHECK_CONTENT_KINDS,
   CROSS_CHECK_KEYS,
