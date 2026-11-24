@@ -83,7 +83,7 @@ describe('parseProductFeed — throw', () => {
     ['행 초과 키 commission', ali({}, [{ ...row(), commission: 0.05 }])],
     ['행 초과 키 rating', ali({}, [{ ...row(), rating: 4.9 }])],
     ['행 초과 키 salesVolume', ali({}, [{ ...row(), salesVolume: 999 }])],
-    ['행 누락 키', ali({}, [(({ fetchedAt: _x, ...r }) => r)(row())])],
+    ['행 누락 키', ali({}, [Object.fromEntries(Object.entries(row()).filter(([k]) => k !== 'fetchedAt'))])],
     ['provider 불일치', ali({ provider: 'COUPANG' })],
     ['source', ali({ source: 'CRAWL' })],
     ['http url', ali({}, [row({ url: 'http://s.click.aliexpress.com/e/_AbCd1234' })])],
@@ -116,7 +116,7 @@ describe('parseProductFeed — throw', () => {
     expect(() => parseProductFeedText(t, 'ALIEXPRESS')).toThrow(/중복 키/);
   });
   it('BOM·JSON 아님', () => {
-    expect(() => parseProductFeedText(`﻿${EMPTY_COUPANG}`, 'COUPANG')).toThrow(/BOM/);
+    expect(() => parseProductFeedText(`\uFEFF${EMPTY_COUPANG}`, 'COUPANG')).toThrow(/BOM/);
     expect(() => parseProductFeedText('{', 'COUPANG')).toThrow(/JSON 아님/);
   });
   it('오류 메시지에 제목·URL 값 없음', () => {

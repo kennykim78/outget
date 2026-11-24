@@ -246,7 +246,7 @@ export interface FeedSelectOptions {
 const feedNorm = (s: string): { spaced: string; stripped: string } => {
   const spaced = s
     .normalize('NFKC')
-    .replace(/[­​-‏⁠﻿]/g, '')
+    .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, '')
     .replace(/\s+/g, ' ');
   return { spaced, stripped: spaced.replace(/ /g, '') };
 };

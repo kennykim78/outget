@@ -1,7 +1,8 @@
 // 사이트 빌드(메모리) — 시드 묶음 + client/dist/index.html 템플릿 → 파일 목록. 디스크 쓰기는 F3 cli.ts.
 //   결정론: 같은 입력이면 같은 바이트(빌드 시각·난수 없음, D19). seedDigest 는 호출부가 계산해 넘긴다(lane E 계약).
 import { createHash } from 'node:crypto';
-import { encodeWsPage, toWsPageV1, type AffiliateCodes, type PublicCatalog, type RouteKind, type SeedBundle, type WsLayer, type WsPageData } from '../engine/index.js';
+import { encodeWsPage, toWsPageV1, type AffiliateCodes, type PublicCatalog, type PublicFeedRailCard, type RouteKind, type SeedBundle, type WsLayer, type WsPageData } from '../engine/index.js';
+import { buildFeedOutputs, type ProductFeedInput } from './feed-out.js';
 import { jsonForScript } from './html.js';
 import { projectSite, type SiteModel } from './project.js';
 import { planRoutes, type RoutePlan } from './routes.js';
@@ -48,6 +49,11 @@ export interface BuildSiteOptions {
   production?: boolean;
   /** 처리방침 데이터(테스트 주입용 — 기본 privacy-content.ts PRIVACY_POLICY). 294: 운영 빌드에서 자리표시가 남았으면 /privacy 를 내보내지 않는다. */
   privacyPolicy?: PrivacyPolicy;
+  /**
+   * 362 N6·N7 상품 피드(cli.ts 는 productFeedGate 가 켜졌을 때만 넘긴다). 없으면 피드 산출물 0 — 나머지 파일 바이트 불변.
+   *   피드는 ws-data 에 싣지 않는다(C1) — 정적 JSON {slug}/feed/{item}(.noprice).json + feed-manifest.json(feed-out.ts).
+   */
+  productFeed?: ProductFeedInput;
 }
 
 /** 294: /privacy 비노출 빌드의 #root 표식 — 클라이언트(client/src/app/privacyPage.ts)가 푸터·L8 처리방침 링크를 숨긴다. */
@@ -97,6 +103,8 @@ export interface SiteBuild {
   files: Map<string, string>;
   /** 294: /privacy 를 내보냈는가(privacy-content.ts privacyPagePublished). */
   privacyPage: boolean;
+  /** 362 N6 홈 B 레일 피드 카드(타입 id → 품목당 1장, D-2). 피드 꺼짐이면 빈 Map. 마크업 연결은 N9. */
+  feedRail: Map<string, PublicFeedRailCard[]>;
 }
 
 function render(m: SiteModel, ctx: PageContext, policy: PrivacyPolicy): RenderedPage {
@@ -198,5 +206,14 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   files.set('robots.txt', buildRobots({ indexable: siteIndexable, origin }));
   files.set('prerender-manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
   files.set(catalogFile, catalogJson);
-  return { model, routes, pages, manifest, catalog, catalogFile, files, privacyPage };
+  let feedRail = new Map<string, PublicFeedRailCard[]>();
+  if (opts.productFeed) {
+    const feed = buildFeedOutputs(seed, model, opts.asOf, opts.productFeed);
+    for (const [k, v] of feed.files) {
+      if (files.has(k)) throw new Error(`site: 피드 산출물 경로 충돌 ${k}`);
+      files.set(k, v);
+    }
+    feedRail = feed.rail;
+  }
+  return { model, routes, pages, manifest, catalog, catalogFile, files, privacyPage, feedRail };
 }

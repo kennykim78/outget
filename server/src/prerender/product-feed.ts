@@ -37,6 +37,15 @@ const TITLE_MAX = 300;
 /** fetchedAt 은 generatedAt 이하(+1h 허용, 353 §2). */
 const FETCH_SLACK_MS = 3_600_000;
 
+/** 제어 문자(U+0000~U+001F)·꺾쇠 포함 여부(정규식 제어 문자 클래스 대신 — no-control-regex). */
+function hasControlOrAngle(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c <= 0x1f || c === 0x3c || c === 0x3e) return true;
+  }
+  return false;
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
@@ -107,7 +116,7 @@ export function parseProductFeed(json: unknown, expected: FeedProvider): FeedFil
     if (typeof r.supplyItemId !== 'string' || !ID_RE.test(r.supplyItemId)) fail(`${at}.supplyItemId 형식`);
     if (typeof r.keyword !== 'string' || r.keyword === '' || r.keyword !== r.keyword.replace(/\s+/g, ' ').trim()) fail(`${at}.keyword 는 공백 정리된 비지 않은 문자열`);
     if (typeof r.rank !== 'number' || !Number.isInteger(r.rank) || r.rank < 1 || r.rank > FEED_ROW_CAP) fail(`${at}.rank 는 1~${FEED_ROW_CAP} 정수`);
-    if (typeof r.title !== 'string' || r.title.trim() === '' || r.title.length > TITLE_MAX || /[\u0000-\u001f<>]/.test(r.title)) fail(`${at}.title 형식`);
+    if (typeof r.title !== 'string' || r.title.trim() === '' || r.title.length > TITLE_MAX || hasControlOrAngle(r.title)) fail(`${at}.title 형식`);
     if (typeof r.url !== 'string' || !FEED_LINK_RE[expected].test(r.url)) fail(`${at}.url 은 ${expected} 상품 링크 형태(https)만`);
     if (r.imageUrl !== null) {
       if (!display.includes('imageUrl')) fail(`${at}.imageUrl 은 displayFields 에 imageUrl 이 있을 때만`);

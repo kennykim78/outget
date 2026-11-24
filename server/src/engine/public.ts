@@ -264,3 +264,48 @@ export interface PublicCatalog extends CatalogInput {
   v: 1;
   seedDigest: string;
 }
+
+/**
+ * 362 N6(C1): 정적 피드 JSON /{slug}/feed/{item}.json(full)·{item}.noprice.json — ws-data 밖, 같은 오리진 빌드 산출물(외부 호출 0).
+ *   값은 엔진 selectFeedRows 결과만(노출 결정 한 곳). 수집 메타(rank·keyword·fetchedAt)는 싣지 않는다.
+ *   noprice 변형: priceCheckedOn·rows[].price 키 자체가 없다(72h 초과, N7). nofeed(168h 초과)는 파일 0.
+ */
+export interface PublicFeedRow {
+  provider: 'COUPANG' | 'ALIEXPRESS';
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price?: { amount: number; currency: 'KRW' } | null;
+  verdict: 'OK' | 'BELOW_RECOMMENDED' | null;
+  specValues: Record<string, SpecValue> | null;
+}
+
+export interface PublicFeedBlock {
+  v: 1;
+  typeId: string;
+  supplyItemId: string;
+  badge: 'LISTED_PASS' | 'CHECK_NEEDED';
+  generalInfo: boolean;
+  /** 가격 확인일(Asia/Seoul YYYY-MM-DD, generatedAt 기준). noprice 변형엔 키 없음. */
+  priceCheckedOn?: string;
+  rows: PublicFeedRow[];
+}
+
+/** 362 N6 홈 B 레일 최소 카드(D-2: LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장 = 정렬 첫 행). N9/N10 이 그린다. */
+export interface PublicFeedRailCard {
+  supplyItemId: string;
+  provider: 'COUPANG' | 'ALIEXPRESS';
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price?: { amount: number; currency: 'KRW' } | null;
+}
+
+/** 362 N7 feed-manifest.json — 만료 시각(+09:00)과 변형별 파일 목록(N11 spa 가 시각으로 고른다, 빌드 시각은 싣지 않는다). */
+export interface FeedManifest {
+  v: 1;
+  generatedAt: string;
+  priceUntil: string;
+  blockUntil: string;
+  variants: { full: string[]; noprice: string[] };
+}
