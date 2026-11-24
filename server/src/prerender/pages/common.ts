@@ -58,7 +58,8 @@ export function emptyData(): WsPageData['data'] {
 export function allTypes(m: Pick<SiteModel, 'types'>, ownTypeId?: string): WsPageData['data']['types'] {
   return m.types.map((t) => {
     if (t.pub.photos === undefined || t.id === ownTypeId) return t.pub;
-    const { photos: _drop, ...rest } = t.pub;
+    const rest = { ...t.pub };
+    delete rest.photos;
     return rest;
   });
 }
