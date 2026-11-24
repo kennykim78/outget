@@ -3,7 +3,7 @@
 //   문구는 @ws/copy 고정 UI 문구(종 공통, 품목명·숫자 없음). 노출 판정·순서는 서버 misc.ts starterActions 와 같은 규칙(fail-closed, D12 ①).
 //   이동: 선택된 동물이 있으면 href = intentHref(대상 직행), 없으면 href=/pick(정적과 같음) + 일반 클릭은 L1 열고 의도 보존(onIntent).
 //   서버 프리렌더 server/src/prerender/pages/misc.ts homeStarters 와 같은 태그·클래스(parity 시험 2종).
-import type { PublicAnimalType, WsPageData } from '@ws/engine';
+import type { PublicAnimalType, PublicHomeScenes, WsPageData } from '@ws/engine';
 import { COPY } from '@ws/copy';
 import { PICK_PATH, pickLinkClick } from '../shell/pickLink';
 import PhotoTile from '../ui/PhotoTile';
@@ -14,8 +14,8 @@ import { intentHref } from './intent';
 export const STARTER_ACTIONS = ['CHECKLIST', 'SPEC_CHECK', 'SETUP'] as const;
 export type StarterAction = (typeof STARTER_ACTIONS)[number];
 
-/** photos.json 슬롯(전부 SLOT → 빈 블록, 생성 이미지 금지 ①): 사료·급수·은신처 코너 / 자로 재는 케이지 / 케이지 세팅 전경. */
-const PHOTO_IDS: Record<StarterAction, string> = { CHECKLIST: 'ph-03', SPEC_CHECK: 'ph-08', SETUP: 'ph-01' };
+/** 카드 → 대표 타입 homeScenes 키(서버 misc.ts STARTER_SCENE 와 같은 표). 사진 id 는 ws-data 값만(359 D-3 — 장면 허용 종이 아니면 키 0 → 빈 블록). */
+const STARTER_SCENE: Record<StarterAction, keyof PublicHomeScenes> = { CHECKLIST: 'startChecklist', SPEC_CHECK: 'startSpecCheck', SETUP: 'startSetup' };
 
 /** 노출 카드 — 노출 타입 0 이면 없음, 대상이 하나도 없는 카드는 빠진다(서버 starterActions 와 같은 규칙). */
 export function starterActions(types: WsPageData['data']['types']): StarterAction[] {
@@ -40,6 +40,7 @@ export interface StartCardsProps {
 export default function StartCards({ page, selected, onIntent }: StartCardsProps) {
   const acts = starterActions(page.data.types);
   if (acts.length === 0) return null;
+  const scenes = page.data.types[0]?.homeScenes;
   return (
     <RailSection id="starters" kind="starter" layout="grid3" title={COPY.homeA.startersTitle} prevLabel={null} nextLabel={null}>
       {acts.map((x) => {
@@ -53,7 +54,7 @@ export default function StartCards({ page, selected, onIntent }: StartCardsProps
               href={selected ? intentHref(x, selected, page) : PICK_PATH}
               onClick={selected ? undefined : pickLinkClick(() => onIntent(x))}
             >
-              <PhotoTile photoId={PHOTO_IDS[x]} className="ws-starter-photo" />
+              <PhotoTile photo={scenes?.[STARTER_SCENE[x]]} className="ws-starter-photo" />
               <span className="ws-starter-head">
                 <span className="ws-t-cta ws-starter-title">{c.title}</span>
                 <span className="ws-starter-go">

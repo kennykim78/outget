@@ -95,6 +95,24 @@ describe('L4 SupplyLayer', () => {
     expect(within(d).getByRole('link', { name: '접시형 바퀴' })).toHaveAttribute('href', '/hamster/golden/supplies/saucer');
   });
 
+  // 359 T16(감사 356r M2): L4 사진 = 요구사항 photo(ws-data)만 — 고정 표(cage/bedding/food·대체 ph-03) 0. 합성 사진 id·경로.
+  it('359 T16: photo 키 없음 → 빈 블록, data-ws-photo·ph-NN 0(cage·water 포함) / photo 있음 → 그 img 만', () => {
+    for (const itemId of ['cage', 'water']) {
+      const r = { ...wheel(), requirementId: `req-${itemId}`, supplyItemId: itemId, item: { ...wheel().item, id: itemId, name: `합성 ${itemId}` } };
+      const d = openL4(pageWith([r]), itemId);
+      expect(d.innerHTML).not.toMatch(/ph-\d\d\b/);
+      expect(d.querySelectorAll('[data-ws-photo], img.ws-photo, .ws-photo-frame')).toHaveLength(0);
+      expect(d.querySelector('span.ws-photo.ws-supply-photo[aria-hidden="true"]')).not.toBeNull();
+      cleanup();
+      act(() => layerStore.resetForTest());
+    }
+    const d = openL4(pageWith([wheel({ photo: { photoId: 'ph-fx-wheel', asset: '/assets/items/fx-wheel.webp', aiGenerated: true } })]));
+    const frame = d.querySelector('.ws-photo-frame.ws-supply-photo') as HTMLElement;
+    expect(frame.querySelector('img.ws-photo')?.getAttribute('src')).toBe('/assets/items/fx-wheel.webp');
+    expect(frame.querySelector('img.ws-photo')?.getAttribute('data-ws-photo')).toBe('ph-fx-wheel');
+    expect(d.querySelectorAll('.ws-photo-notice')).toHaveLength(1);
+  });
+
   it('R4-4 머리: 「{동물} · {용품}」 → 메타 → 사진 자리(빈 블록, img 0) — 마지막 검수는 메타가 아니라 「검수 내용」 섹션에만', () => {
     const d = openL4(pageWith([wheel()]));
     const body = d.querySelector('.ws-supply') as HTMLElement;

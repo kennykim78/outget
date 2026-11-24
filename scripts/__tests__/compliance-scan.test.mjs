@@ -4193,3 +4193,149 @@ test('C6-IMG-AI-PRODUCT(354): 상품 행에 생성 사용권·생성 도구·생
   const ph = scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto()); } }));
   assert.ok(!rulesOf(ph).includes('C6-IMG-AI-PRODUCT'), JSON.stringify(ph.json?.findings));
 });
+
+// ── 359 단계 6: C6-IMG-SPECIES — 사진 id 와 라우트 종·프로필·품목 범위(「앵무 라우트 햄스터 사진 id 0」), T19~T22 + 장면 표 패리티(T23 일부) ─────────────
+//   합성 픽스처(실제 종 사실 아님): budgie·lovebird-peach(PARROT) 와 hamster-dwarf(SMALL_MAMMAL, 장면 비허용)가 골든과 같은 cp-syrian 을 공유한다.
+//   소스 규칙 C6-IMG-SPECIES-SRC 는 다음 라운드(클라이언트 단계 5 뒤).
+const SP_PHOTO = (id, over = {}) => aiPhoto({ id, slot: 'intro-3', promptPath: `docs/assets/prompts/${id}.md`, asset: `/assets/photos/${id}.webp`, ...over });
+const SP_IDS = ['ph-08', 'ph-03', 'ph-budgie-spec', 'ph-cp-syrian-cage'];
+const spFiles = (s) => {
+  for (const id of SP_IDS) {
+    s[`docs/assets/prompts/${id}.md`] = `# ${id}\n`;
+    s[`client/public/assets/photos/${id}.webp`] = 'RIFF';
+  }
+};
+const spType = (id, slug, group) => ({
+  id, slug, group, displayName: `픽스처 ${id}`, status: 'ACTIVE', aliases: [], taxonId: 'tx-fixture', careProfileId: 'cp-syrian', careOverrides: {}, oneLiner: null, ...meta({ contentKind: 'CARE' }),
+});
+const spSeed = (extra = noop) => (d) => {
+  d['animal-types.json'] = d['animal-types.json'].filter((t) => t.id !== 'hamster-dwarf');
+  d['animal-types.json'].push(spType('budgie', 'parrot/budgie', 'PARROT'), spType('lovebird-peach', 'parrot/lovebird-peach', 'PARROT'), spType('hamster-dwarf', 'hamster/dwarf', 'SMALL_MAMMAL'));
+  d['photos.json'].push(
+    SP_PHOTO('ph-08'),
+    SP_PHOTO('ph-03'),
+    SP_PHOTO('ph-budgie-spec', { scope: { use: 'spec', animalTypeId: 'budgie' } }),
+    SP_PHOTO('ph-cp-syrian-cage', { scope: { use: 'item', careProfileId: 'cp-syrian', supplyItemId: 'cage' } }),
+    { id: 'ph-dwarf-spec', scene: 'x', slot: 'intro-9', query: 'q', source: null, license: null, author: null, sourceUrl: null, downloadedAt: null, modified: false, status: 'SLOT', scope: { use: 'spec', animalTypeId: 'hamster-dwarf' } },
+  );
+  extra(d);
+};
+const SP_PAGES = { budgie: 'parrot/budgie/index.html', 'lovebird-peach': 'parrot/lovebird-peach/index.html', 'hamster-dwarf': 'hamster/dwarf/index.html', 'hamster-golden': 'hamster/golden/index.html' };
+const SP_GI = new Set(['budgie', 'lovebird-peach']);
+const spImg = (id, asset = `/assets/photos/${id}.webp`) => `<img class="ws-photo ws-spec-sec-photo" src="${asset}" alt="" loading="lazy" decoding="async" data-ws-photo="${id}">`;
+const spData = (ws = {}) => ({ types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], ...ws });
+/** 타입 페이지 하나 — body 는 main 안 마크업, ws 는 ws-data data 덮어쓰기(types·requirements). */
+const spPage = (typeId, body = '', ws = {}) =>
+  page(
+    `<main class="ws-page" data-ws-route="TYPE" data-ws-type="${typeId}"><h1>픽스처</h1>${SP_GI.has(typeId) ? `<p>${GI_NOTICE}</p>` : ''}${body}</main>`,
+    { v: 1, route: { kind: 'TYPE', path: `/${SP_PAGES[typeId].replace('/index.html', '')}`, typeId }, layer: null, catalogUrl: '/data/catalog.v1.abcd1234.json', data: spData(ws) },
+  );
+/** pages: { typeId: [body, ws] } — 주지 않은 타입은 빈 페이지. home: [홈 main 본문, ws](선택). */
+const spOut = (pages = {}, home = null) => (o) => {
+  for (const tid of Object.keys(SP_PAGES)) o[SP_PAGES[tid]] = spPage(tid, ...(pages[tid] ?? []));
+  if (home !== null) o['index.html'] = page(`<main class="ws-page" data-ws-route="HOME">${home[0]}</main>`, { v: 1, data: spData(home[1]) });
+};
+const spManifest = (digest) => {
+  const m = manifestFor(digest);
+  for (const tid of ['budgie', 'lovebird-peach', 'hamster-dwarf']) m.routes.push({ path: `/${SP_PAGES[tid].replace('/index.html', '')}`, file: SP_PAGES[tid], kind: 'TYPE', typeId: tid, indexable: false });
+  return m;
+};
+const spOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C6-IMG-SPECIES');
+async function spScan(pages, { home = null, seed = noop } = {}) {
+  return scan(await makeRoot({ source: spFiles, seed: spSeed(seed), output: spOut(pages, home), manifest: spManifest }));
+}
+function expectSp(res, re, label) {
+  expectFail(res, 'C6-IMG-SPECIES');
+  assert.ok(spOf(res).some((f) => re.test(f.message)), `${label}: ${re} 기대, 실제 ${JSON.stringify(spOf(res))}`);
+}
+const typePhotos = (id, photos) => ({ id, slug: 'x', displayName: 'x', photos });
+const pp = (photoId) => ({ photoId, asset: `/assets/photos/${photoId}.webp`, aiGenerated: true });
+
+test('C6-IMG-SPECIES clean: 골든에 장면 ph-08(마크업·ws-data) · budgie 에 자기 종 행 · 공유 프로필 품목 행 → exit 0', async () => {
+  const res = await spScan({
+    'hamster-golden': [spImg('ph-08'), { types: [typePhotos('hamster-golden', { spec: pp('ph-08'), nowLead: pp('ph-03') })], requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'cage', photo: pp('ph-08') }] }],
+    budgie: [spImg('ph-budgie-spec'), { types: [typePhotos('budgie', { spec: pp('ph-budgie-spec') })], requirements: [{ animalTypeId: 'budgie', supplyItemId: 'cage', photo: pp('ph-cp-syrian-cage') }] }],
+  });
+  expectClean(res);
+});
+test('C6-IMG-SPECIES clean: 실시드 형태(사진 0 — span 자리만)는 규칙 밖', async () => {
+  expectClean(await spScan({ budgie: ['<span class="ws-photo ws-spec-sec-photo" aria-hidden="true"></span>'] }));
+});
+
+for (const [label, pages, re, opts] of [
+  // T19
+  ['T19 budgie HTML data-ws-photo=ph-08', { budgie: [spImg('ph-08')] }, /budgie.*장면.*ph-08/],
+  // T20
+  ['T20 budgie ws-data photoId ph-03(종 자리)', { budgie: ['', { types: [typePhotos('budgie', { nowLead: pp('ph-03') })] }] }, /budgie.*장면.*ph-03/],
+  ['T20 budgie ws-data requirement.photo ph-08', { budgie: ['', { requirements: [{ animalTypeId: 'budgie', supplyItemId: 'cage', photo: pp('ph-08') }] }] }, /budgie.*장면.*ph-08/],
+  ['T20 budgie img src 가 ph-08 행 asset(data-ws-photo 없음)', { budgie: ['<img class="ws-photo" src="/assets/photos/ph-08.webp" alt="">'] }, /budgie.*장면.*ph-08/],
+  ['T20 budgie 마크업 문자열 ph-08(보조 잠금)', { budgie: ['<span class="ws-photo" data-x="ph-08"></span>'] }, /budgie.*ph-08/],
+  // T21
+  ['T21 비허용 SMALL_MAMMAL(드워프)에 장면 ph-08', { 'hamster-dwarf': [spImg('ph-08')] }, /hamster-dwarf.*장면.*ph-08/],
+  // T22
+  ['T22 SLOT 행 id(data-ws-photo)', { 'hamster-dwarf': [spImg('ph-dwarf-spec')] }, /사용 불가.*ph-dwarf-spec/],
+  ['T22 SLOT 행 id(문자열)', { 'hamster-golden': ['<p data-x="ph-01"></p>'] }, /사용 불가.*ph-01/],
+  ['T22 시드에 없는 사진 id', { 'hamster-golden': [spImg('ph-99')] }, /ph-99/],
+  ['T22 budgie 종 행이 lovebird 라우트에', { 'lovebird-peach': [spImg('ph-budgie-spec')] }, /lovebird-peach.*ph-budgie-spec.*budgie/],
+  ['T22 budgie 종 행이 lovebird ws-data 에', { 'lovebird-peach': ['', { types: [typePhotos('lovebird-peach', { spec: pp('ph-budgie-spec') })] }] }, /lovebird-peach.*ph-budgie-spec/],
+  // 자리 일치(359 H3): 품목 자리 장면은 ITEM_SCENE_PHOTOS 표만, 종 자리 장면은 TYPE_SCENE_PHOTOS 표만, 품목 행은 그 품목에만
+  ['골든 wheel 품목 자리에 장면 ph-03(범용 대체 폐지)', { 'hamster-golden': ['', { requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'wheel', photo: pp('ph-03') }] }] }, /ph-03.*자리/],
+  ['골든 spec 종 자리에 장면 ph-03', { 'hamster-golden': ['', { types: [typePhotos('hamster-golden', { spec: pp('ph-03') })] }] }, /ph-03.*자리/],
+  ['cage 품목 행이 wheel 자리에', { 'hamster-golden': ['', { requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'wheel', photo: pp('ph-cp-syrian-cage') }] }] }, /ph-cp-syrian-cage.*자리/],
+  ['ws-data asset 이 행 asset 과 다름', { 'hamster-golden': ['', { types: [typePhotos('hamster-golden', { spec: { photoId: 'ph-08', asset: '/assets/photos/ph-03.webp' } })] }] }, /asset/],
+  ['img src ≠ data-ws-photo 행 asset', { 'hamster-golden': [spImg('ph-08', '/assets/photos/ph-03.webp')] }, /ph-08/],
+  ['다른 종 ws-data types 항목의 사진(골든 라우트에 budgie 사진)', { 'hamster-golden': ['', { types: [typePhotos('budgie', { spec: pp('ph-budgie-spec') })] }] }, /hamster-golden.*ph-budgie-spec/],
+  ['시드에 없는 사진 파일 경로', { 'hamster-golden': ['<img src="/assets/photos/zz.webp" alt="">'] }, /zz\.webp/],
+  // 홈(규칙 3): habitat 카드는 카드의 종 기준, 그 밖은 대표 타입(시드 순 첫 노출 = 골든) 기준
+  ['홈 budgie 카드에 장면 ph-08', {}, /budgie.*장면.*ph-08/, { home: [`<a class="ws-starter ws-habitat" href="/parrot/budgie" data-ws-id="animalTypes#budgie">${spImg('ph-08')}</a>`] }],
+  ['홈 ws-data budgie 항목 homeScenes 장면', {}, /budgie.*ph-08/, { home: ['', { types: [{ id: 'budgie', slug: 'parrot/budgie', displayName: 'x', homeScenes: { startSpecCheck: pp('ph-08') } }] }] }],
+  ['홈 대표 타입이 앵무(시드 순 첫 노출)면 시작 카드 장면 FAIL', {}, /budgie.*장면.*ph-08/, {
+    home: [`<ul><li><a class="ws-starter" href="/pick">${spImg('ph-08')}</a></li></ul>`],
+    seed: (d) => { const b = d['animal-types.json'].find((t) => t.id === 'budgie'); d['animal-types.json'] = [b, ...d['animal-types.json'].filter((t) => t !== b)]; },
+  }],
+]) {
+  test(`C6-IMG-SPECIES: ${label} → FAIL`, async () => {
+    expectSp(await spScan(pages, opts ?? {}), re, label);
+  });
+}
+
+test('C6-IMG-SPECIES clean: 홈 — 시작 카드 장면(대표 골든) · 골든 카드 ph-08 · budgie 카드 자기 행', async () => {
+  const home = [
+    `<ul><li><a class="ws-starter" href="/pick">${spImg('ph-08')}</a></li></ul>`,
+    `<a class="ws-starter ws-habitat" href="/hamster/golden" data-ws-id="animalTypes#hamster-golden">${spImg('ph-08')}</a>`,
+    `<a class="ws-starter ws-habitat" href="/parrot/budgie" data-ws-id="animalTypes#budgie">${spImg('ph-budgie-spec')}</a>`,
+  ].join('');
+  const ws = {
+    types: [
+      { id: 'hamster-golden', slug: 'hamster/golden', displayName: 'x', homeScenes: { startSpecCheck: pp('ph-08'), startChecklist: pp('ph-03') }, photos: { spec: pp('ph-08') } },
+      typePhotos('budgie', { spec: pp('ph-budgie-spec') }),
+    ],
+  };
+  expectClean(await spScan({}, { home: [home, ws] }));
+});
+
+test('C6-IMG-SPECIES T23: seed-exposure 장면 표 == 엔진 photo-resolve.ts 상수(원문 대조, 엔진 import 없음)', async () => {
+  const src = readFileSync(join(REPO_ROOT, 'server', 'src', 'engine', 'photo-resolve.ts'), 'utf8');
+  const arr = (name) => {
+    const m = new RegExp(`export const ${name}\\b[^=]*=\\s*Object\\.freeze\\(\\[([^\\]]*)\\]`).exec(src);
+    assert.ok(m, `${name} 배열 상수를 찾지 못함`);
+    return [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
+  };
+  const obj = (name) => {
+    const m = new RegExp(`export const ${name}\\b[^=]*=\\s*Object\\.freeze\\(\\{([^}]*)\\}`).exec(src);
+    assert.ok(m, `${name} 표 상수를 찾지 못함`);
+    return Object.fromEntries([...m[1].matchAll(/'?([\w-]+)'?\s*:\s*'([^']*)'/g)].map((x) => [x[1], x[2]]));
+  };
+  const se = await import('../lib/seed-exposure.mjs');
+  assert.deepEqual([...se.SCENE_PHOTO_GROUPS], arr('SCENE_PHOTO_GROUPS'));
+  assert.deepEqual([...se.SCENE_PHOTO_TYPE_IDS], arr('SCENE_PHOTO_TYPE_IDS'));
+  assert.deepEqual({ ...se.TYPE_SCENE_PHOTOS }, obj('TYPE_SCENE_PHOTOS'));
+  assert.deepEqual({ ...se.ITEM_SCENE_PHOTOS }, obj('ITEM_SCENE_PHOTOS'));
+  assert.deepEqual({ ...se.HOME_A_SCENE_PHOTOS }, obj('HOME_A_SCENE_PHOTOS'));
+  // 엔진 ws-data 키(TYPE_PHOTO_KEYS) == PHOTO_WS_TYPE_KEYS
+  const keys = /TYPE_PHOTO_KEYS[^=]*=\s*\[([\s\S]*?)\];/.exec(src);
+  assert.ok(keys, 'TYPE_PHOTO_KEYS 를 찾지 못함');
+  assert.deepEqual({ ...se.PHOTO_WS_TYPE_KEYS }, Object.fromEntries([...keys[1].matchAll(/\['(\w+)',\s*'([\w-]+)'\]/g)].map((x) => [x[1], x[2]])));
+  assert.equal(se.sceneAllowedForType({ id: 'hamster-golden', group: 'SMALL_MAMMAL' }), true);
+  for (const t of [{ id: 'hamster-golden', group: 'PARROT' }, { id: 'gerbil-mongolian', group: 'SMALL_MAMMAL' }, { id: 'budgie', group: 'PARROT' }, null]) assert.equal(se.sceneAllowedForType(t), false);
+});

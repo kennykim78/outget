@@ -671,3 +671,44 @@ describe('305 /{slug}/tips — 프리렌더 ↔ 하이드레이션', () => {
     expect(entries()).toEqual(before);
   });
 });
+
+// 359 T18(감사 356r M2): 사진 자리 — 실시드 사본에서 장면 행을 READY(생성 이미지, 시험 안에서만 — 자산 파일·시드 변경 0)로 바꿔
+//   프리렌더(server photoTile) ↔ 하이드레이션 뒤(PhotoTile) 사진 자리 마크업이 같다(태그·클래스·src·data-ws-photo·표기 수).
+//   ph-01(habitat·startSetup)·ph-08(spec·cage·startSpecCheck)·ph-02(explainFigures) 는 골든(장면 허용 종)에만 실린다(D-1 A).
+describe('359 T18 사진 자리 — 프리렌더 ↔ 하이드레이션', () => {
+  let photoSite: SiteLite;
+  beforeAll(async () => {
+    const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ realSeed: () => Record<string, unknown>; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    const seed = fx.realSeed();
+    for (const id of ['ph-01', 'ph-08', 'ph-02']) {
+      const row = (seed.photos as Array<Record<string, unknown>>).find((r) => r.id === id);
+      if (!row) throw new Error(`photo ${id} 없음`);
+      // server prerender.photo.test.ts readyAi 와 같은 형식(사용권·종 확인을 갖춘 사용 가능 AI 행 — 시험 고정값)
+      Object.assign(row, {
+        status: 'READY', license: 'AI_GENERATED', source: 'CODEX', sourceUrl: null, licenseUrl: null, author: null, downloadedAt: null,
+        modified: false, generatedAt: '2026-11-20', promptPath: `docs/assets/prompts/${String(row.slot)}.md`, asset: `/assets/photos/${String(row.slot)}.webp`,
+        speciesCheck: { checkedBy: '시험 운영자', checkedAt: '2026-11-21' },
+      });
+    }
+    photoSite = siteMod.buildSite(seed, { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) });
+  }, 30_000);
+
+  const photoSlots = (): string[] =>
+    Array.from(document.querySelectorAll('main .ws-photo, main .ws-photo-frame')).map((el) =>
+      [el.tagName, el.className, el.getAttribute('src') ?? '', el.getAttribute('data-ws-photo') ?? '', el.getAttribute('aria-hidden') ?? '', el.querySelectorAll('.ws-photo-notice').length].join('|'),
+    );
+
+  it.each(['/', '/hamster/golden', '/parrot/budgie'])('%s: 사진 자리 프리렌더 = 하이드레이션 뒤, 골든 외 종 페이지엔 장면 id 0', (path) => {
+    const p = pageAt(path, photoSite);
+    loadStatic(p);
+    const before = photoSlots();
+    expect(before.length).toBeGreaterThan(0);
+    if (path === '/parrot/budgie') expect(before.join('\n')).not.toMatch(/ph-\d\d\b/);
+    else expect(before.some((x) => x.startsWith('IMG|') || x.startsWith('SPAN|ws-photo-frame'))).toBe(true);
+    hydrate(p);
+    expect(photoSlots()).toEqual(before);
+    if (path === '/parrot/budgie') expect(mainEl().innerHTML).not.toMatch(/ph-\d\d\b/);
+  });
+});

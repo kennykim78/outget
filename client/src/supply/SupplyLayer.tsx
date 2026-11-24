@@ -29,9 +29,6 @@ import '../styles/layers.css';
 const STATE_KEY: Record<ItemState, 'ready' | 'first' | 'check' | 'later'> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
 const STATE_GLYPH: Partial<Record<ItemState, GlyphKind>> = { READY: 'ready', FIRST: 'first', CHECK: 'check' };
 const MAX_PRODUCTS = 3;
-/** photos.json L4 슬롯(l4-cage·l4-bedding·l4-food, 홈 B ITEM_PHOTO 와 같은 표) — 추적용 id, 표시 영향 0. 슬롯 없는 용품은 요약 슬롯 ph-03. */
-const L4_PHOTO: Readonly<Record<string, string>> = { cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' };
-const L4_PHOTO_FALLBACK = 'ph-03';
 
 /** "YYYY.MM"(프리렌더 yearMonth 와 같은 형식). */
 export function yearMonth(d: string | null | undefined): string | null {
@@ -241,7 +238,8 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
             ) : null}
             <span className="ws-t-meta">{`${COPY.priority[r.priority]} · ${COPY.orderHint[r.orderHint]}`}</span>
           </div>
-          <PhotoTile photoId={L4_PHOTO[r.supplyItemId] ?? L4_PHOTO_FALLBACK} className="ws-supply-photo" />
+          {/* 사진 = requirement.photo(ws-data, 359 단계 5 — 프리렌더 layerL4 와 같은 값). 고정 표·대체 id 0(감사 356r M2). */}
+          <PhotoTile photo={r.photo} className="ws-supply-photo" />
 
           {r.priority === 'NOT_NOW' ? (
             <section className="ws-supply-part ws-supply-notnow" data-ws-part="notNow">

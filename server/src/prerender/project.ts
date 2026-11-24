@@ -18,6 +18,9 @@ import {
   isVetListed,
   listResolvedRequirements,
   orderExposableProducts,
+  publicHomeScenes,
+  publicItemPhoto,
+  publicTypePhotos,
   type AnimalTypeRec,
   type CareProfileRec,
   type CatalogInput,
@@ -30,6 +33,8 @@ import {
   type PublicAnimalType,
   type PublicBundle,
   type PublicCatalogMeta,
+  type PublicHomeScenes,
+  type PublicPhoto,
   type PublicProduct,
   type PublicRequirement,
   type PublicTestimonial,
@@ -77,6 +82,11 @@ export interface TypeModel {
   /** 301: 노출 팁(섹션 순서 CAGE→HIDE→WATER→BEDDING→TOY, 섹션 안 시드 순서). 0건이면 /tips 라우트·링크 0. */
   tips: TipModel[];
   lastmod: string | null;
+  /**
+   * 359 D-3: 이 타입이 홈 대표 타입일 때 실을 홈 A 장면(engine publicHomeScenes — 장면 허용 종만, 사용 가능 장면만).
+   *   홈(homeTypes)이 대표 타입(i===0)에만 ws-data 에 싣는다. 그 밖 페이지엔 싣지 않는다.
+   */
+  homeScenes?: PublicHomeScenes;
 }
 
 /**
@@ -212,6 +222,7 @@ function projectRequirement(
   r: ResolvedRequirement,
   exposedItemIds: ReadonlySet<string>,
   affiliate: ReadonlyMap<string, AffiliateCodes> | undefined,
+  photo: PublicPhoto | undefined,
 ): Omit<PublicRequirement, 'requirementId'> {
   const keyword = buildSearchKeyword(at, r);
   const chain = [r.review.animalType, r.review.careProfile, r.review.requirement, r.review.item];
@@ -252,10 +263,20 @@ function projectRequirement(
     source: sources(r.review.requirement),
     lastVerifiedAt,
     ...(generalInfo ? { generalInfo: true as const } : {}),
+    // 359 D-2: 품목 자리 사진(엔진 resolvePhoto — 사용 가능할 때만 키, 맨 뒤). SLOT 동안 키 없음 → ws-data 바이트 불변.
+    ...(photo ? { photo } : {}),
   };
 }
 
-function projectType(at: AnimalTypeRec, slug: string, careProfileId: string, generalInfo: boolean): PublicAnimalType {
+const withHomeScenes = (s: PublicHomeScenes | undefined): { homeScenes?: PublicHomeScenes } => (s ? { homeScenes: s } : {});
+
+function projectType(
+  at: AnimalTypeRec,
+  slug: string,
+  careProfileId: string,
+  generalInfo: boolean,
+  photos: PublicAnimalType['photos'],
+): PublicAnimalType {
   return {
     id: at.id,
     slug,
@@ -268,6 +289,8 @@ function projectType(at: AnimalTypeRec, slug: string, careProfileId: string, gen
     // 356 M11: 타입 자기 메타가 GENERAL_INFO 면 review 키 없음(검수 기록이 아니다 — reviewerType AI_DRAFT 미노출).
     ...(isGeneralInfo(at) ? {} : { review: { verifiedAt: dateOf(at.verifiedAt) ?? '', reviewerType: at.reviewerType } }),
     ...(generalInfo ? { generalInfo: true as const } : {}),
+    // 359 D-2: 종 자리 사진(habitat·nowLead·spec — 사용 가능 자리만). 없으면 키 없음(바이트 불변).
+    ...(photos ? { photos } : {}),
   };
 }
 
@@ -288,6 +311,8 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
     const exposed = listResolvedRequirements(cat, at.id).filter((r) => isRequirementExposable(cat, r, asOf));
     const exposedItemIds = new Set(exposed.map((r) => r.supplyItemId));
     const profile = cat.careProfiles.get(at.careProfileId) as CareProfileRec;
+    // 359 D-2: 사진은 엔진 resolvePhoto(scope 대체 순서) 한 곳에서 고른다 — 프리렌더·클라이언트는 재판정하지 않는다.
+    const photoRef = { animalTypeId: at.id, group: at.group ?? null, careProfileId: at.careProfileId };
 
     const requirements: RequirementModel[] = exposed.map((r) => {
       const base = cat.requirementsByProfile.get(r.careProfileId)?.get(r.supplyItemId) as SupplyRequirementRec;
@@ -310,7 +335,10 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
       }));
       return {
         requirementId: base.id,
-        pub: { requirementId: base.id, ...projectRequirement(at, r, exposedItemIds, affiliate) },
+        pub: {
+          requirementId: base.id,
+          ...projectRequirement(at, r, exposedItemIds, affiliate, publicItemPhoto(seed.photos, photoRef, r.supplyItemId)),
+        },
         item: {
           id: r.item.id,
           name: r.item.name,
@@ -369,6 +397,7 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
         at.slug,
         at.careProfileId,
         isGeneralInfo(at) || isGeneralInfo(profile) || requirements.some((r) => r.pub.generalInfo === true),
+        publicTypePhotos(seed.photos, photoRef),
       ),
       requirements,
       bundles,
@@ -382,6 +411,7 @@ export function projectSite(seed: SeedBundle, asOf: string, affiliate?: Readonly
         ...bundleRows.map((b) => dateOf(b.verifiedAt)),
         ...productRows.map((p) => dateOf(p.verifiedAt)),
       ]),
+      ...withHomeScenes(publicHomeScenes(seed.photos, { id: at.id, group: at.group ?? null })),
     });
   }
 

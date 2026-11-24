@@ -237,6 +237,24 @@ export function isPhotoUsableRow(p) {
   return p.license === 'CC0' || nonEmpty(p.author);
 }
 
+// ── 359 C6-IMG-SPECIES: 사진 자리 종 범위(독립 구현 — server/src/engine/photo-resolve.ts 와 패리티 시험, compliance-scan.test T23) ──
+//   장면 행(scope 없는 ph-xx)은 골든햄스터를 찍은 사진이라 그 종에만 붙는다(359 D-1 A). 엔진을 import 하지 않는다 — 시험이 원문 상수를 대조한다.
+export const SCENE_PHOTO_GROUPS = Object.freeze(['SMALL_MAMMAL']);
+export const SCENE_PHOTO_TYPE_IDS = Object.freeze(['hamster-golden']);
+/** 종 자리(use) → 장면 행 id. ws-data 키는 habitat·nowLead·spec(PHOTO_WS_TYPE_KEYS). */
+export const TYPE_SCENE_PHOTOS = Object.freeze({ habitat: 'ph-01', 'now-lead': 'ph-03', spec: 'ph-08' });
+/** 품목 자리 장면 대체 — 이 표에 없는 품목은 장면 대체 없음(범용 ph-03 폐지, 359). */
+export const ITEM_SCENE_PHOTOS = Object.freeze({ cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' });
+/** 홈 A 공용 장면(ws-data types[대표].homeScenes 키 → 장면 행 id). */
+export const HOME_A_SCENE_PHOTOS = Object.freeze({ startChecklist: 'ph-03', startSpecCheck: 'ph-08', startSetup: 'ph-01', explainNeed: 'ph-12', explainFigures: 'ph-02' });
+/** ws-data types[i].photos 키 → 종 자리 use. */
+export const PHOTO_WS_TYPE_KEYS = Object.freeze({ habitat: 'habitat', nowLead: 'now-lead', spec: 'spec' });
+
+/** 이 종(노출 타입 행)의 자리에 장면 행을 붙일 수 있는가 — 그룹 ∧ 종 둘 다(모름 → false, fail-closed). */
+export function sceneAllowedForType(t) {
+  return isObj(t) && SCENE_PHOTO_GROUPS.includes(t.group) && SCENE_PHOTO_TYPE_IDS.includes(t.id);
+}
+
 // ── 저렴 대체 팁 참조 규칙(독립 구현 — engine/tips.ts 와 패리티 테스트 tips.parity) ─────────────
 // Kenny 11/22 지시 범위 4종(케이지·은신처·급수·바닥재) — TOY 제거(309 m-2·310 LOW-3).
 export const TIP_SECTION_CATEGORIES = Object.freeze(['CAGE', 'HIDE', 'WATER', 'BEDDING']);

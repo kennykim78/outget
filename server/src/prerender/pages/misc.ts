@@ -27,6 +27,7 @@ import {
   mainOpen,
   mascotAvatar,
   navCurrent,
+  photoTile,
   railSection,
   renderFooter,
   renderHead,
@@ -111,6 +112,8 @@ function homeTypes(m: SiteModel): WsPageData['data']['types'] {
       ...(r ? { specCheckItemId: r.item.id } : {}),
       ...(t.bundles.length > 0 ? { setupAvailable: true as const } : {}),
       ...(explain ? { homeExplain: explain } : {}),
+      // 359 D-3: 대표 타입에만, 그 타입이 장면 허용 종일 때만(project.ts — engine publicHomeScenes). 없으면 키 없음.
+      ...(i === 0 && t.homeScenes ? { homeScenes: t.homeScenes } : {}),
     };
   });
 }
@@ -136,15 +139,24 @@ export function starterActions(types: WsPageData['data']['types']): StarterActio
  *   카드 = li > a.ws-starter(사진 자리 + 제목·화살표 + 한 줄). 정적 href = /pick(무JS: L1 → 타입 홈), 하이드레이션 후 의도 보존(intent.ts).
  *   카드 안 카드·상태 칩·수치 없음. 카드 0개면 섹션 자체가 없다.
  */
+/** 시작 카드 → 홈 A 장면 키(engine HOME_A_SCENE_PHOTOS) — 359 D-3. */
+const STARTER_SCENE: Readonly<Record<StarterAction, 'startChecklist' | 'startSpecCheck' | 'startSetup'>> = {
+  CHECKLIST: 'startChecklist',
+  SPEC_CHECK: 'startSpecCheck',
+  SETUP: 'startSetup',
+};
+
 function homeStarters(types: WsPageData['data']['types']): string[] {
   const acts = starterActions(types);
   if (acts.length === 0) return [];
+  // 359 D-3: 장면 사진은 대표 타입(types[0])의 homeScenes 에서만 — 장면 허용 종이 아니면 키가 없어 빈 자리.
+  const scenes = types[0]?.homeScenes;
   const items = acts.map((x) => {
     const c = COPY.homeA.starters[x];
     return [
       `<li class="ws-starter-item"><a class="ws-starter" data-ws-action="start-card" data-ws-intent="${x}" href="${PICK_PATH}">`,
-      // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용 슬롯 id)는 싣지 않는다.
-      '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+      // 사진 자리 — 사용 가능 사진이 없으면 지금 그대로 빈 블록(photoTile, 359 단계 4).
+      photoTile(scenes?.[STARTER_SCENE[x]], 'ws-starter-photo'),
       `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(c.title)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
       `<span class="ws-t-meta ws-muted ws-starter-sub">${h(c.sub)}</span>`,
       '</a></li>',
@@ -186,7 +198,7 @@ function homeExplain(data: WsPageData['data']): string[] {
         `<a class="ws-home-link" href="${a(hrefOf(`/${rep.slug}`))}">${h(COPY.homeA.needLink)}${HOME_ARROW}</a>`,
         '</div>',
         '<div class="ws-explain-side">',
-        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        photoTile(rep.homeScenes?.explainNeed, 'ws-explain-photo'),
         `<div class="ws-need-cols">${col('need', COPY.homeA.needCol, ex.need)}${col('not-now', COPY.homeA.notNowCol, ex.notNow)}</div>`,
         '</div>',
         '</section>',
@@ -198,7 +210,7 @@ function homeExplain(data: WsPageData['data']): string[] {
     out.push(
       [
         '<section class="ws-home-sec ws-explain ws-figures" data-ws-section="figures" aria-labelledby="ws-sec-figures-title">',
-        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        photoTile(rep.homeScenes?.explainFigures, 'ws-explain-photo'),
         '<div class="ws-explain-text">',
         explainHead('ws-sec-figures-title', COPY.homeA.figuresTitle, COPY.homeA.figuresSub),
         `<p class="ws-t-meta ws-eyebrow ws-explain-eyebrow">${h(formatCopy(COPY.homeA.figuresEyebrow, { animal: rep.displayName }))}</p>`,
@@ -230,7 +242,8 @@ function homeExplain(data: WsPageData['data']): string[] {
       items: data.types.map((t) =>
         [
           `<li class="ws-starter-item"><a class="ws-starter ws-habitat" href="${a(hrefOf(`/${t.slug}`))}" data-ws-id="animalTypes#${a(t.id)}">`,
-          '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+          // 359: 종별 종 자리 사진(engine resolvePhoto habitat) — 다른 종 장면 대체 없음(D-1 A).
+          photoTile(t.photos?.habitat, 'ws-starter-photo'),
           `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(t.displayName)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
           t.oneLiner ? `<span class="ws-t-meta ws-muted ws-starter-sub">${h(t.oneLiner)}</span>` : '',
           '</a></li>',

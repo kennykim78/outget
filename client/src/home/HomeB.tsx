@@ -35,11 +35,7 @@ const STATE_OF: Record<ItemState, NowState> = { READY: 'ready', FIRST: 'first', 
 /** 홈 B 병원 레일 상한(서버 TYPE_VETS_MAX 와 같은 값 — ws-data 가 이미 ≤20). */
 const MAX_VETS = 20;
 
-/** photos.json 슬롯(전부 SLOT → 빈 블록, 생성 이미지 금지 ①) — 추적용 id. 요약 카드 = 사료·급수·은신처 코너, 규격 = 자로 재는 케이지. */
-const PHOTO_NOW = 'ph-03';
-const PHOTO_SPEC = 'ph-08';
-/** 항목 카드 사진 슬롯(L4 슬롯이 있는 항목만, 없으면 요약 카드 슬롯) — 표시 영향 0, 추적용. */
-const ITEM_PHOTO: Readonly<Record<string, string>> = { cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' };
+// 사진(359 단계 5, 감사 356r M2): 고정 id 0 — 요약 카드·규격 = type.photos.nowLead·spec, 항목 카드 = requirement.photo(ws-data, 프리렌더 type.ts 와 같은 값).
 
 export interface HomeBProps {
   page: WsPageData;
@@ -102,7 +98,7 @@ function NowCard({ row, state, href }: { row: ChecklistRow; state: NowState; hre
   return (
     <li className="ws-now-item" data-ws-item={r.supplyItemId} data-ws-id={`supplyRequirements#${r.requirementId}`}>
       <a className="ws-now-card" href={href} data-ws-state={state}>
-        <PhotoTile photoId={ITEM_PHOTO[r.supplyItemId] ?? PHOTO_NOW} className="ws-now-photo" />
+        <PhotoTile photo={r.photo} className="ws-now-photo" />
         <span className="ws-t-title ws-now-name">{r.item.name}</span>
         <StateTag state={state} />
         {reason ? <span className="ws-t-body ws-muted ws-now-reason">{reason}</span> : null}
@@ -227,7 +223,7 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
         <SectionHead id="ws-sec-now-title" title={COPY.homeB.nowTitle} lead={COPY.homeB.nowLead} />
         <ul className="ws-now-grid" role="list">
           <li className="ws-now-lead">
-            <PhotoTile photoId={PHOTO_NOW} className="ws-now-photo" />
+            <PhotoTile photo={type.photos?.nowLead} className="ws-now-photo" />
             <h3 className="ws-t-title ws-now-name">{COPY.homeB.nowCardTitle}</h3>
             {countLine ? <p className="ws-t-body ws-muted ws-now-count">{countLine}</p> : null}
             <button type="button" className="ws-btn ws-btn--fill ws-now-cta" data-ws-action="open-checklist" onClick={onOpenL2}>
@@ -330,7 +326,7 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
               <Arrow />
             </a>
           </div>
-          <PhotoTile photoId={PHOTO_SPEC} className="ws-spec-sec-photo" />
+          <PhotoTile photo={type.photos?.spec} className="ws-spec-sec-photo" />
         </section>
       ) : null}
 

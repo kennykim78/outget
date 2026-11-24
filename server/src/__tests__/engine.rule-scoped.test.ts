@@ -244,6 +244,9 @@ describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
   const withoutGp = () => {
     const raw = fresh();
     raw.supplyRequirements = (raw.supplyRequirements ?? []).filter((x) => !['cp-guineapig', 'cp-gerbil-mongolian'].includes((x as Rec).careProfileId as string));
+    // 359 D-1 A: 실시드에 프로필×품목 사진 SLOT 행(scope.careProfileId)이 생겼다 — 요구사항을 뺀 프로필의 사진 행도 참조 정리(I05 「요구 품목 없음」 방지).
+    //   단언(W-RULESCOPED 11·10필드)은 그대로 — 사진 행은 specSchema 참조와 무관하다.
+    raw.photos = (raw.photos ?? []).filter((x) => !['cp-guineapig', 'cp-gerbil-mongolian'].includes(((x as Rec).scope as Rec | null | undefined)?.careProfileId as string));
     return raw;
   };
   const scopedWarns = (raw: ReturnType<typeof fresh>) =>

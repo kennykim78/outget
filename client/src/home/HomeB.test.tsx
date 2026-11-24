@@ -119,6 +119,37 @@ describe('홈 B(R4-2)', () => {
     expect(now().querySelector('.ws-now-state')).toBeNull();
   });
 
+  // 359 T15(감사 356r M2): 사진 = ws-data(types[].photos·requirements[].photo)만, 고정 id 0. 합성 사진 id·경로(시드 아님).
+  it('359 T15: 사진 키 없음 → 사진 자리 전부 빈 블록, data-ws-photo·ph-NN 0(앵무 등 다른 종에 장면 id 가 실리던 경로 닫힘)', () => {
+    const p = typePage();
+    const parrot = { ...golden, id: 'fixture-parrot', slug: 'parrot/fixture', group: 'PARROT' as const, displayName: '픽스처앵무', careProfileId: 'cp-fixture-parrot' };
+    const asParrot = { ...p, route: { ...p.route, typeId: parrot.id, path: '/parrot/fixture' }, data: { ...p.data, types: [parrot], requirements: p.data.requirements.map((r) => ({ ...r, animalTypeId: parrot.id })) } };
+    for (const page of [p, asParrot]) {
+      const { container, unmount } = render(<App page={page} captured={NO_CAPTURE} />);
+      expect(container.innerHTML).not.toMatch(/ph-\d\d\b/);
+      expect(container.querySelectorAll('[data-ws-photo], img.ws-photo, .ws-photo-frame')).toHaveLength(0);
+      expect(container.querySelectorAll('main span.ws-photo[aria-hidden="true"]').length).toBeGreaterThanOrEqual(5); // now-lead + 카드 3 + 규격
+      unmount();
+    }
+  });
+
+  it('359 T15: photos.nowLead·spec·cage 요구사항 photo → 그 자리만 img(cage 카드 1장), 생성 이미지는 틀 + 표기 1', () => {
+    const p = typePage();
+    const photos = {
+      nowLead: { photoId: 'ph-fx-now', asset: '/assets/photos/fx-now.webp' },
+      spec: { photoId: 'ph-fx-spec', asset: '/assets/photos/fx-spec.webp', aiGenerated: true as const },
+    };
+    const reqs = p.data.requirements.map((r) => (r.supplyItemId === 'cage' ? { ...r, photo: { photoId: 'ph-fx-cage', asset: '/assets/items/fx-cage.webp' } } : r));
+    render(<App page={{ ...p, data: { ...p.data, types: [{ ...golden, photos }], requirements: reqs } }} captured={NO_CAPTURE} />);
+    expect(now().querySelector('li.ws-now-lead > img.ws-photo.ws-now-photo')?.getAttribute('data-ws-photo')).toBe('ph-fx-now');
+    expect(cards().map((c) => c.querySelector('img.ws-photo.ws-now-photo')?.getAttribute('data-ws-photo') ?? null)).toEqual(['ph-fx-cage', null, null]);
+    const spec = document.querySelector('[data-ws-section="spec"]') as HTMLElement;
+    const frame = spec.querySelector('.ws-photo-frame.ws-spec-sec-photo') as HTMLElement;
+    expect(frame.querySelector('img.ws-photo')?.getAttribute('data-ws-photo')).toBe('ph-fx-spec');
+    expect(spec.querySelectorAll('.ws-photo-notice')).toHaveLength(1);
+    expect(document.querySelectorAll('main .ws-photo-notice')).toHaveLength(1);
+  });
+
   it('L3 후: 요약 「필수 3가지 중 2가지가 남았어요.」, 주 버튼 「남은 준비 2개 살펴보기」 → L2, 카드 = 남은 필수(입력 순서, ! 먼저 준비), 줄 = ✓ 준비완료 / 아직 준비 중(링크)', () => {
     answer({ wheel: { source: 'UNKNOWN', at: T } }, false);
     render(<App page={typePage()} captured={NO_CAPTURE} />);

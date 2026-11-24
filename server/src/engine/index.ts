@@ -78,23 +78,27 @@ export {
 } from './photo-ai.js';
 export {
   HOME_A_SCENE_PHOTOS,
-  ITEM_SCENE_FALLBACK,
   ITEM_SCENE_PHOTOS,
   PHOTO_SCOPE_KEYS,
   PHOTO_TYPE_USES,
   PHOTO_USES,
   SCENE_PHOTO_GROUPS,
+  SCENE_PHOTO_TYPE_IDS,
   TYPE_SCENE_PHOTOS,
   photoLevels,
   photoPlacements,
   photoScopeKey,
+  publicHomeScenes,
+  publicItemPhoto,
+  publicPhotoOf,
+  publicTypePhotos,
   resolvePhoto,
   resolvePlacement,
   resolveScenePhoto,
   sceneFallbackAllowed,
   scenePhotoIdFor,
 } from './photo-resolve.js';
-export type { PhotoLevel, PhotoPlacement, PhotoQuery, PhotoUse, ResolvedPhoto } from './photo-resolve.js';
+export type { PhotoLevel, PhotoPlacement, PhotoQuery, PhotoTypeRef, PhotoUse, ResolvedPhoto } from './photo-resolve.js';
 export {
   TIP_ARTICLE_HOSTS,
   TIP_COMMERCE_HOSTS,

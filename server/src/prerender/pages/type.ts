@@ -20,6 +20,7 @@ import {
   mainOpen,
   meetsBadge,
   navCurrent,
+  photoTile,
   renderFooter,
   renderHead,
   renderHeader,
@@ -154,8 +155,8 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
     return [
       `<li class="ws-now-item" data-ws-item="${a(r.item.id)}" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
       `<a class="ws-now-card" href="${a(itemHref(r))}" data-ws-state="neutral">`,
-      // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용)는 싣지 않는다.
-      '<span class="ws-photo ws-now-photo" aria-hidden="true"></span>',
+      // 사진 자리 — 품목 자리 사진(engine resolvePhoto use=item, 359). 사용 가능 사진이 없으면 지금 그대로 빈 블록.
+      photoTile(r.pub.photo, 'ws-now-photo'),
       `<span class="ws-t-title ws-now-name">${h(r.item.name)}</span>`,
       reason ? `<span class="ws-t-body ws-muted ws-now-reason">${h(reason)}</span>` : '',
       '</a></li>',
@@ -163,7 +164,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
   };
   const lead = [
     '<li class="ws-now-lead">',
-    '<span class="ws-photo ws-now-photo" aria-hidden="true"></span>',
+    photoTile(t.pub.photos?.nowLead, 'ws-now-photo'),
     `<h3 class="ws-t-title ws-now-name">${h(COPY.homeB.nowCardTitle)}</h3>`,
     `<p class="ws-t-body ws-muted ws-now-count">${h(required.length ? COPY.homeB.nowBeforeSetup : COPY.homeB.nowEmpty)}</p>`,
     // React 는 L2 를 여는 button. 정적(무JS)은 첫 필수 항목 문서(L4) — 없으면 타입 홈.
@@ -213,7 +214,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
         }</p>`,
         `<a class="ws-home-link" href="${a(hrefOf(`${base(t)}/check/${spec.r.item.id}`))}">${h(formatCopy(COPY.homeB.specMine, { name: spec.r.item.name }))}${ARROW}</a>`,
         '</div>',
-        '<span class="ws-photo ws-spec-sec-photo" aria-hidden="true"></span>',
+        photoTile(t.pub.photos?.spec, 'ws-spec-sec-photo'),
         '</section>',
       ]
     : [];
@@ -351,8 +352,8 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     affNoteB(r),
     `<p class="ws-supply-eyebrow">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
     `<p class="ws-meta">${h(COPY.priority[p.priority])} · ${h(COPY.orderHint[p.orderHint])}</p>`,
-    // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용)는 싣지 않는다.
-    '<span class="ws-photo ws-supply-photo" aria-hidden="true"></span>',
+    // 사진 자리 — 품목 자리 사진(engine resolvePhoto use=item, 359). 사용 가능 사진이 없으면 지금 그대로 빈 블록.
+    photoTile(p.photo, 'ws-supply-photo'),
     p.priority === 'NOT_NOW' ? `<p>${h(COPY.supplyLayer.notNow)}${p.notNowReason ? ` — ${h(p.notNowReason)}` : ''}</p>` : '',
     `<section data-ws-part="why"><h3>${h(COPY.supplyLayer.why)}</h3><p>${h(p.why)}</p></section>`,
     `<section data-ws-part="conditions"><h3>${h(COPY.supplyLayer.conditions)}</h3>`,
@@ -517,7 +518,8 @@ export function specCheckTestimonials(m: Pick<SiteModel, 'testimonials'>, typeId
 /** ws-data — types 는 노출 타입 전체(R4 A2(a)), 나머지는 이 타입의 것. */
 function typeData(m: SiteModel, t: TypeModel): WsPageData['data'] {
   return {
-    types: allTypes(m),
+    // 359 D-2: 종 자리 사진은 이 타입 것만(다른 타입 pub.photos 는 뺀다).
+    types: allTypes(m, t.id),
     requirements: t.requirements.map((r) => r.pub),
     products: t.products,
     bundles: t.bundles,

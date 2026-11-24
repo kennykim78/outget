@@ -1,5 +1,5 @@
 // 페이지 공통 조각(계획 §6-2) — head·헤더·푸터·규격 문장. 모든 시드 텍스트는 escapeHtml/escapeAttr 를 거친다.
-import { PICK_PATH, naverMapSearchUrl, type PublicAnimalType, type PublicVet, type WsPageData } from '../../engine/index.js';
+import { PICK_PATH, naverMapSearchUrl, type PublicAnimalType, type PublicPhoto, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { COPY, GLYPH } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h, jsonForScript } from '../html.js';
 import type { SiteModel } from '../project.js';
@@ -29,13 +29,38 @@ export interface Crumb {
   path: string;
 }
 
+/**
+ * 사진 자리 하나(359 단계 4 · 359d 스펙 §2) — 8곳(시작 카드·설명 2·habitat 카드·now 카드·now-lead·규격 섹션·L4)의 단일 출처.
+ *   없음(SLOT·사용 불가 — ws-data 에 키 없음): 지금 바이트 그대로 빈 블록 span.ws-photo[aria-hidden](data-ws-photo 없음).
+ *   실사: img.ws-photo.{slot}(alt 빈 값 — 장식, lazy·async, data-ws-photo=photoId).
+ *   생성(aiGenerated): img 는 자식을 못 가져 틀 span.ws-photo-frame.{slot} 로 감싸고 그 안에 표기 1개(aria-hidden — 링크 이름에 끼지 않게).
+ *     틀엔 ws-photo 클래스를 붙이지 않는다(빈 자리 세는 시험과 분리). 문구는 COPY.photoNotice.aiGenerated 단일 출처.
+ *   client ui/PhotoTile.tsx 와 같은 마크업(다음 라운드 단계 5에서 맞춘다 — T14 패리티).
+ */
+export function photoTile(photo: PublicPhoto | undefined, slotClass: string): string {
+  if (!photo) return `<span class="ws-photo ${a(slotClass)}" aria-hidden="true"></span>`;
+  const img = (cls: string) =>
+    `<img class="${a(cls)}" src="${a(photo.asset)}" alt="" loading="lazy" decoding="async" data-ws-photo="${a(photo.photoId)}">`;
+  if (photo.aiGenerated !== true) return img(`ws-photo ${slotClass}`);
+  return `<span class="ws-photo-frame ${a(slotClass)}">${img('ws-photo')}<span class="ws-photo-notice ws-t-meta" aria-hidden="true">${h(COPY.photoNotice.aiGenerated)}</span></span>`;
+}
+
 export function emptyData(): WsPageData['data'] {
   return { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [] };
 }
 
-/** ws-data types — 모든 페이지에 노출 타입 전체(R4 A2(a): AnimalChip·L1 이 어느 페이지에서든 같은 목록). */
-export function allTypes(m: Pick<SiteModel, 'types'>): WsPageData['data']['types'] {
-  return m.types.map((t) => t.pub);
+/**
+ * ws-data types — 모든 페이지에 노출 타입 전체(R4 A2(a): AnimalChip·L1 이 어느 페이지에서든 같은 목록).
+ *   359 D-2: 종 자리 사진(pub.photos)은 그 페이지의 종(ownTypeId)에만 남긴다 — 다른 종 페이지 ws-data 에 다른 종 사진 id 가 실리지 않게
+ *   (compliance C6-IMG-SPECIES 가 라우트 종 기준으로 본다). 홈(homeTypes)은 habitat 카드가 종별 사진을 쓰므로 별도 경로.
+ *   photos 는 pub 의 맨 뒤 키라 빼도 나머지 키 순서는 그대로(SLOT 동안 키 자체가 없어 바이트 불변).
+ */
+export function allTypes(m: Pick<SiteModel, 'types'>, ownTypeId?: string): WsPageData['data']['types'] {
+  return m.types.map((t) => {
+    if (t.pub.photos === undefined || t.id === ownTypeId) return t.pub;
+    const { photos: _drop, ...rest } = t.pub;
+    return rest;
+  });
 }
 
 export function urlOf(origin: string, path: string): string {

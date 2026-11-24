@@ -87,6 +87,42 @@ export interface PublicAnimalType {
    *   (engine home-a.ts homeAExplainOf — 노출 요구사항의 시드 값 그대로). 숫자·이름이 하나도 없거나 홈이 아닌 페이지면 키 자체가 없다.
    */
   homeExplain?: HomeAExplain;
+  /**
+   * 359(감사 356r M2, D-2): 이 종의 종 자리 사진(engine resolvePhoto → publicPhotoOf). 사용 가능(usable ∧ asset) 자리만 키,
+   *   하나도 없으면 키 자체가 없다(SLOT 동안 ws-data 바이트 불변). 사진 고르기는 엔진 한 곳 — 클라이언트는 재판정하지 않는다.
+   */
+  photos?: PublicTypePhotos;
+  /**
+   * 359 D-3 — 홈(HOME·PICK·SAVE) ws-data 에서만, 대표 타입에만, 그 타입이 장면 행 허용 종(engine SCENE_PHOTO_TYPE_IDS)일 때만:
+   *   홈 A 시작 카드·설명 장면 사진. 사용 가능 장면이 없거나 홈이 아닌 페이지면 키 자체가 없다.
+   */
+  homeScenes?: PublicHomeScenes;
+}
+
+/**
+ * 359 공개 사진(ws-data) — 자리 하나의 고른 결과. id 키 이름은 photoId(C3-OUT-ID 의 타입 id 검사와 섞이지 않게).
+ *   speciesCheck(사람 이름)·promptPath·source·author 는 싣지 않는다. aiGenerated 는 「생성 이미지 · 임시」 표기 대상일 때만 키.
+ */
+export interface PublicPhoto {
+  photoId: string;
+  asset: string;
+  aiGenerated?: true;
+}
+
+/** 종 자리 3개(habitat·now-lead·spec) — 있을 때만 키. */
+export interface PublicTypePhotos {
+  habitat?: PublicPhoto;
+  nowLead?: PublicPhoto;
+  spec?: PublicPhoto;
+}
+
+/** 홈 A 장면 자리(engine HOME_A_SCENE_PHOTOS 키와 같다) — 있을 때만 키. */
+export interface PublicHomeScenes {
+  startChecklist?: PublicPhoto;
+  startSpecCheck?: PublicPhoto;
+  startSetup?: PublicPhoto;
+  explainNeed?: PublicPhoto;
+  explainFigures?: PublicPhoto;
 }
 
 /** 홈 A 설명 섹션 데이터(286 U3c·U3d) — 값은 노출 요구사항의 시드 값 그대로(minSpecFigure·item.name). */
@@ -129,6 +165,8 @@ export interface PublicRequirement {
   lastVerifiedAt: string;
   /** 356 M11: 체인 메타 중 GENERAL_INFO 가 하나라도 있으면 true(lastVerifiedAt 뒤). 없으면 키 자체가 없다. */
   generalInfo?: true;
+  /** 359 D-2: 품목 자리 사진(engine resolvePhoto use=item → publicPhotoOf). 사용 가능할 때만 키(맨 뒤). */
+  photo?: PublicPhoto;
 }
 
 export interface PublicProduct {

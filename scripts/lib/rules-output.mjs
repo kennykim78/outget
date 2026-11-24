@@ -1,4 +1,4 @@
-// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS, C9-GENERAL.
+// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS, C9-GENERAL, C6-IMG-SPECIES.
 //   + 시드 노출 규칙 C3-TAXON(scanSeedExposure, 산출물 유무와 무관).
 //   노출 판단은 seed-exposure.mjs(원시 시드 독립 재구현, D9)만 쓴다.
 //
@@ -15,7 +15,16 @@ import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { maskNonMarkup, scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { jsonErrorWhere, safeLabel } from './rules-source.mjs';
-import { GENERAL_INFO_TYPE_IDS, SEED_KEYS, tipReferenceUrlAllowed } from './seed-exposure.mjs';
+import {
+  GENERAL_INFO_TYPE_IDS,
+  HOME_A_SCENE_PHOTOS,
+  ITEM_SCENE_PHOTOS,
+  PHOTO_WS_TYPE_KEYS,
+  SEED_KEYS,
+  TYPE_SCENE_PHOTOS,
+  sceneAllowedForType,
+  tipReferenceUrlAllowed,
+} from './seed-exposure.mjs';
 
 const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'TIPS', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
 const TYPE_KINDS = new Set(['TYPE', 'SETUP', 'TIPS']);
@@ -615,6 +624,199 @@ function checkGeneralInfo({ root, dist, routes, add }) {
   }
 }
 
+/**
+ * C6-IMG-SPECIES(359 단계 6, D-1 A) — 사진 id 가 라우트 종·프로필·품목 범위와 맞는지(「앵무 라우트 햄스터 사진 id 0」).
+ *   manifest 라우트 HTML 마다
+ *   ① 수집: 마크업 data-ws-photo · img src(시드 행 asset 역매핑) · ws-data types[i].photos/homeScenes · requirements[i].photo · 그 밖 photoId.
+ *   ② 판정(사진 하나 × 문맥 타입 전부):
+ *      시드에 없음·사용 불가(isPhotoUsableRow 아님) → FAIL. 문맥 타입 없음(타입 없는 라우트) → FAIL.
+ *      장면 행(scope 없음) → 타입이 장면 허용 종(sceneAllowedForType — 엔진 SCENE_PHOTO_GROUPS ∧ SCENE_PHOTO_TYPE_IDS 미러)이어야 한다.
+ *      범위 행 → scope.animalTypeId = 타입 · scope.careProfileId = 타입 프로필 · scope.supplyItemId 는 (타입,품목) 노출 쌍.
+ *      자리: 종 자리(photos.habitat|nowLead|spec) 장면은 TYPE_SCENE_PHOTOS[use] 만, 범위 행은 scope.use 일치.
+ *            품목 자리(requirement.photo) 장면은 ITEM_SCENE_PHOTOS[item] 만, 범위 행은 use=item ∧ 같은 supplyItemId.
+ *            homeScenes[key] 는 HOME_A_SCENE_PHOTOS[key] 장면만. ws-data asset·img src 는 행 asset 과 같아야 한다.
+ *   ③ 문맥: 라우트 타입 = typeId ∪ layer.typeId · FAMILY 는 slug 가 family/ 로 시작하는 노출 타입 · HOME·PICK·SAVE 는 대표 타입(시드 순 첫 노출).
+ *      data-ws-id="animalTypes#X" 요소 안의 사진은 X(홈류는 X 만, 그 밖은 X ∪ 라우트 타입). ws-data types[i] 는 같은 식으로 t.id.
+ *   ④ 보조 잠금: HTML 원문 문자열에 사용 불가 id 가 있거나, 라우트 문맥이 장면 비허용인데 장면 id 가 있으면 FAIL(①에서 이미 판정한 id 는 건너뜀).
+ *   소스 쪽 짝(C6-IMG-SPECIES-SRC)은 클라이언트 단계 5 뒤 다음 라운드.
+ */
+function checkPhotoSpecies({ root, dist, routes, ex, add, seed }) {
+  const RULE = 'C6-IMG-SPECIES';
+  const rowsById = new Map();
+  const idsByAsset = new Map();
+  for (const p of Array.isArray(seed?.photos) ? seed.photos : []) {
+    if (!isObj(p) || typeof p.id !== 'string') continue;
+    if (!rowsById.has(p.id)) rowsById.set(p.id, p);
+    if (typeof p.asset === 'string') idsByAsset.set(p.asset, [...(idsByAsset.get(p.asset) ?? []), p.id]);
+  }
+  const usable = ex.ids?.photos instanceof Set ? ex.ids.photos : new Set();
+  const exTypes = ex.types instanceof Map ? ex.types : new Map();
+  const repType = exTypes.keys().next().value;
+  const HOME_LIKE = new Set(['HOME', 'PICK', 'SAVE']);
+  const sceneIds = [...rowsById.values()].filter((p) => !isObj(p.scope)).map((p) => p.id);
+  const allIds = [...rowsById.keys()];
+  const reId = (id) => new RegExp(`(?<![\\w-])${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`);
+
+  function routeTypes(r) {
+    const s = new Set();
+    if (typeof r.typeId === 'string') s.add(r.typeId);
+    if (isObj(r.layer) && typeof r.layer.typeId === 'string') s.add(r.layer.typeId);
+    if (r.kind === 'FAMILY' && typeof r.family === 'string') {
+      for (const [id, t] of exTypes) if (typeof t.slug === 'string' && t.slug.startsWith(`${r.family}/`)) s.add(id);
+    }
+    if (HOME_LIKE.has(r.kind) && typeof repType === 'string') s.add(repType);
+    return [...s];
+  }
+
+  for (const r of routes) {
+    if (typeof r.file !== 'string') continue;
+    const abs = join(dist, r.file);
+    if (!existsSync(abs)) continue; // 파일 없음은 C3-OUT-ROUTE
+    const rel = relPosix(root, abs);
+    const html = readFileSync(abs, 'utf8');
+    const lineOf = lineIndex(html);
+    const homeLike = HOME_LIKE.has(r.kind);
+    const rTypes = routeTypes(r);
+    const judged = new Set();
+    const seen = new Set();
+    const fail = (line, msg) => {
+      const k = `${line}|${msg}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      add(RULE, 'FAIL', rel, line, msg);
+    };
+    const ctxOf = (own) => (own === null ? rTypes : homeLike ? [own] : [...new Set([own, ...rTypes])]);
+
+    /** slot: { kind:'type', use } | { kind:'item', item } | { kind:'home', key } | null */
+    function judge(id, types, slot, asset, line, where) {
+      judged.add(id);
+      const p = rowsById.get(id);
+      if (!p) return fail(line, `${where}: 시드에 없는 사진 id ${L(id)}`);
+      if (!usable.has(id)) return fail(line, `${where}: 사용 불가 사진 ${L(id)}(SLOT·사용권 미충족 — 노출 금지)`);
+      if (asset !== undefined && asset !== p.asset) fail(line, `${where}: 사진 ${L(id)} asset ${L(asset)} ≠ 시드 행 asset ${L(p.asset)}`);
+      if (types.length === 0) return fail(line, `${where}: 타입 문맥 없는 라우트 ${L(r.path)} 에 사진 ${L(id)}`);
+      const scene = !isObj(p.scope);
+      const s = scene ? null : p.scope;
+      for (const tid of types) {
+        const t = exTypes.get(tid);
+        if (!t) {
+          fail(line, `${where}: ${L(tid)}(비노출 타입) 문맥에 사진 ${L(id)}`);
+          continue;
+        }
+        if (scene) {
+          if (!sceneAllowedForType(t)) fail(line, `${where}: ${L(tid)} 는 장면 허용 종이 아닌데 장면 사진 ${L(id)}`);
+          continue;
+        }
+        if (typeof s.animalTypeId === 'string' && s.animalTypeId !== tid) fail(line, `${where}: ${L(tid)} 에 사진 ${L(id)} — 범위 animalTypeId=${L(s.animalTypeId)} 밖`);
+        if (typeof s.careProfileId === 'string' && s.careProfileId !== t.careProfileId) fail(line, `${where}: ${L(tid)} 에 사진 ${L(id)} — 범위 careProfileId=${L(s.careProfileId)} 밖`);
+        if (typeof s.supplyItemId === 'string' && !ex.pairs?.has(`${tid}|${s.supplyItemId}`)) fail(line, `${where}: ${L(tid)} 에 사진 ${L(id)} — 품목 ${L(s.supplyItemId)} 이 그 타입에 노출되지 않는다`);
+      }
+      if (slot === null) return;
+      if (slot.kind === 'type') {
+        const ok = scene ? TYPE_SCENE_PHOTOS[slot.use] === id : s.use === slot.use;
+        if (!ok) fail(line, `${where}: 사진 ${L(id)} 이 종 ${L(slot.use)} 자리와 맞지 않음`);
+      } else if (slot.kind === 'item') {
+        const ok = scene ? ITEM_SCENE_PHOTOS[slot.item] === id : s.use === 'item' && s.supplyItemId === slot.item;
+        if (!ok) fail(line, `${where}: 사진 ${L(id)} 이 품목 ${L(slot.item)} 자리와 맞지 않음`);
+      } else if (slot.kind === 'home') {
+        if (!(scene && HOME_A_SCENE_PHOTOS[slot.key] === id)) fail(line, `${where}: 사진 ${L(id)} 이 홈 장면 ${L(slot.key)} 자리와 맞지 않음`);
+      }
+    }
+
+    // ① 마크업 — animalTypes#X 요소 범위(같은 이름 열고 닫기 짝 세기)
+    const masked = maskNonMarkup(html);
+    const all = tags(html);
+    const typeRanges = [];
+    for (const t of all) {
+      const v = t.attrs['data-ws-id'];
+      if (typeof v !== 'string' || !v.startsWith('animalTypes#')) continue;
+      const re = new RegExp(`<(/?)${t.name}\\b[^>]*>`, 'gi');
+      re.lastIndex = t.index + 1;
+      let depth = 1;
+      let end = masked.length;
+      let mm;
+      while ((mm = re.exec(masked)) !== null) {
+        depth += mm[1] ? -1 : 1;
+        if (depth === 0) {
+          end = mm.index;
+          break;
+        }
+      }
+      typeRanges.push({ start: t.index, end, typeId: v.slice('animalTypes#'.length) });
+    }
+    const ownAt = (i) => {
+      let best = null;
+      for (const g of typeRanges) if (g.start < i && i < g.end && (best === null || g.start > best.start)) best = g;
+      return best ? best.typeId : null;
+    };
+    for (const t of all) {
+      const id = t.attrs['data-ws-photo'];
+      const src = typeof t.attrs.src === 'string' ? t.attrs.src.trim() : undefined;
+      const line = lineOf(t.index);
+      const types = ctxOf(ownAt(t.index));
+      if (typeof id === 'string') {
+        judge(id, types, null, src, line, `<${L(t.name)} data-ws-photo>`);
+        continue;
+      }
+      if (src === undefined) continue;
+      const ids = idsByAsset.get(src);
+      if (ids) for (const x of ids) judge(x, types, null, undefined, line, `<${L(t.name)} src>`);
+      else if (src.startsWith('/assets/photos/')) fail(line, `<${L(t.name)} src>: 시드에 없는 사진 파일 ${L(src)}`);
+    }
+
+    // ① ws-data
+    for (const sc of scripts(html)) {
+      if (sc.attrs.id !== 'ws-data') continue;
+      let d;
+      try {
+        d = JSON.parse(sc.body);
+      } catch {
+        continue; // 파싱 실패는 C8-OUT-SAFE
+      }
+      const line = lineOf(sc.index);
+      const data = isObj(d) && isObj(d.data) ? d.data : {};
+      const done = new Set();
+      const ref = (o, types, slot, where) => {
+        if (!isObj(o)) return;
+        done.add(o);
+        if (typeof o.photoId === 'string') judge(o.photoId, types, slot, o.asset, line, where);
+      };
+      for (const [i, t] of (Array.isArray(data.types) ? data.types : []).entries()) {
+        if (!isObj(t)) continue;
+        const types = ctxOf(typeof t.id === 'string' ? t.id : null);
+        if (isObj(t.photos)) for (const [k, v] of Object.entries(t.photos)) ref(v, types, { kind: 'type', use: PHOTO_WS_TYPE_KEYS[k] ?? k }, `ws-data types[${i}].photos.${L(k)}`);
+        if (isObj(t.homeScenes)) for (const [k, v] of Object.entries(t.homeScenes)) ref(v, types, { kind: 'home', key: k }, `ws-data types[${i}].homeScenes.${L(k)}`);
+      }
+      for (const [i, q] of (Array.isArray(data.requirements) ? data.requirements : []).entries()) {
+        if (!isObj(q) || !isObj(q.photo)) continue;
+        ref(q.photo, ctxOf(typeof q.animalTypeId === 'string' ? q.animalTypeId : null), { kind: 'item', item: q.supplyItemId }, `ws-data requirements[${i}].photo`);
+      }
+      // 그 밖 위치의 photoId(라우트 문맥)
+      const walkJ = (v, depth) => {
+        if (depth > 40) return;
+        if (Array.isArray(v)) for (const x of v) walkJ(x, depth + 1);
+        else if (isObj(v)) {
+          if (!done.has(v) && typeof v.photoId === 'string') judge(v.photoId, rTypes, null, v.asset, line, 'ws-data photoId');
+          for (const x of Object.values(v)) walkJ(x, depth + 1);
+        }
+      };
+      walkJ(d, 0);
+    }
+
+    // ④ 보조 잠금 — 원문 문자열. /credits 는 저작자 표시 목록(data-ws-id="photos#id")이라 제외 — 그 목록은 C6-IMG 가 본다.
+    if (r.kind === 'CREDITS') continue;
+    const sceneOkHere = rTypes.length > 0 && rTypes.every((tid) => exTypes.has(tid) && sceneAllowedForType(exTypes.get(tid)));
+    for (const id of allIds) {
+      if (judged.has(id)) continue;
+      const m = reId(id).exec(html);
+      if (!m) continue;
+      const line = lineOf(m.index);
+      if (!usable.has(id)) fail(line, `원문 문자열: 사용 불가 사진 ${L(id)}(SLOT·사용권 미충족 — 노출 금지)`);
+      else if (sceneIds.includes(id) && !sceneOkHere) fail(line, `원문 문자열: ${L(rTypes.join(',') || r.path)} 는 장면 허용 종이 아닌데 장면 사진 ${L(id)}`);
+    }
+  }
+}
+
 export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, seed }) {
   const manPath = join(dist, 'prerender-manifest.json');
   if (!existsSync(manPath)) {
@@ -692,6 +894,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
   checkTips({ root, dist, routes, all, ex, add, seed });
   checkGeneralInfo({ root, dist, routes, add });
+  checkPhotoSpecies({ root, dist, routes, ex, add, seed });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
     const html = readFileSync(abs, 'utf8');

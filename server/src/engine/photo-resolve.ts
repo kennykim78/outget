@@ -2,14 +2,18 @@
 //   품목 자리: (종, 품목) → (케어프로필, 품목) → (품목) → 장면 행.
 //   종 자리(habitat·now-lead·spec): (종) → (케어프로필) → 장면 행.
 //   각 단계는 scope 키 집합이 정확히 같은 행만 보고, 그중 사용 가능(isPhotoUsable)한 첫 행을 고른다(SLOT·기록 미비 행은 건너뜀).
-//   장면 행은 햄스터 사진(ph-01·03·08·09·10 …)이라 SCENE_PHOTO_GROUPS(지금 SMALL_MAMMAL) 종에만 대체로 붙는다 — 앵무(PARROT) 등
-//   그룹 밖 종은 종·케어프로필 단위 행만 본다 — 사용 가능한 행이 없으면 가장 구체적인 빈 자리 행(SLOT 등, usable=false → I07),
-//   그것도 없으면 null(I06 ERROR, 356 ⑦ 충돌 H). 그룹 모름(null)도 같은 취급(닫힌 쪽).
+//   장면 행은 골든햄스터 사진(ph-01·03·08·09·10 …)이라 그 사진을 찍은 종(SCENE_PHOTO_TYPE_IDS = hamster-golden, 359 D-1 A)에만
+//   대체로 붙는다(그룹 SCENE_PHOTO_GROUPS 도 함께 확인). 그 밖 종(앵무·드워프·로보·저빌·기니피그)은 종·케어프로필 단위 행만 본다 —
+//   사용 가능한 행이 없으면 가장 구체적인 빈 자리 행(SLOT 등, usable=false → I07), 그것도 없으면 null(I06 ERROR, 356 ⑦ 충돌 H).
+//   품목 자리 장면 대체는 cage·bedding·food 표(ITEM_SCENE_PHOTOS)만 — 범용 대체(옛 ph-03)는 359 에서 폐지(다른 품목에 엉뚱한 사진 금지).
+//   그룹·종 모름(null)도 같은 취급(닫힌 쪽).
 //   마지막 장면 행은 사용 가능 여부와 무관하게 돌려준다(아직 빈 자리면 usable=false → 호출자가 빈 블록). 장면 행조차 없으면 null
 //   → validate I06 ERROR(빈 칸을 빌드에서 막는다). 사진은 scope 키로만 고른다 — 종 데이터(CareProfile 등)와 섞지 않는다(불변식 6).
 import { isPhotoUsable } from './exposure.js';
 import { isAiGeneratedPhoto } from './photo-ai.js';
+import { PHOTO_ASSET_RE } from './photo-ai.js';
 import type { AnimalGroup } from './domain.js';
+import type { PublicHomeScenes, PublicPhoto, PublicTypePhotos } from './public.js';
 import type { PhotoRec, PhotoScope } from './types.js';
 
 /** 화면 자리 종류. item = 품목 그림(홈 B 항목 카드 P6 · L4 P8 · 상품 대체 타일 P9 공용). */
@@ -33,8 +37,8 @@ export const TYPE_SCENE_PHOTOS: Readonly<Record<(typeof PHOTO_TYPE_USES)[number]
   'now-lead': 'ph-03',
   spec: 'ph-08',
 });
+/** 품목 자리 장면 대체 표 — 이 표에 없는 품목은 장면 대체 없음(359 D-1 A: 범용 ITEM_SCENE_FALLBACK ph-03 폐지). */
 export const ITEM_SCENE_PHOTOS: Readonly<Record<string, string>> = Object.freeze({ cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' });
-export const ITEM_SCENE_FALLBACK = 'ph-03';
 
 /**
  * 장면 행(scope 없는 ph-xx)이 대체로 붙을 수 있는 동물 그룹. 지금 장면 행은 전부 햄스터 사진이라 SMALL_MAMMAL 만
@@ -42,17 +46,28 @@ export const ITEM_SCENE_FALLBACK = 'ph-03';
  */
 export const SCENE_PHOTO_GROUPS: readonly AnimalGroup[] = Object.freeze(['SMALL_MAMMAL'] as const);
 
-/** 이 그룹의 종 자리가 장면 행으로 대체될 수 있는가(그룹 모름 → false). */
-export function sceneFallbackAllowed(group: AnimalGroup | null | undefined): boolean {
-  return typeof group === 'string' && (SCENE_PHOTO_GROUPS as readonly string[]).includes(group);
+/**
+ * 359 D-1 A: 장면 행이 대체로 붙는 종 — 장면 행은 골든햄스터를 찍은 사진이라 그 종에만. 최소 규격이 다른 종(드워프·로보·저빌·기니피그)에
+ *   다른 종의 장비 그림을 붙이지 않는다. 그 종들은 종·케어프로필 단위 SLOT 행으로 자리를 둔다(validate I06).
+ */
+export const SCENE_PHOTO_TYPE_IDS: readonly string[] = Object.freeze(['hamster-golden']);
+
+/** 이 종의 자리가 장면 행으로 대체될 수 있는가 — 그룹 ∧ 종 둘 다(모름 → false). */
+export function sceneFallbackAllowed(group: AnimalGroup | null | undefined, animalTypeId: string | null | undefined): boolean {
+  return (
+    typeof group === 'string' &&
+    (SCENE_PHOTO_GROUPS as readonly string[]).includes(group) &&
+    typeof animalTypeId === 'string' &&
+    SCENE_PHOTO_TYPE_IDS.includes(animalTypeId)
+  );
 }
 
-/** 장면 행 id(대체 순서의 마지막). */
-export function scenePhotoIdFor(use: PhotoUse, supplyItemId?: string | null): string {
+/** 장면 행 id(대체 순서의 마지막). 품목 자리는 ITEM_SCENE_PHOTOS 에 있을 때만 — 없으면 null(장면 대체 없음). */
+export function scenePhotoIdFor(use: PhotoUse, supplyItemId?: string | null): string | null {
   if (use === 'item') {
     return typeof supplyItemId === 'string' && Object.prototype.hasOwnProperty.call(ITEM_SCENE_PHOTOS, supplyItemId)
       ? ITEM_SCENE_PHOTOS[supplyItemId]
-      : ITEM_SCENE_FALLBACK;
+      : null;
   }
   return TYPE_SCENE_PHOTOS[use];
 }
@@ -133,16 +148,17 @@ export function resolvePhoto(photos: readonly PhotoRec[], q: PhotoQuery): Resolv
       if (isPhotoUsable(p)) return { photo: p, level, usable: true, aiGenerated: isAiGeneratedPhoto(p) };
     }
   }
-  if (!sceneFallbackAllowed(q.group)) {
-    // 장면 대체 밖 그룹: 장면 행 대신 가장 구체적인 종·프로필 자리 행(아직 SLOT·기록 미비)을 빈 자리로 돌려준다(usable=false → I07).
-    //   그런 행도 없으면 null(I06) — 종 단위 슬롯을 먼저 두어야 한다(356 ⑦ 충돌 H).
+  const scene = sceneFallbackAllowed(q.group, q.animalTypeId) ? scenePhotoIdFor(q.use, q.supplyItemId) : null;
+  if (scene === null) {
+    // 장면 대체 밖(종·그룹, 또는 장면 표 밖 품목): 장면 행 대신 가장 구체적인 종·프로필 자리 행(아직 SLOT·기록 미비)을
+    //   빈 자리로 돌려준다(usable=false → I07). 그런 행도 없으면 null(I06) — 종·프로필 단위 슬롯을 먼저 둔다(356 ⑦ 충돌 H, 359 D-1).
     for (const [level, key] of photoLevels(q)) {
       const p = photos.find((x) => hasScope(x) && photoScopeKey(x.scope) === key);
       if (p) return { photo: p, level, usable: false, aiGenerated: false };
     }
     return null;
   }
-  return resolveScenePhoto(photos, scenePhotoIdFor(q.use, q.supplyItemId));
+  return resolveScenePhoto(photos, scene);
 }
 
 /** 장면 행(scope 없는 photo id) — 홈 A 공용 자리와 대체 순서의 마지막. */
@@ -180,4 +196,57 @@ export function photoPlacements(
 /** 자리 하나 풀기. */
 export function resolvePlacement(photos: readonly PhotoRec[], pl: PhotoPlacement): ResolvedPhoto | null {
   return pl.kind === 'scene' ? resolveScenePhoto(photos, pl.photoId) : resolvePhoto(photos, pl.query);
+}
+
+// ── 359 공개 투영(ws-data, D-2) ───────────────────────────────────────────────────────────────────────────────
+/** 종 질의(종 자리·품목 자리 공통 부분). */
+export type PhotoTypeRef = Pick<PhotoQuery, 'animalTypeId' | 'group' | 'careProfileId'>;
+
+/**
+ * 고른 결과 → ws-data 공개형. 사용 가능(usable) ∧ asset 이 배포 경로 형식(PHOTO_ASSET_RE)일 때만 값, 아니면 undefined(키를 싣지 않는다).
+ *   speciesCheck(사람 이름)·promptPath·source·author 는 싣지 않는다. aiGenerated 는 true 일 때만 키.
+ */
+export function publicPhotoOf(r: ResolvedPhoto | null | undefined): PublicPhoto | undefined {
+  if (!r || !r.usable) return undefined;
+  const asset = r.photo.asset;
+  if (typeof asset !== 'string' || !PHOTO_ASSET_RE.test(asset)) return undefined;
+  return { photoId: r.photo.id, asset, ...(r.aiGenerated ? { aiGenerated: true as const } : {}) };
+}
+
+const TYPE_PHOTO_KEYS: ReadonlyArray<[keyof PublicTypePhotos, (typeof PHOTO_TYPE_USES)[number]]> = [
+  ['habitat', 'habitat'],
+  ['nowLead', 'now-lead'],
+  ['spec', 'spec'],
+];
+
+/** 종 자리 3개를 골라 공개형으로 — 사용 가능한 자리만 키, 하나도 없으면 undefined. */
+export function publicTypePhotos(photos: readonly PhotoRec[], t: PhotoTypeRef): PublicTypePhotos | undefined {
+  const out: PublicTypePhotos = {};
+  for (const [key, use] of TYPE_PHOTO_KEYS) {
+    const p = publicPhotoOf(resolvePhoto(photos, { ...t, use }));
+    if (p) out[key] = p;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** 품목 자리 하나를 골라 공개형으로(없으면 undefined). */
+export function publicItemPhoto(photos: readonly PhotoRec[], t: PhotoTypeRef, supplyItemId: string): PublicPhoto | undefined {
+  return publicPhotoOf(resolvePhoto(photos, { ...t, use: 'item', supplyItemId }));
+}
+
+/**
+ * 홈 A 장면(359 D-3): 대표 타입이 장면 허용 종(sceneFallbackAllowed)일 때만 — 앵무 등이 대표가 되면 햄스터 장면을 그 이름 옆에 두지 않는다.
+ *   사용 가능한 장면만 키, 하나도 없으면 undefined.
+ */
+export function publicHomeScenes(
+  photos: readonly PhotoRec[],
+  rep: { id: string; group: AnimalGroup | null } | null | undefined,
+): PublicHomeScenes | undefined {
+  if (!rep || !sceneFallbackAllowed(rep.group, rep.id)) return undefined;
+  const out: PublicHomeScenes = {};
+  for (const [key, id] of Object.entries(HOME_A_SCENE_PHOTOS) as Array<[keyof PublicHomeScenes, string]>) {
+    const p = publicPhotoOf(resolveScenePhoto(photos, id));
+    if (p) out[key] = p;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }

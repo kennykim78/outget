@@ -50,6 +50,38 @@
   object-fit: cover;
 }
 
+/* 359 단계 5(스펙 _workspace/359d §3) — 생성 이미지 틀 + 「생성 이미지 · 임시」 표기. 기존 토큰만(새 토큰 0).
+   슬롯 클래스(aspect-ratio·radius 등)는 틀로 옮겨 가므로 슬롯 CSS 수정 0. 표기는 사진 안쪽 오른쪽 아래, 불투명 surface 위 ink-muted(5.54:1). */
+.ws-photo-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  background: var(--ws-bg-100);
+}
+
+.ws-photo-frame > .ws-photo {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+
+.ws-photo-notice {
+  position: absolute;
+  right: var(--ws-space-2);
+  bottom: var(--ws-space-2);
+  max-width: calc(100% - 2 * var(--ws-space-2));
+  padding: var(--ws-space-1) var(--ws-space-2);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-surface);
+  color: var(--ws-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  outline: 1px solid transparent;
+}
+
 .ws-static-main {
   display: contents;
 }
