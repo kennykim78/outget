@@ -129,6 +129,11 @@ describe('lintText — 순위·판매 계열 금지어', () => {
   it.each(words)('%s → L01', (w) => {
     expect(lintText(`${w} 쳇바퀴`)).toContainEqual({ rule: 'L01', term: w });
   });
+  // 「인기」 단독은 기존 문구(확인+기…)와 겹쳐 구체 표현만 차단한다.
+  const phrases = [['상품', ' '], ['순', ''], ['제품', ' ']].map(([tail, gap]) => ['인', '기', gap, tail].join(''));
+  it.each(phrases)('%s → L01(붙여 써도)', (p) => {
+    for (const t of [p, p.replace(' ', '')]) expect(lintText(`${t} 쳇바퀴`)).toContainEqual({ rule: 'L01', term: p });
+  });
   it('소문자 best(코드 식별자)는 대상 아님', () => {
     expect(lintText('best')).toEqual([]);
   });
