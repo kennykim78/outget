@@ -33,7 +33,7 @@ export interface PrerenderIo {
 
 export const WS_DATA_MAX_BYTES = 32 * 1024;
 /** 경고 문턱(실패 아님) — 와이어(v2) 기준 여유 4KB 이하로 줄면 stderr 에 알린다(73 계획 선택안, 오케스트레이터 채택). */
-export const WS_DATA_WARN_BYTES = 28 * 1024;
+export const WS_DATA_WARN_BYTES = 30 * 1024; // 11/25: 노출 9종(최대 29398B) — 경고선만 상향, 상한 32KB 불변
 /** 원본 템플릿 보존본 — index.html 이 홈 프리렌더로 덮이므로 재실행·/save 셸이 이것을 쓴다. */
 export const SHELL_FILE = 'shell.html';
 

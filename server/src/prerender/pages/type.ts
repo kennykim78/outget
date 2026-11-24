@@ -603,7 +603,7 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
     renderHeader(t.pub, navCurrent(ctx.route), setupData),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.homeB.bundlesTitle)}</h1>`,
-    generalInfoNote(t),
+    ...(generalInfoNote(t) ? [generalInfoNote(t)] : []), // VERIFIED 종은 '' — 빈 줄 0(출력 바이트 불변)
     ...(t.tips.length > 0 ? [tipsEntry(t)] : []), // 301: 팁 0 이면 줄 자체를 넣지 않는다(기존 바이트 동일)
     ...cards,
     '</main>',
@@ -740,7 +740,7 @@ export function renderTipsPage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     renderHeader(t.pub, navCurrent(ctx.route), tipsData),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.tips.title)}</h1>`,
-    generalInfoNote(t),
+    ...(generalInfoNote(t) ? [generalInfoNote(t)] : []), // VERIFIED 종은 '' — 빈 줄 0(출력 바이트 불변)
     `<p class="ws-tips-disclaimer">${h(COPY.tips.disclaimer)}</p>`,
     `<p>${h(COPY.tips.lead)}</p>`,
     ...sections,
