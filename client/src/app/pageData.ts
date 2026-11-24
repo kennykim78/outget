@@ -2,7 +2,7 @@
 //   프리렌더 HTML 의 <script id="ws-data" type="application/json"> 만 읽는다(데이터 출처는 이것 하나 —
 //   재노출·재정렬·재판정 없음, 불변식 ③). 검증 실패는 전부 null(fail-closed) → 빈 데이터 + routeFromLocation.
 //   shell.html·vite dev 처럼 ws-data 가 없는 문서도 같은 폴백을 탄다.
-import { decodeWsPage, PICK_PATH, ROUTE_KINDS, VERDICTS, WS_DATA_KEYS, type RouteKind, type WsLayer, type WsPageData, type WsRoute } from '@ws/engine';
+import { decodeWsPage, isWsFeedData, PICK_PATH, ROUTE_KINDS, VERDICTS, WS_DATA_FEED_KEY, WS_DATA_KEYS, type RouteKind, type WsLayer, type WsPageData, type WsRoute } from '@ws/engine';
 
 const LAYER_KINDS = ['L4', 'L5', 'L7'] as const;
 
@@ -32,8 +32,11 @@ function isLayer(v: unknown): v is WsLayer {
 function isData(v: unknown): v is WsPageData['data'] {
   if (!isRecord(v)) return false;
   const keys = Object.keys(v);
-  if (keys.length !== WS_DATA_KEYS.length) return false;
+  // 362 N9: 피드 변형 페이지만 7번째 키 data.feed(engine isWsFeedData — 단계·링크·이미지 호스트·verdict·가격 키 정확 검사). 그 밖 추가 키는 그대로 거부.
+  const hasFeed = Object.prototype.hasOwnProperty.call(v, WS_DATA_FEED_KEY);
+  if (keys.length !== WS_DATA_KEYS.length + (hasFeed ? 1 : 0)) return false;
   if (!WS_DATA_KEYS.every((k) => Object.prototype.hasOwnProperty.call(v, k) && Array.isArray(v[k]))) return false;
+  if (hasFeed && !isWsFeedData(v[WS_DATA_FEED_KEY])) return false;
   return (v.products as unknown[]).every((p) => isRecord(p) && EXPOSABLE_VERDICTS.includes(p.verdict as string));
 }
 

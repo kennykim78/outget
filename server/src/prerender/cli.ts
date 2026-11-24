@@ -182,10 +182,17 @@ function cleanPrevious(out: string): void {
   const feedMan = join(out, FEED_MANIFEST_FILE);
   if (existsSync(feedMan)) {
     try {
-      const m = JSON.parse(readFileSync(feedMan, 'utf8')) as { variants?: Record<string, unknown> };
+      const m = JSON.parse(readFileSync(feedMan, 'utf8')) as { variants?: Record<string, unknown>; pages?: Record<string, unknown> };
       for (const list of Object.values(m.variants ?? {})) {
         for (const rel of Array.isArray(list) ? list : []) {
           const abs = typeof rel === 'string' && rel.endsWith('.json') ? inside(out, rel) : null;
+          if (abs) for (const f of [abs, `${abs}.br`, `${abs}.gz`]) rmSync(f, { force: true });
+        }
+      }
+      // 362 N9: 피드 HTML 변형(index.feed.html · index.feed-noprice.html)만 — 기본 index.html 은 지우지 않는다.
+      for (const list of Object.values(m.pages ?? {})) {
+        for (const rel of Array.isArray(list) ? list : []) {
+          const abs = typeof rel === 'string' && /(^|\/)index\.feed(-noprice)?\.html$/.test(rel) ? inside(out, rel) : null;
           if (abs) for (const f of [abs, `${abs}.br`, `${abs}.gz`]) rmSync(f, { force: true });
         }
       }
@@ -203,7 +210,7 @@ function cleanPrevious(out: string): void {
 /** 산출물이 참조하는 /assets/* 경로(HTML src/href, ws-data·카탈로그의 imageAsset·reviewerImage). */
 export function referencedAssets(b: SiteBuild): string[] {
   const refs = new Set<string>();
-  for (const p of b.pages) {
+  for (const p of [...b.pages, ...b.feedPages]) {
     for (const m of p.html.matchAll(/\b(?:src|href)="(\/assets\/[^"?#]+)/g)) refs.add(m[1]);
     for (const x of p.data.data.products) if (x.imageAsset) refs.add(x.imageAsset);
     for (const t of p.data.data.testimonials) if (t.reviewerImage) refs.add(t.reviewerImage);
@@ -336,7 +343,8 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
 
   // 산출물 검사(쓰기 전).
   const fails: string[] = [];
-  for (const p of b.pages) {
+  // 362 N9: 피드 HTML 변형도 같은 32KB 상한(data.feed 는 feed-out 이 1.5KB 안으로 맞춘다).
+  for (const p of [...b.pages, ...b.feedPages]) {
     if (p.wsDataBytes > WS_DATA_MAX_BYTES) fails.push(`${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_MAX_BYTES}B`);
     else if (p.wsDataBytes > WS_DATA_WARN_BYTES) io.stderr(`prerender: 경고 ${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_WARN_BYTES}B(상한 ${WS_DATA_MAX_BYTES}B)`);
   }
@@ -375,7 +383,7 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   if (productFeed) {
     const m = b.files.get(FEED_MANIFEST_FILE);
     const v = m ? (JSON.parse(m) as { variants: { full: string[]; noprice: string[] } }).variants : { full: [], noprice: [] };
-    io.stdout(`prerender — product feed on, rows ${productFeed.rows.length}, files full ${v.full.length} · noprice ${v.noprice.length}`);
+    io.stdout(`prerender — product feed on, rows ${productFeed.rows.length}, files full ${v.full.length} · noprice ${v.noprice.length}, html variants ${b.feedPages.length}`);
   }
 
   const pages = b.routes.filter((r) => r.kind !== 'NOT_FOUND').length;

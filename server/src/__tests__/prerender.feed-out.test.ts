@@ -114,7 +114,13 @@ describe('N7 만료 변형', () => {
         full: ['hamster/golden/feed/hideout.json', 'hamster/golden/feed/wheel.json'],
         noprice: ['hamster/golden/feed/hideout.noprice.json', 'hamster/golden/feed/wheel.noprice.json'],
       },
+      pages: { full: b.feedPages.filter((x) => x.stage === 'full').map((x) => x.file).sort(), noprice: b.feedPages.filter((x) => x.stage === 'noprice').map((x) => x.file).sort() },
     });
+    // N9 HTML 변형 목록: 골든 TYPE 라우트 전부 + 블록 있는 /supplies/{item}/{type}, 두 단계 같은 경로 집합
+    expect(m.pages.full).toContain('hamster/golden/index.feed.html');
+    expect(m.pages.full).toContain('supplies/wheel/hamster-golden/index.feed.html');
+    expect(m.pages.noprice).toEqual(m.pages.full.map((f: string) => f.replace(/index\.feed\.html$/, 'index.feed-noprice.html')));
+    for (const f of [...m.pages.full, ...m.pages.noprice]) expect(b.files.has(f), f).toBe(true);
     const np = b.files.get('hamster/golden/feed/wheel.noprice.json') as string;
     expect(np).not.toMatch(/price|원/);
   });

@@ -176,3 +176,35 @@ export function feedDeadlines(generatedAtMs: number): { priceUntil: number; bloc
 export function feedPriceText(amount: number): string {
   return `${String(Math.trunc(amount)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}원`;
 }
+
+/** 362 N9 — 피드가 살아 있는 단계(파일·마크업이 있는 단계). */
+export type FeedLiveStage = Exclude<FeedStage, 'nofeed'>;
+
+/** 피드 JSON dist 상대 파일: {slug}/feed/{item}.json(full) · {item}.noprice.json. 같은 오리진 경로는 앞에 「/」(feedJsonPath). */
+export function feedJsonFile(slug: string, itemId: string, stage: FeedLiveStage): string {
+  return `${slug}/feed/${itemId}${stage === 'full' ? '' : '.noprice'}.json`;
+}
+
+/** 레이어 L4 가 읽는 같은 오리진 상대 경로(외부 호스트 0 — 클라는 이 함수 결과만 fetch). */
+export function feedJsonPath(slug: string, itemId: string, stage: FeedLiveStage): string {
+  return `/${feedJsonFile(slug, itemId, stage)}`;
+}
+
+/** 페이지 HTML 변형 파일 이름(기본 파일 = 피드 없음 = 피드 꺼짐 빌드와 바이트 동일). */
+export const FEED_PAGE_VARIANT: Readonly<Record<FeedLiveStage, string>> = Object.freeze({ full: 'index.feed.html', noprice: 'index.feed-noprice.html' });
+
+/** 기본 페이지 파일(…/index.html) → 단계 변형 파일. index.html 로 끝나지 않으면 null. */
+export function feedVariantFile(file: string, stage: FeedLiveStage): string | null {
+  if (file !== 'index.html' && !file.endsWith('/index.html')) return null;
+  return `${file.slice(0, file.length - 'index.html'.length)}${FEED_PAGE_VARIANT[stage]}`;
+}
+
+/** 확인일 YYYY-MM-DD → { month, day }(가격 줄 「{M}월 {D}일 확인」). 형식 밖이면 null. */
+export function feedCheckedParts(checkedOn: unknown): { month: number; day: number } | null {
+  if (typeof checkedOn !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(checkedOn);
+  if (!m) return null;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
+}

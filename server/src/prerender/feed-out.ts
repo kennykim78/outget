@@ -1,11 +1,12 @@
-// 362 N6·N7 — 상품 피드 정적 산출물(C1: ws-data 밖). 노출 결정은 engine selectFeedRows 한 곳, 여기는 직렬화·변형만.
-//   파일: {slug}/feed/{item}.json(full, 가격 있음) · {item}.noprice.json(가격 키 0) · feed-manifest.json.
+// 362 N6·N7·N9 — 상품 피드 정적 산출물(C1: ws-data 밖). 노출 결정은 engine selectFeedRows 한 곳, 여기는 직렬화·변형만.
+//   파일: {slug}/feed/{item}.json(full, 가격 있음) · {item}.noprice.json(가격 키 0) · feed-manifest.json(site.ts 가 pages 를 채워 쓴다).
 //   단계(빌드 시각 기준): full → 두 변형 / noprice → noprice 만 / nofeed(168h 초과·generatedAt 없음) → 파일·manifest 0.
 //   이미 지난 단계의 변형은 만들지 않는다. 빌드 시각은 어떤 파일에도 쓰지 않는다(manifest 는 generatedAt 파생값만).
-//   홈 레일 모델(D-2): LISTED_PASS ∧ 비 GENERAL_INFO 블록의 첫 행만, 품목당 1장. 마크업·ws-data 연결은 N9/N10.
-import { feedDeadlines, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedRowIn } from '../engine/feed-types.js';
+//   홈 레일 모델(D-2): LISTED_PASS ∧ 비 GENERAL_INFO 블록의 첫 행만, 품목당 1장. N9: 단계별 ws-data data.feed(레일 카드 1.5KB 예산 안) + 마크업용 블록.
+import { FEED_SCREEN_ROWS, feedDeadlines, feedJsonFile, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedLiveStage, type FeedRowIn } from '../engine/feed-types.js';
 import {
   createCatalog,
+  isWsFeedData,
   selectFeedRows,
   type FeedManifest,
   type FeedSelection,
@@ -13,7 +14,9 @@ import {
   type PublicFeedRailCard,
   type PublicFeedRow,
   type SeedBundle,
+  type WsFeedData,
 } from '../engine/index.js';
+import { jsonForScript } from './html.js';
 import type { SiteModel } from './project.js';
 
 export interface ProductFeedInput {
@@ -25,13 +28,27 @@ export interface ProductFeedInput {
   isTitleBanned: (title: string) => boolean;
 }
 
+/** 한 타입의 피드(단계별) — 마크업(pages/feed.ts)과 ws-data data.feed 가 같은 값을 쓴다. */
+export interface FeedTypeOut {
+  /** 품목 id → 단계 → 공개 블록(행 ≤ FEED_SCREEN_ROWS). 요구사항 순서. */
+  blocks: Map<string, Partial<Record<FeedLiveStage, PublicFeedBlock>>>;
+  /** 단계 → 타입 페이지 ws-data data.feed(레일은 FEED_WS_DATA_MAX_BYTES 예산 안으로 뒤에서 덜어 냄). */
+  data: Partial<Record<FeedLiveStage, WsFeedData>>;
+}
+
 export interface FeedOutput {
   files: Map<string, string>;
+  /** pages 는 빈 목록 — site.ts 가 HTML 변형을 만든 뒤 채워 FEED_MANIFEST_FILE 로 쓴다. */
   manifest: FeedManifest | null;
   rail: Map<string, PublicFeedRailCard[]>;
+  /** 이번 빌드에서 살아 있는 단계(full 이면 ['full','noprice'], noprice 면 ['noprice'], 피드 없음 []). */
+  stages: FeedLiveStage[];
+  types: Map<string, FeedTypeOut>;
 }
 
 export const FEED_MANIFEST_FILE = 'feed-manifest.json';
+/** C1 ③ — 피드 변형 페이지의 ws-data 증가 상한(바이트, `,"feed":` 포함). */
+export const FEED_WS_DATA_MAX_BYTES = 1536;
 const SAFE_SEG = /^[a-z0-9][a-z0-9-]*$/;
 
 const pad = (n: number, w = 2): string => String(n).padStart(w, '0');
@@ -50,15 +67,35 @@ function block(typeId: string, itemId: string, s: FeedSelection, withPrice: bool
     badge: s.badge,
     generalInfo: s.generalInfo,
     ...(withPrice ? { priceCheckedOn: checkedOn } : {}),
-    rows: s.rows.map((r) => publicRow(r, withPrice)),
+    rows: s.rows.slice(0, FEED_SCREEN_ROWS).map((r) => publicRow(r, withPrice)),
   };
 }
 
+/** ws-data 에 붙는 바이트 수(`,"feed":` + jsonForScript 값). */
+export function feedWsDataBytes(f: WsFeedData): number {
+  return Buffer.byteLength(`,"feed":${jsonForScript(f)}`, 'utf8');
+}
+
+/** data.feed 조립 + 예산 맞추기(레일 카드를 뒤에서부터 뺀다 — 요구사항 순서 앞 카드 우선, 결정론). 형식 위반·품목만으로 초과면 throw. */
+export function fitWsFeed(stage: FeedLiveStage, checkedOn: string, items: string[], rail: readonly PublicFeedRailCard[]): WsFeedData {
+  const cards = [...rail];
+  const make = (): WsFeedData => ({ v: 1, stage, ...(stage === 'full' ? { priceCheckedOn: checkedOn } : {}), items: [...items], rail: [...cards] });
+  let f = make();
+  while (feedWsDataBytes(f) > FEED_WS_DATA_MAX_BYTES && cards.length > 0) {
+    cards.pop();
+    f = make();
+  }
+  if (feedWsDataBytes(f) > FEED_WS_DATA_MAX_BYTES) throw new Error(`feed-out: data.feed 품목 목록만으로 ${FEED_WS_DATA_MAX_BYTES}B 초과`);
+  if (!isWsFeedData(f)) throw new Error('feed-out: data.feed 형식 위반(isWsFeedData)');
+  return f;
+}
+
 export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: string, input: ProductFeedInput): FeedOutput {
-  const out: FeedOutput = { files: new Map(), manifest: null, rail: new Map() };
+  const out: FeedOutput = { files: new Map(), manifest: null, rail: new Map(), stages: [], types: new Map() };
   const stage = feedStage(input.buildAtMs, input.generatedAt);
   const genMs = parseFeedInstant(input.generatedAt);
   if (stage === 'nofeed' || genMs === null || input.generatedAt === null) return out;
+  const stages: FeedLiveStage[] = stage === 'full' ? ['full', 'noprice'] : ['noprice'];
   const cat = createCatalog(seed);
   const d = seoulDate(genMs);
   const checkedOn = `${pad(d.year, 4)}-${pad(d.month)}-${pad(d.day)}`;
@@ -68,6 +105,7 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
     const segs = t.slug.split('/');
     if (!segs.every((s) => SAFE_SEG.test(s))) throw new Error(`feed-out: slug 형식 밖 ${t.id}`);
     const cards: PublicFeedRailCard[] = [];
+    const blocks: FeedTypeOut['blocks'] = new Map();
     for (const r of t.requirements) {
       const itemId = r.item.id;
       if (!SAFE_SEG.test(itemId)) throw new Error(`feed-out: 품목 id 형식 밖 ${t.id}/${itemId}`);
@@ -78,22 +116,37 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
         isTitleBanned: input.isTitleBanned,
       });
       if (s === null || s.rows.length === 0) continue;
-      const base = `${t.slug}/feed/${itemId}`;
-      if (s.showPrice) {
-        out.files.set(`${base}.json`, `${JSON.stringify(block(t.id, itemId, s, true, checkedOn))}\n`);
-        full.push(`${base}.json`);
+      const per: Partial<Record<FeedLiveStage, PublicFeedBlock>> = {};
+      for (const st of stages) {
+        const b = block(t.id, itemId, s, st === 'full', checkedOn);
+        per[st] = b;
+        const file = feedJsonFile(t.slug, itemId, st);
+        out.files.set(file, `${JSON.stringify(b)}\n`);
+        (st === 'full' ? full : noprice).push(file);
       }
-      out.files.set(`${base}.noprice.json`, `${JSON.stringify(block(t.id, itemId, s, false, checkedOn))}\n`);
-      noprice.push(`${base}.noprice.json`);
-      if (s.badge === 'LISTED_PASS' && !s.generalInfo) {
-        const f = s.rows[0];
-        const card: PublicFeedRailCard = { supplyItemId: itemId, provider: f.provider, title: f.title, url: f.url, imageUrl: f.imageUrl };
+      blocks.set(itemId, per);
+      const f = s.rows[0];
+      if (s.badge === 'LISTED_PASS' && !s.generalInfo && f.verdict !== null && f.specValues !== null) {
+        const card: PublicFeedRailCard = { supplyItemId: itemId, provider: f.provider, title: f.title, url: f.url, imageUrl: f.imageUrl, verdict: f.verdict, specValues: f.specValues };
         cards.push(s.showPrice ? { ...card, price: f.price } : card);
       }
     }
     if (cards.length > 0) out.rail.set(t.id, cards);
+    if (blocks.size === 0) continue;
+    const items = [...blocks.keys()];
+    const data: FeedTypeOut['data'] = {};
+    for (const st of stages) {
+      const stCards = cards.map((c): PublicFeedRailCard =>
+        st === 'full'
+          ? c
+          : { supplyItemId: c.supplyItemId, provider: c.provider, title: c.title, url: c.url, imageUrl: c.imageUrl, verdict: c.verdict, specValues: c.specValues },
+      );
+      data[st] = fitWsFeed(st, checkedOn, items, stCards);
+    }
+    out.types.set(t.id, { blocks, data });
   }
   if (noprice.length === 0) return out;
+  out.stages = stages;
   const { priceUntil, blockUntil } = feedDeadlines(genMs);
   out.manifest = {
     v: 1,
@@ -101,7 +154,7 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
     priceUntil: seoulIso(priceUntil),
     blockUntil: seoulIso(blockUntil),
     variants: { full: [...full].sort(), noprice: [...noprice].sort() },
+    pages: { full: [], noprice: [] },
   };
-  out.files.set(FEED_MANIFEST_FILE, `${JSON.stringify(out.manifest, null, 2)}\n`);
   return out;
 }

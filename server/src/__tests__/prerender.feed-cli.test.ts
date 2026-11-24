@@ -57,10 +57,11 @@ const wheelReq = resolveRequirement(cat, G, 'wheel');
 if (!wheelReq) throw new Error('fixture: golden wheel 없음');
 const KW = buildSearchKeyword(golden, wheelReq);
 
-function feedDir(aliRows: unknown[], coupang = '{}'): string {
+function feedDir(aliRows: unknown[], coupang = '{}', coupangRows: unknown[] = []): string {
   const d = tmp('pf');
   const empty = (p: string) => ({ v: 1, provider: p, source: 'OFFICIAL_API', api: { method: null, sort: null }, terms: { checkedAt: null, displayFields: [] }, generatedAt: null, rows: [] });
-  writeFileSync(join(d, 'coupang.json'), coupang === '{}' ? JSON.stringify(empty('COUPANG')) : coupang);
+  const cp = { v: 1, provider: 'COUPANG', source: 'OFFICIAL_API', api: { method: 'search', sort: null }, terms: { checkedAt: '2026-11-23', displayFields: ['title', 'url', 'imageUrl', 'price'] }, generatedAt: GEN, rows: coupangRows };
+  writeFileSync(join(d, 'coupang.json'), coupang !== '{}' ? coupang : coupangRows.length ? JSON.stringify(cp) : JSON.stringify(empty('COUPANG')));
   const ali =
     aliRows.length === 0
       ? empty('ALIEXPRESS')
@@ -79,7 +80,10 @@ const wheelRow = (rank: number, title: string) => ({
   price: { amount: 15900, currency: 'KRW' },
   fetchedAt: GEN,
 });
-const VALID = feedDir([wheelRow(1, '햄스터 쳇바퀴 30cm 통면')]);
+// 362 N9: 알리 행은 고지 문안(Kenny 결정 K2) 전까지 마크업이 빌드를 멈춘다 → 유효 피드 픽스처는 쿠팡 행.
+const coupangWheelRow = (rank: number, title: string) => ({ ...wheelRow(rank, title), url: `https://link.coupang.com/a/Fz${rank}abcd` });
+const VALID = feedDir([], '{}', [coupangWheelRow(1, '햄스터 쳇바퀴 30cm 통면')]);
+const ALI = feedDir([wheelRow(1, '햄스터 쳇바퀴 30cm 통면')]);
 
 describe('CLI 상품 피드 게이트', () => {
   it('꺼짐(개발·env 없음·오리진 밖) → 깨진 피드 디렉터리도 읽지 않고 exit 0, 피드 산출물 0', async () => {
@@ -122,14 +126,29 @@ describe('CLI 상품 피드 게이트', () => {
       'hamster/golden/feed/wheel.noprice.json',
     ]);
     expect(r.out.some((l) => l.startsWith('prerender — product feed on'))).toBe(true);
+    // N9: HTML 변형도 쓰고, 재빌드(−170h)는 변형도 지운다(기본 index.html 은 남는다)
+    const variants = (d: string) => files(d).filter((f) => /index\.feed(-noprice)?\.html$/.test(f));
+    expect(variants(out)).toContain('hamster/golden/supplies/wheel/index.feed.html');
+    expect(variants(out)).toContain('hamster/golden/supplies/wheel/index.feed-noprice.html');
     const r2 = await run(['--out', out, '--seed-dir', seedDir, '--product-feed-dir', VALID], PROD_ON, GEN_MS + 170 * H);
     expect(r2.code).toBe(0);
+    expect(files(out).filter((f) => f.includes('/feed/') || f === 'feed-manifest.json')).toEqual([]);
+    expect(variants(out)).toEqual([]);
+    expect(files(out)).toContain('hamster/golden/supplies/wheel/index.html');
+  });
+
+  it('알리 행 → exit 1(알리 고지 문안 결정 전), 산출물 쓰기 0', async () => {
+    const out = outDir();
+    const r = await run(['--out', out, '--seed-dir', seedDir, '--product-feed-dir', ALI], PROD_ON);
+    expect(r.code).toBe(1);
+    expect(r.err.join(' ')).toMatch(/알리 고지 문안 Kenny 결정 전/);
     expect(files(out).filter((f) => f.includes('/feed/') || f === 'feed-manifest.json')).toEqual([]);
   });
 
   it('−80h → full 미생성, noprice 에 price 키 0', async () => {
     const out = outDir();
     const r = await run(['--out', out, '--seed-dir', seedDir, '--product-feed-dir', VALID], PROD_ON, GEN_MS + 80 * H);
+    expect(r.err).toEqual([]);
     expect(r.code).toBe(0);
     expect(files(out).filter((f) => f.includes('/feed/'))).toEqual(['hamster/golden/feed/wheel.noprice.json']);
     expect(readFileSync(join(out, 'hamster/golden/feed/wheel.noprice.json'), 'utf8')).not.toMatch(/price/);

@@ -241,7 +241,29 @@ export interface WsPageData {
     bundles: PublicBundle[];
     vets: PublicVet[];
     testimonials: PublicTestimonial[];
+    /**
+     * 362 N9 — 피드 HTML 변형(index.feed.html·index.feed-noprice.html)에만 있는 7번째 키. 기본 파일(피드 없음)에는 키 자체가 없다(바이트 동일).
+     *   클라 검증: engine/feed-wire.ts isWsFeedData(실패면 페이지 데이터 전체 null — fail-closed).
+     */
+    feed?: WsFeedData;
   };
+}
+
+/** ws-data `data` 의 선택 키(WS_DATA_KEYS 6개 밖, 피드 변형에만). */
+export const WS_DATA_FEED_KEY = 'feed';
+
+/**
+ * 362 N9 ws-data data.feed(C1 ③ 「홈 레일 최소 필드만」). 라우트당 증가 ≤ FEED_WS_DATA_MAX_BYTES(1.5KB) — 넘으면 레일 카드를 뒤에서부터 덜어 낸다(결정론).
+ *   items: 이 페이지에서 피드 JSON 이 있는 품목 id(요구사항 순서). 레이어 L4 는 여기 있는 품목만 feedJsonPath(slug, item, stage) 를 읽는다(그 밖 fetch 0).
+ *   rail: 홈 B 「기준에 맞는 준비물」 레일 뒤에 붙는 피드 카드(D-2 LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장). GENERAL_INFO 종 = [].
+ *   stage 'noprice' 면 priceCheckedOn·rail[].price 키 자체가 없다.
+ */
+export interface WsFeedData {
+  v: 1;
+  stage: 'full' | 'noprice';
+  priceCheckedOn?: string;
+  items: string[];
+  rail: PublicFeedRailCard[];
 }
 
 /**
@@ -291,7 +313,10 @@ export interface PublicFeedBlock {
   rows: PublicFeedRow[];
 }
 
-/** 362 N6 홈 B 레일 최소 카드(D-2: LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장 = 정렬 첫 행). N9/N10 이 그린다. */
+/**
+ * 362 N6 홈 B 레일 최소 카드(D-2: LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장 = 정렬 첫 행). N9 프리렌더·N10 클라가 그린다.
+ *   verdict·specValues 는 규격 한 줄(engine specLine)과 클라 방어 검사용 — LISTED_PASS 카드라 null 이 없다.
+ */
 export interface PublicFeedRailCard {
   supplyItemId: string;
   provider: 'COUPANG' | 'ALIEXPRESS';
@@ -299,13 +324,19 @@ export interface PublicFeedRailCard {
   url: string;
   imageUrl: string | null;
   price?: { amount: number; currency: 'KRW' } | null;
+  verdict: 'OK' | 'BELOW_RECOMMENDED';
+  specValues: Record<string, SpecValue>;
 }
 
-/** 362 N7 feed-manifest.json — 만료 시각(+09:00)과 변형별 파일 목록(N11 spa 가 시각으로 고른다, 빌드 시각은 싣지 않는다). */
+/**
+ * 362 N7 feed-manifest.json — 만료 시각(+09:00)과 변형별 파일 목록(N11 spa 가 시각으로 고른다, 빌드 시각은 싣지 않는다).
+ *   pages(N9): 피드 마크업이 든 HTML 변형 파일(dist 상대). 기본 파일은 피드 없음 — spa 가 단계별로 변형을 고르고, 변형 직접 요청은 막는다.
+ */
 export interface FeedManifest {
   v: 1;
   generatedAt: string;
   priceUntil: string;
   blockUntil: string;
   variants: { full: string[]; noprice: string[] };
+  pages: { full: string[]; noprice: string[] };
 }

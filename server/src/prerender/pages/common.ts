@@ -5,6 +5,7 @@ import { escapeAttr as a, escapeHtml as h, jsonForScript } from '../html.js';
 import type { SiteModel } from '../project.js';
 import type { RoutePlan } from '../routes.js';
 import { encodeSitemapPath } from '../sitemap.js';
+import type { PageFeed } from './feed.js';
 
 export interface PageContext {
   origin: string;
@@ -16,6 +17,8 @@ export interface PageContext {
   mascots: ReadonlyMap<string, string>;
   /** 294: false 면 /privacy 를 내보내지 않은 빌드 — 푸터 처리방침 링크 0(site.ts privacyPagePublished). 생략 = true(바이트 동일). */
   privacyPage?: boolean;
+  /** 362 N9 — 피드 HTML 변형 렌더 때만(site.ts). 생략 = 피드 마크업·data.feed 0(기본 파일 = 피드 꺼짐 빌드와 바이트 동일). */
+  feed?: PageFeed;
 }
 
 export interface RenderedPage {
@@ -372,6 +375,8 @@ export function railSection(o: {
   /** R4-2b 홈 B 톤 — client RailSection tone='home' 과 같은 마크업(section + ws-home-sec ws-{id}-sec, 제목 display, lead 문단, 레일 아래 → 링크). */
   tone?: 'home';
   lead?: readonly string[];
+  /** 362 N9 — lead 뒤에 붙는 이미 만든 마크업 조각(피드 고지 p.ws-aff-note). tone='home' 일 때만. */
+  leadHtml?: readonly string[];
   foot?: { label: string; href: string } | null;
   items: readonly string[];
 }): string {
@@ -387,7 +392,7 @@ export function railSection(o: {
     home
       ? `<div class="ws-rail-heading ws-home-sec-head"><h2 id="${titleId}" class="ws-t-display ws-home-sec-title">${o.titleHtml}</h2>${(o.lead ?? [])
           .map((x) => `<p class="ws-t-body ws-muted ws-home-sec-lead">${h(x)}</p>`)
-          .join('')}</div>`
+          .join('')}${(o.leadHtml ?? []).join('')}</div>`
       : `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
     `<div class="ws-rail-tools">${more}</div>`,
     '</div>',

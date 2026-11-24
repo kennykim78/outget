@@ -42,6 +42,7 @@ import {
 import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell, type PrivacyPolicy } from '../privacy-content.js';
 import { familyName } from './family.js';
 import { generalInfoNote, layerL4, specCheckTestimonials, tipsHrefOf } from './type.js';
+import { feedLinksOn } from './feed.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
 
@@ -462,14 +463,16 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     const t = ts.find((x) => x.id === ctx.route.typeId);
     const r = t?.requirements.find((x) => x.item.id === it.id);
     if (!t || !r) throw new Error(`pages: ${ctx.route.typeId} × ${it.id} 노출 요구사항 없음`);
-    aside = layerL4(t, r, `/supplies/${it.id}`);
-    footerAff = affiliateDisclosureOn(r.pub.searchLinks);
+    aside = layerL4(t, r, `/supplies/${it.id}`, ctx.feed);
+    footerAff = affiliateDisclosureOn(r.pub.searchLinks) || feedLinksOn(ctx.feed, it.id);
     typeId = t.id;
     header = t;
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
     data.requirements = [r.pub];
     data.products = r.products;
     data.testimonials = specCheckTestimonials(m, t.id); // D6-B: 여기서 연 L4 → L5 결과 아래 후기(타입 페이지와 같은 1건)
+    // 362 N9: 피드 변형이면 이 품목만(items=[item], 레일 0 — 이 페이지엔 홈 레일이 없다).
+    if (ctx.feed) data.feed = ctx.feed.data;
   }
   // 301: 이 항목 팁이 있는 타입만 — /{slug}/tips#ws-tips-{cat}. 없으면 0줄.
   const tipLinks = ts.flatMap((t) => {
