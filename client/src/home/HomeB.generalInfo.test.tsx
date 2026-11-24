@@ -63,7 +63,8 @@ describe('356 일반 참고 정보 고지', () => {
     const ver = d.querySelector('[data-ws-part="verified"]') as HTMLElement;
     expect(ver).not.toBeNull();
     expect(ver.querySelector('h3')).toHaveTextContent(COPY.supplyLayer.source);
-    expect(ver.textContent).toContain(COPY.generalInfo.sourceLabel);
+    expect(ver.textContent).toContain(COPY.generalInfo.sourceLabelNone); // 출처 배열 빈 행 = 「출처 미기재 일반 정보」(356r M3)
+    expect(ver.textContent).not.toContain(COPY.generalInfo.sourceLabel);
     expect(ver.textContent).not.toContain(COPY.supplyLayer.lastVerified);
     expect(d.textContent).not.toContain(COPY.supplyLayer.reviewTitle);
     expect(d.textContent).not.toContain(COPY.generalInfo.notice);

@@ -376,7 +376,7 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     p.generalInfo
       ? [
           `<section data-ws-part="verified"><h3>${h(COPY.supplyLayer.source)}</h3>`,
-          `<p class="ws-source" data-ws-source="general-info">${h(COPY.generalInfo.sourceLabel)}${p.source.length ? ` · ${p.source.map((s) => externalLink(s.url, s.title)).join(' · ')}` : ''}</p>`,
+          `<p class="ws-source" data-ws-source="general-info">${h(p.source.length ? COPY.generalInfo.sourceLabel : COPY.generalInfo.sourceLabelNone)}${p.source.length ? ` · ${p.source.map((s) => externalLink(s.url, s.title)).join(' · ')}` : ''}</p>`,
           '</section>',
         ].join('\n')
       : lm || p.source.length

@@ -115,7 +115,7 @@ const VerdictCard = forwardRef<HTMLHeadingElement, VerdictCardProps>(function Ve
   const basis = `${p.animalName} ${COPY.verdict.basisSuffix}`;
   const footMeta = [
     basis,
-    p.generalInfo ? `${COPY.supplyLayer.source} ${COPY.generalInfo.sourceLabel}` : null,
+    p.generalInfo ? `${COPY.supplyLayer.source} ${p.sourceCount > 0 ? COPY.generalInfo.sourceLabel : COPY.generalInfo.sourceLabelNone}` : null,
     !p.generalInfo && p.lastVerifiedYm ? `${COPY.supplyLayer.lastVerified} ${p.lastVerifiedYm}` : null,
     !p.generalInfo && p.sourceCount > 0 ? `${COPY.supplyLayer.source} ${p.sourceCount}` : null,
   ]

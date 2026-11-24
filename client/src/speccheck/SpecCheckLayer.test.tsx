@@ -588,7 +588,7 @@ describe('L5 화면 규칙', () => {
     await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 });
     await ready(d);
     const r = await checkWheel(d, '27');
-    expect(within(r).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · ${COPY.supplyLayer.source} ${COPY.generalInfo.sourceLabel}`)).toBeInTheDocument();
+    expect(within(r).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · ${COPY.supplyLayer.source} ${COPY.generalInfo.sourceLabelNone}`)).toBeInTheDocument();
     expect(r.textContent).not.toContain(COPY.supplyLayer.lastVerified);
     expect(d.textContent).not.toContain(COPY.generalInfo.notice);
   });
