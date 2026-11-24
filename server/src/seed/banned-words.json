@@ -15,7 +15,11 @@
     { "term": "강추", "pattern": "강추" },
     { "term": "특가", "pattern": "특가" },
     { "term": "핫딜", "pattern": "핫딜" },
-    { "term": "할인", "pattern": "할인" }
+    { "term": "할인", "pattern": "할인" },
+    { "term": "랭킹", "pattern": "랭킹" },
+    { "term": "판매량", "pattern": "판매량" },
+    { "term": "1위", "pattern": "1위" },
+    { "term": "BEST", "pattern": "BEST" }
   ],
   "stems": [
     { "term": "안전", "pattern": "안전" },

@@ -1,5 +1,5 @@
 # WithSmall gitleaks 설정(작업 247 / 계획 243 C1). 핀 버전: scripts/gitleaks-pin.json.
-# 기본 규칙 전부 유지(끄는 규칙 0) + 프로젝트 특화 규칙 3개. 허용은 파일 단위 최소 — 늘릴 때는 사유 주석 필수(docs/ops/secret-scan.md).
+# 기본 규칙 전부 유지(끄는 규칙 0) + 프로젝트 특화 규칙 5개. 허용은 파일 단위 최소 — 늘릴 때는 사유 주석 필수(docs/ops/secret-scan.md).
 title = "WithSmall gitleaks"
 
 [extend]
@@ -30,6 +30,23 @@ description = "Resend API key"
 regex = '''\bre_[A-Za-z0-9]{6,}_[A-Za-z0-9]{16,}\b'''
 entropy = 3.5
 keywords = ["re_"]
+
+# 상품 피드 생성기(운영자 전용) 몰 API 비밀 — 형태 조건은 withsmall-env-secret 과 같다.
+[[rules]]
+id = "withsmall-coupang-partners-secret"
+description = "Coupang Partners API secret key with a literal value"
+regex = '''COUPANG_PARTNERS_SECRET_KEY['"]?[ \t]*[:=][ \t]*['"]?([A-Za-z0-9+/=_-]{16,})(?:['"\s,;]|$)'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["coupang_partners_secret_key"]
+
+[[rules]]
+id = "withsmall-aliexpress-app-secret"
+description = "AliExpress affiliate app secret with a literal value"
+regex = '''ALIEXPRESS_APP_SECRET['"]?[ \t]*[:=][ \t]*['"]?([A-Za-z0-9+/=_-]{16,})(?:['"\s,;]|$)'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["aliexpress_app_secret"]
 
 # 허용 목록 — 파일 단위만(폴더 와일드카드 금지), 최대 3개. 항목을 늘릴 때는 줄마다 사유를 단다.
 [[allowlists]]

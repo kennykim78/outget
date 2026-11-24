@@ -122,3 +122,14 @@ describe('compatDigits · L07 — 정규화 전 원문 기준 호환 숫자', ()
     expect([...changed].every((ch) => [0x2103, 0x318d, 0x2026].includes(ch.codePointAt(0) as number)), [...changed].join(' ')).toBe(true);
   });
 });
+
+// N2(362) — 순위·판매 계열 금지어(불변식 5). 위반 문자열은 런타임 조립.
+describe('lintText — 순위·판매 계열 금지어', () => {
+  const words = [['랭', '킹'], ['판매', '량'], ['1', '위'], ['BE', 'ST']].map((p) => p.join(''));
+  it.each(words)('%s → L01', (w) => {
+    expect(lintText(`${w} 쳇바퀴`)).toContainEqual({ rule: 'L01', term: w });
+  });
+  it('소문자 best(코드 식별자)는 대상 아님', () => {
+    expect(lintText('best')).toEqual([]);
+  });
+});
