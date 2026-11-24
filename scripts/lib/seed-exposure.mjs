@@ -15,7 +15,7 @@
 //   animalType         = base ∧ 노출 requirement ≥ 1
 //   supplyItem         = 어떤 노출 (type,item) 쌍의 item(그 type 기준 chainOk)
 //   curatedProduct     = status ACTIVE ∧ verified ∧ meetsMinSpec === true ∧ ∃ 노출 type t:
-//                        t.careProfileId ∈ careProfileIds ∧ (t,item) 노출 ∧ minSpec(base ⊕ override, (key,op) 교체) 전부 충족
+//                        t.careProfileId ∈ careProfileIds ∧ (t,item) 노출 ∧ 체인(type·프로필·요구사항·용품) 전부 verified(GENERAL_INFO 불가, 356r M1) ∧ minSpec(base ⊕ override, (key,op) 교체) 전부 충족
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
 //   setupBundle        = verified ∧ ∃ 노출 type t: careProfileId 일치 ∧ itemIds 비어있지 않고 전부 (t,item) 노출
 //   compatibilityRule  = verified ∧ a·b 둘 다 노출 item ∧ (careProfileId 없음 ∨ 노출 타입의 프로필)
@@ -556,6 +556,12 @@ export function computeExposure(seed, asOf) {
   const exposedItemIds = new Set();
   for (const p of pairs) exposedItemIds.add(p.split('|')[1]);
 
+  // 356r M1(불변식 3·7): 상품 판정용 체인 — type·프로필·요구사항·용품 전 행이 ok(VERIFIED ∧ 유효). GENERAL_INFO 체인(AI 초안 minSpec)에
+  //   연결된 상품은 추천 영역에 내지 않는다(엔진 exposure.ts strictChainOk 미러, validate V13 이 연결 자체를 ERROR).
+  const allOk = (grp) => Array.isArray(grp) && grp.length > 0 && grp.every(ok);
+  const productStrictChain = (t, req, itemId) =>
+    ok(t) && allOk(profiles.get(t.careProfileId)) && allOk(reqIdGroups.get(req.id)) && allOk(items.get(itemId));
+
   const productTypes = new Set();
   const productIds = idsWhere(rows('curatedProducts'), (p) => {
     if (!(p.status === 'ACTIVE' && ok(p) && p.meetsMinSpec === true && Array.isArray(p.careProfileIds))) return false;
@@ -563,7 +569,7 @@ export function computeExposure(seed, asOf) {
     for (const [tid, t] of types) {
       if (!p.careProfileIds.includes(t.careProfileId)) continue;
       const req = pairReq.get(`${tid}|${p.supplyItemId}`);
-      if (!req) continue;
+      if (!req || !productStrictChain(t, req, p.supplyItemId)) continue;
       const rules = resolvedMinRules(req, t, p.supplyItemId);
       const rec = resolvedRecommendedRules(req, t, p.supplyItemId);
       // M-1(QA): 최소·권장 해석 규칙이 둘 다 비면 무규격 — 엔진 evaluateProductStage 와 같게 CHECK(노출 불가, 불변식 ③ fail-closed).

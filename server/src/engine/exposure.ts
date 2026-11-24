@@ -136,6 +136,20 @@ export interface ExposableProduct<P> {
   reasons: Reason[];
 }
 
+/**
+ * 356r M1(불변식 3·7): 상품 판정용 체인 — 체인 메타 네 개 모두 okMeta(VERIFIED ∧ 유효). GENERAL_INFO(AI 초안 minSpec)
+ *   체인에 연결된 상품은 meetsMinSpec 이 AI 초안 규격으로 판정된 것이라 추천 영역에 내지 않는다. validate V13 이 같은 연결을 ERROR 로 막는다.
+ *   scripts/lib/seed-exposure.mjs computeExposure 의 productStrictChain 과 같은 조건(패리티 시험).
+ */
+function strictChainOk(r: ResolvedRequirement, day: number): boolean {
+  return (
+    okMeta(r.review.animalType, day) &&
+    okMeta(r.review.requirement, day) &&
+    okMeta(r.review.item, day) &&
+    okMeta(r.review.careProfile, day)
+  );
+}
+
 /** 노출 가능하면 동물별 판정, 아니면 null. isProductExposable·orderExposableProducts 의 단일 판정. */
 function exposedVerdict(
   cat: EngineCatalog,
@@ -148,7 +162,7 @@ function exposedVerdict(
   if (!at || !at.careProfileId) return null;
   if (!Array.isArray(p.careProfileIds) || !p.careProfileIds.includes(at.careProfileId)) return null;
   const r = resolveRequirement(cat, animalTypeId, p.supplyItemId);
-  if (!r || !requirementOk(cat, r, day)) return null;
+  if (!r || !requirementOk(cat, r, day) || !strictChainOk(r, day)) return null;
   const spec = checkAnimalMinSpec(cat, animalTypeId, p.supplyItemId, p.specValues);
   if (!spec.meets || (spec.verdict !== 'OK' && spec.verdict !== 'BELOW_RECOMMENDED')) return null;
   return { verdict: spec.verdict, reasons: spec.reasons };

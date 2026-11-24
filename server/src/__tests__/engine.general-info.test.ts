@@ -211,10 +211,19 @@ describe('M5 — 상품·구성안·호환·Taxon·후기는 자기 메타 VERIF
     ...meta,
   });
 
-  it('상품: 자기 메타 GENERAL_INFO → 비노출, VERIFIED → (체인 노출이면) 노출', () => {
+  it('상품: 자기 메타 GENERAL_INFO → 비노출, VERIFIED 라도 GENERAL_INFO 체인이면 비노출(356r M1), VERIFIED 체인이면 노출', () => {
     const cat = createCatalog(chain('budgie', 'GI'));
     expect(isProductExposable(cat, 'budgie', product(GI({ contentKind: 'SPEC' })) as never, AS_OF)).toBe(false);
-    expect(isProductExposable(cat, 'budgie', product({ ...V }) as never, AS_OF)).toBe(true);
+    expect(isProductExposable(cat, 'budgie', product({ ...V }) as never, AS_OF)).toBe(false);
+    const vCat = createCatalog(chain('budgie', 'V'));
+    expect(isProductExposable(vCat, 'budgie', product(GI({ contentKind: 'SPEC' })) as never, AS_OF)).toBe(false);
+    expect(isProductExposable(vCat, 'budgie', product({ ...V }) as never, AS_OF)).toBe(true);
+  });
+
+  it.each(['type', 'profile', 'req', 'item'] as const)('356r M1: VERIFIED 체인 중 %s 하나만 GENERAL_INFO → VERIFIED 상품 비노출', (k) => {
+    const cat = createCatalog(chain('budgie', 'V', { [k]: GI() }));
+    expect(isRequirementExposable(cat, resolveRequirement(cat, 'budgie', 'box')!, AS_OF)).toBe(true); // 체인 자체는 노출(비공허)
+    expect(isProductExposable(cat, 'budgie', product({ ...V }) as never, AS_OF)).toBe(false);
   });
 
   it('구성안: 자기 메타 GENERAL_INFO → 비노출', () => {

@@ -1,4 +1,4 @@
-// 검수 규칙 V01~V05·V08~V12 + W-STALE·W-GENERAL-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
+// 검수 규칙 V01~V05·V08~V13 +W-STALE·W-GENERAL-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
 import { CONTENT_KEYS, daysBetween, has, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
@@ -151,10 +151,39 @@ function checkGeneralInfo(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   }
 }
 
+/**
+ * V13(356r M1, 불변식 3·7): VERIFIED 상품의 연결 체인에 GENERAL_INFO 행이 있으면 ERROR.
+ *   체인 = 상품 supplyItemId 의 SupplyItem · careProfileIds 의 CareProfile · (그 프로필, 그 용품) SupplyRequirement
+ *        · 그 프로필을 쓰는 AnimalType. GENERAL_INFO 의 minSpec 은 AI 초안이라 meetsMinSpec 판정 근거가 될 수 없다.
+ *   노출 쪽은 engine/exposure.ts strictChainOk 가 같은 연결을 비노출로 막는다(이중 방어).
+ */
+function checkProductChain(ctx: Ctx): void {
+  const isGi = (r: Rec | undefined): boolean => r !== undefined && r.reviewStatus === GENERAL_INFO_STATUS;
+  for (const { rec, id } of ctx.rows.curatedProducts) {
+    if (rec.reviewStatus !== 'VERIFIED') continue;
+    const itemId = rec.supplyItemId;
+    const profileIds = Array.isArray(rec.careProfileIds) ? rec.careProfileIds.filter((x): x is string => typeof x === 'string') : [];
+    const hits: string[] = [];
+    if (typeof itemId === 'string' && isGi(ctx.byId.supplyItems.get(itemId))) hits.push(`SupplyItem ${itemId}`);
+    for (const pid of profileIds) if (isGi(ctx.byId.careProfiles.get(pid))) hits.push(`CareProfile ${pid}`);
+    for (const { rec: r, id: rid } of ctx.rows.supplyRequirements) {
+      if (r.supplyItemId === itemId && profileIds.includes(r.careProfileId as string) && isGi(r)) hits.push(`SupplyRequirement ${rid}`);
+    }
+    for (const { rec: t, id: tid } of ctx.rows.animalTypes) {
+      if (profileIds.includes(t.careProfileId as string) && isGi(t)) hits.push(`AnimalType ${tid}`);
+    }
+    if (hits.length > 0) {
+      ctx.out.error('V13', 'curatedProducts', id, 'careProfileIds', `VERIFIED 상품이 GENERAL_INFO 체인에 연결됨(${hits.join(', ')}) — AI 초안 minSpec 으로 규격 판정 불가(불변식 3·7)`);
+    }
+  }
+}
+
 export function checkReview(ctx: Ctx): void {
   for (const key of CONTENT_KEYS) {
     for (const { rec, id } of ctx.rows[key]) checkRow(ctx, key, id, rec);
   }
+
+  checkProductChain(ctx);
 
   // W-COHERENCE: VERIFIED 요구사항인데 용품·프로필이 미검수 → 노출 안 됨을 운영자에게 알림.
   for (const { rec, id } of ctx.rows.supplyRequirements) {
