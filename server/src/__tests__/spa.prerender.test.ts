@@ -94,15 +94,16 @@ describe('spa — 실시드 dist(manifest 있음)', () => {
     expect(r.headers['content-security-policy']).toBe(SPA_CSP);
   });
 
-  it('/hamster/golden·/hamster/dwarf·/guinea-pig → 200(2026-11-16 서명 + 2026-11-23 활성화) · /gerbil → 404(PLANNED) + 404.html 본문', async () => {
-    for (const p of ['/hamster/golden', '/hamster/dwarf', '/guinea-pig']) {
+  it('/hamster/golden·/hamster/dwarf·/guinea-pig·/gerbil·/parrot/*·/hamster/robo → 200(2026-11-16 서명 + 2026-11-23 9종 활성화) · 시드에 없는 종 경로 → 404 + 404.html 본문', async () => {
+    for (const p of ['/hamster/golden', '/hamster/dwarf', '/guinea-pig', '/gerbil', '/parrot/budgie', '/parrot/cockatiel', '/parrot/lovebird-peach', '/parrot/sun-conure', '/hamster/robo']) {
       const g = await request(app).get(p);
       expect([p, g.status]).toEqual([p, 200]);
       expect(g.text).toContain('data-ws-prerendered="1"');
       expect(g.text).not.toContain('data-ws-route="NOT_FOUND"');
       expect(g.headers['content-security-policy']).toBe(SPA_CSP);
     }
-    for (const p of ['/gerbil']) {
+    // 356: 저빌은 ACTIVE(GENERAL_INFO)가 되어 200 — 404 확인은 시드에 없는 종 경로로 옮긴다.
+    for (const p of ['/rabbit', '/parrot/macaw', '/hamster/campbell']) {
       const r = await request(app).get(p);
       expect([p, r.status]).toEqual([p, 404]);
       expect(r.text).toContain('data-ws-route="NOT_FOUND"');

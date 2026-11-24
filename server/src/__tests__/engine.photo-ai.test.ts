@@ -262,11 +262,19 @@ describe('validate 사진 scope·자리 전수', () => {
       return s;
     };
     const budgieI06 = (s: Required<RawSeed>) => rulesOf(s, 'I06').filter((i) => i.message.includes('budgie'));
-    const e = budgieI06(activate(seedWith(() => {})));
+    // 356(6종 활성화): 실시드에서 앵무는 이미 ACTIVE 이고 종 자리 3개(ph-budgie-*)가 SLOT 행으로 있다 → 실시드엔 I06 0.
+    expect((BASE_SEED.animalTypes as Rec[]).find((r) => r.id === 'budgie')?.status).toBe('ACTIVE');
+    expect(budgieI06(seedWith(() => {}))).toEqual([]);
+    // 종 자리 행을 빼면 장면 행(햄스터 사진)으로 메우지 않고 자리마다 ERROR.
+    const dropBudgieRows = (ph: Rec[]) => {
+      for (let i = ph.length - 1; i >= 0; i--) if ((ph[i].scope as Record<string, unknown> | undefined)?.animalTypeId === 'budgie') ph.splice(i, 1);
+    };
+    const e = budgieI06(activate(seedWith(dropBudgieRows)));
     expect(e.length).toBeGreaterThanOrEqual(3);
     expect(e.every((i) => i.message.includes('PARROT') && i.message.includes('대체 밖'))).toBe(true);
     // 종 자리 3개를 종 단위 행(SLOT 이라도 자리는 있음 — usable=false 는 I07)으로 채우면 그 3개 오류는 사라진다
     const withRows = activate(seedWith((ph) => {
+      dropBudgieRows(ph);
       for (const use of ['habitat', 'now-lead', 'spec']) {
         ph.push({ ...AI, id: `ph-budgie-${use}`, slot: `budgie-${use}`, scope: { use, animalTypeId: 'budgie' }, asset: `/assets/photos/budgie-${use}.webp`, promptPath: `docs/assets/prompts/budgie-${use}.md` } as Rec);
       }
@@ -311,7 +319,8 @@ describe('validate 사진 scope·자리 전수', () => {
     };
     const before = count(structuredClone(BASE_SEED) as Required<RawSeed>);
     const after = count(seedWith((ph) => ph.push({ ...AI, id: 'ph-gp-hay', slot: 'item-hay', scope: { use: 'item', supplyItemId: 'hay' }, asset: '/assets/items/hay.webp', promptPath: 'docs/assets/prompts/hay.md' } as Rec)));
-    // hay 요구 프로필은 기니피그(ACTIVE)·저빌(PLANNED) — 자리 전수는 ACTIVE 종만이라 한 자리가 찬다.
-    expect(before - after).toBe(1);
+    // hay 요구 프로필은 기니피그·저빌 — 356(6종 활성화)으로 저빌도 ACTIVE 가 되어 자리 전수(ACTIVE 종만)에서 두 자리가 찬다.
+    expect((BASE_SEED.animalTypes as Rec[]).filter((r) => ['guinea-pig', 'gerbil-mongolian'].includes(String(r.id))).map((r) => r.status)).toEqual(['ACTIVE', 'ACTIVE']);
+    expect(before - after).toBe(2);
   });
 });

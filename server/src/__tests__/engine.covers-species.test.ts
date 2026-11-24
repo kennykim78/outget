@@ -32,7 +32,7 @@ describe('시드 정의 — food.coversThisAnimal 필드와 req-gerbil-food when
     const i = fields.findIndex((f) => f.key === 'forSpecies');
     expect(fields[i + 1]).toEqual({ key: 'coversThisAnimal', label: '포장 대상에 이 동물 표기', type: 'boolean', optional: true, ruleScoped: true });
   });
-  it('req-gerbil-food minSpec 2행(forSpecies in + coversThisAnimal eq true when forSpecies=MULTI), DRAFT·AI_DRAFT 유지', () => {
+  it('req-gerbil-food minSpec 2행(forSpecies in + coversThisAnimal eq true when forSpecies=MULTI), GENERAL_INFO·AI_DRAFT 유지', () => {
     const r = seed.supplyRequirements.find((x) => x.id === 'req-gerbil-food')!;
     expect(r.minSpec.rules).toHaveLength(2);
     expect(r.minSpec.rules[1]).toEqual({
@@ -42,7 +42,8 @@ describe('시드 정의 — food.coversThisAnimal 필드와 req-gerbil-food when
       when: [{ key: 'forSpecies', op: 'eq', value: 'MULTI' }],
       reason: '여러 동물용이면 포장 대상에 저빌이 적혀 있어야 해요',
     });
-    expect([r.reviewStatus, r.reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
+    // 356: 저빌은 GENERAL_INFO 6종 — DRAFT → GENERAL_INFO. AI_DRAFT 는 VERIFIED 불가(불변식 7).
+    expect([r.reviewStatus, r.reviewerType]).toEqual(['GENERAL_INFO', 'AI_DRAFT']);
   });
   it('시드 상품 어디에도 coversThisAnimal 값이 없다(사실 값은 검수자 몫)', () => {
     for (const p of seed.curatedProducts) expect([p.id, 'coversThisAnimal' in (p.specValues ?? {})]).toEqual([p.id, false]);

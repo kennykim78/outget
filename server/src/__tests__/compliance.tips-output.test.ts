@@ -24,7 +24,7 @@ const norm = await imp<{ loadBannedWords: (p: string) => unknown }>('scripts/lib
 const BW = norm.loadBannedWords(join(ROOT, 'server', 'src', 'seed', 'banned-words.json'));
 
 const TEMPLATE = readFileSync(join(ROOT, 'client', 'index.html'), 'utf8');
-const AS_OF = '2026-11-22';
+const AS_OF = '2026-11-23'; // 356: 디스크 날짜 최댓값(6종 draftedAt·crossCheck 2026-11-23) — 9타입 전부 노출된 실제 빌드를 검사(옛 값 11-22 = 팁 checkedAt)
 const DIGEST = 'd'.repeat(64);
 const REF = { title: '수납함 집 만들기 기록', url: 'https://namu.wiki/w/test-123', siteName: '예시 블로그', checkedAt: '2026-11-20' };
 const TIP: BudgetTipRec = {

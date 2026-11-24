@@ -319,10 +319,14 @@ describe('홈 ws-data types[].specCheckItemId(R6 G3b)', () => {
     for (const p of HOME_PATHS) expect(data(b, p).data.types, p).toEqual([]);
     expect(JSON.stringify(b.pages.map((x) => x.data))).not.toContain('specCheckItemId');
   });
-  it('디스크 실시드(2026-11-16 서명 + 2026-11-23 활성화): 홈 types = 골든·드워프·기니피그 · specCheckItemId 모두 cage', () => {
+  it('디스크 실시드(2026-11-16 서명 + 2026-11-23 9종 활성화): 홈 types = 9타입 · 소동물 cage · 앵무 4종 bird-cage(종 간 품목 혼입 없음)', () => {
     const b = build(realSeed());
     for (const p of HOME_PATHS) {
-      expect(data(b, p).data.types.map((t) => [t.id, t.specCheckItemId]), p).toEqual([['hamster-golden', 'cage'], ['hamster-dwarf', 'cage'], ['guinea-pig', 'cage']]);
+      expect(data(b, p).data.types.map((t) => [t.id, t.specCheckItemId]), p).toEqual([
+        ['hamster-golden', 'cage'], ['hamster-dwarf', 'cage'], ['gerbil-mongolian', 'cage'], ['guinea-pig', 'cage'],
+        ['budgie', 'bird-cage'], ['cockatiel', 'bird-cage'], ['lovebird-peach', 'bird-cage'], ['sun-conure', 'bird-cage'],
+        ['hamster-robo', 'cage'],
+      ]);
     }
   });
 });

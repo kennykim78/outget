@@ -118,7 +118,7 @@ describe('R7-B 검수 메타 — 디스크는 2026-11-16 Kenny 확인표 5종 �
       ...s.compatibilityRules, ...s.setupBundles, ...s.curatedProducts,
     ] as unknown as Meta[];
   const all = metaOf(seed);
-  it('디스크: AI_DRAFT ∧ VERIFIED 0건, VERIFIED = 4 패킷 대상 107행 정확히(kenny·2026-11-16·패킷 basis/reviewerType), 나머지 DRAFT·AI_DRAFT·basis null, 드워프 상품 17 specVerified·ACTIVE 14(미달 3 REVIEW), 매니페스트 107', () => {
+  it('디스크: AI_DRAFT ∧ VERIFIED 0건, VERIFIED = 4 패킷 대상 107행 정확히(kenny·2026-11-16·패킷 basis/reviewerType), 나머지 DRAFT|GENERAL_INFO·AI_DRAFT·basis null, 드워프 상품 17 specVerified·ACTIVE 14(미달 3 REVIEW), 매니페스트 107', () => {
     const keyed = (s: SeedBundle) => CONTENT_KEYS.flatMap((k) => ((s as unknown as Record<string, Meta[]>)[k]).map((r) => ({ key: `${SEED_FILES[k]}#${r.id}`, r })));
     const targets = realSignedTargets();
     expect(targets.size).toBe(107);
@@ -128,7 +128,9 @@ describe('R7-B 검수 메타 — 디스크는 2026-11-16 Kenny 확인표 5종 �
     for (const { key, r } of rows) {
       const t = targets.get(key);
       if (t) expect([key, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, 'VERIFIED', t.reviewerType, 'kenny', REAL_SIGNED_AT, t.basis]);
-      else expect([key, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, 'DRAFT', 'AI_DRAFT', null, null, null]);
+      // 356(6종 활성화): 패킷 밖 행은 DRAFT 또는 GENERAL_INFO(일반 참고 정보 — VERIFIED 아님) — 둘 다 AI_DRAFT·검수자/검수일/basis null.
+      //   GENERAL_INFO 행의 정확한 집합(6종 체인 55행)은 seed.signatures 가 단언한다.
+      else expect([key, ['DRAFT', 'GENERAL_INFO'].includes(r.reviewStatus), r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([key, true, 'AI_DRAFT', null, null, null]);
     }
     const dw = seed.curatedProducts.filter((p) => p.id.startsWith('cp-dw-'));
     expect(dw).toHaveLength(17);

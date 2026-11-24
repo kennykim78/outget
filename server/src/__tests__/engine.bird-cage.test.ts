@@ -1,5 +1,6 @@
 // 271(268 단계 5) — 앵무 새장 SupplyItem `bird-cage` 구조 착지 · specCheck 가 그 스키마를 받는지.
-//   디스크 시드(실시드)에는 앵무 요구사항 행이 없다(사실값 0, 결정 ②) → specCheck 는 판정하지 않는다(EngineLookupError).
+//   356(6종 활성화, 2026-11-23): 디스크 시드에 앵무 요구사항 행이 GENERAL_INFO·AI_DRAFT 로 들어왔다(VERIFIED 아님).
+//   합성 규칙 시험은 그 실행을 메모리에서 같은 (careProfile, supplyItem) 합성 행으로 바꿔 끼워 엔진 경로만 본다.
 //   아래 합성 minSpec 의 숫자·선택값은 엔진 경로 시험용 임의값이다 — 앵무 사육·규격 기준이 아니다(불변식 ⑦, 매트릭스 4).
 //   디스크 시드는 바꾸지 않는다(메모리 사본만).
 import { describe, expect, it } from 'vitest';
@@ -39,6 +40,8 @@ function withSynthRequirement(seed: SeedBundle, minSpec: RuleSet, recommendedSpe
     minSpec,
     recommendedSpec,
   };
+  // 356: 실시드의 같은 (careProfile, supplyItem) 행을 빼고 합성 행만 남긴다(메모리 사본 — 디스크 불변).
+  seed.supplyRequirements = seed.supplyRequirements.filter((x) => !(x.careProfileId === CP && x.supplyItemId === 'bird-cage'));
   seed.supplyRequirements.push(r);
   return seed;
 }
@@ -51,10 +54,12 @@ const schemaOf = (seed: SeedBundle): SpecSchema => {
 
 describe('bird-cage 디스크 구조(사실값 0)', () => {
   const seed = realSeed();
-  it('CAGE · DRAFT/AI_DRAFT · 필드 = type·widthCm·depthCm·heightCm·barGapMm·barOrientation', () => {
+  it('CAGE · GENERAL_INFO/AI_DRAFT(VERIFIED 아님) · 필드 = type·widthCm·depthCm·heightCm·barGapMm·barOrientation', () => {
     const it0 = seed.supplyItems.find((x) => x.id === 'bird-cage');
     expect(it0?.category).toBe('CAGE');
-    expect([it0?.reviewStatus, it0?.reviewerType]).toEqual(['DRAFT', 'AI_DRAFT']);
+    // 356: DRAFT → GENERAL_INFO(일반 참고 정보). AI_DRAFT 는 VERIFIED 불가(불변식 7) 단언 유지.
+    expect([it0?.reviewStatus, it0?.reviewerType]).toEqual(['GENERAL_INFO', 'AI_DRAFT']);
+    expect(it0?.reviewStatus).not.toBe('VERIFIED');
     expect(schemaOf(seed).fields.map((f) => f.key)).toEqual(['type', 'widthCm', 'depthCm', 'heightCm', 'barGapMm', 'barOrientation']);
     const orient = schemaOf(seed).fields.find((f) => f.key === 'barOrientation');
     expect(orient?.type === 'enum' && orient.options).toEqual(['HORIZONTAL', 'VERTICAL', 'MIXED']);
@@ -63,10 +68,19 @@ describe('bird-cage 디스크 구조(사실값 0)', () => {
     const keys = schemaOf(seed).fields.map((f) => f.key);
     expect(keys.includes('floorWcm') || keys.includes('floorDcm')).toBe(false);
   });
-  it('실시드엔 앵무 요구사항 행 0 → specCheck 는 판정하지 않는다(EngineLookupError)', () => {
-    expect(seed.supplyRequirements.filter((r) => r.careProfileId.startsWith('cp-parrot-'))).toEqual([]);
+  it('실시드 앵무 요구사항 행은 전부 GENERAL_INFO ∧ AI_DRAFT(VERIFIED 0) → specCheck 는 판정 경로를 탄다', () => {
+    // 356: 이전엔 행 0(EngineLookupError). 6종 활성화로 cp-parrot-small·medium 각 12행이 일반 참고 정보로 들어왔다.
+    const parrot = seed.supplyRequirements.filter((r) => r.careProfileId.startsWith('cp-parrot-'));
+    expect(parrot.length).toBeGreaterThan(0);
+    for (const r of parrot) {
+      expect([r.id, r.reviewStatus, r.reviewerType]).toEqual([r.id, 'GENERAL_INFO', 'AI_DRAFT']);
+      expect(r.reviewStatus, r.id).not.toBe('VERIFIED');
+    }
+    expect(parrot.some((r) => r.careProfileId === CP && r.supplyItemId === 'bird-cage')).toBe(true);
     const cat = createCatalog(seed);
-    expect(() => specCheck(cat, BIRD, 'bird-cage', { heightCm: 50 })).toThrow(EngineLookupError);
+    expect(() => specCheck(cat, BIRD, 'bird-cage', { heightCm: 50 })).not.toThrow();
+    // 요구사항이 없는 품목은 여전히 판정하지 않는다(EngineLookupError).
+    expect(() => specCheck(cat, BIRD, 'wheel', { diameterCm: 30 })).toThrow(EngineLookupError);
   });
 });
 
