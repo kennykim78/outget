@@ -4387,3 +4387,39 @@ for (const [name, rel, body] of [
     expectClean(res);
   });
 }
+
+// ── 365 후속: 시드 직접 import·CSS url() 우회 차단 ─────────────
+for (const [name, rel, body, line] of [
+  ['정적 import', 'client/src/a.ts', "import photos from '../../server/seed/photos.json';", 1],
+  ['여러 줄 import', 'client/src/a.ts', "import {\n  a,\n} from '../../server/seed/types.json';", 3],
+  ['부수 효과 import', 'client/src/a.ts', "import '../../server/seed/photos.json';", 1],
+  ['export from', 'client/src/a.ts', "export { default as P } from '../../../server/seed-draft/photos.json';", 1],
+  ['동적 import', 'client/src/home/a.tsx', "export const p = () => import('../../../server/seed/photos.json');", 1],
+  ['동적 템플릿 import', 'client/src/a.ts', 'export const p = (n) => import(`../../server/seed-draft/${n}.json`);', 1],
+  ['require', 'client/src/a.js', "const p = require('../../server/seed/photos.json');", 1],
+  ['import.meta.glob', 'client/src/a.ts', "export const m = import.meta.glob(['../../server/seed/*.json']);", 1],
+  ['type 이라는 이름의 기본 import', 'client/src/a.ts', "import type from '../../server/seed/types.json';", 1],
+  ['CSS url 사진 따옴표', 'client/src/styles/a.css', ".a { background: url('/assets/photos/cage.webp'); }", 1],
+  ['CSS url 품목 따옴표 없음', 'client/src/a.css', '.a {\n  background-image: url(/assets/items/x.webp);\n}', 2],
+]) {
+  test(`C6-IMG-SPECIES-SRC: ${name} → FAIL`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    expectFail(res, 'C6-IMG-SPECIES-SRC');
+    assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === line), JSON.stringify(srcPhotoOf(res)));
+  });
+}
+for (const [name, rel, body] of [
+  ['import type 시드', 'client/src/a.ts', "import type P from '../../server/seed/photos.json';\nexport type { Q } from '../../server/seed/types.json';"],
+  ['typeof import 시드', 'client/src/a.ts', "export type P = typeof import('../../server/seed/photos.json');"],
+  ['테스트 파일 시드 import', 'client/src/a.test.ts', "import p from '../../server/seed/photos.json';"],
+  ['주석 안 시드 import', 'client/src/a.ts', "// import p from '../../server/seed/photos.json';\nexport const P = 1;"],
+  ['client 안의 seed 폴더', 'client/src/a.ts', "import p from './seed/x';\nexport const P = p;"],
+  ['CSS 주석 안 url', 'client/src/a.css', '/* url(/assets/photos/x.webp) */\n.a { color: red; }'],
+  ['CSS 다른 asset url', 'client/src/a.css', '.a { background: url(/assets/mascot/x.svg); }'],
+]) {
+  test(`C6-IMG-SPECIES-SRC clean: ${name}`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    assert.deepEqual(srcPhotoOf(res), []);
+    expectClean(res);
+  });
+}

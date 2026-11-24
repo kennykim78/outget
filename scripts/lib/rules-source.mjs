@@ -980,6 +980,30 @@ const PHOTO_SRC_SCOPE = (rel) => (rel.startsWith('client/src/') || rel.startsWit
 const PHOTO_ASSET_LITERAL_RE = /\/assets\/(?:photos|items)\//;
 const PHOTO_SELECT_IDENT_RE = /(?<![\w$])(?:HOME_A_SCENE_PHOTOS|TYPE_SCENE_PHOTOS|ITEM_SCENE_PHOTOS|resolveScenePhoto|resolvePhoto|scenePhotoIdFor)(?![\w$])/;
 
+// 365 후속: client/src 의 시드 직접 import(type 전용 제외)와 CSS url(/assets/photos|items/)도 같은 규칙으로 FAIL.
+const SEED_PATH_RE = /(?:^|\/)server\/seed(?:-draft)?(?:\/|$|\?)/;
+const TYPE_ONLY_RE = /\b(?:import|export)\s+type\s+(?!from\b)[^;'"`]*?\bfrom\s*(['"])[^'"\n]*\1|\btypeof\s+import\s*\([^)]*\)/g;
+const blankKeepLines = (m) => m.replace(/[^\r\n]/g, ' ');
+const lineAt = (src, i) => src.slice(0, i).split('\n').length;
+function seedImportLines(code) {
+  const src = code.replace(TYPE_ONLY_RE, blankKeepLines);
+  const out = new Set();
+  for (const m of src.matchAll(/(?:\bfrom|\bimport|\brequire)\s*(?:\(\s*)?(['"`])([^'"`\n]*)\1/g)) {
+    if (SEED_PATH_RE.test(m[2])) out.add(lineAt(src, m.index + m[0].length));
+  }
+  for (const m of src.matchAll(/\bimport\.meta\.glob(?:<[^>]*>)?\s*\(([^)]*)\)/g)) {
+    for (const q of m[1].matchAll(/(['"`])([^'"`\n]*)\1/g)) if (SEED_PATH_RE.test(q[2])) out.add(lineAt(src, m.index));
+  }
+  return [...out];
+}
+const CSS_PHOTO_URL_RE = /url\(\s*['"]?[^'")]*\/assets\/(?:photos|items)\//gi;
+function scanClientCss(rel, text, add) {
+  const src = text.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, blankKeepLines);
+  for (const m of src.matchAll(CSS_PHOTO_URL_RE)) {
+    add('C6-IMG-SPECIES-SRC', 'FAIL', rel, lineAt(src, m.index), 'CSS url() 로 사진·품목 asset 을 고정하지 않는다 — 사진은 ws-data(PublicPhoto.asset)로만');
+  }
+}
+
 // ── 코드 파일 ───────────────────────────────────────────────
 function scanCode(rel, text, ctx) {
   const { add, bw } = ctx;
@@ -1119,6 +1143,7 @@ function scanCode(rel, text, ctx) {
       for (const s of strings) {
         if (PHOTO_ASSET_LITERAL_RE.test(s.text)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, s.line, '사진 asset 경로는 ws-data(PublicPhoto.asset)로만 — 클라이언트 소스에 고정하지 않는다');
       }
+      for (const n of seedImportLines(code)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, n, 'client/src 는 server/seed·seed-draft 를 import 하지 않는다 — 데이터는 ws-data 로만');
       bareL.forEach((l, i) => {
         if (PHOTO_SELECT_IDENT_RE.test(l)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, i + 1, '장면 표·사진 선택은 서버(엔진 resolvePhoto) 한 곳 — 클라이언트에서 참조하지 않는다');
       });
@@ -1528,6 +1553,7 @@ export function scanSources(root, ctx, notes) {
       scanPackage(rel, text, ctx);
     }
     if (rel === 'client/index.html') scanSourceHtml(rel, text, add);
+    if (ext === '.css' && rel.startsWith('client/src/')) scanClientCss(rel, text, add);
     if (CODE_EXT.has(ext)) scanCode(rel, text, ctx);
     else if (ext === '.prisma' && rel.startsWith('server/prisma/')) scanPrisma(rel, text, ctx);
     else if (ext === '.json' && rel.startsWith('server/seed/') && !rel.slice('server/seed/'.length).includes('/')) scanSeedFile(rel, text, { ...ctx, root });
