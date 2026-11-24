@@ -19,6 +19,7 @@
     { "term": "랭킹", "pattern": "랭킹" },
     { "term": "판매량", "pattern": "판매량" },
     { "term": "1위", "pattern": "1위" },
+    { "term": "인기", "pattern": "(?<!확)인기" },
     { "term": "BEST", "pattern": "BEST" },
     { "term": "인기 상품", "pattern": "인기\\s*상품" },
     { "term": "인기순", "pattern": "인기\\s*순" },

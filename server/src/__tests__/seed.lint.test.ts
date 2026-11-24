@@ -134,6 +134,13 @@ describe('lintText — 순위·판매 계열 금지어', () => {
   it.each(phrases)('%s → L01(붙여 써도)', (p) => {
     for (const t of [p, p.replace(' ', '')]) expect(lintText(`${t} 쳇바퀴`)).toContainEqual({ rule: 'L01', term: p });
   });
+  const popular = ['인', '기'].join('');
+  it('단독 2자 표현 → L01', () => {
+    expect(lintText(`${popular} 쳇바퀴`)).toContainEqual({ rule: 'L01', term: popular });
+  });
+  it('기존 문구(교차 확인 기록 · 규격 확인+기니피그, 태그 경계 붙음 포함)는 통과', () => {
+    for (const t of ['교차 확인 기록', '규격 확인 기니피그 기준', '케이지 규격 확인기니피그 기준']) expect(lintText(t), t).toEqual([]);
+  });
   it('소문자 best(코드 식별자)는 대상 아님', () => {
     expect(lintText('best')).toEqual([]);
   });
