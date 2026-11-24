@@ -4348,6 +4348,19 @@ for (const [name, rel, body] of [
   ['client ts 객체 값', 'client/src/home/x.ts', 'export const M = { cage: "ph-08" };'],
   ['client JSX 속성', 'client/src/y.tsx', 'export const Y = () => <span data-ws-photo="ph-01" />;'],
   ['프리렌더 템플릿 문자열', 'server/src/prerender/pages/x.ts', 'export const h = `<span data-ws-photo="ph-12"></span>`;'],
+  // 363(감사 361 결함 1): 대상 확장자 js/jsx/mjs 등 + client/src 의 asset 경로 리터럴·장면 표/선택 식별자
+  ['client js', 'client/src/x.js', "export const P = 'ph-03';"],
+  ['client jsx', 'client/src/x.jsx', "export const P = 'ph-03';"],
+  ['client mjs', 'client/src/x.mjs', "export const P = 'ph-03';"],
+  ['프리렌더 mjs', 'server/src/prerender/x.mjs', "export const P = 'ph-03';"],
+  ['client asset 사진 경로', 'client/src/a.tsx', "export const A = '/assets/photos/cage.webp';"],
+  ['client asset 품목 경로', 'client/src/a.ts', 'export const A = `/assets/items/${1}.webp`;'],
+  ['client HOME_A_SCENE_PHOTOS', 'client/src/b.ts', "import { HOME_A_SCENE_PHOTOS } from '@ws/engine';"],
+  ['client TYPE_SCENE_PHOTOS', 'client/src/b.ts', 'export const T = E.TYPE_SCENE_PHOTOS;'],
+  ['client ITEM_SCENE_PHOTOS', 'client/src/b.ts', 'export const T = E.ITEM_SCENE_PHOTOS;'],
+  ['client resolveScenePhoto', 'client/src/b.ts', 'export const T = resolveScenePhoto(1);'],
+  ['client resolvePhoto', 'client/src/b.tsx', 'export const T = resolvePhoto(1);'],
+  ['client scenePhotoIdFor', 'client/src/b.js', 'export const T = scenePhotoIdFor(1);'],
 ]) {
   test(`C6-IMG-SPECIES-SRC: ${name} → FAIL`, async () => {
     const res = await scanSrcPhoto(rel, body);
@@ -4361,6 +4374,12 @@ for (const [name, rel, body] of [
   ['주석 안 id', 'client/src/z.ts', '// 예전에는 ph-03 을 고정했다\nexport const P = 1;'],
   ['엔진 장면 표는 대상 밖', 'server/src/engine/photo-resolve.ts', "export const S = ['ph-08'];"],
   ['두 자리가 아닌 id', 'client/src/w.ts', "export const P = 'ph-cp-syrian-cage';"],
+  ['주석 안 식별자', 'client/src/c.ts', '// engine resolvePhoto → publicPhotoOf\nexport const P = 1;'],
+  ['주석 안 asset 경로', 'client/src/c.ts', '// /assets/photos/x.webp\nexport const P = 1;'],
+  ['테스트 파일 asset 경로·식별자', 'client/src/c.test.tsx', "const a = '/assets/items/fx.webp'; resolvePhoto(a);"],
+  ['프리렌더의 resolvePhoto 는 허용(서버 선택 한 곳)', 'server/src/prerender/p.ts', 'export const T = resolvePhoto(1);'],
+  ['다른 asset 경로', 'client/src/c.ts', "export const A = '/assets/mascot/x.svg';"],
+  ['비슷한 이름 식별자', 'client/src/c.ts', 'export const resolvePhotoLabel = 1;'],
 ]) {
   test(`C6-IMG-SPECIES-SRC clean: ${name}`, async () => {
     const res = await scanSrcPhoto(rel, body);

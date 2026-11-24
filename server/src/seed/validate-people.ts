@@ -257,6 +257,7 @@ function checkPhotoCoverage(ctx: Ctx): void {
  * I08(359 H4) — 품목 단위(ITEM: 종·프로필 없이 supplyItemId 만) 사진 행은 그 품목을 요구하는 모든 종 화면에 같은 사진을 붙인다.
  *   요구 프로필이 두 그룹 이상(예: water — SMALL_MAMMAL·PARROT)에 걸치는 품목이면 다른 동물의 용품 사진이 섞이므로 ERROR —
  *   케어프로필 단위 행(careProfileId + supplyItemId)으로 나눈다. 프로필의 그룹은 그 프로필을 쓰는 AnimalType.group 으로 본다.
+ *   363: 한 그룹이어도 요구 프로필 2개 이상의 minSpec 규칙이 다르면(예: bird-cage — 소형·중형 앵무 새장 규격) 같은 ERROR.
  */
 function checkPhotoItemGroups(ctx: Ctx): void {
   const groupsOfProfile = new Map<string, Set<string>>();
@@ -274,6 +275,17 @@ function checkPhotoItemGroups(ctx: Ctx): void {
     }
     return [...out].sort();
   };
+  // 363(감사 361 신규 MED): 요구 프로필 2개 이상이 minSpec 규칙을 달리하면(그룹이 하나여도) 다른 규격 용품 사진이 섞인다.
+  //   비교는 규칙의 key·op·value·when 만(reason 문구 제외), 규칙 순서 무관.
+  const profilesByRules = (item: string): Map<string, string[]> => {
+    const byRules = new Map<string, string[]>();
+    for (const { rec } of ctx.rows.supplyRequirements) {
+      if (rec.supplyItemId !== item || !isNonEmptyStr(rec.careProfileId)) continue;
+      const key = minSpecRulesKey(rec.minSpec);
+      byRules.set(key, [...(byRules.get(key) ?? []), rec.careProfileId]);
+    }
+    return byRules;
+  };
   for (const { rec, id } of ctx.rows.photos) {
     const s = asRec(rec.scope);
     if (!s || s.use !== 'item' || !isNonEmptyStr(s.supplyItemId)) continue;
@@ -281,8 +293,29 @@ function checkPhotoItemGroups(ctx: Ctx): void {
     const groups = groupsOfItem(s.supplyItemId);
     if (groups.length >= 2) {
       ctx.out.error('I08', 'photos', id, 'scope', `품목 "${s.supplyItemId}" 는 여러 그룹(${groups.join('·')})이 요구한다 — 품목 단위 행 대신 케어프로필 단위 행(careProfileId)으로 나눈다(다른 동물 용품 사진 혼입 금지)`);
+      continue;
+    }
+    const byRules = profilesByRules(s.supplyItemId);
+    if (byRules.size >= 2) {
+      const profiles = [...byRules.values()].flat().sort();
+      ctx.out.error('I08', 'photos', id, 'scope', `품목 "${s.supplyItemId}" 는 요구 프로필(${profiles.join('·')})마다 minSpec 규칙이 다르다 — 품목 단위 행 대신 케어프로필 단위 행(careProfileId)으로 나눈다(다른 규격 용품 사진 혼입 금지)`);
     }
   }
+}
+
+/** minSpec.rules 의 비교 키 — 규칙마다 reason 을 뺀 key·op·value·when 을 키 정렬 JSON 으로, 규칙 순서 무관. */
+function minSpecRulesKey(minSpec: unknown): string {
+  const canon = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(canon);
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(o).filter((k) => k !== 'reason').sort().map((k) => [k, canon(o[k])]));
+    }
+    return v;
+  };
+  const rules = asRec(minSpec)?.rules;
+  const list = Array.isArray(rules) ? rules.map((r) => JSON.stringify(canon(r))).sort() : [];
+  return JSON.stringify(list);
 }
 
 export function checkPeople(ctx: Ctx): void {

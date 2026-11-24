@@ -1,10 +1,10 @@
 // L4 용품 상세(UX §4 L4 · 스펙33 §5.1 · 계획 F1-2). 데이터는 같은 문서 ws-data(useLayerPage)만 — 재판정·재정렬 없음.
-//   R4-4(R4 시안 l4_supply — 규격 → 검수 → 상인 링크): (고지 B) → 「{동물} · {용품}」 → 메타 행 → 사진 자리(PhotoTile 빈 블록)
+//   R4-4(R4 시안 l4_supply — 규격 → 검수 → 상인 링크): (고지 B) → 「{동물} · {용품}」 → 메타 행 → 사진 자리(PhotoTile, 사용 가능 사진 없으면 빈 블록)
 //   → (NOT_NOW 이유) → 왜 → 조건(최소|권장 표 + ruleText 목록) → 주의 → 피할 것 → 대안 → 내 케이지 서브카드 → [준비했어요]
 //   → 이 항목에 맞는 준비물(ws-data 순서 앞 3) → 검수 내용(마지막 검수 · 출처 · 👍⚠) → 이 조건으로 찾기(SearchBlock, 상인 링크).
 //   꼬리: [규격 확인](채움, → L5) | [이 조건으로 찾기](아웃라인, → SearchBlock 스크롤·머리 포커스, D-36).
 //   가격·판매처명·"구매"·마스코트 0(불변식 ③⑤). 규격 문장은 엔진 ruleText·chipSpecText·specLine 단일 소스(C-R5-8).
-//   사진은 photos.json 슬롯(전부 SLOT → 빈 블록, 생성 이미지 커밋 금지 ①) — 프리렌더 layerL4 와 같은 자리.
+//   사진은 ws-data 의 requirement.photo(서버 엔진 resolvePhoto 가 고른 PublicPhoto, 없으면 빈 블록) — 프리렌더 layerL4 와 같은 자리(363).
 import { useId, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { COPY } from '@ws/copy';
 import { SPEC_WORDS, chipSpecText, ruleText, specLine, type PublicRequirement, type SpecSchema, type SpecRule } from '@ws/engine';

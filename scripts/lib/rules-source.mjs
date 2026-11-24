@@ -974,7 +974,11 @@ function lines(s) {
 // C6-IMG-SPECIES-SRC(359) — 사진 id 를 화면 경로 소스에 적으면 종 범위를 우회한다. 사진은 ws-data(엔진 resolvePhoto 결과)로만.
 //   장면 표를 가진 server/src/engine/photo-resolve.ts 는 대상 경로(client/src·server/src/prerender) 밖이다.
 const PHOTO_ID_LITERAL_RE = /(?<![A-Za-z0-9_-])ph-\d{2}(?![A-Za-z0-9_-])/;
-const PHOTO_SRC_SCOPE = (rel) => (rel.startsWith('client/src/') || rel.startsWith('server/src/prerender/')) && /\.tsx?$/.test(rel) && !isTestFile(rel);
+//   363(감사 361 결함 1): 대상 확장자를 ts/tsx 에서 [cm]?[jt]sx? 전부로. client/src 는 asset 사진·품목 경로 리터럴과
+//   장면 표·사진 선택 식별자도 FAIL(클라이언트는 재판정하지 않는다 — 서버 prerender 의 resolvePhoto 호출은 허용).
+const PHOTO_SRC_SCOPE = (rel) => (rel.startsWith('client/src/') || rel.startsWith('server/src/prerender/')) && /\.[cm]?[jt]sx?$/.test(rel) && !isTestFile(rel);
+const PHOTO_ASSET_LITERAL_RE = /\/assets\/(?:photos|items)\//;
+const PHOTO_SELECT_IDENT_RE = /(?<![\w$])(?:HOME_A_SCENE_PHOTOS|TYPE_SCENE_PHOTOS|ITEM_SCENE_PHOTOS|resolveScenePhoto|resolvePhoto|scenePhotoIdFor)(?![\w$])/;
 
 // ── 코드 파일 ───────────────────────────────────────────────
 function scanCode(rel, text, ctx) {
@@ -1110,6 +1114,14 @@ function scanCode(rel, text, ctx) {
   if (PHOTO_SRC_SCOPE(rel)) {
     for (const s of strings) {
       if (PHOTO_ID_LITERAL_RE.test(s.text)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, s.line, '사진 id 는 ws-data(엔진 resolvePhoto)로만 — 소스에 고정하지 않는다');
+    }
+    if (rel.startsWith('client/src/')) {
+      for (const s of strings) {
+        if (PHOTO_ASSET_LITERAL_RE.test(s.text)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, s.line, '사진 asset 경로는 ws-data(PublicPhoto.asset)로만 — 클라이언트 소스에 고정하지 않는다');
+      }
+      bareL.forEach((l, i) => {
+        if (PHOTO_SELECT_IDENT_RE.test(l)) add('C6-IMG-SPECIES-SRC', 'FAIL', rel, i + 1, '장면 표·사진 선택은 서버(엔진 resolvePhoto) 한 곳 — 클라이언트에서 참조하지 않는다');
+      });
     }
   }
 

@@ -475,6 +475,28 @@ describe('validate 사진 scope·자리 전수', () => {
     expect(rulesOf(scoped({ use: 'item', animalTypeId: 'budgie', supplyItemId: 'water' }), 'I08')).toEqual([]);
   });
 
+  // 363(감사 361 신규 MED): 한 그룹 안이라도 요구 프로필 2개 이상이 minSpec 규칙(key·op·value·when — reason 문구 제외)을 달리하면
+  //   ITEM 단위 행 하나가 다른 규격 용품 사진을 섞는다 → I08 ERROR. 규칙이 같으면(cage-cover·perch) 통과.
+  it('I08: 요구 프로필 2개 이상 ∧ minSpec 규칙 상이 품목의 ITEM 단위 행은 ERROR(bird-cage), 규칙 동일은 통과', () => {
+    const cage = rulesOf(scoped({ use: 'item', supplyItemId: 'bird-cage' }), 'I08');
+    expect(cage.length).toBe(1);
+    expect(cage[0].message).toMatch(/minSpec/);
+    expect(cage[0].message).toMatch(/cp-parrot-medium/);
+    expect(cage[0].message).toMatch(/cp-parrot-small/);
+    expect(rulesOf(scoped({ use: 'item', supplyItemId: 'cage-cover' }), 'I08')).toEqual([]);
+    expect(rulesOf(scoped({ use: 'item', supplyItemId: 'perch' }), 'I08')).toEqual([]);
+    // 한 그룹(SMALL_MAMMAL) 안 여러 프로필 + 규칙 상이(cage)도 같은 이유로 ERROR.
+    expect(rulesOf(scoped({ use: 'item', supplyItemId: 'cage' }), 'I08').length).toBe(1);
+    // 프로필 단위 행은 대상 아님.
+    expect(rulesOf(scoped({ use: 'item', careProfileId: 'cp-parrot-medium', supplyItemId: 'bird-cage' }), 'I08')).toEqual([]);
+    // 실시드: bird-cage 는 프로필 단위 2행(SLOT), ITEM 단위 행 0.
+    const rows = (BASE_SEED.photos as Rec[]).filter((r) => (r.scope as Rec | undefined)?.supplyItemId === 'bird-cage');
+    expect(rows.map((r) => [r.id, (r.scope as Rec).careProfileId, r.status])).toEqual([
+      ['ph-parrot-small-bird-cage', 'cp-parrot-small', 'SLOT'],
+      ['ph-parrot-medium-bird-cage', 'cp-parrot-medium', 'SLOT'],
+    ]);
+  });
+
   it('I07: 사용 가능 AI 행이 자리를 채우면 빈 칸 수가 준다', () => {
     const count = (s: Required<RawSeed>) => {
       const w = validateSeed(s, { now: NOW }).warnings.find((i) => i.rule === 'I07');

@@ -360,9 +360,9 @@
     }
   },
   {
-    "id": "ph-item-bird-cage",
-    "scene": "새장 물건 사진(동물 없음)",
-    "slot": "item-bird-cage",
+    "id": "ph-parrot-small-bird-cage",
+    "scene": "소형 앵무용 새장 물건 사진(동물 없음)",
+    "slot": "parrot-small-bird-cage",
     "query": "bird cage product",
     "source": null,
     "license": null,
@@ -373,6 +373,25 @@
     "status": "SLOT",
     "scope": {
       "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "bird-cage"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-bird-cage",
+    "scene": "중형 앵무용 새장 물건 사진(동물 없음)",
+    "slot": "parrot-medium-bird-cage",
+    "query": "bird cage product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
       "supplyItemId": "bird-cage"
     }
   },

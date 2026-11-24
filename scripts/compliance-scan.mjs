@@ -18,7 +18,7 @@
 //       C9-PRIVACY(/privacy 존재·모든 라우트 링크·기간 숫자 = server/src/privacy/policy.ts FAIL, {{KENNY: 자리표시 WARN — 차단은 운영 기동 검사; 294 manifest.privacyPage:false 면 /privacy·링크·자리표시 0·비공개를 FAIL 로) · C0-SEED C0-OUTPUT ·
 //       C9-TIPS(301 — /tips 고지 원문·외부 a rel ugc·검수 라벨 0·팁 id 는 노출 타입 /tips 에만; C1-SEEDURL 은 budget-tips references[i].url 글 페이지만 예외, REFERENCE 행 어간 FAIL) ·
 //       C9-GENERAL(356 — 코드 고정 6종 라우트 렌더 HTML 에 일반 참고 정보 고지 원문 1회, 그 밖 타입 라우트 0; C3-OUT-REVIEWMETA 는 데이터 산출물 AI_DRAFT 0·카탈로그 GENERAL_INFO 행 generalInfo:true 표기) ·
-//       C6-IMG-SPECIES(359 — 라우트 HTML·ws-data 사진 id 가 그 라우트 종·프로필·품목 범위와 자리 안, 장면 행은 장면 허용 종만, 사용 불가 id 0; 소스 짝 C6-IMG-SPECIES-SRC: client/src·server/src/prerender 비테스트 ts/tsx 문자열에 고정 사진 id 0) ·
+//       C6-IMG-SPECIES(359 — 라우트 HTML·ws-data 사진 id 가 그 라우트 종·프로필·품목 범위와 자리 안, 장면 행은 장면 허용 종만, 사용 불가 id 0; 소스 짝 C6-IMG-SPECIES-SRC: client/src·server/src/prerender 비테스트 [cm]?[jt]sx? 문자열에 고정 사진 id 0, client/src 는 /assets/(photos|items)/ 리터럴·장면 표·사진 선택 식별자도 0 — 363) ·
 //       C10-AFF-IMPORT C10-AFF-RUNTIME(WARN) C10-AFF-HOST C10-AFF-REDIRECT C10-AFF-FIELD C10-AFF-OUT(258 단계 7 — 검색 딥링크 제휴 격리, scripts/lib/rules-affiliate.mjs)
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
