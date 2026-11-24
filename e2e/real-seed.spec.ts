@@ -14,7 +14,10 @@ const SEED_TYPES = JSON.parse(readFileSync(join(__dirname, '../server/seed/anima
 const ACTIVE = SEED_TYPES.filter((t) => t.status === 'ACTIVE');
 const ACTIVE_IDS = ACTIVE.map((t) => t.id).sort();
 const ACTIVE_PATHS = ACTIVE.map((t) => '/' + t.slug);
-const PLANNED_PATHS = [...SEED_TYPES.filter((t) => t.status !== 'ACTIVE').map((t) => '/' + t.slug), '/parrot'];
+// 그룹 경로(/hamster·/parrot 등)는 ACTIVE 종이 하나라도 있으면 노출, 하나도 없으면 PLANNED(404). 2026-11-25 6종 활성화로 /parrot 고정 404 가정이 낡음(가드 약화 아님).
+const ACTIVE_GROUPS = new Set(ACTIVE.map((t) => '/' + t.slug.split('/')[0]));
+const PLANNED_GROUPS = [...new Set(SEED_TYPES.map((t) => '/' + t.slug.split('/')[0]))].filter((g) => !ACTIVE_GROUPS.has(g));
+const PLANNED_PATHS = [...SEED_TYPES.filter((t) => t.status !== 'ACTIVE').map((t) => '/' + t.slug), ...PLANNED_GROUPS];
 
 test('실시드: / 200 · 홈 types = 시드 ACTIVE · 금지어 0', async ({ page, request }) => {
   const res = await request.get('/');
@@ -41,7 +44,7 @@ test('실시드: sitemap 타입 URL 은 ACTIVE 만 · robots Disallow', async ({
   const locs = Array.from((await sm.text()).matchAll(/<loc>([^<]+)<\/loc>/g), (m) => new URL(m[1]).pathname);
   for (const p of ACTIVE_PATHS) expect(locs).toContain(p);
   // 타입·그룹·타입 하위 경로는 ACTIVE 종(과 그룹 /hamster)뿐 — PLANNED 종 경로 0.
-  const isActive = (p: string) => p === '/hamster' || ACTIVE_PATHS.some((a) => p === a || p.startsWith(a + '/'));
+  const isActive = (p: string) => ACTIVE_GROUPS.has(p) || ACTIVE_PATHS.some((a) => p === a || p.startsWith(a + '/'));
   expect(locs.filter((p) => /^\/(hamster|gerbil|guinea-pig|parrot)(\/|$)/.test(p) && !isActive(p))).toEqual([]);
   const robots = await request.get('/robots.txt');
   expect(robots.status()).toBe(200);
