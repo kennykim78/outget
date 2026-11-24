@@ -190,6 +190,9 @@ export function feedJsonPath(slug: string, itemId: string, stage: FeedLiveStage)
   return `/${feedJsonFile(slug, itemId, stage)}`;
 }
 
+/** 피드 산출물 목록 파일(dist 최상위) — 빌드(site.ts)가 쓰고 런타임(spa.ts)이 읽는다. */
+export const FEED_MANIFEST_FILE = 'feed-manifest.json';
+
 /** 페이지 HTML 변형 파일 이름(기본 파일 = 피드 없음 = 피드 꺼짐 빌드와 바이트 동일). */
 export const FEED_PAGE_VARIANT: Readonly<Record<FeedLiveStage, string>> = Object.freeze({ full: 'index.feed.html', noprice: 'index.feed-noprice.html' });
 

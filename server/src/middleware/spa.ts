@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import express, { type Express, type Request, type RequestHandler, type Response } from 'express';
 import { decode, ENCODING_SUFFIX, type Encoding, isPrecompressible } from '../prerender/compress.js';
 import { resolveClientDist } from '../config/env.js';
+import { FEED_MANIFEST_FILE, feedStage, feedVariantFile, parseFeedInstant, type FeedStage } from '../engine/feed-types.js';
+import { FEED_IMAGE_HOSTS } from '../engine/providers.js';
+import type { FeedManifest } from '../engine/public.js';
 
 // SPA(클라이언트 빌드) 정적 서빙 — 동일 오리진 단일 컨테이너 배포 전용.
 //   app.ts 에서 NODE_ENV==='production' 일 때만 mountSpa(app) 으로 마운트한다.
@@ -48,9 +51,67 @@ export const VET_CSP = [
   ...CSP_COMMON_TAIL,
 ].join('; ');
 
+/**
+ * 362 N11(353 §7): 피드 이미지 핫링크 호스트 — 런타임 env WS_FEED_IMG_HOSTS(쉼표 구분). 빈 값(기본) = SPA_CSP 바이트 동일.
+ *   각 값은 엔진 상수 FEED_IMAGE_HOSTS(공급자별) 의 항목과 정확히 같아야 한다 — 아니면 기동 거부(fail-closed).
+ *   VET_CSP 는 바꾸지 않는다. 와일드카드 단독('*')·스킴·경로·포트 값은 상수에 없으므로 같은 규칙으로 거부된다.
+ */
+export const FEED_IMG_HOSTS_ENV = 'WS_FEED_IMG_HOSTS';
+export function parseFeedImgHosts(raw: string | undefined): string[] {
+  const vals = (raw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+  const allowed = new Set<string>(Object.values(FEED_IMAGE_HOSTS).flat());
+  const bad = vals.filter((v) => !allowed.has(v));
+  if (bad.length > 0) throw new Error(`${FEED_IMG_HOSTS_ENV}: FEED_IMAGE_HOSTS 밖 값 ${bad.length}개 — 기동 거부`);
+  return [...new Set(vals)];
+}
+
+/** 피드 호스트를 더한 SPA CSP(호스트 0 이면 SPA_CSP 그대로). */
+export function spaCsp(feedImgHosts: readonly string[] = []): string {
+  if (feedImgHosts.length === 0) return SPA_CSP;
+  return SPA_CSP.replace("img-src 'self' data: blob:", `img-src 'self' data: blob: ${feedImgHosts.map((h) => `https://${h}`).join(' ')}`);
+}
+
 /** 정규화된 요청 경로 → CSP. 지도 호스트는 /vet 과 그 하위만. */
-export function cspForPath(p: string): string {
-  return p === '/vet' || p.startsWith('/vet/') ? VET_CSP : SPA_CSP;
+export function cspForPath(p: string, feedImgHosts: readonly string[] = []): string {
+  return p === '/vet' || p.startsWith('/vet/') ? VET_CSP : spaCsp(feedImgHosts);
+}
+
+// ── 362 N11: 피드 변형 선택(353 §6-3) — 요청 시각 기준 파일 선택만(외부 호출 0) ───────────────
+/** 변형 HTML·피드 JSON(+사전 압축본) — 직접 요청은 막고, 서버가 단계에 맞춰 고른다. */
+//   넓게 잡는다(대소문자·뒤 점/공백·ADS 접미 — Windows 파일 시스템 우회 포함): 변형 HTML 은 어떤 꼴이든 404,
+//   피드 JSON 은 manifest 목록과 정확히 같은 이름(+.br/.gz)만 통과.
+const FEED_PAGE_FILE_RE = /(?:^|\/)index\.feed/i;
+const FEED_JSON_FILE_RE = /(?:^|\/)feed\/[^/]*\.json/i;
+
+interface LoadedFeedManifest {
+  generatedAt: string;
+  json: { full: ReadonlySet<string>; noprice: ReadonlySet<string> };
+  pages: { full: ReadonlySet<string>; noprice: ReadonlySet<string> };
+}
+
+/** feed-manifest.json → 단계별 파일 집합(dist 상대 posix). 없음 → null, 손상 → 'bad'(변형·JSON 전부 차단, fail-closed). */
+function loadFeedManifest(clientDist: string): LoadedFeedManifest | null | 'bad' {
+  const p = path.join(clientDist, FEED_MANIFEST_FILE);
+  if (!fs.existsSync(p)) return null;
+  let m: unknown;
+  try {
+    m = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return 'bad';
+  }
+  const o = m as Partial<FeedManifest> | null;
+  if (typeof o !== 'object' || o === null || o.v !== 1 || parseFeedInstant(o.generatedAt) === null) return 'bad';
+  const set = (x: unknown): Set<string> | null =>
+    Array.isArray(x) && x.every((f) => typeof f === 'string' && containedFile(clientDist, f) !== null) ? new Set(x as string[]) : null;
+  const jf = set(o.variants?.full);
+  const jn = set(o.variants?.noprice);
+  const pf = set(o.pages?.full);
+  const pn = set(o.pages?.noprice);
+  if (!jf || !jn || !pf || !pn) return 'bad';
+  return { generatedAt: o.generatedAt as string, json: { full: jf, noprice: jn }, pages: { full: pf, noprice: pn } };
 }
 
 // 정적 자산이 아닌, SPA 라우팅 대상이 되는 HTML GET 요청인지 판별.
@@ -100,6 +161,8 @@ export function normalizeRequestPath(raw: string): NormalizedPath {
 
 interface ManifestRoute {
   file: string;
+  /** dist 상대 posix(manifest 원문) — 피드 변형 이름 계산용. */
+  rel: string;
   status: number;
 }
 
@@ -120,7 +183,7 @@ function loadManifest(clientDist: string): Map<string, ManifestRoute> | null {
     if (typeof r?.path !== 'string' || typeof r.file !== 'string') continue;
     const abs = containedFile(clientDist, r.file);
     if (!abs) continue;
-    out.set(r.path.normalize('NFC'), { file: abs, status: r.kind === 'NOT_FOUND' ? 404 : 200 });
+    out.set(r.path.normalize('NFC'), { file: abs, rel: r.file, status: r.kind === 'NOT_FOUND' ? 404 : 200 });
   }
   return out;
 }
@@ -261,6 +324,10 @@ function sendNegotiated(req: Request, res: Response, file: string, cache: Map<st
 export interface MountSpaOptions {
   /** 테스트용. 기본은 resolveClientDist(process.env)(config/env.ts). */
   clientDist?: string;
+  /** 테스트용 시계(ms). 기본 Date.now — 피드 단계 판정에만 쓴다. */
+  nowMs?: () => number;
+  /** 테스트용 env. 기본 process.env — WS_FEED_IMG_HOSTS 만 읽는다. */
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
 export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
@@ -268,6 +335,63 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
   const indexHtml = path.join(clientDist, 'index.html');
   const manifest = loadManifest(clientDist);
   const variants = new Map<string, VariantCheck>();
+  const feedImgHosts = parseFeedImgHosts((opts.env ?? process.env)[FEED_IMG_HOSTS_ENV]); // 밖 값 → throw(기동 거부)
+  const SPA_CSP_HERE = spaCsp(feedImgHosts);
+  const cspFor = (p: string): string => cspForPath(p, feedImgHosts);
+  const nowMs = opts.nowMs ?? Date.now;
+  const feedMan = loadFeedManifest(clientDist);
+  const stageNow = (): FeedStage => (feedMan === null || feedMan === 'bad' ? 'nofeed' : feedStage(nowMs(), feedMan.generatedAt));
+
+  // N11: 변형 HTML 직접 요청 0, 피드 JSON 은 manifest 에 있고 지금 단계가 허용할 때만(full JSON = full 단계, noprice JSON = full·noprice).
+  //   그 밖(만료·manifest 없음·손상·목록 밖) → 다음 처리기로 넘기지 않고 404 경로(정적 서빙 앞에서 막는다).
+  const feedGuard: RequestHandler = (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next();
+      return;
+    }
+    let rel: string;
+    try {
+      rel = decodeURIComponent(req.path).replace(/^\/+/, '');
+    } catch {
+      next();
+      return;
+    }
+    const isPage = FEED_PAGE_FILE_RE.test(rel);
+    const isJson = !isPage && FEED_JSON_FILE_RE.test(rel);
+    if (!isPage && !isJson) {
+      next();
+      return;
+    }
+    if (isJson && feedMan !== null && feedMan !== 'bad') {
+      const base = rel.replace(/\.(?:br|gz)$/, '');
+      const st = stageNow();
+      if ((st === 'full' && feedMan.json.full.has(base)) || (st !== 'nofeed' && feedMan.json.noprice.has(base))) {
+        next();
+        return;
+      }
+    }
+    feedBlocked(req, res);
+  };
+  let feedBlocked: (req: Request, res: Response) => void = (_req, res) => {
+    res.status(404).type('text/plain').send('Not Found');
+  };
+  app.use(feedGuard);
+
+  /** 라우트 기본 파일 → 지금 단계의 변형(full 없으면 noprice, nofeed·목록 밖이면 기본). */
+  const pageFileFor = (r: ManifestRoute): string => {
+    if (feedMan === null || feedMan === 'bad') return r.file;
+    const st = stageNow();
+    if (st === 'nofeed') return r.file;
+    const order: Array<'full' | 'noprice'> = st === 'full' ? ['full', 'noprice'] : ['noprice'];
+    for (const s of order) {
+      const v = feedVariantFile(r.rel, s);
+      if (v !== null && feedMan.pages[s].has(v)) {
+        const abs = containedFile(clientDist, v);
+        if (abs && isRegularFile(abs)) return abs;
+      }
+    }
+    return r.file;
+  };
 
   // F2a: 정적 자산의 사전 압축본 — 원본이 dist 안의 실제 파일이고 사본이 검증될 때만. 아니면 express.static 이 원본.
   //   '..'·dot 세그먼트·역슬래시·NUL 은 손대지 않고 express.static 에 넘긴다(기존 거부 동작 유지).
@@ -344,10 +468,10 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
         return;
       }
       if (n.kind === 'ok') {
-        const csp = cspForPath(n.path);
+        const csp = cspFor(n.path);
         const r = manifest.get(n.path);
         if (r) {
-          sendHtml(req, res, r.file, r.status, csp);
+          sendHtml(req, res, pageFileFor(r), r.status, csp);
           return;
         }
         if (SPA_ONLY_PATHS.has(n.path)) {
@@ -357,8 +481,9 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
         sendHtml(req, res, notFound, 404, csp);
         return;
       }
-      sendHtml(req, res, notFound, 404, SPA_CSP);
+      sendHtml(req, res, notFound, 404, SPA_CSP_HERE);
     };
+    feedBlocked = (req, res) => sendHtml(req, res, notFound, 404, SPA_CSP_HERE);
     app.use(prerendered);
     return;
   }
@@ -380,7 +505,7 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
     // securityHeaders 의 default-src 'none' 을 SPA CSP 로 덮어쓴다.
     //   경로가 정규화되지 않으면(bad) 지도 호스트 없는 기본 CSP.
     const n = normalizeRequestPath(req.path);
-    res.setHeader('Content-Security-Policy', n.kind === 'ok' ? cspForPath(n.path) : SPA_CSP);
+    res.setHeader('Content-Security-Policy', n.kind === 'ok' ? cspFor(n.path) : SPA_CSP_HERE);
     sendNegotiated(req, res, indexHtml, variants, () => res.sendFile(indexHtml));
   };
 

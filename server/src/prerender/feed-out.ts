@@ -46,7 +46,8 @@ export interface FeedOutput {
   types: Map<string, FeedTypeOut>;
 }
 
-export const FEED_MANIFEST_FILE = 'feed-manifest.json';
+// N11: 런타임(spa.ts)도 읽는 이름이라 엔진 상수로 옮기고 여기선 다시 내보낸다(런타임이 prerender 모듈에 닿지 않게).
+export { FEED_MANIFEST_FILE } from '../engine/feed-types.js';
 /** C1 ③ — 피드 변형 페이지의 ws-data 증가 상한(바이트, `,"feed":` 포함). */
 export const FEED_WS_DATA_MAX_BYTES = 1536;
 const SAFE_SEG = /^[a-z0-9][a-z0-9-]*$/;
