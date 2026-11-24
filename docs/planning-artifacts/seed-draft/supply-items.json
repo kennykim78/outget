@@ -772,7 +772,7 @@
           "key": "resolutionG",
           "label": "눈금(g)",
           "type": "number",
-          "min": 0.1,
+          "min": 0.01,
           "max": 10,
           "optional": true
         }
