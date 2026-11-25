@@ -19,6 +19,7 @@ import {
   type PublicRequirement,
   type WsPageData,
 } from '@ws/engine';
+import { resetFeedTitleForTest } from './feedTitle';
 
 type Stage = 'full' | 'noprice';
 
@@ -125,6 +126,7 @@ const cache = new Map<string, Promise<Outcome>>();
 
 export function resetFeedCacheForTest(): void {
   cache.clear();
+  resetFeedTitleForTest();
 }
 
 function load(path: string, ex: FeedExpect): Promise<Outcome> {

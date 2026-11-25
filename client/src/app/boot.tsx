@@ -2,8 +2,10 @@
 //   main.tsx 와 F8 하이드레이션 테스트가 같은 경로를 쓴다. 첫 줄 = 매직링크 토큰 제거(captureMagicToken).
 import { StrictMode, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { COPY } from '@ws/copy';
 import App from '../App';
 import { captureMagicToken } from '../save/magicLink';
+import { rememberFeedPopular } from '../supply/feedTitle';
 import { firstScreenChunks } from './firstScreen';
 import { emptyPageData, readPageData } from './pageData';
 import { captureStatic, stripProductSurfaces } from './staticCapture';
@@ -36,6 +38,11 @@ export function boot(doc: Document, loc: Pick<Location, 'pathname'>): Root {
   const data = readPageData(doc);
   const page = data ?? emptyPageData(loc);
   const captured = captureStatic(rootEl, { stripProducts: data === null });
+  // 385(381 D2): 정적 L4 피드 블록 제목이 「많이 찾는 상품」이면 JSON 을 읽기 전에도 같은 제목 — 교체 렌더 전에 읽는다.
+  if (data?.layer?.kind === 'L4') {
+    const head = rootEl.querySelector('aside.ws-layer [data-ws-part="feed"] > h3');
+    rememberFeedPopular(data.layer.typeId, data.layer.itemId, head?.textContent === COPY.feed.title);
+  }
   if (data === null) stripProductSurfaces(rootEl); // 렌더 커밋 전 프레임에도 남기지 않는다
   const root = createRoot(rootEl);
   const render = (): void => {

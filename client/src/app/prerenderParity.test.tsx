@@ -10,6 +10,7 @@ import type { Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { COPY } from '@ws/copy';
 import type { RouteKind } from '@ws/engine';
+import { resetFeedCacheForTest } from '../supply/feedBlock';
 import { layerStore, readLayerState } from '../ui/layer/useLayer';
 import { boot } from './boot';
 import { readPageData } from './pageData';
@@ -873,6 +874,89 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
       vi.unstubAllGlobals();
       mockMedia();
     }
+  }, 60_000);
+
+  // 385(381 D2): popular 블록(시험 주입 허용 목록 — 제품 FEED_POPULAR_SORTS 는 빈 목록 그대로)의 제목은 하이드레이션·로딩·실패 내내 「많이 찾는 상품」.
+  it('popular 변형 L4 딥링크: 정적 → 로딩 → 실패 → 다시 시도 → 행 내내 제목 동일, 골격 차이 0', async () => {
+    const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ promoted: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    const eng = await import('@ws/engine');
+    const seed = fx.promoted() as Parameters<typeof eng.createCatalog>[0] & { animalTypes: Array<{ id: string }> };
+    const at = seed.animalTypes.find((a) => a.id === 'hamster-golden') as Parameters<typeof eng.buildSearchKeyword>[0];
+    const r = eng.resolveRequirement(eng.createCatalog(seed), 'hamster-golden', 'wheel');
+    if (!r) throw new Error('no requirement wheel');
+    const pop = siteMod.buildSite(fx.promoted(), {
+      template: TEMPLATE,
+      origin: 'http://localhost:3001',
+      seedDigest: 'a'.repeat(64),
+      asOf: fx.FIXTURE_AS_OF,
+      mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')),
+      productFeed: {
+        rows: [
+          {
+            provider: 'COUPANG',
+            animalTypeId: 'hamster-golden',
+            supplyItemId: 'wheel',
+            keyword: eng.buildSearchKeyword(at, r),
+            rank: 1,
+            title: '햄스터 쳇바퀴 30cm 통면 1호',
+            url: 'https://link.coupang.com/a/Mk1x',
+            imageUrl: null,
+            price: { amount: 12900, currency: 'KRW' },
+            fetchedAt: GEN,
+          },
+        ],
+        generatedAt: GEN,
+        buildAtMs: GEN_MS + H,
+        isTitleBanned: () => false,
+        sorts: { COUPANG: 'S' },
+        popularSorts: { COUPANG: ['S'], ALIEXPRESS: [] },
+      },
+    });
+    const title = (root_: string) => document.querySelector(`${root_} section[data-ws-part="feed"] > h3`)?.textContent;
+    for (const file of ['hamster/golden/supplies/wheel/index.feed.html', 'supplies/wheel/hamster-golden/index.feed.html']) {
+      resetFeedCacheForTest();
+      const pending: Array<(res: Response) => void> = [];
+      vi.stubGlobal('fetch', (input: string) =>
+        String(input).includes('/feed/') ? new Promise<Response>((res) => pending.push(res)) : Promise.resolve(new Response('', { status: 404 })),
+      );
+      const p = variant(pop, file);
+      loadStatic(p);
+      const stat = document.querySelector('section[data-ws-part="feed"]') as Element;
+      const before = skel(stat);
+      const beforeText = norm(stat.textContent);
+      expect(title('aside.ws-layer'), file).toBe(COPY.feed.title);
+      hydrate(p);
+      const dlg = '[role="dialog"]';
+      await waitFor(() => expect(pending).toHaveLength(1), { timeout: 15000 });
+      expect(document.querySelector(`${dlg} [data-ws-part="feed"] li.ws-feed-row`), file).toBeNull();
+      expect(title(dlg), `${file} 로딩`).toBe(COPY.feed.title);
+      await act(async () => pending[0]!(new Response('', { status: 500 })));
+      const retry = await waitFor(() => within(document.querySelector(`${dlg} [data-ws-part="feed"]`) as HTMLElement).getByRole('button', { name: COPY.feed.retry }));
+      expect(title(dlg), `${file} 실패`).toBe(COPY.feed.title);
+      act(() => {
+        fireEvent.click(retry);
+      });
+      await waitFor(() => expect(pending).toHaveLength(2));
+      expect(title(dlg), `${file} 다시 시도 로딩`).toBe(COPY.feed.title);
+      const json = pop.files.get('hamster/golden/feed/wheel.json');
+      expect(json).toBeDefined();
+      await act(async () => pending[1]!(new Response(json, { status: 200 })));
+      await waitFor(() => expect(document.querySelector(`${dlg} [data-ws-part="feed"] li.ws-feed-row`)).not.toBeNull());
+      const live = document.querySelector(`${dlg} section[data-ws-part="feed"]`) as Element;
+      const d: string[] = [];
+      diff(before, skel(live), 'feed', d);
+      expect(d, file).toEqual([]);
+      expect(norm(live.textContent), file).toBe(beforeText);
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+      vi.unstubAllGlobals();
+      mockMedia();
+    }
+    resetFeedCacheForTest();
   }, 60_000);
 });
 

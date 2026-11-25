@@ -78,4 +78,8 @@ describe('app.css static pages', () => {
     expect(appCss).toMatch(/@media \(min-width: 768px\)\s*\{[^@]*\.ws-layer-body\s*\{\s*padding:\s*var\(--ws-layer-pad\);/);
     expect(appCss).not.toMatch(/aside\.ws-layer\[data-ws-layer=/); // L4·L7 별도 위치 규칙 없음
   });
+
+  it('385(382 F2): 정적 L4(하이드레이션 전) 피드 블록은 앞 구획과 space 토큰만큼 뗀다 — 레이어(React)는 .ws-supply gap 그대로', () => {
+    expect(layersCss).toMatch(/aside\.ws-layer \.ws-feed\s*\{\s*margin-top:\s*var\(--ws-space-6\);\s*\}/);
+  });
 });

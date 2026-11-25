@@ -294,6 +294,11 @@
   flex-direction: column;
 }
 
+/* 385(382 F2): 정적 L4(하이드레이션 전·JS 끔)는 구획 사이 간격이 없어 블록 제목이 앞 「대안」 링크에 붙는다 — 레이어(React)는 .ws-supply gap. */
+aside.ws-layer .ws-feed {
+  margin-top: var(--ws-space-6);
+}
+
 .ws-feed-row {
   display: grid;
   grid-template-columns: calc(var(--ws-space-12) * 2) 1fr;
