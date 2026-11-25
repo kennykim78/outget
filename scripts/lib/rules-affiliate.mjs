@@ -61,6 +61,10 @@ export const FEED_LINK_RES = Object.freeze({
 });
 export const FEED_IMG_HOSTS = Object.freeze({ COUPANG: Object.freeze([]), ALIEXPRESS: Object.freeze(['ae01.alicdn.com']) });
 export const FEED_FILES = Object.freeze({ 'coupang.json': 'COUPANG', 'aliexpress.json': 'ALIEXPRESS' });
+// 380 S3: 「많이 찾는 상품」을 쓸 수 있는 인기순 확인 sort — 원본 server/src/engine/feed-types.ts FEED_POPULAR_SORTS(시험 대조). 지금 비어 있다.
+export const FEED_POPULAR_SORTS = Object.freeze({ COUPANG: Object.freeze([]), ALIEXPRESS: Object.freeze([]) });
+const FEED_POPULAR_TITLE = '많이 찾는 상품';
+const hasPopularSort = (allow) => Object.values(allow).some((v) => v.length > 0);
 // 373 D2: 제목 안 가격·날짜 — 원본 server/src/engine/feed-types.ts FEED_TITLE_PRICE_DATE(source·flags 시험 대조). 산출물에 남으면 FAIL.
 export const FEED_TITLE_PRICE_DATE =
   /\p{Sc}|\\\s*\d|\d\s*\\|(?<![a-z])(?:krw|usd|eur|jpy|cny|rmb|gbp)(?![a-z])|(?<![a-z])won\s*\d|\d\s*(?:달러|위안|유로|[円元圆])|\d\s*(?:won|엔|불)(?![a-z가-힣])|\d\s*(?:[십백천만억]\s*)+원|\d[\d,.]*\d\s*원|(?<![\d,.])\d\s*원(?!형|목|통|단|색|터치|피스)|(?<![가-힣])[일이삼사오육칠팔구]?(?:[십백천만억][일이삼사오육칠팔구]?)+\s*원(?!형|목|통|단|색|터치|피스)|\d{4}\s*년|\d{2}\s*년\s*[형식]|\d\s*월|(?<![\d.])(?:\d{4}|\d{2})\s*[-./]\s*(?:0?[1-9]|1[0-2])\s*[-./]\s*(?:0?[1-9]|[12]\d|3[01])(?!\d|\.\d|\s*(?:cm|mm|m|kg|g|인치|in)(?![a-z]))|(?<![\d.,/-])\d{1,2}\s*[./-]\s*\d{1,2}(?![\d.,/-])\s*(?:일\s*)?(?:\(\s*[월화수목금토일](?:요일)?\s*\)\s*)?~?\s*(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사|sale)|(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사|sale)\s*[:~]?\s*\d{1,2}\s*[./-]\s*\d{1,2}(?![\d.,/-])|(?<!\d)\d{1,2}\s*일\s*(?:\(\s*[월화수목금토일](?:요일)?\s*\)\s*)?(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사)|(?<![a-z])(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?![a-z])\.?\s*\d{1,2}(?!\d)|(?<!\d)\d{1,2}\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?![a-z])/iu;
@@ -1913,9 +1917,23 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     const out = (i, msg) => add('C11-FEED-OUT', 'FAIL', rel, i === null ? null : lineOf(els[i].start), msg);
     const variant = /(?:^|\/)index\.feed-noprice\.html$/.test(rel) ? 'noprice' : /(?:^|\/)index\.feed\.html$/.test(rel) ? 'full' : null;
     let boxes = 0;
+    const popularOk = hasPopularSort(sink?.popularSorts ?? FEED_POPULAR_SORTS);
+    const homeSecOf = (i) => (upSection[i] >= 0 ? els[upSection[i]].attrs['data-ws-section'] : undefined);
     for (let i = 0; i < n; i++) {
       const e = els[i];
       const cls = classesOf(e);
+      // 380 S2: 몰 카드는 「몰에 올라온 상품」 레일(data-ws-section=mall)에만, 그 레일은 운영자 확인 레일 뒤·운영자 카드 0.
+      if (e.name === 'li' && cls.includes('ws-feed-card') && homeSecOf(i) !== 'mall') out(i, '피드 카드가 「몰에 올라온 상품」 레일 밖(운영자 확인 준비물과 섞지 않는다)');
+      if (e.name === 'section' && e.attrs['data-ws-section'] === 'mall') {
+        const sib = e.parent >= 0 ? kids(e.parent) : [];
+        if (sib.some((x) => els[x].start > e.start && els[x].attrs['data-ws-section'] === 'products')) out(i, '몰 레일이 운영자 확인 상품 레일보다 앞');
+      }
+      if (cls.includes('ws-product') && homeSecOf(i) === 'mall') out(i, '몰 레일 안 운영자 확인 카드(li.ws-product)');
+      // 380 S3: 인기순 확인 sort 가 없으면 피드 블록·몰 레일 제목에 「많이 찾는 상품」 0.
+      if (!popularOk && /^h[1-6]$/.test(e.name) && (feedUp[i] >= 0 || homeSecOf(i) === 'mall')
+        && decodeEntities(html.slice(e.start, e.end ?? e.start).replace(/<[^>]*>/g, ' ')).includes(FEED_POPULAR_TITLE)) {
+        out(i, `인기순 확인 sort 없이 「${FEED_POPULAR_TITLE}」 제목`);
+      }
       if (e.name === 'img' && cls.includes('ws-feed-thumb') && feedUp[i] < 0) out(i, '피드 이미지(img.ws-feed-thumb)가 피드 블록 밖');
       if (feedUp[i] < 0) continue;
       if (feedUp[i] === i) {
@@ -2299,7 +2317,7 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
  *   mode 누락은 production 취급(rules-output 과 같은 규약). HTML 을 먼저 훑어 고지·버튼 사슬을 모은 뒤 CSS(파일·인라인 <style>)를 본다.
  */
 /** 362 N12: 산출 피드 JSON — 제휴 호스트는 url 키의 쿠팡 상품 링크 값에만, 수수료류 키 0, noprice 는 가격 키 0. */
-function checkFeedJsonOut(text, rel, noprice, add) {
+function checkFeedJsonOut(text, rel, noprice, add, popularSorts = FEED_POPULAR_SORTS) {
   const fail = (msg) => add('C11-FEED-OUT', 'FAIL', rel, null, msg);
   let doc;
   try {
@@ -2307,6 +2325,7 @@ function checkFeedJsonOut(text, rel, noprice, add) {
   } catch {
     return fail('피드 JSON 파싱 실패');
   }
+  if (isObj(doc) && 'popular' in doc && (doc.popular !== true || !hasPopularSort(popularSorts))) fail('인기순 확인 sort 없이 피드 JSON popular');
   let urls = 0;
   const walkV = (v, k) => {
     if (typeof v === 'string') {
@@ -2327,7 +2346,7 @@ function checkFeedJsonOut(text, rel, noprice, add) {
   if (occ > urls) fail(`피드 JSON 에 url 키 상품 링크 밖 제휴 호스트 ${occ - urls}회`);
 }
 
-export function scanAffiliateOutputs({ root, dist, add }) {
+export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPULAR_SORTS }) {
   const manPath = join(dist, 'prerender-manifest.json');
   if (!existsSync(manPath)) return;
   let m;
@@ -2337,7 +2356,7 @@ export function scanAffiliateOutputs({ root, dist, add }) {
     return; // C3-OUT-ROUTE 가 FAIL
   }
   const dev = isObj(m) && m.mode === 'development';
-  const sink = { notes: new Map(), pairs: new Map(), styles: [] };
+  const sink = { notes: new Map(), pairs: new Map(), styles: [], popularSorts };
   const feedJson = new Set();
   const fmPath = join(dist, 'feed-manifest.json');
   if (existsSync(fmPath)) {
@@ -2371,7 +2390,7 @@ export function scanAffiliateOutputs({ root, dist, add }) {
     // 362 N12: feed-manifest 가 나열한 피드 JSON 만 제휴 호스트 허용 — 값이 url 키의 쿠팡 상품 링크와 정확히 같을 때만, noprice 는 가격 키 0.
     const drel = relPosix(dist, abs);
     if (feedJson.has(drel)) {
-      checkFeedJsonOut(text, rel, drel.endsWith('.noprice.json'), add);
+      checkFeedJsonOut(text, rel, drel.endsWith('.noprice.json'), add, popularSorts);
       continue;
     }
     if (affHostCount(normalizeHostText(text)) > 0) {

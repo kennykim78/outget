@@ -16,7 +16,7 @@ import { seedDigest } from './digest.js';
 import { loadMascots } from './mascot.js';
 import { buildSite, type SiteBuild } from './site.js';
 import { FEED_MANIFEST_FILE, type ProductFeedInput } from './feed-out.js';
-import { DEFAULT_PRODUCT_FEED_DIR, feedGeneratedAt, feedRowsOf, loadProductFeeds, productFeedGate } from './product-feed.js';
+import { DEFAULT_PRODUCT_FEED_DIR, feedGeneratedAt, feedRowsOf, feedSortsOf, loadProductFeeds, productFeedGate } from './product-feed.js';
 import { lintText } from '../seed/lint.js';
 import { BODY_MARKER, HEAD_MARKER } from './template.js';
 import { seoulToday } from '../config/dates.js';
@@ -320,6 +320,7 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
       const feeds = loadProductFeeds((name) => readFileSync(join(args.productFeedDir, name), 'utf8'), buildAtMs);
       productFeed = {
         rows: feedRowsOf(feeds),
+        sorts: feedSortsOf(feeds),
         generatedAt: feedGeneratedAt(feeds),
         buildAtMs,
         isTitleBanned: (t) => lintText(t).length > 0,

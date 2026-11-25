@@ -22,10 +22,11 @@ export const NO_CAPTURE: CapturedStatic = Object.freeze({ main: null, layer: nul
 /**
  * 상품 추천 표면(프리렌더 표식 — server/src/prerender/pages/type.ts: section[data-ws-section=products] :139,
  * ul.ws-products :123, li.ws-product[data-ws-id^=curatedProducts#] :59, L4 section[data-ws-part=products] :206).
+ * 380 S2: 몰 상품 레일 section[data-ws-section=mall] 도 같은 표면(제목·안내·고지까지 지운다).
  * ws-data 가 없거나 거부되면(검증 실패 = 운영에서 무해한 원인 없음) 이 표면은 보관본에서 지운다 — fail-closed(불변식 ③, QA-M D1).
  */
 export const PRODUCT_SURFACE_SELECTOR =
-  '[data-ws-section="products"], [data-ws-part="products"], ul.ws-products, li.ws-product, [data-ws-id^="curatedProducts#"]';
+  '[data-ws-section="products"], [data-ws-section="mall"], [data-ws-part="products"],ul.ws-products, li.ws-product, [data-ws-id^="curatedProducts#"]';
 
 /** el 안의 상품 추천 표면을 모두 지운다(제자리). */
 export function stripProductSurfaces(el: Element): void {

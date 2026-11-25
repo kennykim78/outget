@@ -57,8 +57,10 @@ afterAll(() => {
 });
 const raw = (s: SeedBundle): Record<string, unknown[]> => Object.fromEntries(Object.keys(SEED_FILES).map((k) => [k, (s[k as keyof SeedBundle] ?? []) as unknown[]]));
 
-function scanBuilt(buildAtMs: number, mutate: (files: Map<string, string>) => void = () => {}): Finding[] {
-  const b = buildSite(seed, { ...opt(), productFeed: { rows: ROWS, generatedAt: GEN, buildAtMs, isTitleBanned: (t) => lintText(t).length > 0 } });
+type Popular = { COUPANG: string[]; ALIEXPRESS: string[] };
+function scanBuilt(buildAtMs: number, mutate: (files: Map<string, string>) => void = () => {}, inject: { build?: Popular; scan?: Popular } = {}): Finding[] {
+  const sorting = inject.build ? { sorts: { COUPANG: 'S' }, popularSorts: inject.build } : {};
+  const b = buildSite(seed, { ...opt(), productFeed: { rows: ROWS, generatedAt: GEN, buildAtMs, isTitleBanned: (t) => lintText(t).length > 0, ...sorting } });
   const files = new Map(b.files);
   mutate(files);
   const root = mkdtempSync(join(tmpdir(), 'ws-362-'));
@@ -75,7 +77,7 @@ function scanBuilt(buildAtMs: number, mutate: (files: Map<string, string>) => vo
   const add: Add = (rule, severity, file, _line, message) => findings.push({ rule, severity, file, message });
   const ex = exm.computeExposure(raw(seed), AS_OF);
   expect(out.scanOutputs({ root, dist, ex, digest: DIGEST, bw: BW, add, requireOutput: true, seed: raw(seed) })).toBe('RUN');
-  aff.scanAffiliateOutputs({ root, dist, add });
+  aff.scanAffiliateOutputs({ root, dist, add, ...(inject.scan ? { popularSorts: inject.scan } : {}) });
   return findings.filter((f) => f.severity === 'FAIL');
 }
 const edit = (path: string, f: (s: string) => string) => (files: Map<string, string>) => {
@@ -185,6 +187,41 @@ describe('N12 피드 산출물(C11-FEED-OUT·C2-PRICE·C8)', () => {
     const a = (await imp<{ FEED_TITLE_PRICE_DATE: RegExp }>('scripts/lib/rules-affiliate.mjs')).FEED_TITLE_PRICE_DATE;
     expect(a.source).toBe(ft.FEED_TITLE_PRICE_DATE.source);
     expect(a.flags).toBe(ft.FEED_TITLE_PRICE_DATE.flags);
+  });
+
+  // 380 S2: 몰 카드는 「몰에 올라온 상품」 레일에만, 그 레일은 운영자 확인 레일 뒤.
+  const HOME = 'hamster/golden/index.feed.html';
+  const sectionOf = (s: string, id: string): string => new RegExp(`<section[^>]*data-ws-section="${id}"[\\s\\S]*?</section>`).exec(s)?.[0] ?? '';
+  it.each([
+    ['몰 카드가 「기준에 맞는 준비물」 레일 안', (s: string) => s.replace('data-ws-section="mall"', 'data-ws-section="products"'), /레일 밖/],
+    // 실시드엔 운영자 상품 0 — 몰 레일 뒤에 운영자 레일을 심어 순서 뒤집힘을 만든다.
+    ['몰 레일이 운영자 레일보다 앞', (s: string) => s.replace(sectionOf(s, 'mall'), `${sectionOf(s, 'mall')}\n<section data-ws-section="products"><ul class="ws-products"></ul></section>`), /레일보다 앞/],
+    ['몰 레일 안 운영자 카드', (s: string) => s.replace(sectionOf(s, 'mall'), sectionOf(s, 'mall').replace('<li class="ws-feed-card"', '<li class="ws-product"></li><li class="ws-feed-card"')), /몰 레일 안 운영자/],
+  ])('%s → C11-FEED-OUT', (_n, f, msg) => {
+    const r = scanBuilt(GEN_MS + H, edit(HOME, f));
+    expect(r.some((x) => x.rule === 'C11-FEED-OUT' && msg.test(x.message)), JSON.stringify(r)).toBe(true);
+  });
+
+  // 380 S3: 「많이 찾는 상품」은 인기순 확인 sort 허용 목록(지금 빔)이 있을 때만.
+  it('FEED_POPULAR_SORTS 스캐너 = feed-types.ts(빈 목록)', async () => {
+    const ft = await import('../engine/feed-types.js');
+    const s = (await imp<{ FEED_POPULAR_SORTS: unknown }>('scripts/lib/rules-affiliate.mjs')).FEED_POPULAR_SORTS;
+    expect(s).toEqual(ft.FEED_POPULAR_SORTS);
+    expect(s).toEqual({ COUPANG: [], ALIEXPRESS: [] });
+  });
+  it.each([
+    ['L4 제목이 「많이 찾는 상품」', T_FULL, (s: string) => s.replace(/(<h3 id="ws-feed-title"[^>]*>)[^<]*/, '$1많이 찾는 상품')],
+    ['피드 JSON popular', 'hamster/golden/feed/wheel.json', (s: string) => s.replace('"rows":', '"popular":true,"rows":')],
+  ])('%s(허용 목록 빔) → C11-FEED-OUT', (_n, file, f) => {
+    const r = scanBuilt(GEN_MS + H, edit(file, f));
+    expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /인기순/.test(x.message)), JSON.stringify(r)).toBe(true);
+  });
+  it('허용 값 주입(빌드·스캐너 동일) — 「많이 찾는 상품」 빌드가 FAIL 0, 스캐너만 비면 FAIL', () => {
+    const list: Popular = { COUPANG: ['S'], ALIEXPRESS: [] };
+    let h3 = '';
+    expect(scanBuilt(GEN_MS + H, (f) => (h3 = f.get(T_FULL) as string), { build: list, scan: list })).toEqual([]);
+    expect(h3).toContain('>많이 찾는 상품</h3>');
+    expect(scanBuilt(GEN_MS + H, () => {}, { build: list }).some((x) => /인기순/.test(x.message))).toBe(true);
   });
 
   it('홈 변형 피드 카드 0 유지(홈 기본 파일 피드 없음)', () => {

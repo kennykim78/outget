@@ -137,6 +137,8 @@ export const COPY = deepFreeze({
     bundlesTitle: '처음 준비한다면',
     /** 홈 B 상품 레일 제목(R4-2b — PRD US-003 ④ 복원). 노출 상품 0 이면 섹션 없음. */
     productsTitle: '기준에 맞는 준비물',
+    /** 380 S2: 상품 피드(몰) 카드 전용 레일 — 상품 레일 바로 아래. 피드 카드 0 이면 섹션 없음. */
+    mallTitle: '몰에 올라온 상품',
     specTitle: '{name} 규격 확인',
     specBasis: '{animal} 기준',
     specMine: '내 {name} 확인하기',
@@ -407,8 +409,9 @@ export const COPY = deepFreeze({
    *   알리 고지 문안은 Kenny 결정 전 — 알리 행은 마크업에서 빌드 오류(prerender/pages/feed.ts).
    */
   feed: {
+    /** 380 S3: title 은 블록 popular(인기순 확인 sort — engine FEED_POPULAR_SORTS)일 때만, 그 밖은 titleFallback. */
     title: '많이 찾는 상품',
-    titleFallback: '추천 후보',
+    titleFallback: '몰 검색 결과',
     sub: sent('쇼핑몰 상품명에 적힌 정보로 골랐어요. 실제 규격은 몰에서 확인해요.'),
     homeLead: sent('몰 가격은 확인한 날 기준이에요. 몰에서 달라질 수 있어요.'),
     badgeListed: '표기 규격 통과',

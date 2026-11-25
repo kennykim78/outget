@@ -786,7 +786,8 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
       expect(staticCards, file).toBeGreaterThan(0);
       const before = skel(mainEl());
       const beforeTokens = classTokens(mainEl());
-      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="products"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
+      expect(mainEl().querySelector('[data-ws-section="mall"] li.ws-feed-card'), file).not.toBeNull();
+      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="mall"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
       hydrate(p);
       const after = skel(mainEl());
       const d: string[] = [];
@@ -794,7 +795,8 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
       expect([...beforeTokens].filter((c) => !classTokens(mainEl()).has(c))).toEqual([]);
       expect(unexplained('TYPE', d)).toEqual([]);
       expect(document.querySelectorAll('main li.ws-feed-card')).toHaveLength(staticCards);
-      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="products"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
+      expect(mainEl().querySelector('[data-ws-section="mall"] li.ws-feed-card'), file).not.toBeNull();
+      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="mall"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
       act(() => root?.unmount());
       root = null;
       document.body.innerHTML = '';

@@ -23,6 +23,13 @@ const HOUR_MS = 3_600_000;
  */
 export const FEED_CLOCK_SKEW_MS = 5 * 60_000;
 
+/**
+ * 380 S3: 블록 제목 「많이 찾는 상품」을 쓸 수 있는 api.sort 값 — 공급자 문서로 「인기순」 뜻을 확인한 값만 넣는다.
+ *   지금은 확인한 값이 없어 비어 있다(제목은 늘 「몰 검색 결과」). 스캐너 scripts/lib/rules-affiliate.mjs FEED_POPULAR_SORTS 와 같아야 한다.
+ */
+export type FeedSortAllow = Readonly<Record<FeedProvider, readonly string[]>>;
+export const FEED_POPULAR_SORTS: FeedSortAllow = Object.freeze({ COUPANG: Object.freeze([]), ALIEXPRESS: Object.freeze([]) });
+
 /** 블록 배지: LISTED_PASS 「표기 규격 통과」(○ 아님, 중립) · CHECK_NEEDED 「△ 규격 확인 필요」. */
 export type FeedBadge = 'LISTED_PASS' | 'CHECK_NEEDED';
 

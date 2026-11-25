@@ -73,7 +73,11 @@ export interface FeedExpect {
 export function parseFeedBlock(raw: unknown, ex: FeedExpect): PublicFeedBlock | null {
   if (!isRecord(raw) || raw.v !== 1) return null;
   const full = ex.stage === 'full';
-  if (!exactKeys(raw, full ? BLOCK_KEYS_FULL : BLOCK_KEYS)) return null;
+  // 380 S3: popular 는 있으면 true 만(없으면 키 자체가 없다).
+  const keys: readonly string[] = full ? BLOCK_KEYS_FULL : BLOCK_KEYS;
+  const hasPopular = Object.prototype.hasOwnProperty.call(raw, 'popular');
+  if (hasPopular && raw.popular !== true) return null;
+  if (!exactKeys(raw, hasPopular ? [...keys, 'popular'] : keys)) return null;
   if (raw.typeId !== ex.typeId || raw.supplyItemId !== ex.itemId) return null;
   if (raw.badge !== 'LISTED_PASS' && raw.badge !== 'CHECK_NEEDED') return null;
   if (typeof raw.generalInfo !== 'boolean') return null;

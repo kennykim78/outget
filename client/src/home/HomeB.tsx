@@ -1,7 +1,7 @@
 // 홈 B(동물 선택) — R4 시안 home_selected 톤(R4-2) + PRD US-003·UX §3.1 B 섹션(R4-2b 복원, Kenny 11-14 15:21):
 //   컨텍스트 헤더(눈썹 · 이름 · 바꾸기, 섹션 아님) → 지금 필요한 것(요약 카드 + 남은 필수 항목 카드 · ≤767 은 항목 링크 줄)
 //   → 나중에 필요한 것(NOT_NOW 시드 레코드) → 처음 준비한다면(BundleCard 레일 → /setup) → {용품} 규격 확인(엔진 minSpecFigure 숫자)
-//   → 기준에 맞는 준비물(ProductCard 레일 → L7) → {동물}를 진료하는 병원(VetCard 레일 또는 「확인된 병원이 아직 없어요」) → 저장 안내(L8).
+//   → 기준에 맞는 준비물(ProductCard 레일 → L7) → 몰에 올라온 상품(380 S2, 피드 변형 문서만) → {동물}를 진료하는 병원(VetCard 레일 또는 「확인된 병원이 아직 없어요」) → 저장 안내(L8).
 //   PRD 순서(지금 → 처음 준비 → 준비물 → 병원 → 저장)를 지키고 R4 시안 섹션(나중에·규격)은 관련 섹션 뒤에 둔다.
 //   숫자·품목명·이유·상품·병원은 전부 ws-data(시드 → resolveRequirement · 노출 판정) — 하드코딩 0, 재정렬 0(불변식 ③·⑥·⑦). 데이터 없는 섹션은 그리지 않는다(병원은 빈 안내).
 //   2질문(L3) 전: 개수 숫자 0 — 요약 카드 줄 "필수 준비를 먼저 확인해요", 항목 카드 neutral(상태 표시 없음).
@@ -340,13 +340,12 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
       ) : null}
 
       {/* 기준에 맞는 준비물 — ws-data 순서 그대로(규격 → 검수 → 선호, 미달 0 · VERIFIED 만 — 불변식 ③·⑦), 0 이면 섹션 없음. 카드 → L7 */}
-      {products.length > 0 || feedCards.length > 0 ? (
+      {products.length > 0 ? (
         <RailSection
           id="products"
           kind="product"
           tone="home"
           title={COPY.homeB.productsTitle}
-          {...(feedCards.length > 0 ? { lead: feed?.stage === 'full' ? [COPY.feed.homeLead] : [], leadExtra: <FeedNote id={FEED_HOME_NOTE_ID} /> } : {})}
           prevLabel={prev}
           nextLabel={next}
         >
@@ -362,6 +361,21 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
               />
             );
           })}
+        </RailSection>
+      ) : null}
+
+      {/* 380 S2: 몰에 올라온 상품 — 운영자 확인 준비물과 섞지 않는 별도 레일(바로 아래). 피드 카드 0 이면 레일 없음. */}
+      {feedCards.length > 0 ? (
+        <RailSection
+          id="mall"
+          kind="product"
+          tone="home"
+          title={COPY.homeB.mallTitle}
+          lead={feed?.stage === 'full' ? [COPY.feed.homeLead] : []}
+          leadExtra={<FeedNote id={FEED_HOME_NOTE_ID} />}
+          prevLabel={prev}
+          nextLabel={next}
+        >
           {feedCards.map((c) => {
             const r = reqs.find((x) => x.supplyItemId === c.supplyItemId) as PublicRequirement;
             return (

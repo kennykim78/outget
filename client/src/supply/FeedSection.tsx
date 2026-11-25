@@ -11,11 +11,12 @@ import { feedPathFor, useFeedBlock } from './feedBlock';
 
 const TITLE_ID = 'ws-feed-title';
 
-function Shell({ children }: { children: ReactNode }) {
+/** 380 S3: 「많이 찾는 상품」은 블록에 popular(인기순 확인 sort, 서버 FEED_POPULAR_SORTS)가 있을 때만 — 로딩·실패는 모르므로 기본 제목. */
+function Shell({ popular, children }: { popular?: boolean; children: ReactNode }) {
   return (
     <section className="ws-supply-part ws-feed" data-ws-part="feed" aria-labelledby={TITLE_ID}>
       <h3 id={TITLE_ID} className="ws-t-label ws-supply-head">
-        {COPY.feed.title}
+        {popular ? COPY.feed.title : COPY.feed.titleFallback}
       </h3>
       {children}
     </section>
@@ -54,7 +55,7 @@ export default function FeedSection({ page, type, requirement }: { page: WsPageD
   const noteId = feedNoteId(r.supplyItemId);
   const checked = live.data.feed?.stage === 'full' && b.priceCheckedOn !== undefined ? feedCheckedLine(b.priceCheckedOn) : null;
   return (
-    <Shell>
+    <Shell popular={b.popular === true}>
       <p className="ws-t-meta ws-muted ws-feed-sub">{COPY.feed.sub}</p>
       <FeedNote id={noteId} />
       <ul className="ws-feed-rows" role="list">

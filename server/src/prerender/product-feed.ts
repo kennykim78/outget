@@ -195,6 +195,11 @@ export function feedRowsOf(files: readonly FeedFile[]): FeedRowIn[] {
   return files.flatMap((f) => f.rows.map((r) => ({ ...r, provider: f.provider })));
 }
 
+/** 380 S3: 공급자별 파일 api.sort — 블록 제목 판정(FEED_POPULAR_SORTS) 입력. */
+export function feedSortsOf(files: readonly FeedFile[]): Partial<Record<FeedProvider, string | null>> {
+  return Object.fromEntries(files.map((f) => [f.provider, f.api.sort]));
+}
+
 /**
  * 여러 공급자 파일의 generatedAt 중 가장 이른 값(만료 기준 — 오래된 쪽에 맞춘다). 행 있는 파일만, 없으면 null.
  */

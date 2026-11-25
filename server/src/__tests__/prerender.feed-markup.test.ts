@@ -2,12 +2,15 @@
 //   기본 파일은 피드 꺼짐 빌드와 바이트 동일(변형은 새 파일만). GENERAL_INFO 종은 △만·홈 피드 카드 0. ws-data 증가 ≤ 1.5KB·전체 ≤ 32KB.
 import { describe, expect, it } from 'vitest';
 import { buildSearchKeyword, createCatalog, decodeWsPage, isWsFeedData, resolveRequirement, type AnimalTypeRec } from '../engine/index.js';
-import type { FeedRowIn } from '../engine/feed-types.js';
+import { FEED_POPULAR_SORTS, type FeedRowIn } from '../engine/feed-types.js';
+import { feedSortsOf } from '../prerender/product-feed.js';
+import type { ProductFeedInput } from '../prerender/feed-out.js';
+import { COPY } from '../prerender/copy.js';
 import { lintText } from '../seed/lint.js';
 import { buildSite, type BuildSiteOptions } from '../prerender/site.js';
 import { WS_DATA_MAX_BYTES } from '../prerender/cli.js';
 import { FEED_WS_DATA_MAX_BYTES, feedWsDataBytes } from '../prerender/feed-out.js';
-import { realSeed } from './fixtures/prerender-seed.js';
+import { FIXTURE_AS_OF, promoted, realSeed } from './fixtures/prerender-seed.js';
 import { REAL_AS_OF, baseOptions } from './fixtures/affiliate/baseline.js';
 
 const seed = realSeed();
@@ -64,8 +67,8 @@ const feedSection = (html: string): string => {
   const m = /<section class="ws-supply-part ws-feed"[\s\S]*?<\/section>/.exec(html);
   return m ? m[0] : '';
 };
-const homeRail = (html: string): string => {
-  const m = /<section[^>]*data-ws-section="products"[\s\S]*?<\/section>/.exec(html);
+const homeSection = (html: string, id: string): string => {
+  const m = new RegExp(`<section[^>]*data-ws-section="${id}"[\\s\\S]*?</section>`).exec(html);
   return m ? m[0] : '';
 };
 const wsData = (html: string): unknown => {
@@ -171,27 +174,99 @@ describe('N9 noprice 변형', () => {
   });
 });
 
+describe('380 S3 블록 제목 — 인기순 확인 sort 허용 목록', () => {
+  const L4 = (s: 'index.feed.html' | 'index.feed-noprice.html') => `hamster/golden/supplies/wheel/${s}`;
+  const title = (html: string | undefined) => /<h3 id="ws-feed-title"[^>]*>([^<]*)<\/h3>/.exec(html ?? '')?.[1];
+  const withSorts = (over: Partial<ProductFeedInput>, at = GEN_MS + H) => buildSite(seed, { ...opts(at), productFeed: { ...(opts(at).productFeed as ProductFeedInput), ...over } });
+  const json = (b: ReturnType<typeof buildSite>, f: string) => JSON.parse(b.files.get(`hamster/golden/feed/${f}`) as string) as Record<string, unknown>;
+
+  it('허용 목록은 비어 있고 문구는 고정', () => {
+    expect(FEED_POPULAR_SORTS).toEqual({ COUPANG: [], ALIEXPRESS: [] });
+    expect(COPY.feed.title).toBe('많이 찾는 상품');
+    expect(COPY.feed.titleFallback).toBe('몰 검색 결과');
+  });
+
+  it('기본(허용 목록 빔): 어떤 sort 값이어도 「몰 검색 결과」, popular 키 0', () => {
+    const b = withSorts({ sorts: { COUPANG: 'S' } });
+    expect(title(b.files.get(L4('index.feed.html')))).toBe('몰 검색 결과');
+    expect(json(b, 'wheel.json')).not.toHaveProperty('popular');
+    for (const [k, v] of b.files) if (k.endsWith('.html')) expect(v, k).not.toContain(`>${COPY.feed.title}</h3>`);
+  });
+
+  it('허용 목록에 있는 값(시험 주입): 「많이 찾는 상품」 — full·noprice 마크업과 JSON popular:true', () => {
+    const over: Partial<ProductFeedInput> = { sorts: { COUPANG: 'S' }, popularSorts: { COUPANG: ['S'], ALIEXPRESS: [] } };
+    const b = withSorts(over);
+    expect(title(b.files.get(L4('index.feed.html')))).toBe('많이 찾는 상품');
+    expect(json(b, 'wheel.json').popular).toBe(true);
+    expect(json(b, 'wheel.noprice.json').popular).toBe(true);
+    expect(title(withSorts(over, GEN_MS + 80 * H).files.get(L4('index.feed-noprice.html')))).toBe('많이 찾는 상품');
+  });
+
+  it.each<[string, Partial<ProductFeedInput>]>([
+    ['목록 밖 값', { sorts: { COUPANG: 'S' }, popularSorts: { COUPANG: ['T'], ALIEXPRESS: [] } }],
+    ['다른 공급자 목록에만', { sorts: { COUPANG: 'S' }, popularSorts: { COUPANG: [], ALIEXPRESS: ['S'] } }],
+    ['sort 모름', { popularSorts: { COUPANG: ['S'], ALIEXPRESS: [] } }],
+    ['sort null', { sorts: { COUPANG: null }, popularSorts: { COUPANG: ['S'], ALIEXPRESS: [] } }],
+  ])('%s → 「몰 검색 결과」', (_n, over) => {
+    const b = withSorts(over);
+    expect(title(b.files.get(L4('index.feed.html')))).toBe('몰 검색 결과');
+    expect(json(b, 'wheel.json')).not.toHaveProperty('popular');
+  });
+
+  it('cli 가 넘기는 sort = 파일 api.sort(공급자별)', () => {
+    const file = (provider: 'COUPANG' | 'ALIEXPRESS', sort: string | null) => ({ provider, api: { method: 'search', sort } });
+    expect(feedSortsOf([file('COUPANG', 'S'), file('ALIEXPRESS', null)] as never)).toEqual({ COUPANG: 'S', ALIEXPRESS: null });
+  });
+});
+
 describe('N9 홈 B 레일', () => {
-  it('골든: 운영자 카드 뒤 피드 카드(LISTED_PASS 품목당 1장), 안내 1줄·고지 1회', () => {
+  // 실시드엔 노출 운영자 상품이 없다(cp-001 DRAFT) — 순서 검사는 승격 픽스처(cp-001 VERIFIED)로.
+  const withOps = buildSite(promoted(), { ...opts(GEN_MS + H), ...baseOptions(FIXTURE_AS_OF), productFeed: opts(GEN_MS + H).productFeed });
+
+  it('실시드(운영자 상품 0): 「기준에 맞는 준비물」 레일 없이 몰 레일만', () => {
     const html = on.files.get('hamster/golden/index.feed.html') as string;
-    const rail = homeRail(html);
-    expect(count(rail, '<li class="ws-feed-card"')).toBe(1);
-    expect(rail).toContain('data-ws-item="wheel"');
+    expect(homeSection(html, 'products')).toBe('');
+    expect(homeSection(html, 'mall')).toContain('<li class="ws-feed-card"');
+  });
+
+  it('골든: 운영자 레일 바로 뒤 「몰에 올라온 상품」 레일에 피드 카드(LISTED_PASS 품목당 1장), 안내 1줄·고지 1회', () => {
+    const html = withOps.files.get('hamster/golden/index.feed.html') as string;
+    const ops = homeSection(html, 'products');
+    const mall = homeSection(html, 'mall');
+    expect(ops).not.toBe('');
+    expect(ops).not.toContain('ws-feed');
+    expect(ops).not.toContain('ws-aff');
+    expect(ops).not.toContain(COPY.feed.homeLead);
+    expect(mall).toContain('>몰에 올라온 상품</h2>');
+    expect(html.slice(html.indexOf(ops) + ops.length).trimStart().startsWith(mall)).toBe(true);
+    expect(count(mall, '<li class="ws-feed-card"')).toBe(1);
+    expect(mall).toContain('data-ws-item="wheel"');
+    expect(mall).toContain(COPY.feed.homeLead);
+    expect(count(mall, 'id="ws-aff-feed-home"')).toBe(1);
     expect(count(html, 'id="ws-aff-feed-home"')).toBe(1);
-    expect(rail).not.toContain('○');
-    const lastOp = rail.lastIndexOf('ws-product');
-    if (lastOp >= 0) expect(lastOp).toBeLessThan(rail.indexOf('ws-feed-card'));
-    const p = on.feedPages.find((x) => x.file === 'hamster/golden/index.feed.html');
+    expect(mall).not.toContain('○');
+    expect(mall).not.toContain('<li class="ws-product');
+    const p = withOps.feedPages.find((x) => x.file === 'hamster/golden/index.feed.html');
     expect(p?.data.data.feed?.rail.map((c) => c.supplyItemId)).toEqual(['wheel']);
   });
 
   it('noprice 홈: 카드에 가격·확인일 줄 0, 안내 문장 0(고지만)', () => {
     const html = late.files.get('hamster/golden/index.feed-noprice.html') as string;
-    const rail = homeRail(html);
-    expect(count(rail, '<li class="ws-feed-card"')).toBe(1);
-    expect(rail).not.toContain('ws-feed-price');
-    expect(rail).not.toContain('ws-feed-checked');
+    const mall = homeSection(html, 'mall');
+    expect(count(mall, '<li class="ws-feed-card"')).toBe(1);
+    expect(mall).not.toContain('ws-feed-price');
+    expect(mall).not.toContain('ws-feed-checked');
+    expect(mall).not.toContain(COPY.feed.homeLead);
     expect(count(html, 'id="ws-aff-feed-home"')).toBe(1);
+  });
+
+  it('피드 카드 0(hideout △ 만): 몰 레일 없음', () => {
+    const only = buildSite(seed, opts(GEN_MS + H, [row(G, 'hideout', '햄스터 나무 은신처')]));
+    const html = only.files.get('hamster/golden/index.feed.html') as string;
+    expect(html).toBeDefined();
+    expect(homeSection(html, 'mall')).toBe('');
+    expect(html).not.toContain(COPY.homeB.mallTitle);
+    expect(off.files.get('hamster/golden/index.html')).not.toContain('data-ws-section="mall"');
   });
 
   it('GENERAL_INFO(로보): 블록은 △만, 홈 피드 카드 0·고지 0·data.feed.rail 0', () => {

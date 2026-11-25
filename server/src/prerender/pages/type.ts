@@ -231,25 +231,31 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
       })
     : '';
   // 기준에 맞는 준비물 — t.products = 요구사항 순서 × orderExposableProducts(규격 → 검수 → 선호, 미달 0 · VERIFIED 만) 그대로. 0 이면 섹션 없음.
-  //   상품 표면 표식 유지(client staticCapture PRODUCT_SURFACE_SELECTOR): section[data-ws-section=products] · ul.ws-products · li.ws-product.
-  //   362 N9(D-2): 피드 변형이면 운영자 카드 전부 뒤에 피드 카드(품목당 1장, LISTED_PASS 만 — GENERAL_INFO 종 0장). 피드 카드 ≥ 1 이면 lead 안내·고지 1회.
+  //   상품 표면 표식 유지(client staticCapture PRODUCT_SURFACE_SELECTOR): section[data-ws-section=products|mall] · ul.ws-products · li.ws-product.
+  const productsSection = t.products.length
+    ? railSection({
+        id: 'products',
+        kind: 'product',
+        tone: 'home',
+        titleHtml: h(COPY.homeB.productsTitle),
+        items: t.products.map((p) => productCard(t, p, itemFor(t, p.supplyItemId))),
+      })
+    : '';
+  // 362 N9(D-2) · 380 S2: 피드 변형이면 상품 레일 바로 아래 「몰에 올라온 상품」 레일(품목당 1장, LISTED_PASS 만 — GENERAL_INFO 종 0장).
+  //   운영자 확인 카드와 섞지 않는다. 피드 카드 0 이면 섹션 없음. lead 안내(full 만)·고지 1회.
   const feedCards = ctx.feed?.data.rail ?? [];
   const feedLead = feedRailLead(ctx.feed);
-  const productsSection =
-    t.products.length || feedCards.length
-      ? railSection({
-          id: 'products',
-          kind: 'product',
-          tone: 'home',
-          titleHtml: h(COPY.homeB.productsTitle),
-          ...(feedLead.lead.length ? { lead: feedLead.lead } : {}),
-          ...(feedLead.leadHtml.length ? { leadHtml: feedLead.leadHtml } : {}),
-          items: [
-            ...t.products.map((p) => productCard(t, p, itemFor(t, p.supplyItemId))),
-            ...feedCards.map((c) => feedRailCard(t, c, ctx.feed as PageFeed)),
-          ],
-        })
-      : '';
+  const mallSection = feedCards.length
+    ? railSection({
+        id: 'mall',
+        kind: 'product',
+        tone: 'home',
+        titleHtml: h(COPY.homeB.mallTitle),
+        ...(feedLead.lead.length ? { lead: feedLead.lead } : {}),
+        leadHtml: feedLead.leadHtml,
+        items: feedCards.map((c) => feedRailCard(t, c, ctx.feed as PageFeed)),
+      })
+    : '';
   // 병원 — treats ∋ 타입 노출 병원(SLOT 은 로더가 건너뜀 → 허구 병원 0). 정적 링크는 /vet(하이드레이션 후 client 가 ?treats= — decisions 2026-11-10 M-2).
   const vets = typeVets(m, t.id);
   const typeNames = new Map(m.types.map((x) => [x.id, x.pub.displayName] as const));
@@ -281,6 +287,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
     bundlesSection,
     ...specSection,
     productsSection,
+    mallSection,
     vetSection,
     '<section class="ws-home-sec ws-save-sec" data-ws-section="save" aria-labelledby="ws-save-title">',
     `<h2 id="ws-save-title" class="ws-t-display ws-home-sec-title">${h(COPY.homeB.saveTitle)}</h2>`,

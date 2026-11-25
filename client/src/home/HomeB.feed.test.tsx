@@ -1,5 +1,5 @@
-// 362 N10 홈 B 「기준에 맞는 준비물」 레일 피드 카드(364 §2.2, 367 §1-2). 합성 fixture 만(실호출·키 0).
-//   운영자 카드 뒤 · lead/고지는 카드 ≥ 1 일 때만 · GENERAL_INFO 종 0장 · 요구사항 밖·FOOD/HEALTH 0 · noprice 가격·확인일 0 · 푸터 고지 F.
+// 362 N10 홈 B 피드 카드(364 §2.2, 367 §1-2) — 380 S2: 「기준에 맞는 준비물」 밖, 바로 아래 「몰에 올라온 상품」 레일. 합성 fixture 만(실호출·키 0).
+//   운영자 레일 바로 뒤 · 카드 0 이면 레일 0 · lead/고지는 카드 ≥ 1 일 때만 · GENERAL_INFO 종 0장 · 요구사항 밖·FOOD/HEALTH 0 · noprice 가격·확인일 0 · 푸터 고지 F.
 import { act, cleanup, render } from '@testing-library/react';
 import { COPY } from '@ws/copy';
 import type { PublicFeedRailCard, PublicRequirement, WsFeedData } from '@ws/engine';
@@ -50,6 +50,7 @@ const NOPRICE = (rail: PublicFeedRailCard[]): WsFeedData => ({
 });
 
 const sec = () => document.querySelector('[data-ws-section="products"]') as HTMLElement | null;
+const mall = () => document.querySelector('[data-ws-section="mall"]') as HTMLElement | null;
 const PRICE_OR_DATE = /\d[\d,]*\s*원|₩|￦|KRW|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}|12,?900/i;
 
 beforeEach(() => {
@@ -70,14 +71,22 @@ describe('362 N10 홈 B 피드 카드', () => {
     expect(s.querySelectorAll('li.ws-feed-card')).toHaveLength(0);
     expect(document.querySelector('[data-ws-aff="note-feed"]')).toBeNull();
     expect(s.textContent).not.toContain(COPY.feed.homeLead);
+    expect(mall()).toBeNull();
   });
 
-  it('full: 운영자 카드 뒤에 피드 카드 · lead + 고지 1회 · ○/ws-badge 0 · rel sponsored+noopener · 가격·확인일 · 푸터 F', () => {
+  it('full: 운영자 레일 바로 뒤 「몰에 올라온 상품」 레일 · lead + 고지 1회 · ○/ws-badge 0 · rel sponsored+noopener · 가격·확인일 · 푸터 F', () => {
     render(<App page={page(FULL([card('cage'), card('wheel')]))} captured={NO_CAPTURE} />);
-    const s = sec() as HTMLElement;
-    const lis = Array.from(s.querySelectorAll('ul li'));
-    const kinds = lis.map((li) => (li.classList.contains('ws-feed-card') ? 'feed' : 'op'));
-    expect(kinds).toEqual(['op', 'feed', 'feed']);
+    const ops = sec() as HTMLElement;
+    const kinds = (el: HTMLElement) => Array.from(el.querySelectorAll('ul li')).map((li) => (li.classList.contains('ws-feed-card') ? 'feed' : 'op'));
+    expect(kinds(ops)).toEqual(['op']);
+    expect(ops.textContent).not.toContain(COPY.feed.homeLead);
+    expect(ops.querySelector('[data-ws-aff]')).toBeNull();
+    const s = mall() as HTMLElement;
+    expect(s.querySelector('h2')).toHaveTextContent('몰에 올라온 상품');
+    expect(COPY.homeB.mallTitle).toBe('몰에 올라온 상품');
+    expect(s.previousElementSibling).toBe(ops);
+    expect(kinds(s)).toEqual(['feed', 'feed']);
+    expect(s.querySelectorAll('#ws-aff-feed-home')).toHaveLength(1);
     expect(s.textContent).toContain(COPY.feed.homeLead);
     expect(document.querySelectorAll('#ws-aff-feed-home')).toHaveLength(1);
     const feedCards = Array.from(s.querySelectorAll('li.ws-feed-card'));
@@ -97,9 +106,10 @@ describe('362 N10 홈 B 피드 카드', () => {
     expect(document.querySelector('footer [data-ws-aff="note-f"]')).toHaveTextContent(COPY.affiliate.coupang);
   });
 
-  it('운영자 카드 0 이어도 피드 카드가 있으면 섹션이 선다', () => {
+  it('운영자 카드 0: 운영자 레일 없이 몰 레일만', () => {
     render(<App page={page(FULL([card('wheel')]), [])} captured={NO_CAPTURE} />);
-    expect(sec()?.querySelectorAll('li.ws-feed-card')).toHaveLength(1);
+    expect(sec()).toBeNull();
+    expect(mall()?.querySelectorAll('li.ws-feed-card')).toHaveLength(1);
   });
 
   it('요구사항 밖·FOOD/HEALTH·알리 카드는 그리지 않는다 — 남는 카드 0 이면 lead·고지 0', () => {
@@ -107,6 +117,8 @@ describe('362 N10 홈 B 피드 카드', () => {
     render(<App page={page({ v: 1, stage: 'full', freshMs: FRESH, priceCheckedOn: '2026-11-23', items: [], rail })} captured={NO_CAPTURE} />);
     const s = sec() as HTMLElement;
     expect(s.querySelectorAll('li.ws-feed-card')).toHaveLength(0);
+    expect(mall()).toBeNull();
+    expect(document.body.textContent).not.toContain(COPY.homeB.mallTitle);
     expect(s.textContent).not.toContain(COPY.feed.homeLead);
     expect(document.querySelector('[data-ws-aff="note-feed"]')).toBeNull();
   });
@@ -115,12 +127,13 @@ describe('362 N10 홈 B 피드 카드', () => {
     const gi = { ...golden, generalInfo: true as const };
     render(<App page={page(FULL([card('wheel')]), undefined, gi)} captured={NO_CAPTURE} />);
     expect(document.querySelectorAll('li.ws-feed-card')).toHaveLength(0);
+    expect(mall()).toBeNull();
     expect(document.body.textContent).not.toContain(COPY.feed.badgeListed);
   });
 
   it('noprice(72h 초과): 카드는 그대로, 가격·확인일이 어떤 표기로도 0 · lead(신선도 문구) 0 · 고지는 유지', () => {
     render(<App page={page(NOPRICE([card('cage')]))} captured={NO_CAPTURE} />);
-    const s = sec() as HTMLElement;
+    const s = mall() as HTMLElement;
     const c = s.querySelector('li.ws-feed-card') as HTMLElement;
     expect(c).not.toBeNull();
     expect(c.querySelector('.ws-feed-price, .ws-feed-amount, .ws-feed-checked')).toBeNull();

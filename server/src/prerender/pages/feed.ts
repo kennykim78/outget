@@ -88,7 +88,8 @@ export function feedBlockL4(r: RequirementModel, feed: PageFeed | undefined): st
   const noteId = `ws-aff-feed-${r.item.id}`;
   return [
     '<section class="ws-supply-part ws-feed" data-ws-part="feed" aria-labelledby="ws-feed-title">',
-    `<h3 id="ws-feed-title" class="ws-t-label ws-supply-head">${h(COPY.feed.title)}</h3>`,
+    // 380 S3: 인기순 확인 sort 블록만 「많이 찾는 상품」(client FeedSection 과 같은 규칙).
+    `<h3 id="ws-feed-title" class="ws-t-label ws-supply-head">${h(b.popular ? COPY.feed.title : COPY.feed.titleFallback)}</h3>`,
     `<p class="ws-t-meta ws-muted ws-feed-sub">${h(COPY.feed.sub)}</p>`,
     feedNote(noteId),
     '<ul class="ws-feed-rows" role="list">',
@@ -136,7 +137,7 @@ export function feedRailCard(t: TypeModel, c: PublicFeedRailCard, feed: PageFeed
     .join('\n');
 }
 
-/** 홈 레일 머리(§2.4): 피드 카드 ≥ 1 일 때만 — 안내(full 단계만, 가격이 없으면 가격 안내 0) + 고지 1회. */
+/** 몰 레일(380 S2) 머리(§2.4): 피드 카드 ≥ 1 일 때만 — 안내(full 단계만, 가격이 없으면 가격 안내 0) + 고지 1회. */
 export function feedRailLead(feed: PageFeed | undefined): { lead: string[]; leadHtml: string[] } {
   if (!feed || feed.data.rail.length === 0) return { lead: [], leadHtml: [] };
   return { lead: feed.data.stage === 'full' ? [COPY.feed.homeLead] : [], leadHtml: [feedNote(FEED_HOME_NOTE_ID)] };

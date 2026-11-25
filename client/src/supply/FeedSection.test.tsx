@@ -162,6 +162,30 @@ describe('362 N10 feedBlock 순수 규칙', () => {
   });
 });
 
+describe('380 S3 블록 제목 — popular 표지(인기순 확인 sort)일 때만 「많이 찾는 상품」', () => {
+  const heading = async (block: unknown) => {
+    fetchMock.mockResolvedValue(jsonRes(block));
+    const d = openL4(pageWith(FULL));
+    await waitEl(() => feedSec(d)?.querySelector('li.ws-feed-row'));
+    return feedSec(d)?.querySelector('h3')?.textContent;
+  };
+
+  it('popular 없음(지금 모든 빌드): 「몰 검색 결과」', async () => {
+    expect(await heading(blockFull())).toBe('몰 검색 결과');
+  });
+
+  it('popular: true(허용 목록 주입 빌드): 「많이 찾는 상품」', async () => {
+    expect(await heading(blockFull(undefined, { popular: true }))).toBe('많이 찾는 상품');
+  });
+
+  it('popular 는 true 만 — 그 밖 값은 블록 거부(fail-closed)', () => {
+    const ex = { typeId: golden.id, itemId: 'wheel', stage: 'full' as const, generalInfo: false };
+    expect(parseFeedBlock(blockFull(undefined, { popular: true }), ex)).not.toBeNull();
+    expect(parseFeedBlock(blockNoprice(undefined, { popular: true }), { ...ex, stage: 'noprice' })).not.toBeNull();
+    for (const popular of [false, 'true', 1, null]) expect(parseFeedBlock(blockFull(undefined, { popular }), ex), String(popular)).toBeNull();
+  });
+});
+
 describe('362 N10 L4 피드 블록', () => {
   it('피드 없는 문서: fetch 0, 블록 0(기존 DOM 그대로)', async () => {
     const d = openL4(pageWith(undefined));
@@ -177,7 +201,7 @@ describe('362 N10 L4 피드 블록', () => {
     const d = openL4(pageWith(FULL));
     // 로딩: 제목 + StateBlock(고지 0)
     const loading = feedSec(d) as HTMLElement;
-    expect(loading.querySelector('h3')).toHaveTextContent(COPY.feed.title);
+    expect(loading.querySelector('h3')).toHaveTextContent('몰 검색 결과');
     expect(loading.querySelector('[data-ws-state-kind="loading"] h4')).toHaveTextContent(COPY.feed.loadingTitle);
     expect(loading.querySelector('[data-ws-aff]')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);

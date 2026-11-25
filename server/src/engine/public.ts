@@ -310,6 +310,8 @@ export interface PublicFeedBlock {
   supplyItemId: string;
   badge: 'LISTED_PASS' | 'CHECK_NEEDED';
   generalInfo: boolean;
+  /** 380 S3: 보이는 행이 모두 인기순 확인 sort(FEED_POPULAR_SORTS)에서 온 블록만 true. 그 밖엔 키 없음. */
+  popular?: true;
   /** 가격 확인일(Asia/Seoul YYYY-MM-DD, generatedAt 기준). noprice 변형엔 키 없음. */
   priceCheckedOn?: string;
   rows: PublicFeedRow[];

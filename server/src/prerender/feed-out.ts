@@ -3,7 +3,7 @@
 //   단계(빌드 시각 기준): full → 두 변형 / noprice → noprice 만 / nofeed(168h 초과·generatedAt 없음) → 파일·manifest 0.
 //   이미 지난 단계의 변형은 만들지 않는다. 빌드 시각은 어떤 파일에도 쓰지 않는다(manifest 는 generatedAt 파생값만).
 //   홈 레일 모델(D-2): LISTED_PASS ∧ 비 GENERAL_INFO 블록의 첫 행만, 품목당 1장. N9: 단계별 ws-data data.feed(레일 카드 1.5KB 예산 안) + 마크업용 블록.
-import { FEED_SCREEN_ROWS, feedDeadlines, feedFreshAt, feedJsonFile, feedOldestFetchedMs, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedLiveStage, type FeedRowIn } from '../engine/feed-types.js';
+import { FEED_POPULAR_SORTS, FEED_SCREEN_ROWS, feedDeadlines, feedFreshAt, feedJsonFile, feedOldestFetchedMs, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedLiveStage, type FeedProvider, type FeedRowIn, type FeedSortAllow } from '../engine/feed-types.js';
 import {
   createCatalog,
   isWsFeedData,
@@ -26,6 +26,19 @@ export interface ProductFeedInput {
   buildAtMs: number;
   /** seed/lint.ts lintText 적중 ≥1 → true(엔진이 seed 를 import 하지 않게 주입). */
   isTitleBanned: (title: string) => boolean;
+  /** 380 S3: 공급자별 파일 api.sort. 없으면 인기순 아님. */
+  sorts?: Partial<Record<FeedProvider, string | null>>;
+  /** 시험 주입용 — 기본 FEED_POPULAR_SORTS(지금 빈 목록). cli 는 넘기지 않는다. */
+  popularSorts?: FeedSortAllow;
+}
+
+/** 380 S3: 보이는 행이 1개 이상이고 모두 허용 목록의 sort 로 받은 공급자 행일 때만 true. */
+function isPopular(rows: FeedSelection['rows'], input: ProductFeedInput): boolean {
+  const allow = input.popularSorts ?? FEED_POPULAR_SORTS;
+  return rows.length > 0 && rows.every((r) => {
+    const sort = input.sorts?.[r.provider];
+    return typeof sort === 'string' && allow[r.provider].includes(sort);
+  });
 }
 
 /** 한 타입의 피드(단계별) — 마크업(pages/feed.ts)과 ws-data data.feed 가 같은 값을 쓴다. */
@@ -60,15 +73,17 @@ function publicRow(r: FeedSelection['rows'][number], withPrice: boolean): Public
   return withPrice ? { ...base, price: r.price, ...tail } : { ...base, ...tail };
 }
 
-function block(typeId: string, itemId: string, s: FeedSelection, withPrice: boolean, checkedOn: string): PublicFeedBlock {
+function block(typeId: string, itemId: string, s: FeedSelection, withPrice: boolean, checkedOn: string, input: ProductFeedInput): PublicFeedBlock {
+  const shown = s.rows.slice(0, FEED_SCREEN_ROWS);
   return {
     v: 1,
     typeId,
     supplyItemId: itemId,
     badge: s.badge,
     generalInfo: s.generalInfo,
+    ...(isPopular(shown, input) ? { popular: true as const } : {}),
     ...(withPrice ? { priceCheckedOn: checkedOn } : {}),
-    rows: s.rows.slice(0, FEED_SCREEN_ROWS).map((r) => publicRow(r, withPrice)),
+    rows: shown.map((r) => publicRow(r, withPrice)),
   };
 }
 
@@ -123,7 +138,7 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
       if (s === null || s.rows.length === 0) continue;
       const per: Partial<Record<FeedLiveStage, PublicFeedBlock>> = {};
       for (const st of stages) {
-        const b = block(t.id, itemId, s, st === 'full', checkedOn);
+        const b = block(t.id, itemId, s, st === 'full', checkedOn, input);
         per[st] = b;
         const file = feedJsonFile(t.slug, itemId, st);
         out.files.set(file, `${JSON.stringify(b)}\n`);
