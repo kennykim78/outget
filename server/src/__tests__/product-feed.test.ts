@@ -66,7 +66,7 @@ describe('parseProductFeed — 통과', () => {
     expect(parseProductFeedText(EMPTY_COUPANG, 'COUPANG').rows).toEqual([]);
   });
   it('저장소의 빈 피드 2파일 통과', () => {
-    const files = loadProductFeeds((name) => readFileSync(join(DEFAULT_PRODUCT_FEED_DIR, name), 'utf8'));
+    const files = loadProductFeeds((name) => readFileSync(join(DEFAULT_PRODUCT_FEED_DIR, name), 'utf8'), Date.now());
     expect(files.map((f) => f.provider)).toEqual(['COUPANG', 'ALIEXPRESS']);
     expect(files.every((f) => f.rows.length === 0 && f.generatedAt === null)).toBe(true);
     expect(feedGeneratedAt(files)).toBeNull();

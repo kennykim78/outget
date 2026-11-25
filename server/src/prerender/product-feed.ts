@@ -11,7 +11,7 @@
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FEED_IMAGE_HOSTS, FEED_LINK_RE } from '../engine/providers.js';
-import { FEED_PROVIDERS, FEED_ROW_CAP, parseFeedInstant, type FeedFile, type FeedProvider, type FeedRowIn } from '../engine/feed-types.js';
+import { FEED_CLOCK_SKEW_MS, FEED_PROVIDERS, FEED_ROW_CAP, parseFeedInstant, type FeedFile, type FeedProvider, type FeedRowIn } from '../engine/feed-types.js';
 import { FORBIDDEN_KEYS, hasForbiddenKey } from '../engine/ws-wire.js';
 import { hasDuplicateJsonKey } from './affiliate.js';
 
@@ -75,7 +75,9 @@ function isAllowedImage(provider: FeedProvider, url: unknown): boolean {
 }
 
 /** 피드 JSON(JSON.parse 결과) 검사 — 무효면 throw. expected = 파일명이 가리키는 공급자. */
-export function parseProductFeed(json: unknown, expected: FeedProvider): FeedFile {
+export function parseProductFeed(json: unknown, expected: FeedProvider, opts: { nowMs?: number } = {}): FeedFile {
+  // 373 D3: nowMs 를 주면 generatedAt·fetchedAt 이 nowMs + FEED_CLOCK_SKEW_MS 넘게 뒤(미래)면 throw. 빌드 로더는 항상 준다.
+  const futureLimit = opts.nowMs === undefined ? null : opts.nowMs + FEED_CLOCK_SKEW_MS;
   const fail = (why: string): never => {
     throw new Error(`product-feed: ${PRODUCT_FEED_FILES[expected]} 무효 — ${why}`);
   };
@@ -102,6 +104,7 @@ export function parseProductFeed(json: unknown, expected: FeedProvider): FeedFil
   if (o.generatedAt === null) {
     if (rows.length > 0) fail('rows 가 있으면 generatedAt 필수');
   } else if (gen === null) fail('generatedAt 은 ISO 시각(초·오프셋 포함)');
+  if (gen !== null && futureLimit !== null && gen > futureLimit) fail('generatedAt 이 빌드 시각보다 미래(시계 오차 5분 초과)');
   if (rows.length > 0) {
     if (terms.checkedAt === null) fail('rows 가 있으면 terms.checkedAt 필수(약관 확인 전 노출 금지)');
     for (const f of ['title', 'url']) if (!display.includes(f)) fail(`rows 가 있으면 terms.displayFields 에 ${f}`);
@@ -132,6 +135,7 @@ export function parseProductFeed(json: unknown, expected: FeedProvider): FeedFil
     const f = parseFeedInstant(r.fetchedAt);
     if (f === null) fail(`${at}.fetchedAt 은 ISO 시각(초·오프셋 포함)`);
     if (gen !== null && (f as number) > gen + FETCH_SLACK_MS) fail(`${at}.fetchedAt 이 generatedAt 보다 1시간 넘게 뒤`);
+    if (futureLimit !== null && (f as number) > futureLimit) fail(`${at}.fetchedAt 이 빌드 시각보다 미래(시계 오차 5분 초과)`);
     const g = `${r.animalTypeId}\u0000${r.supplyItemId}`;
     const ranks = perGroup.get(g) ?? new Set<number>();
     if (ranks.has(r.rank as number)) fail(`${at}.rank 중복(같은 타입·품목)`);
@@ -143,7 +147,7 @@ export function parseProductFeed(json: unknown, expected: FeedProvider): FeedFil
 }
 
 /** 원문 텍스트 검사 — BOM·JSON 아님·중복 키·parseProductFeed 위반 → throw. */
-export function parseProductFeedText(text: string, expected: FeedProvider): FeedFile {
+export function parseProductFeedText(text: string, expected: FeedProvider, opts: { nowMs?: number } = {}): FeedFile {
   const name = PRODUCT_FEED_FILES[expected];
   if (text.charCodeAt(0) === 0xfeff) throw new Error(`product-feed: ${name} 무효 — 파일 앞 BOM(U+FEFF)`);
   let json: unknown;
@@ -153,15 +157,16 @@ export function parseProductFeedText(text: string, expected: FeedProvider): Feed
     throw new Error(`product-feed: ${name} 무효 — JSON 아님`);
   }
   if (hasDuplicateJsonKey(text)) throw new Error(`product-feed: ${name} 무효 — 같은 객체 안 중복 키`);
-  return parseProductFeed(json, expected);
+  return parseProductFeed(json, expected, opts);
 }
 
 /**
  * 공급자 파일 전부를 읽어 검사(켜짐일 때만 호출). readText(파일명) 는 호출부가 준다(테스트 주입·디렉터리 고정).
  *   공급자 순서 = FEED_PROVIDERS. 파일이 없거나 무효면 throw(cli exit 2).
+ *   373 D3: nowMs(빌드 시각) 필수 — 미래 generatedAt·fetchedAt(오차 5분 초과) → throw.
  */
-export function loadProductFeeds(readText: (fileName: string) => string): FeedFile[] {
-  return FEED_PROVIDERS.map((p) => parseProductFeedText(readText(PRODUCT_FEED_FILES[p]), p));
+export function loadProductFeeds(readText: (fileName: string) => string, nowMs: number): FeedFile[] {
+  return FEED_PROVIDERS.map((p) => parseProductFeedText(readText(PRODUCT_FEED_FILES[p]), p, { nowMs }));
 }
 
 /** 피드 파일들 → selectFeedRows 입력 행(공급자 붙임). */

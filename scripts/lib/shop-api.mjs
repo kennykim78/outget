@@ -50,10 +50,11 @@ export function providerCreds(provider, env) {
   return { ok: true, creds: Object.fromEntries(names.map((n) => [CRED_FIELD[n], env[n]])) };
 }
 
-const ZW_RE = /[­​-‏⁠﻿]/g;
-/** 금지어 검사(seed/lint.ts 보다 엄격): NFKC·제로폭 제거 후, 공백 유지·제거 두 형태 모두에서 banned·stems 하나라도 걸리면 true. */
+// 373 D5: 기본 무시 문자 전부(seed/lint.ts normalizeLintText 와 같은 범위·순서).
+const ZW_RE = /\p{Default_Ignorable_Code_Point}/gu;
+/** 금지어 검사(seed/lint.ts 보다 엄격): 기본 무시 문자 제거·NFKC 후, 공백 유지·제거 두 형태 모두에서 banned·stems 하나라도 걸리면 true. */
 export function titleBanned(title, bannedJson) {
-  const spaced = String(title).normalize('NFKC').replace(ZW_RE, '').replace(/\s+/g, ' ');
+  const spaced = String(title).replace(ZW_RE, '').normalize('NFKC').replace(ZW_RE, '').replace(/\s+/g, ' ');
   const stripped = spaced.replace(/ /g, '');
   const list = [...(bannedJson?.banned ?? []), ...(bannedJson?.stems ?? [])];
   return list.some((w) => {
@@ -65,6 +66,7 @@ export function titleBanned(title, bannedJson) {
 function cleanTitle(s) {
   if (typeof s !== 'string') return null;
   const t = s
+    .replace(ZW_RE, '')
     .normalize('NFKC')
     .replace(ZW_RE, '')
     .replace(/<[^>]*>/g, '')

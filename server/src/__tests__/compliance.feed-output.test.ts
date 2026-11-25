@@ -161,6 +161,26 @@ describe('N12 피드 산출물(C11-FEED-OUT·C2-PRICE·C8)', () => {
     expect(hits.some((m) => m.includes('hay')), JSON.stringify(r)).toBe(true);
   });
 
+  // 373 D2: 제목에 섞인 가격·날짜 — 엔진이 버리지만, 산출물에 남으면 스캐너가 따로 FAIL(noprice HTML 블록·피드 제목·피드 JSON title).
+  it.each([
+    ['noprice HTML 피드 제목에 가격', T_NP, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">)/, '$1 12,900원 ')],
+    ['noprice HTML 피드 제목에 날짜', T_NP, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">)/, '$1 11월 20일 입고 ')],
+    ['full HTML 피드 제목에 KRW', T_FULL, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">)/, '$1 KRW 12900 ')],
+  ])('%s → C11-FEED-OUT', (_n, file, f) => {
+    const r = scanBuilt(file === T_NP ? GEN_MS + 80 * H : GEN_MS + H, edit(file, f));
+    expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /가격·날짜/.test(x.message)), JSON.stringify(r)).toBe(true);
+  });
+  it('noprice 피드 JSON title 에 가격 → C11-FEED-OUT', () => {
+    const r = scanBuilt(GEN_MS + 80 * H, edit('hamster/golden/feed/wheel.noprice.json', (s) => s.replace('"title":"햄스터', '"title":"₩12,900 햄스터')));
+    expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /가격·날짜/.test(x.message)), JSON.stringify(r)).toBe(true);
+  });
+  it('FEED_TITLE_PRICE_DATE 스캐너 = feed-types.ts(source·flags)', async () => {
+    const ft = await import('../engine/feed-types.js');
+    const a = (await imp<{ FEED_TITLE_PRICE_DATE: RegExp }>('scripts/lib/rules-affiliate.mjs')).FEED_TITLE_PRICE_DATE;
+    expect(a.source).toBe(ft.FEED_TITLE_PRICE_DATE.source);
+    expect(a.flags).toBe(ft.FEED_TITLE_PRICE_DATE.flags);
+  });
+
   it('홈 변형 피드 카드 0 유지(홈 기본 파일 피드 없음)', () => {
     const b = buildSite(seed, { ...opt(), productFeed: { rows: ROWS, generatedAt: GEN, buildAtMs: GEN_MS + H, isTitleBanned: () => false } });
     expect(b.files.get('index.html') ?? '').not.toContain('ws-feed-card');

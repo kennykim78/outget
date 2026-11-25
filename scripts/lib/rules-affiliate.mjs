@@ -61,6 +61,13 @@ export const FEED_LINK_RES = Object.freeze({
 });
 export const FEED_IMG_HOSTS = Object.freeze({ COUPANG: Object.freeze([]), ALIEXPRESS: Object.freeze(['ae01.alicdn.com']) });
 export const FEED_FILES = Object.freeze({ 'coupang.json': 'COUPANG', 'aliexpress.json': 'ALIEXPRESS' });
+// 373 D2: 제목 안 가격·날짜 — 원본 server/src/engine/feed-types.ts FEED_TITLE_PRICE_DATE(source·flags 시험 대조). 산출물에 남으면 FAIL.
+export const FEED_TITLE_PRICE_DATE =
+  /[₩$€£¥\\]\s*\d|\d\s*(?:[만천]\s*)?원(?!형|목)|\d\s*(?:krw|usd|won|달러)(?![a-z])|(?<![a-z])(?:krw|usd)\s*\d|\d{4}\s*년|\d\s*월|(?<!\d)\d{2,4}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{1,2}(?!\d)|(?<![\d./])(?:0?[1-9]|1[0-2])\s*\/\s*(?:0?[1-9]|[12]\d|3[01])(?![\d/])/iu;
+const FEED_DI_RE = /\p{Default_Ignorable_Code_Point}/gu;
+/** feed-types.ts feedTitleHasPriceOrDate 와 같은 정규화(기본 무시 문자 제거 → NFKC → 다시 제거 → 공백 하나). */
+export const feedTitleHasPriceOrDate = (t) =>
+  FEED_TITLE_PRICE_DATE.test(String(t).replace(FEED_DI_RE, '').normalize('NFKC').replace(FEED_DI_RE, '').replace(/\s+/g, ' '));
 const isFeedPath = (rel) => lc(rel) === lc(AFF_PATHS.feedDir) || lc(rel).startsWith(`${lc(AFF_PATHS.feedDir)}/`);
 const isFeedModule = (rel) => lc(rel) === lc(AFF_PATHS.productFeedLoader) || isFeedPath(rel);
 /** 엔진 노출·순서·판정 결정 파일(258 단계 7) — 폐포가 제휴 모듈에 닿으면 FAIL. */
@@ -1914,6 +1921,10 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       if (feedUp[i] === i) {
         boxes++;
         if (/○/.test(decodeEntities(html.slice(e.start, e.end ?? e.start)))) out(i, '피드 블록에 ○ 글리프(운영자 확인 카드 전용)');
+        // 373 D2: noprice 변형 피드 블록 본문(태그 뺀 글자)에 가격·날짜 표기 0 — 제목에 섞인 가격이 만료 뒤에도 남는 틈.
+        if (variant === 'noprice' && feedTitleHasPriceOrDate(decodeEntities(html.slice(e.start, e.end ?? e.start).replace(/<[^>]*>/g, ' ')))) {
+          out(i, 'noprice 변형 피드 블록에 가격·날짜 표기(제목 포함 — FEED_TITLE_PRICE_DATE)');
+        }
         const sib = e.parent >= 0 ? kids(e.parent) : [];
         if (e.name === 'section' && sib.some((x) => els[x].start > e.start && els[x].attrs['data-ws-part'] === 'products')) out(i, '피드 블록이 운영자 확인 상품(products)보다 앞');
         if (e.name === 'li' && sib.some((x) => els[x].start > e.start && classesOf(els[x]).includes('ws-product'))) out(i, '피드 카드가 운영자 확인 카드(li.ws-product)보다 앞');
@@ -1927,6 +1938,9 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
         if (!cls.includes('ws-feed-thumb')) out(i, '피드 블록 img 는 img.ws-feed-thumb 만');
         if ((e.attrs.referrerpolicy ?? '').trim().toLowerCase() !== 'no-referrer') out(i, '피드 이미지 referrerpolicy="no-referrer" 아님');
         if (!feedImageOk(merchant, (e.attrs.src ?? '').trim())) out(i, `피드 이미지 호스트가 FEED_IMAGE_HOSTS.${L(String(merchant))} 밖(https 정확 일치)`);
+      }
+      if (cls.includes('ws-feed-title') && feedTitleHasPriceOrDate(decodeEntities(html.slice(e.start, e.end ?? e.start).replace(/<[^>]*>/g, ' ')))) {
+        out(i, '피드 제목에 가격·날짜 표기(373 D2 — 엔진이 버려야 할 행)');
       }
       if (cls.includes('ws-feed-price')) {
         if (variant === 'noprice') out(i, 'noprice 변형에 가격 줄(만료 지난 가격 노출)');
@@ -2296,6 +2310,7 @@ function checkFeedJsonOut(text, rel, noprice, add) {
   let urls = 0;
   const walkV = (v, k) => {
     if (typeof v === 'string') {
+      if (k === 'title' && feedTitleHasPriceOrDate(v)) fail('피드 JSON title 에 가격·날짜 표기(373 D2 — FEED_TITLE_PRICE_DATE)');
       if (k === 'url' && FEED_LINK_RES.COUPANG.test(v)) urls++;
       else if (/aliexpress/i.test(v)) fail('피드 JSON 에 알리 값 — 알리 고지 문안 Kenny 결정 전(K2)');
       return;

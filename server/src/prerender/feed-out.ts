@@ -3,7 +3,7 @@
 //   단계(빌드 시각 기준): full → 두 변형 / noprice → noprice 만 / nofeed(168h 초과·generatedAt 없음) → 파일·manifest 0.
 //   이미 지난 단계의 변형은 만들지 않는다. 빌드 시각은 어떤 파일에도 쓰지 않는다(manifest 는 generatedAt 파생값만).
 //   홈 레일 모델(D-2): LISTED_PASS ∧ 비 GENERAL_INFO 블록의 첫 행만, 품목당 1장. N9: 단계별 ws-data data.feed(레일 카드 1.5KB 예산 안) + 마크업용 블록.
-import { FEED_SCREEN_ROWS, feedDeadlines, feedJsonFile, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedLiveStage, type FeedRowIn } from '../engine/feed-types.js';
+import { FEED_SCREEN_ROWS, feedDeadlines, feedFreshAt, feedJsonFile, feedOldestFetchedMs, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedLiveStage, type FeedRowIn } from '../engine/feed-types.js';
 import {
   createCatalog,
   isWsFeedData,
@@ -93,12 +93,16 @@ export function fitWsFeed(stage: FeedLiveStage, checkedOn: string, items: string
 
 export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: string, input: ProductFeedInput): FeedOutput {
   const out: FeedOutput = { files: new Map(), manifest: null, rail: new Map(), stages: [], types: new Map() };
-  const stage = feedStage(input.buildAtMs, input.generatedAt);
-  const genMs = parseFeedInstant(input.generatedAt);
-  if (stage === 'nofeed' || genMs === null || input.generatedAt === null) return out;
+  // 373 D4: 기한 기준 = generatedAt·행 fetchedAt 중 가장 오래된 값(selectFeedRows 와 같은 feedFreshAt) — 오래된 fetchedAt 이
+  //   가격·블록 기한을 늘리지 못한다. manifest.generatedAt 도 이 값(런타임 spa 단계 계산의 원천). D3: 미래 → nofeed.
+  const freshAt = feedFreshAt(input.generatedAt, input.rows);
+  const stage = feedStage(input.buildAtMs, freshAt);
+  const genMs = parseFeedInstant(freshAt);
+  const oldestFetch = feedOldestFetchedMs(input.rows);
+  if (stage === 'nofeed' || genMs === null || freshAt === null || oldestFetch === null) return out;
   const stages: FeedLiveStage[] = stage === 'full' ? ['full', 'noprice'] : ['noprice'];
   const cat = createCatalog(seed);
-  const d = seoulDate(genMs);
+  const d = seoulDate(oldestFetch); // 353 §2: 「M월 D일 확인」 = 가장 오래된 fetchedAt 의 Asia/Seoul 날짜
   const checkedOn = `${pad(d.year, 4)}-${pad(d.month)}-${pad(d.day)}`;
   const full: string[] = [];
   const noprice: string[] = [];
@@ -151,7 +155,7 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
   const { priceUntil, blockUntil } = feedDeadlines(genMs);
   out.manifest = {
     v: 1,
-    generatedAt: input.generatedAt,
+    generatedAt: freshAt,
     priceUntil: seoulIso(priceUntil),
     blockUntil: seoulIso(blockUntil),
     variants: { full: [...full].sort(), noprice: [...noprice].sort() },

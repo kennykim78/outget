@@ -315,11 +315,13 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
   let productFeed: ProductFeedInput | undefined;
   if (feedGate.on) {
     try {
-      const feeds = loadProductFeeds((name) => readFileSync(join(args.productFeedDir, name), 'utf8'));
+      const buildAtMs = io.nowMs ? io.nowMs() : Date.now();
+      // 373 D3: 빌드 시각 기준 미래 generatedAt·fetchedAt(오차 5분 초과) → throw(exit 2).
+      const feeds = loadProductFeeds((name) => readFileSync(join(args.productFeedDir, name), 'utf8'), buildAtMs);
       productFeed = {
         rows: feedRowsOf(feeds),
         generatedAt: feedGeneratedAt(feeds),
-        buildAtMs: io.nowMs ? io.nowMs() : Date.now(),
+        buildAtMs,
         isTitleBanned: (t) => lintText(t).length > 0,
       };
     } catch (e) {

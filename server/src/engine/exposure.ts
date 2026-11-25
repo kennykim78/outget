@@ -12,7 +12,17 @@ import { checkAnimalMinSpec } from './spec-check.js';
 import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
 import { PHOTO_AI_LICENSE, PHOTO_ASSET_RE, isAiPhotoRecordOk } from './photo-ai.js';
 import { generalInfoOkAt, isGeneralInfoTypeId } from './general-info.js';
-import { FEED_AVOID_WORDS, FEED_TITLE_DENY, compareFeedRows, feedStage, type FeedBadge, type FeedPrice, type FeedProvider, type FeedRowIn } from './feed-types.js';
+import {
+  DEFAULT_IGNORABLE_RE,
+  FEED_AVOID_WORDS,
+  FEED_CLOCK_SKEW_MS,
+  FEED_TITLE_DENY,
+  compareFeedRows,
+  feedFreshAt,
+  feedStage,
+  feedTitleHasPriceOrDate,
+  parseFeedInstant,
+  type FeedBadge, type FeedPrice, type FeedProvider, type FeedRowIn } from './feed-types.js';
 import { parseTitleSpec, titleEnumPattern } from './title-spec.js';
 import { evaluateRuleSet, readSpecValue, referencedSpecKeys } from './rules.js';
 import { buildSearchKeyword } from './search-keyword.js';
@@ -244,9 +254,11 @@ export interface FeedSelectOptions {
 }
 
 const feedNorm = (s: string): { spaced: string; stripped: string } => {
+  // 373 D5: \uAE30\uBCF8 \uBB34\uC2DC \uBB38\uC790 \uC804\uBD80(NFKC \uC55E\uB4A4 \u2014 NFKC \uAC00 \uB9CC\uB4DC\uB294 \uCC44\uC6C0 \uBB38\uC790\uAE4C\uC9C0) \uC81C\uAC70 \u2014 seed/lint.ts normalizeLintText \uC640 \uAC19\uC740 \uBC94\uC704.
   const spaced = s
+    .replace(DEFAULT_IGNORABLE_RE, '')
     .normalize('NFKC')
-    .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, '')
+    .replace(DEFAULT_IGNORABLE_RE, '')
     .replace(/\s+/g, ' ');
   return { spaced, stripped: spaced.replace(/ /g, '') };
 };
@@ -282,7 +294,8 @@ function hitsNotInWord(r: ResolvedRequirement, title: string): boolean {
 /**
  * 「많이 찾는 상품」 피드 노출 결정 — 피드는 여기 한 곳에서만 고른다(불변식 3·5·7, D-1~D-7). 순수·결정론, 입력 불변.
  *   null(블록 없음): 타입·요구사항 비노출 ∨ 품목 FOOD·HEALTH ∨ generatedAt 없음·168h 초과.
- *   행 버림(개작 0): 타입·품목 불일치 ∨ keyword ≠ buildSearchKeyword ∨ 금지어(주입) ∨ 의료 효능어 ∨ avoid·not_in 사전어.
+ *   행 버림(개작 0): 타입·품목 불일치 ∨ keyword ≠ buildSearchKeyword ∨ 금지어(주입) ∨ 제목 가격·날짜(373 D2) ∨ 형식 밖·미래 fetchedAt(D3)
+ *     ∨ 의료 효능어 ∨ avoid·not_in 사전어. 단계 기준 시각 = feedFreshAt(generatedAt, rows)(D4 — 가장 오래된 fetchedAt 쪽).
  *   minSpec 규칙 0 → CHECK_NEEDED(모든 행). 규칙 ≥1 → 제목에서 minSpec 이 참조하는 키 전부(규칙·when)를 범위 안 값으로
  *     읽어야 하고 MIN 판정 OK 여야 남는다(못 읽으면 버림, D-1). 권장 판정으로 verdict(OK/BELOW_RECOMMENDED).
  *   D-7: 체인 메타 중 하나라도 GENERAL_INFO(strictChainOk 거짓) → 필터는 같게, 배지는 CHECK_NEEDED·규격 값·verdict null.
@@ -301,7 +314,8 @@ export function selectFeedRows(
   const r = resolveRequirement(cat, animalTypeId, supplyItemId);
   if (!at || !r || !requirementOk(cat, r, day)) return null;
   if (FEED_EXCLUDED_CATEGORIES.includes(r.item.category)) return null;
-  const stage = feedStage(opts.buildAtMs, opts.generatedAt);
+  // 373 D4: 단계 기준 = generatedAt·행 fetchedAt 중 가장 오래된 값(feedFreshAt — buildFeedOutputs manifest 와 같은 값). D3: 미래 → nofeed.
+  const stage = feedStage(opts.buildAtMs, feedFreshAt(opts.generatedAt, rows));
   if (stage === 'nofeed') return null;
   const showPrice = stage === 'full';
   const generalInfo = !strictChainOk(r, day);
@@ -317,6 +331,9 @@ export function selectFeedRows(
     if (typeof row.title !== 'string') continue;
     const { spaced, stripped } = feedNorm(row.title);
     if (opts.isTitleBanned(row.title)) continue;
+    if (feedTitleHasPriceOrDate(row.title)) continue; // 373 D2: 제목 안 가격·날짜(noprice 변형에도 남는다) → 싣지 않음
+    const fAt = parseFeedInstant(row.fetchedAt);
+    if (fAt === null || fAt > opts.buildAtMs + FEED_CLOCK_SKEW_MS) continue; // 373 D3: 형식 밖·미래 fetchedAt 행 버림
     if (FEED_TITLE_DENY.test(spaced) || FEED_TITLE_DENY.test(stripped)) continue;
     if (hitsAvoidWord(r.avoid, stripped) || hitsNotInWord(r, row.title)) continue;
     let verdict: SelectedFeedRow['verdict'] = null;

@@ -18,6 +18,30 @@ interface WordEntry {
 const compile = (list: readonly WordEntry[]): readonly BannedTerm[] =>
   list.map((w) => ({ term: w.term, re: new RegExp(w.pattern, 'u') }));
 
+/**
+ * 373 D5: 영문 대소문자 변형(Best·bEsT·Krw…) 우회 차단. 판정 = 원래 'u' 일치 ∨ 'giu' 일치 중 「영문 소문자만이 아닌」 조각.
+ *   전부 소문자 ASCII 조각(`best` — 코드 식별자, 353 §N2 결정·seed.lint 「소문자 best 대상 아님」)만 예외로 남긴다. 원래 'u' 일치는
+ *   그대로 포함하므로 기존 판정이 약해지는 경우는 없다. scripts/lib/normalize.mjs termHit 과 같은 규칙(lint-parity).
+ */
+const CI_CACHE = new Map<string, RegExp>();
+const ciOf = (re: RegExp): RegExp => {
+  let r = CI_CACHE.get(re.source);
+  if (!r) CI_CACHE.set(re.source, (r = new RegExp(re.source, 'giu')));
+  return r;
+};
+const qualifies = (m: string): boolean => /[^a-z]/.test(m);
+function termHit(re: RegExp, text: string): boolean {
+  if (re.test(text)) return true;
+  for (const m of text.matchAll(ciOf(re))) if (qualifies(m[0])) return true;
+  return false;
+}
+function termStrip(re: RegExp, text: string): string {
+  return text.replace(new RegExp(re.source, 'gu'), ' ').replace(ciOf(re), (m) => (qualifies(m) ? ' ' : m));
+}
+
+/** 373 D5: 기본 무시 문자(Default_Ignorable_Code_Point) 전부 — 한글 채움 문자·변형 선택자·CGJ·태그·몽골 FVS 등. */
+const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu;
+
 /** L01 — 정확 금지어(불변식 5). */
 export const BANNED: readonly BannedTerm[] = compile(data.banned);
 
@@ -30,13 +54,16 @@ export interface LintHit {
 }
 
 /**
- * 린트용 정규화. NFKC → 소프트하이픈·제로폭·방향 표식 제거 → 공백 연속을 ' ' 하나로.
+ * 린트용 정규화. 기본 무시 문자(\p{Default_Ignorable_Code_Point}, 373 D5 — 이전엔 U+00AD·200B~200F·2060·FEFF 만) 제거 → NFKC → 다시 제거
+ * → 공백 연속을 ' ' 하나로.
  * stripped 는 공백을 전부 제거한다.
  */
 export function normalizeLintText(s: string, mode: 'spaced' | 'stripped'): string {
+  // 373 D5: 기본 무시 문자 전부 제거 → NFKC → 다시 제거(NFKC 가 만드는 채움 문자) — scripts/lib/normalize.mjs 와 같은 순서.
   const spaced = s
+    .replace(DEFAULT_IGNORABLE, '')
     .normalize('NFKC')
-    .replace(/[\u00AD\u200B-\u200F\u2060\uFEFF]/g, '')
+    .replace(DEFAULT_IGNORABLE, '')
     .replace(/\s+/g, ' ');
   return mode === 'spaced' ? spaced : spaced.replace(/ /g, '');
 }
@@ -48,17 +75,17 @@ export function lintText(text: string): LintHit[] {
   const stripped = normalizeLintText(text, 'stripped');
   let rest = spaced;
   for (const b of BANNED) {
-    if (b.re.test(spaced)) {
+    if (termHit(b.re, spaced)) {
       hits.push({ rule: 'L01', term: b.term });
-      rest = rest.replace(new RegExp(b.re.source, 'gu'), ' ');
-    } else if (b.re.test(stripped)) {
+      rest = termStrip(b.re, rest);
+    } else if (termHit(b.re, stripped)) {
       // 공백 제거 후에만 걸림 — 긴 금지어는 우회로 보고 ERROR, 짧은 것(단어 경계 걸침 가능)은 WARN.
       const len = b.term.replace(/[\sN]/g, '').length;
       hits.push({ rule: len >= 3 ? 'L01' : 'L06', term: b.term });
     }
   }
   for (const s of STEMS) {
-    if (s.re.test(rest)) hits.push({ rule: 'L02', term: s.term });
+    if (termHit(s.re, rest)) hits.push({ rule: 'L02', term: s.term });
   }
   return hits;
 }
@@ -146,7 +173,7 @@ function isCompatDigit(ch: string): boolean {
  * 호환 숫자 표기 목록(순수, L07·W02 공용) — **정규화 전 원문**에서 이어진 호환 숫자 글자 묶음.
  *   numberTokens·disguisedNumbers 는 NFKC 뒤 값 대조라 전각 ６０ 을 60 으로 펴 통과시킨다. 이 함수는 표기 자체를 막는다.
  *   NFKC 로 바뀌어도 숫자가 안 생기는 문자(℃·ㆍ·…·한글 음절·호환 자모·㈀·㉠)는 대상 아님. normalizeLintText 와 무관(lint-parity 불변).
- *   한계: 한글 채움 문자(U+3164 등)로 금지어를 쪼개는 우회는 normalizeLintText 범위라 여기서 다루지 않는다.
+ *   한글 채움 문자(U+3164 등)로 금지어를 쪼개는 우회는 normalizeLintText(373 D5 — Default_Ignorable 전부 제거)가 막는다.
  */
 export function compatDigits(raw: string): string[] {
   const out: string[] = [];

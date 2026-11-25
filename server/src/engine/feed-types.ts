@@ -17,6 +17,11 @@ export const FEED_PRICE_HOURS = 72;
 /** generatedAt 뒤 이 시간을 넘으면 피드 블록 제거(nofeed). */
 export const FEED_BLOCK_HOURS = 168;
 const HOUR_MS = 3_600_000;
+/**
+ * 373 D3: 미래 시각 허용 오차(빌드·서버 시계 차). generatedAt·fetchedAt 이 기준 시각보다 이만큼 넘게 뒤면
+ *   빌드 로더 throw(product-feed.ts)·단계 nofeed(빌드·런타임 공용 feedStage)·행 버림(selectFeedRows).
+ */
+export const FEED_CLOCK_SKEW_MS = 5 * 60_000;
 
 /** 블록 배지: LISTED_PASS 「표기 규격 통과」(○ 아님, 중립) · CHECK_NEEDED 「△ 규격 확인 필요」. */
 export type FeedBadge = 'LISTED_PASS' | 'CHECK_NEEDED';
@@ -78,6 +83,24 @@ export function compareFeedRows(a: FeedSortKey, b: FeedSortKey): number {
  * 의료 효능어(불변식 ⑤) — 제목에 있으면 행을 버린다(개작 0). 린트 금지어(seed/lint.ts)와 별개로 피드 제목에만 쓴다.
  */
 export const FEED_TITLE_DENY = /치료|효능|예방|영양제|처방|약용|질병|면역|살균|항균|구충|진정제|의약/;
+
+/** 373 D2·D5: 기본 무시 문자(Default_Ignorable_Code_Point — 제로폭·이음표·변형 선택자·한글 채움 문자·태그 등) 전부. */
+export const DEFAULT_IGNORABLE_RE = /\p{Default_Ignorable_Code_Point}/gu;
+
+/**
+ * 373 D2: 상품 제목 안 가격·날짜 표기 — 원문 개작 0 이라 이런 행은 싣지 않는다(selectFeedRows — 만료 뒤 noprice 변형에도 남는 값이라).
+ *   통화 기호(₩·$·€·£·¥·\ — ￦·＄ 는 NFKC 로 같은 글자)+숫자 · 숫자+원(만원·천원, 원형·원목 제외) · 숫자+KRW·USD·won·달러 · KRW·USD+숫자 ·
+ *   연도(2026년) · 월(11월) · 연월일(2026-11-20·26.11.20) · 월/일(11/20). 규격 치수(30cm·60×40×35cm·1.5kg·6개월)는 걸리지 않는다.
+ *   scripts/lib/rules-affiliate.mjs FEED_TITLE_PRICE_DATE 와 source·flags 동일(compliance.feed-output 시험).
+ */
+export const FEED_TITLE_PRICE_DATE =
+  /[₩$€£¥\\]\s*\d|\d\s*(?:[만천]\s*)?원(?!형|목)|\d\s*(?:krw|usd|won|달러)(?![a-z])|(?<![a-z])(?:krw|usd)\s*\d|\d{4}\s*년|\d\s*월|(?<!\d)\d{2,4}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{1,2}(?!\d)|(?<![\d./])(?:0?[1-9]|1[0-2])\s*\/\s*(?:0?[1-9]|[12]\d|3[01])(?![\d/])/iu;
+
+/** 제목 정규화(기본 무시 문자 제거 → NFKC → 다시 제거 → 공백 하나) 뒤 FEED_TITLE_PRICE_DATE 적중 여부. */
+export function feedTitleHasPriceOrDate(title: string): boolean {
+  const t = title.replace(DEFAULT_IGNORABLE_RE, '').normalize('NFKC').replace(DEFAULT_IGNORABLE_RE, '').replace(/\s+/g, ' ');
+  return FEED_TITLE_PRICE_DATE.test(t);
+}
 
 /**
  * avoid 사전어 — 요구사항 avoid 문장에 이 낱말이 있고 제목에도 있으면 행을 버린다(「소나무 베딩」 등). 낱말 목록은 고정, 문장은 시드가 결정.
@@ -157,14 +180,42 @@ export function seoulIso(ms: number): string {
 
 export type FeedStage = 'full' | 'noprice' | 'nofeed';
 
-/** buildAt 기준 피드 단계: ≤72h full · ≤168h noprice · 그 뒤 nofeed. generatedAt 없음(빈 파일) → nofeed. */
+/** buildAt 기준 피드 단계: ≤72h full · ≤168h noprice · 그 뒤 nofeed. generatedAt 없음(빈 파일)·FEED_CLOCK_SKEW_MS 넘는 미래 → nofeed. */
 export function feedStage(buildAtMs: number, generatedAt: string | null): FeedStage {
   const g = parseFeedInstant(generatedAt);
   if (g === null) return 'nofeed';
   const age = buildAtMs - g;
+  if (age < -FEED_CLOCK_SKEW_MS) return 'nofeed'; // 373 D3: 미래 시각 — 만료 기한을 늘리지 못하게 fail-closed(빌드·런타임 공용)
   if (age > FEED_BLOCK_HOURS * HOUR_MS) return 'nofeed';
   if (age > FEED_PRICE_HOURS * HOUR_MS) return 'noprice';
   return 'full';
+}
+
+/**
+ * 373 D4: 신선도 기준 시각 = generatedAt 과 모든 행 fetchedAt 중 가장 이른 값(원문 문자열). 오래된 fetchedAt 이 가격·블록 기한을
+ *   늘리지 못한다(353 §2 — 가격의 원천은 fetchedAt). generatedAt 없음·형식 밖 fetchedAt 하나라도 → null(nofeed, fail-closed).
+ *   selectFeedRows·buildFeedOutputs(manifest generatedAt·priceUntil·blockUntil)가 같은 행 집합으로 같은 값을 쓴다.
+ */
+export function feedFreshAt(generatedAt: string | null, rows: ReadonlyArray<{ fetchedAt: unknown }>): string | null {
+  const g = parseFeedInstant(generatedAt);
+  if (g === null || generatedAt === null) return null;
+  let best = { s: generatedAt, ms: g };
+  for (const r of rows) {
+    const f = parseFeedInstant(r?.fetchedAt);
+    if (f === null) return null;
+    if (f < best.ms) best = { s: r.fetchedAt as string, ms: f };
+  }
+  return best.s;
+}
+
+/** 373 D4: 확인일 원천 = 행 fetchedAt 중 가장 이른 값(ms, 없으면 null). 화면 「M월 D일 확인」은 이 값의 Asia/Seoul 날짜. */
+export function feedOldestFetchedMs(rows: ReadonlyArray<{ fetchedAt: unknown }>): number | null {
+  let best: number | null = null;
+  for (const r of rows) {
+    const f = parseFeedInstant(r?.fetchedAt);
+    if (f !== null && (best === null || f < best)) best = f;
+  }
+  return best;
 }
 
 /** 만료 시각(ms): 가격 줄 제거 = generatedAt + 72h, 블록 제거 = + 168h. */

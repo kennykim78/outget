@@ -83,8 +83,30 @@ export function cspForPath(p: string, feedImgHosts: readonly string[] = []): str
 /** 변형 HTML·피드 JSON(+사전 압축본) — 직접 요청은 막고, 서버가 단계에 맞춰 고른다. */
 //   넓게 잡는다(대소문자·뒤 점/공백·ADS 접미 — Windows 파일 시스템 우회 포함): 변형 HTML 은 어떤 꼴이든 404,
 //   피드 JSON 은 manifest 목록과 정확히 같은 이름(+.br/.gz)만 통과.
-const FEED_PAGE_FILE_RE = /(?:^|\/)index\.feed/i;
-const FEED_JSON_FILE_RE = /(?:^|\/)feed\/[^/]*\.json/i;
+//   373 D1: 정규식 하나(원문 경로)로는 「feed//x.json」·「%5C」 처럼 정적 서빙이 정규화해 주는 꼴이 빠졌다 — 분류는 두 갈래로 한다.
+//     ① 어휘 정규화: percent-decode → 역슬래시 = '/' → 빈·'.' 세그먼트 제거·'..' 해석 → 세그먼트마다 ADS(':' 뒤)·끝 점/공백 제거·소문자.
+//     ② 실제 파일: 정적 서빙이 고를 파일(root + decoded, path.normalize)이 있으면 realpath.native(8.3 짧은 이름·대소문자·끝 점까지
+//        OS 가 푼 진짜 이름)로 다시 분류. realpath 가 실패하면 그 파일은 차단(fail-closed).
+//   허용은 분류와 따로: 피드 JSON 은 decode 한 원문(앞 '/' 하나 뗀 것)이 manifest 목록과 정확히 같을 때만 — 우회 표기는 단계와 무관하게 404.
+const FEED_PAGE_SEG_RE = /^index\.feed/;
+const FEED_DIR_SEG = 'feed';
+/** 분류용 세그먼트 키(허용 판정엔 쓰지 않는다): ADS 접미·끝 점/공백(Windows 가 떼는 것) 제거 + 소문자. */
+const feedSegKey = (seg: string): string => seg.replace(/:[\s\S]*$/, '').replace(/[. ]+$/, '').toLowerCase();
+
+type FeedClass = 'page' | 'json' | null;
+/** dist 상대 경로(posix·역슬래시 섞여도 됨) → 피드 분류. 변형 HTML(index.feed*) 이 어느 세그먼트든 'page', feed 디렉터리 아래면 'json'. */
+export function feedPathClass(rel: string): FeedClass {
+  const segs: string[] = [];
+  for (const seg of rel.replace(/\\/g, '/').split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') segs.pop();
+    else segs.push(seg);
+  }
+  const keys = segs.map(feedSegKey);
+  if (keys.some((k) => FEED_PAGE_SEG_RE.test(k))) return 'page';
+  if (keys.includes(FEED_DIR_SEG)) return 'json';
+  return null;
+}
 
 interface LoadedFeedManifest {
   generatedAt: string;
@@ -342,28 +364,57 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
   const feedMan = loadFeedManifest(clientDist);
   const stageNow = (): FeedStage => (feedMan === null || feedMan === 'bad' ? 'nofeed' : feedStage(nowMs(), feedMan.generatedAt));
 
+  let realRoot: string;
+  try {
+    realRoot = fs.realpathSync.native(clientDist);
+  } catch {
+    realRoot = clientDist;
+  }
+  /** 정적 서빙이 고를 실제 파일의 진짜 이름으로 분류. 파일 없음 → null, 있는데 realpath 실패 → 'page'(차단, fail-closed). */
+  const realFeedClass = (decoded: string): FeedClass => {
+    if (decoded.includes(String.fromCharCode(0))) return null;
+    const abs = path.normalize(path.join(clientDist, decoded));
+    let st: fs.Stats;
+    try {
+      st = fs.statSync(abs);
+    } catch {
+      return null;
+    }
+    if (!st.isFile()) return null;
+    let real: string;
+    try {
+      real = fs.realpathSync.native(abs);
+    } catch {
+      return 'page';
+    }
+    const r = path.relative(realRoot, real);
+    if (r === '' || r.startsWith('..') || path.isAbsolute(r)) return null;
+    return feedPathClass(r.split(path.sep).join('/'));
+  };
+
   // N11: 변형 HTML 직접 요청 0, 피드 JSON 은 manifest 에 있고 지금 단계가 허용할 때만(full JSON = full 단계, noprice JSON = full·noprice).
-  //   그 밖(만료·manifest 없음·손상·목록 밖) → 다음 처리기로 넘기지 않고 404 경로(정적 서빙 앞에서 막는다).
+  //   그 밖(만료·manifest 없음·손상·목록 밖·우회 표기) → 다음 처리기로 넘기지 않고 404 경로(정적 서빙 앞에서 막는다).
   const feedGuard: RequestHandler = (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       next();
       return;
     }
-    let rel: string;
+    let decoded: string;
     try {
-      rel = decodeURIComponent(req.path).replace(/^\/+/, '');
+      decoded = decodeURIComponent(req.path);
     } catch {
       next();
       return;
     }
-    const isPage = FEED_PAGE_FILE_RE.test(rel);
-    const isJson = !isPage && FEED_JSON_FILE_RE.test(rel);
-    if (!isPage && !isJson) {
+    const lex = feedPathClass(decoded);
+    const real = lex === 'page' ? 'page' : realFeedClass(decoded);
+    const cls: FeedClass = lex === 'page' || real === 'page' ? 'page' : lex ?? real;
+    if (cls === null) {
       next();
       return;
     }
-    if (isJson && feedMan !== null && feedMan !== 'bad') {
-      const base = rel.replace(/\.(?:br|gz)$/, '');
+    if (cls === 'json' && feedMan !== null && feedMan !== 'bad' && decoded.startsWith('/') && !decoded.startsWith('//')) {
+      const base = decoded.slice(1).replace(/\.(?:br|gz)$/, '');
       const st = stageNow();
       if ((st === 'full' && feedMan.json.full.has(base)) || (st !== 'nofeed' && feedMan.json.noprice.has(base))) {
         next();
