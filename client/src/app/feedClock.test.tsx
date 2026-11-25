@@ -1,6 +1,6 @@
 // 377 S1 — 문서·탭 캐시가 남아 있어도 클라 시계로 다시 재서 만료 가격·블록을 지운다(fail-closed).
 //   「SW·bfcache 가 준 옛 full 문서」= full ws-data 를 72h+1ms / 168h+1ms 에 그린다. 합성 fixture·모의 fetch 만.
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, renderHook } from '@testing-library/react';
 import { COPY } from '@ws/copy';
 import type { WsFeedData } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +8,7 @@ import App from '../App';
 import { feedDeps, resetFeedCacheForTest } from '../supply/feedBlock';
 import { golden, pageOf, req } from '../test/fixtures';
 import { layerStore } from '../ui/layer/useLayer';
-import { feedClock } from './feedClock';
+import { feedClock, useLivePage } from './feedClock';
 import { NO_CAPTURE } from './staticCapture';
 
 const H = 3_600_000;
@@ -117,6 +117,17 @@ describe('열어 둔 탭', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(96 * H); });
     expect(cards()).toHaveLength(0);
     expect(l4()).toBeNull();
+  });
+
+  it('렌더와 effect 사이에 72h·168h 를 넘겨도 그 자리에서 다시 그린다(378 D1)', () => {
+    for (const [limit, stage] of [[72, 'noprice'], [168, undefined]] as const) {
+      now = FRESH + limit * H + 1;
+      vi.mocked(feedClock.now).mockReturnValueOnce(FRESH + limit * H); // 첫 렌더만 기한 직전
+      const p = page(); // 참조 고정 — App 의 다른 재렌더에 가려지지 않게 hook 만 그린다
+      const { result } = renderHook(() => useLivePage(p));
+      expect(result.current.data.feed?.stage, `${limit}h`).toBe(stage);
+      cleanup();
+    }
   });
 
   it('잠들었던 탭: visibilitychange·pageshow 에서 바로 다시 잰다', () => {

@@ -22,6 +22,8 @@ export function useLivePage(page: WsPageData): WsPageData {
     if (!feed) return;
     const bump = () => setTick((n) => n + 1);
     const now = feedClock.now();
+    // 렌더와 effect 사이에 기한을 넘겼으면 다음 타이머를 기다리지 않고 다시 그린다(378 D1).
+    if ((feedDataAt(feed, now)?.stage ?? null) !== stage) bump();
     const at = feedNextChangeMs(feed, now);
     const timer = at === null ? undefined : setTimeout(bump, Math.min(Math.max(at - now, 0), MAX_DELAY_MS));
     document.addEventListener('visibilitychange', bump);
