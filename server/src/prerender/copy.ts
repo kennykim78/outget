@@ -255,7 +255,7 @@ export const COPY = deepFreeze({
   /**
    * 356(Kenny 2026-11-23 · 불변식 7 「예외 2」 K4): 일반 참고 정보(GENERAL_INFO, 코드 고정 6종) 표지.
    *   notice = 종 페이지 컨텍스트 헤더 아래 1회(홈 B·레이어 딥링크 공통 main). sourceLabel = L4 「검수 내용」·L5 검수 meta 자리의 출처 라벨
-   *   (출처를 지어내지 않는다 — 실제 출처 배열은 비어 있다). VERIFIED 체인 타입에는 둘 다 그리지 않는다.
+   *   (출처를 지어내지 않는다 — 출처가 있으면 링크, 비면 sourceLabelNone). VERIFIED 체인 타입에는 둘 다 그리지 않는다.
    */
   generalInfo: {
     notice: sent('일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요'),

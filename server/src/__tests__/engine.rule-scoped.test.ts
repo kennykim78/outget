@@ -230,7 +230,7 @@ describe("isFieldOptionalForDisplay(field, minSpec) — '· 선택' 표시", () 
 });
 
 describe('seed:validate — W-RULESCOPED · S05 ruleScoped', () => {
-  const NOW = '2026-11-23'; // 356: 6종 draftedAt(2026-11-23) 이상 · 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03)
+  const NOW = '2026-11-25'; // 356: 6종 draftedAt(2026-11-23) 이상 · 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03) // 368: 2026-11-25 = 8행 출처 접근일(S07 미래 날짜 방지, 옛 값 2026-11-23).
   /** 메커니즘 주입 바탕 = 서명 전 기준(메모리). */
   const fresh = () => unsignRaw(readSeedDirRaw(SEED_DIR).raw);
   /** 디스크 그대로(2026-11-16 서명 후). */

@@ -8,7 +8,7 @@
 //   chainOk(r, t)      = verified(r) ∨ (t ∈ GENERAL_INFO_TYPE_IDS(코드 고정 6종) ∧ generalInfoRowOk(r))   (356 예외 2, Kenny 2026-11-23)
 //                        generalInfoRowOk = reviewStatus GENERAL_INFO ∧ 알려진 reviewerType ∧ contentKind ∈ {SPEC,CARE,FOOD,HEALTH}
 //                        ∧ draftedAt 0~STALE_DAYS ∧ (FOOD·HEALTH → crossCheck 키 3개{CODEX_DISCUSS, checkedAt, AGREE|REVISED}
-//                        ∧ draftedAt ≤ checkedAt ≤ asOf). 체인 메타 네 개(type·profile·requirement·item)에만 — 아래 나머지는 verified 그대로.
+//                        ∧ draftedAt ≤ checkedAt ≤ asOf ∧ https 출처 1곳 이상). 체인 메타 네 개(type·profile·requirement·item)에만 — 아래 나머지는 verified 그대로.
 //   careProfile        = 노출 type 의 프로필(그 type 기준 chainOk)
 //   animalType(base)   = status ACTIVE ∧ chainOk(t,t) ∧ careProfile 존재·chainOk(Taxon 은 보지 않음 — Kenny 2026-10-24 K-4 되돌림)
 //   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ chainOk(r,t) ∧ item chainOk(·,t)
@@ -83,6 +83,7 @@ export function generalInfoRowOk(r, asOfDay) {
   const d = dayNumber(r.draftedAt);
   if (d === null || asOfDay - d < 0 || asOfDay - d > GENERAL_INFO_MAX_AGE_DAYS) return false;
   if (!GI_CROSS_KINDS.has(r.contentKind)) return true;
+  if (!Array.isArray(r.source) || !r.source.some((s) => isObj(s) && typeof s.url === 'string' && s.url.startsWith('https://'))) return false;
   const cc = r.crossCheck;
   if (!isObj(cc)) return false;
   const ks = Object.keys(cc).sort();

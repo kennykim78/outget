@@ -310,7 +310,7 @@ describe('stale 주입 — 엔진·독립 구현 결과 동일', () => {
 
   it('verifiedAt 누락·미래 날짜 주입도 동일(fail-closed)', () => {
     const nextDay = new Date(Date.parse(`${FIXTURE_AS_OF}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-    expect(nextDay).toBe('2026-11-24'); // 356: FIXTURE_AS_OF 2026-11-23
+    expect(nextDay).toBe('2026-11-26'); // 368: FIXTURE_AS_OF 2026-11-25
     for (const v of [null, nextDay, 'bad']) { // FIXTURE_AS_OF 다음 날 = 미래(옛 고정값 2026-11-04 는 기준일 2026-11-03 이동 뒤 과거가 되어 FIXTURE_AS_OF 에서 파생)
       const s = promoted();
       patch(s, 'careProfiles', 'cp-hamster-syrian', { verifiedAt: v });

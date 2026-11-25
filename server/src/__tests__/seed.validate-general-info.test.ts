@@ -17,7 +17,7 @@ import { SEED_FILES, type RawSeed, type Rec, type SeedKey } from '../seed/common
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지.
+const NOW = '2026-11-25'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지. // 368: 2026-11-25 = 8행 출처 접근일(S07 미래 날짜 방지, 옛 값 2026-11-23).
 const DISK: RawSeed = readSeedDirRaw(SEED_DIR).raw;
 const BASE: RawSeed = unsignRaw(DISK);
 const DRAFTED = '2026-11-20';
@@ -156,7 +156,7 @@ describe('M7 V12 — 거부', () => {
 
   it('draftedAt·crossCheck.checkedAt 미래 → S07', () => {
     const s = fresh();
-    gi(row(s, 'supplyItems', 'bird-cage'), { draftedAt: '2026-11-24' }); // NOW 다음 날
+    gi(row(s, 'supplyItems', 'bird-cage'), { draftedAt: '2026-11-26' }); // NOW 다음 날
     gi(row(s, 'supplyRequirements', 'req-gerbil-food'), { crossCheck: { ...CC, checkedAt: '2026-11-30' } });
     const res = run(s);
     expect(at(res, 'S07', 'supplyItems', 'bird-cage', 'draftedAt').length).toBe(1);
@@ -235,5 +235,46 @@ describe('M10 X01 — 6종 필수 집합(코드 고정)', () => {
     const res = run(s);
     const x = errs(res, 'X01').filter((i) => i.id === 'budgie');
     expect(x.map((i) => i.path).sort()).toEqual(['requirements.bird-food', 'requirements.perch', 'requirements.water']);
+  });
+});
+
+describe('V12 출처 — GENERAL_INFO FOOD·HEALTH 는 출처 1곳 이상(Kenny 2026-11-25, 356r M3)', () => {
+  const SRC = { url: 'https://example.org/placeholder', title: '자리표시', accessedAt: '2026-11-20' };
+  it.each(['FOOD', 'HEALTH'])('%s 출처 0곳 → V12 source', (kind) => {
+    const s = fresh();
+    gi(row(s, 'supplyRequirements', 'req-gerbil-food'), { contentKind: kind, crossCheck: { ...CC }, source: [] });
+    expect(at(run(s), 'V12', 'supplyRequirements', 'req-gerbil-food', 'source').length).toBe(1);
+  });
+  it.each([
+    ['source 없음', undefined],
+    ['url 없음', [{ title: SRC.title, accessedAt: SRC.accessedAt }]],
+    ['http', [{ ...SRC, url: 'http://example.org/placeholder' }]],
+    ['빈 url', [{ ...SRC, url: '' }]],
+  ])('FOOD %s → V12 source', (_n, source) => {
+    const s = fresh();
+    const r = gi(row(s, 'supplyRequirements', 'req-gerbil-food'), { crossCheck: { ...CC } });
+    if (source === undefined) delete r.source;
+    else r.source = source;
+    expect(at(run(s), 'V12', 'supplyRequirements', 'req-gerbil-food', 'source').length).toBe(1);
+  });
+  it('요구사항 밖 체인 파일(supplyItems HEALTH)도 같은 규칙', () => {
+    const s = fresh();
+    gi(row(s, 'supplyItems', 'scale'), { contentKind: 'HEALTH', crossCheck: { ...CC }, source: [] });
+    expect(at(run(s), 'V12', 'supplyItems', 'scale', 'source').length).toBe(1);
+  });
+  it('출처 1곳이면 통과 · SPEC·CARE 는 출처 0곳이어도 대상 아님', () => {
+    const s = fresh();
+    gi(row(s, 'supplyRequirements', 'req-gerbil-food'), { crossCheck: { ...CC }, source: [SRC] });
+    gi(row(s, 'supplyItems', 'bird-cage'), { source: [] });
+    expect(errs(run(s), 'V12')).toEqual([]);
+  });
+  it('디스크 시드: GENERAL_INFO FOOD·HEALTH 전 행에 출처 1곳 이상', () => {
+    const empty = (['animalTypes', 'careProfiles', 'supplyItems', 'supplyRequirements'] as const).flatMap((k) =>
+      ((DISK[k] ?? []) as Rec[])
+        .filter((r) => r.reviewStatus === 'GENERAL_INFO' && (r.contentKind === 'FOOD' || r.contentKind === 'HEALTH'))
+        .filter((r) => !Array.isArray(r.source) || r.source.length === 0)
+        .map((r) => r.id),
+    );
+    expect(empty).toEqual([]);
   });
 });

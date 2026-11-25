@@ -33,7 +33,7 @@ async function run(argv: string[], env: Record<string, string>, opts: { today?: 
     stdout: () => undefined,
     stderr: (l) => err.push(l),
     env,
-    today: () => opts.today ?? '2026-11-24', // 디스크 날짜 최댓값(356 6종 draftedAt·crossCheck.checkedAt 2026-11-23) 다음 날 고정 시계 — 과거 --now(11-23)도 S07 없이 검증(옛 값 11-23/과거 11-22 — 팁 checkedAt 11-22 기준, 그 전 11-04/11-03)
+    today: () => opts.today ?? '2026-11-26', // 디스크 날짜 최댓값(356 6종 draftedAt·crossCheck.checkedAt 2026-11-23) 다음 날 고정 시계 — 과거 --now(11-23)도 S07 없이 검증(옛 값 11-23/과거 11-22 — 팁 checkedAt 11-22 기준, 그 전 11-04/11-03) // 368: 2026-11-26 = 다음 날, 8행 출처 접근일(S07 미래 날짜 방지, 옛 값 2026-11-24, 경계 시험 날짜 전부 +2일).
     mascotDir: opts.mascotDir ?? MASCOT_DIR,
   };
   return { code: await runPrerenderCli(['--out', outDir(), '--public-dir', tmp('pub'), ...argv], io), err };
@@ -59,21 +59,21 @@ const PROD = { NODE_ENV: 'production', SITE_ORIGIN: 'https://staging.example' };
 
 describe('L-B 운영 빌드의 --now', () => {
   it('production + --now ≠ 오늘(서울) → exit 2', async () => {
-    const r = await run(['--now', '2026-11-23'], PROD);
+    const r = await run(['--now', '2026-11-25'], PROD);
     expect(r.code).toBe(2);
     expect(r.err.join('\n')).toMatch(/--allow-past-now/);
-    expect((await run(['--now', '2026-11-25'], PROD)).code).toBe(2); // 미래도 거부
+    expect((await run(['--now', '2026-11-27'], PROD)).code).toBe(2); // 미래도 거부
   });
   it('production + --now = 오늘 → 통과, --now 없음 → 통과', async () => {
-    expect((await run(['--now', '2026-11-24'], PROD)).code).toBe(0);
+    expect((await run(['--now', '2026-11-26'], PROD)).code).toBe(0);
     expect((await run([], PROD)).code).toBe(0);
   });
   it('production + --allow-past-now → 과거 --now 허용(테스트·재현)', async () => {
-    expect((await run(['--now', '2026-11-23', '--allow-past-now'], PROD)).code).toBe(0);
+    expect((await run(['--now', '2026-11-25', '--allow-past-now'], PROD)).code).toBe(0);
   });
   it('비운영(NODE_ENV 없음·development)은 과거 --now 허용', async () => {
-    expect((await run(['--now', '2026-11-23'], {})).code).toBe(0);
-    expect((await run(['--now', '2026-11-23'], { NODE_ENV: 'development' })).code).toBe(0);
+    expect((await run(['--now', '2026-11-25'], {})).code).toBe(0);
+    expect((await run(['--now', '2026-11-25'], { NODE_ENV: 'development' })).code).toBe(0);
   });
 });
 

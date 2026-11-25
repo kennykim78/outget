@@ -3795,8 +3795,8 @@
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
     "why": "로보가 먹을 수 있는 햄스터용 주식을 기본으로 해요. 여러 영양소를 섭취할 수 있게 씨앗 한 종류만 주지 않아요.",
-    "caution": "작은 입으로 먹을 수 있는지 확인해요. 기름진 씨앗이나 단 간식이 주식을 대신하지 않게 해요. 먹는 양이나 체중에 뚜렷한 변화가 있으면 병원에 문의해요.",
-    "avoid": "씨앗 한 종류만 주는 식단 · 사람 간식 위주 식단 · 설탕이나 꿀을 첨가한 간식",
+    "caution": "씨앗이나 간식이 주식을 대신하지 않게 해요. 먹는 양이나 체중에 뚜렷한 변화가 있으면 병원에 문의해요.",
+    "avoid": "씨앗 한 종류만 주는 식단 · 간식 위주 식단",
     "minSpec": {
       "rules": []
     },
@@ -3812,7 +3812,23 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "FOOD",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/feeding-rodents",
+        "title": "Feeding Rodents – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/routine-health-care-of-hamsters",
+        "title": "Routine Health Care of Hamsters – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4030,21 +4046,14 @@
     "supplyItemId": "scale",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "몸이 작은 로보의 체중 변화를 살펴보도록 주기적으로 기록해요. 주 1회 정도 같은 조건에서 재는 방법을 권해요.",
-    "caution": "낮은 위치에서 통에 들어가게 한 뒤 통 무게를 빼고 재요. 볼주머니의 먹이도 측정값에 영향을 줄 수 있어요. 체중이 뚜렷하게 달라지면 병원에 문의해요.",
+    "why": "로보의 체중 변화를 살펴요.",
+    "caution": "낮은 위치에서 통에 들어가게 해요. 체중이 뚜렷하게 달라지면 병원에 문의해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
     },
     "recommendedSpec": {
-      "rules": [
-        {
-          "key": "resolutionG",
-          "op": "lte",
-          "value": 0.1,
-          "reason": "몸이 작아 체중 변화를 세밀하게 기록하려면 0.1g 눈금을 권해요"
-        }
-      ]
+      "rules": []
     },
     "notNowReason": null,
     "searchKeyword": "{animal} 주방 저울",
@@ -4055,7 +4064,13 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "HEALTH",
-    "source": [],
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/routine-health-care-of-hamsters",
+        "title": "Routine Health Care of Hamsters – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4220,7 +4235,7 @@
           "key": "forSize",
           "op": "eq",
           "value": "SMALL",
-          "reason": "작은 부리로 집어 먹기 편한 소형 앵무용을 권해요."
+          "reason": "소형 앵무용을 권해요."
         }
       ]
     },
@@ -4233,7 +4248,23 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "FOOD",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/lovebirds-feeding",
+        "title": "Lovebirds – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/routine-care-and-safety-of-birds/illness-in-pet-birds",
+        "title": "Illness in Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4300,7 +4331,7 @@
     "supplyItemId": "mineral",
     "priority": "OPTIONAL",
     "orderHint": "AS_NEEDED",
-    "why": "갑오징어뼈나 조류용 미네랄 블록은 식단에 따라 선택하는 보조 용품이에요. 모든 새에게 별도로 필요한 것은 아니에요.",
+    "why": "조류용 미네랄 블록은 식단에 따라 선택하는 보조 용품이에요. 모든 새에게 별도로 필요한 것은 아니에요.",
     "caution": "주식에 포함된 영양 성분을 먼저 확인해요. 미네랄 용품으로 주식을 대신하지 않아요.",
     "avoid": "소화를 돕는다는 이유로 모래나 자갈을 모이에 섞는 방식",
     "minSpec": {
@@ -4318,7 +4349,28 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "FOOD",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/lovebirds-feeding",
+        "title": "Lovebirds – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/disorders-and-diseases-of-birds/nutritional-disorders-of-pet-birds",
+        "title": "Nutritional Disorders of Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-psittacines",
+        "title": "Nutrition in Psittacines – Merck Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4480,9 +4532,9 @@
     "supplyItemId": "scale",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "몸무게를 기록하면 겉모습만으로 놓치기 쉬운 변화를 살피는 데 도움이 돼요. 비슷한 시간과 조건에서 재고 평소 기록과 비교해요.",
-    "caution": "저울 위에 올라가는 데 천천히 익숙해지게 해요. 갑자기 몸무게가 줄거나 먹는 양이 줄면 병원에 문의해요.",
-    "avoid": "측정을 위해 억지로 오래 붙잡기",
+    "why": "몸무게를 기록하면 겉모습만으로 놓치기 쉬운 변화를 살피는 데 도움이 돼요. 평소 기록과 비교해요.",
+    "caution": "몸무게가 줄거나 먹는 양이 줄면 병원에 문의해요.",
+    "avoid": null,
     "minSpec": {
       "rules": []
     },
@@ -4505,7 +4557,23 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "HEALTH",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/pet-birds/management-of-pet-birds",
+        "title": "Management of Pet Birds – MSD Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/routine-care-and-safety-of-birds/illness-in-pet-birds",
+        "title": "Illness in Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4635,7 +4703,7 @@
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
     "why": "앵무용 균형 잡힌 주식을 중심으로 채소 등 다양한 먹이를 함께 제공해요. 씨앗만 골라 먹는 식단은 영양이 치우치기 쉬워요.",
-    "caution": "처음에는 먹던 사료를 준비하고 새 먹이는 실제로 먹는지 확인하며 천천히 익숙하게 해요. 씨앗 껍질만 남아도 그릇이 차 보일 수 있어요. 먹는 양이나 체중이 달라지면 병원에 문의해요.",
+    "caution": "처음에는 먹던 사료를 준비하고 새 먹이는 실제로 먹는지 확인하며 천천히 익숙하게 해요. 먹는 양이나 체중이 달라지면 병원에 문의해요.",
     "avoid": "씨앗만 주는 식단 · 아보카도 · 초콜릿 · 카페인 · 양파 · 알코올",
     "minSpec": {
       "rules": []
@@ -4659,7 +4727,28 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "FOOD",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/cockatiels-feeding",
+        "title": "Cockatiels – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/conures-feeding",
+        "title": "Feeding Conures – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-psittacines",
+        "title": "Nutrition in Psittacines – Merck Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4726,8 +4815,8 @@
     "supplyItemId": "mineral",
     "priority": "OPTIONAL",
     "orderHint": "AS_NEEDED",
-    "why": "갑오징어뼈나 미네랄 블록은 식단에 따라 선택하는 보조 먹이예요. 균형 잡힌 주식을 대신하지는 않아요.",
-    "caution": "주식에 포함된 영양 성분을 먼저 살펴요. 여러 보충제를 겹쳐 쓰지 않고, 알을 낳는다는 이유만으로 임의로 추가하지 않아요. 고정 철사가 튀어나오지 않는지 확인해요.",
+    "why": "미네랄 블록은 식단에 따라 선택하는 보조 먹이예요. 균형 잡힌 주식을 대신하지는 않아요.",
+    "caution": "주식에 포함된 영양 성분을 먼저 살펴요. 여러 보충제를 겹쳐 쓰지 않고, 알을 낳는다는 이유만으로 임의로 추가하지 않아요.",
     "avoid": "주식 대신 제공하는 미네랄 · 소화용 모래나 자갈을 상시 먹이는 방식",
     "minSpec": {
       "rules": []
@@ -4744,7 +4833,28 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "FOOD",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/cockatiels-feeding",
+        "title": "Cockatiels – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/conures-feeding",
+        "title": "Feeding Conures – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-psittacines",
+        "title": "Nutrition in Psittacines – Merck Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/disorders-and-diseases-of-birds/nutritional-disorders-of-pet-birds",
+        "title": "Nutritional Disorders of Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",
@@ -4916,9 +5026,9 @@
     "supplyItemId": "scale",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "깃털에 가려 눈으로 알아보기 어려운 체중 변화를 기록해요. 비슷한 시간과 조건에서 재면 평소 몸무게와 비교하기 좋아요.",
-    "caution": "미끄럽지 않은 받침이나 낮은 횃대에 익숙해지게 하고 받침 무게는 제외해요. 체중이 계속 줄거나 먹는 양과 활력이 달라지면 병원에 문의해요.",
-    "avoid": "억지로 붙잡고 측정하기 · 흔들리거나 미끄러운 받침",
+    "why": "눈으로 알아보기 어려운 체중 변화를 기록해요. 재면 평소 몸무게와 비교하기 좋아요.",
+    "caution": "체중이 줄거나 먹는 양과 활력이 달라지면 병원에 문의해요.",
+    "avoid": null,
     "minSpec": {
       "rules": []
     },
@@ -4941,7 +5051,28 @@
     "reviewBasis": null,
     "draftedAt": "2026-11-23",
     "contentKind": "HEALTH",
-    "source": [],
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/amazon-parrots-feeding",
+        "title": "Amazon Parrots – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/pet-birds/management-of-pet-birds",
+        "title": "Management of Pet Birds – MSD Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/routine-care-and-safety-of-birds/illness-in-pet-birds",
+        "title": "Illness in Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
     "crossCheck": {
       "tool": "CODEX_DISCUSS",
       "checkedAt": "2026-11-23",

@@ -25,7 +25,7 @@ export const GENERAL_INFO_MAX_AGE_DAYS = STALE_DAYS;
 
 /** LEGAL 은 이 등급이 될 수 없다(법 정보는 OFFICIAL_SOURCE VERIFIED 만). */
 export const GENERAL_INFO_CONTENT_KINDS: readonly ContentKind[] = Object.freeze(['SPEC', 'CARE', 'FOOD', 'HEALTH'] as const);
-/** 위험 수치 — 교차 확인 기록 필수. */
+/** 위험 수치 — 교차 확인 기록 필수 + 출처 1곳 이상(Kenny 2026-11-25). */
 export const CROSS_CHECK_CONTENT_KINDS: readonly ContentKind[] = Object.freeze(['FOOD', 'HEALTH'] as const);
 export const CROSS_CHECK_TOOLS = Object.freeze(['CODEX_DISCUSS'] as const);
 export const CROSS_CHECK_RESULTS = Object.freeze(['AGREE', 'REVISED'] as const);
@@ -56,8 +56,13 @@ function crossCheckOkAt(cc: unknown, drafted: number, day: number): boolean {
   return c >= drafted && c <= day;
 }
 
+/** 출처 1곳 이상 — url 이 https 인 항목이 하나라도 있어야 한다. 기관 종류는 사람이 고른다(기계 판정 없음). validate V12 가 같은 함수를 쓴다. */
+export function hasHttpsSource(source: unknown): boolean {
+  return Array.isArray(source) && source.some((s) => isObj(s) && typeof s.url === 'string' && s.url.startsWith('https://'));
+}
+
 type GeneralInfoInput = Pick<ContentMeta, 'reviewStatus' | 'reviewerType' | 'contentKind'> &
-  Partial<Pick<ContentMeta, 'draftedAt' | 'crossCheck'>>;
+  Partial<Pick<ContentMeta, 'draftedAt' | 'crossCheck' | 'source'>>;
 
 /** exposure.ts 내부용(일 번호 입력). */
 export function generalInfoOkAt(m: unknown, day: number): boolean {
@@ -69,14 +74,14 @@ export function generalInfoOkAt(m: unknown, day: number): boolean {
   if (drafted === null) return false;
   const age = day - drafted;
   if (age < 0 || age > GENERAL_INFO_MAX_AGE_DAYS) return false;
-  if (CROSS_CHECK_CONTENT_KINDS.includes(m.contentKind) && !crossCheckOkAt(m.crossCheck, drafted, day)) return false;
-  return true;
+  if (!CROSS_CHECK_CONTENT_KINDS.includes(m.contentKind)) return true;
+  return crossCheckOkAt(m.crossCheck, drafted, day) && hasHttpsSource(m.source);
 }
 
 /**
  * 일반 참고 정보 메타 유효(fail-closed): reviewStatus GENERAL_INFO ∧ 알려진 reviewerType ∧ contentKind ∈ {SPEC,CARE,FOOD,HEALTH}(LEGAL 제외)
  *   ∧ draftedAt 달력 날짜 ∧ 0 ≤ (asOf − draftedAt) ≤ 180 ∧ (FOOD·HEALTH → crossCheck{CODEX_DISCUSS, checkedAt, AGREE|REVISED},
- *   draftedAt ≤ checkedAt ≤ asOf). 타입 범위(6종)는 보지 않는다 — exposure.ts 가 체인의 animalTypeId 로 따로 본다.
+ *   draftedAt ≤ checkedAt ≤ asOf ∧ https 출처 1곳 이상). 타입 범위(6종)는 보지 않는다 — exposure.ts 가 체인의 animalTypeId 로 따로 본다.
  *   asOf 가 YYYY-MM-DD 가 아니면 RangeError.
  */
 export function isGeneralInfoMeta(m: GeneralInfoInput | null | undefined, asOf: string): boolean {
