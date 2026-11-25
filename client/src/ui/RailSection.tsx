@@ -47,6 +47,8 @@ export interface RailSectionProps {
   tone?: 'home';
   /** tone=home 의 리드 문단들(ws-t-body ws-muted ws-home-sec-lead). */
   lead?: readonly string[];
+  /** 362 N10 — tone=home 의 lead 뒤 조각(피드 고지 p.ws-aff-note — 서버 railSection leadHtml 과 같은 자리). */
+  leadExtra?: ReactNode;
   /** tone=home 의 레일 아래 텍스트 링크(ws-home-link + 장식 →). */
   foot?: { label: string; href: string };
   /** li 요소들. */
@@ -57,7 +59,7 @@ function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export default function RailSection({ id, kind, title, subtitle, more, prevLabel, nextLabel, sectionData, layout, tone, lead, foot, children }: RailSectionProps) {
+export default function RailSection({ id, kind, title, subtitle, more, prevLabel, nextLabel, sectionData, layout, tone, lead, leadExtra, foot, children }: RailSectionProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ overflow: false, atStart: true, atEnd: true });
   const titleId = `ws-sec-${id}-title`;
@@ -129,6 +131,7 @@ export default function RailSection({ id, kind, title, subtitle, more, prevLabel
                 {x}
               </p>
             ))}
+            {leadExtra}
           </div>
         ) : (
           <div className="ws-rail-heading">

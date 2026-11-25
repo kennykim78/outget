@@ -712,3 +712,124 @@ describe('359 T18 사진 자리 — 프리렌더 ↔ 하이드레이션', () => 
     if (path === '/parrot/budgie') expect(mainEl().innerHTML).not.toMatch(/ph-\d\d\b/);
   });
 });
+
+// 362 N10: 피드 켜짐 빌드(승격 픽스처 + 합성 피드 행 — 실호출·키 0). 변형 문서(index.feed[-noprice].html) 프리렌더 ↔ 하이드레이션.
+//   홈 B 레일: main 골격 동일(허용 목록 외 차이 0). L4 딥링크: 피드 블록 골격 동일(같은 오리진 JSON 은 site.files 에서 모의 fetch).
+//   noprice: 하이드레이션 전후 가격·확인일이 어떤 표기로도 0.
+describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => {
+  interface FeedSiteLite extends SiteLite {
+    files: Map<string, string>;
+    feedPages: Array<BuiltPageLite & { stage: 'full' | 'noprice'; file: string }>;
+  }
+  let full: FeedSiteLite;
+  let late: FeedSiteLite;
+  const GEN = '2026-11-23T09:12:00+09:00';
+  const GEN_MS = Date.UTC(2026, 10, 23, 0, 12, 0);
+  const H = 3_600_000;
+  const PRICE_OR_DATE = /\d[\d,]*\s*원|₩|￦|KRW|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}|12,?900/i;
+
+  beforeAll(async () => {
+    const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ promoted: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    const eng = await import('@ws/engine');
+    const seed = fx.promoted() as Parameters<typeof eng.createCatalog>[0] & { animalTypes: Array<{ id: string }> };
+    const cat = eng.createCatalog(seed);
+    const at = seed.animalTypes.find((a) => a.id === 'hamster-golden') as Parameters<typeof eng.buildSearchKeyword>[0];
+    let seq = 0;
+    const row = (i: string, title: string) => {
+      const r = eng.resolveRequirement(cat, 'hamster-golden', i);
+      if (!r) throw new Error(`no requirement ${i}`);
+      seq += 1;
+      return {
+        provider: 'COUPANG',
+        animalTypeId: 'hamster-golden',
+        supplyItemId: i,
+        keyword: eng.buildSearchKeyword(at, r),
+        rank: seq,
+        title,
+        url: `https://link.coupang.com/a/Mk${seq}x`,
+        imageUrl: null,
+        price: { amount: 12900, currency: 'KRW' },
+        fetchedAt: GEN,
+      };
+    };
+    const rows = [row('wheel', '햄스터 쳇바퀴 30cm 통면 1호'), row('wheel', '햄스터 쳇바퀴 30cm 통면 2호')];
+    const base = { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) };
+    // 제목 금지어 판정은 서버 lintText 몫 — 합성 제목은 금지어 0 이라 여기선 항상 통과로 둔다.
+    const productFeed = (buildAtMs: number) => ({ rows, generatedAt: GEN, buildAtMs, isTitleBanned: () => false });
+    full = siteMod.buildSite(fx.promoted(), { ...base, productFeed: productFeed(GEN_MS + H) });
+    late = siteMod.buildSite(fx.promoted(), { ...base, productFeed: productFeed(GEN_MS + 80 * H) });
+  }, 30_000);
+
+  const variant = (s: FeedSiteLite, file: string) => {
+    const p = s.feedPages.find((x) => x.file === file);
+    if (!p) throw new Error(`no feed page ${file} — ${s.feedPages.map((x) => x.file).join(', ')}`);
+    return p;
+  };
+  const stubFeedFetch = (s: FeedSiteLite) =>
+    vi.stubGlobal('fetch', (input: string) => {
+      const key = String(input).replace(/^\//, '');
+      const body = s.files.get(key);
+      return Promise.resolve(body === undefined ? new Response('', { status: 404 }) : new Response(body, { status: 200 }));
+    });
+
+  it('홈 B(TYPE 변형 full·noprice): main 골격 동일 — 피드 카드·고지가 하이드레이션 전후 같은 자리', () => {
+    for (const [s, file] of [
+      [full, 'hamster/golden/index.feed.html'],
+      [late, 'hamster/golden/index.feed-noprice.html'],
+    ] as const) {
+      const p = variant(s, file);
+      loadStatic(p);
+      expect(readPageData(document)?.data.feed?.stage).toBe(s === full ? 'full' : 'noprice');
+      const staticCards = document.querySelectorAll('main li.ws-feed-card').length;
+      expect(staticCards, file).toBeGreaterThan(0);
+      const before = skel(mainEl());
+      const beforeTokens = classTokens(mainEl());
+      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="products"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
+      hydrate(p);
+      const after = skel(mainEl());
+      const d: string[] = [];
+      diff(before, after, 'main', d);
+      expect([...beforeTokens].filter((c) => !classTokens(mainEl()).has(c))).toEqual([]);
+      expect(unexplained('TYPE', d)).toEqual([]);
+      expect(document.querySelectorAll('main li.ws-feed-card')).toHaveLength(staticCards);
+      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="products"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
+      act(() => root?.unmount());
+      root = null;
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('L4 딥링크(/supplies/wheel 변형): 피드 블록 골격 프리렌더 = 하이드레이션 후, noprice 는 전후 가격·확인일 0', async () => {
+    for (const [s, file] of [
+      [full, 'hamster/golden/supplies/wheel/index.feed.html'],
+      [late, 'hamster/golden/supplies/wheel/index.feed-noprice.html'],
+    ] as const) {
+      stubFeedFetch(s);
+      const p = variant(s, file);
+      loadStatic(p);
+      const stat = document.querySelector('section[data-ws-part="feed"]');
+      expect(stat, file).not.toBeNull();
+      const before = skel(stat as Element);
+      const beforeText = norm(stat?.textContent ?? '');
+      if (s === late) expect(beforeText).not.toMatch(PRICE_OR_DATE);
+      hydrate(p);
+      await waitFor(() => expect(document.querySelectorAll('[role="dialog"] section[data-ws-part="feed"] li.ws-feed-row').length).toBeGreaterThan(0), { timeout: 15000 });
+      const live = document.querySelector('[role="dialog"] section[data-ws-part="feed"]') as Element;
+      const d: string[] = [];
+      diff(before, skel(live), 'feed', d);
+      expect(d).toEqual([]);
+      expect(norm(live.textContent)).toBe(beforeText);
+      if (s === late) expect(norm(live.textContent)).not.toMatch(PRICE_OR_DATE);
+      // 푸터 고지 F: 피드 블록이 있는 L4 는 1(서버 feedLinksOn 과 같은 규칙)
+      expect(document.querySelectorAll('footer [data-ws-aff="note-f"]')).toHaveLength(1);
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+      vi.unstubAllGlobals();
+      mockMedia();
+    }
+  }, 60_000);
+});

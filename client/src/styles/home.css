@@ -1237,3 +1237,95 @@ li.ws-product > .ws-like {
   font-variant-numeric: tabular-nums;
 }
 
+
+/* ── 362 N10 「많이 찾는 상품」 피드(364 §1·§2) — 기존 토큰만(새 토큰·색·글자 크기 0).
+   운영자 확인 카드(.ws-product · .ws-badge · status-ready)와 다른 표식: 중립 「표기 규격 통과」 / △ 「규격 확인 필요」. */
+.ws-feed-thumb,
+.ws-feed-photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-bg-100);
+  object-fit: cover;
+}
+
+.ws-feed-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--ws-ink);
+}
+
+.ws-feed-spec {
+  color: var(--ws-ink-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-feed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  padding: 0 var(--ws-space-2);
+  border-radius: var(--ws-radius-pill);
+}
+
+.ws-feed-badge--listed {
+  border: 1px solid var(--ws-line);
+  background: var(--ws-bg-100);
+  color: var(--ws-ink-body);
+}
+
+.ws-feed-badge--check {
+  background: var(--ws-status-check-soft);
+  color: var(--ws-status-check);
+}
+
+.ws-feed-badge .ws-glyph,
+.ws-feed-badge .ws-glyph[data-ws-glyph] {
+  min-width: 0;
+  color: inherit;
+}
+
+.ws-feed-aff,
+.ws-feed-item,
+.ws-feed-checked {
+  color: var(--ws-ink-muted);
+}
+
+.ws-feed-price {
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-feed-amount {
+  color: var(--ws-ink);
+  font-weight: var(--ws-type-cta-weight);
+}
+
+/* 홈 레일 카드(§2.2) — 외곽은 ProductCard 와 같은 값. */
+li.ws-feed-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  padding: var(--ws-space-2) var(--ws-space-2) var(--ws-space-3);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-md);
+  background: var(--ws-surface);
+}
+
+li.ws-feed-card > .ws-feed-badge {
+  align-self: flex-start;
+}
+
+li.ws-feed-card > .ws-feed-aff {
+  align-self: flex-end;
+  margin-top: auto;
+}
+
+.ws-feed-go--compact {
+  width: 100%;
+  padding: 0 var(--ws-space-2);
+  font-size: var(--ws-type-meta-size);
+  line-height: var(--ws-type-meta-lh);
+}

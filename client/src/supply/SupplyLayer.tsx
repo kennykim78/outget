@@ -20,6 +20,7 @@ import PhotoTile from '../ui/PhotoTile';
 import { LayerBody, LayerFoot, useLayerChrome } from '../ui/layer/Layer';
 import type { LayerContentProps } from '../ui/layer/LayerHost';
 import AffNote from './AffNote';
+import FeedSection from './FeedSection';
 import SearchBlock from './SearchBlock';
 import { affiliateDisclosureOn } from './searchLinks';
 import { useCageCompat, type CageCompat } from './useCageCompat';
@@ -28,6 +29,7 @@ import '../styles/layers.css';
 /** 상태 칩 문구 키(copy glyphLabel)·클래스. 글리프는 전역 Glyph(R4-1) — LATER 는 글리프 없이 단어만(○ 는 기준 충족 전용). */
 const STATE_KEY: Record<ItemState, 'ready' | 'first' | 'check' | 'later'> = { READY: 'ready', FIRST: 'first', CHECK: 'check', LATER: 'later' };
 const STATE_GLYPH: Partial<Record<ItemState, GlyphKind>> = { READY: 'ready', FIRST: 'first', CHECK: 'check' };
+/** 운영자 확인 카드 상한(프리렌더 type.ts layerL4 slice(0, 3) 과 같은 값 — 피드 행은 별도 목록이라 이 상한에 섞지 않는다, 367 §1-3). */
 const MAX_PRODUCTS = 3;
 
 /** "YYYY.MM"(프리렌더 yearMonth 와 같은 형식). */
@@ -304,6 +306,9 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
               </ul>
             </Part>
           ) : null}
+
+          {/* 362 N10 아래층 「많이 찾는 상품」 — 항상 products 뒤(products 0 이어도 같은 자리). 피드 변형 문서 ∧ data.feed.items ∋ 품목일 때만 같은 오리진 JSON 을 읽는다. */}
+          <FeedSection page={page} type={type} requirement={r} />
 
           <section className="ws-supply-part ws-supply-verified" data-ws-part="verified">
             {/* 356 K4: 일반 참고 정보면 「검수 내용」·마지막 검수 대신 출처 라벨(고지 문장은 종 페이지 헤더 1회 — 여기 중복 0). */}

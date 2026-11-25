@@ -10,7 +10,7 @@
 //   서버 프리렌더 server/src/prerender/pages/type.ts typeMain 이 빈 저장소(L3 전·케이지 없음·미연결) 출력과 같은 태그·클래스·id·aria.
 //   route.typeId ≠ 저장된 ws.animalType 이면 저장 + species_selected{via:'url'} 1회(selection 이 같은 값이면 생략).
 import { useEffect, useMemo, useRef } from 'react';
-import { figureValueText, minSpecFigure, reasonLine, specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
+import { FEED_EXCLUDED_CATEGORIES, figureValueText, minSpecFigure, reasonLine, specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { COPY, formatCopy, objectParticle } from '@ws/copy';
 import { useAnimalSelection } from '../animal/selection';
 import { deriveChecklist, type ChecklistRow, type ItemState } from '../checklist/derive';
@@ -28,6 +28,7 @@ import { NO_FILTER, vetFilterSearch } from '../vet/filters';
 import { sortVets } from '../vet/order';
 import VetCard from '../vet/VetCard';
 import BundleCard from './BundleCard';
+import FeedCard, { FEED_HOME_NOTE_ID, FeedNote, feedCheckedLine } from './FeedCard';
 import ProductCard from './ProductCard';
 
 export type NowState = 'neutral' | 'first' | 'check' | 'ready' | 'later';
@@ -173,6 +174,14 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
   const vets = useMemo(() => sortVets(page.data.vets).slice(0, MAX_VETS), [page.data.vets]); // /vet 과 같은 순서(vet/order.ts 단일 출처).
   const typeNames = useMemo(() => new Map(page.data.types.map((t) => [t.id, t.displayName] as const)), [page.data.types]);
   const itemOf = (supplyItemId: string) => reqs.find((r) => r.supplyItemId === supplyItemId)?.item;
+  // 362 N10(D-2·D-7): 피드 변형 문서의 홈 레일 카드 — 운영자 카드 전부 뒤, ws-data data.feed.rail 순서 그대로(pageData isWsFeedData 검사 통과분).
+  //   일반 참고 정보 종은 0장, 노출 요구사항 밖·FOOD/HEALTH 품목 카드는 그리지 않는다(서버 selectFeedRows 와 같은 규칙 — 방어 심화).
+  const feed = page.data.feed;
+  const feedCards = feed && !type.generalInfo ? feed.rail.filter((c) => {
+    const r = reqs.find((x) => x.supplyItemId === c.supplyItemId);
+    return c.provider === 'COUPANG' && r !== undefined && !r.generalInfo && !FEED_EXCLUDED_CATEGORIES.includes(r.item.category);
+  }) : [];
+  const feedChecked = feed?.stage === 'full' ? feedCheckedLine(feed.priceCheckedOn) : null;
   const vetTitle = formatCopy(COPY.homeB.vetTitle, { animal: objectParticle(type.displayName) });
   const prev = copyAt('rail.prev');
   const next = copyAt('rail.next');
@@ -331,8 +340,16 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
       ) : null}
 
       {/* 기준에 맞는 준비물 — ws-data 순서 그대로(규격 → 검수 → 선호, 미달 0 · VERIFIED 만 — 불변식 ③·⑦), 0 이면 섹션 없음. 카드 → L7 */}
-      {products.length > 0 ? (
-        <RailSection id="products" kind="product" tone="home" title={COPY.homeB.productsTitle} prevLabel={prev} nextLabel={next}>
+      {products.length > 0 || feedCards.length > 0 ? (
+        <RailSection
+          id="products"
+          kind="product"
+          tone="home"
+          title={COPY.homeB.productsTitle}
+          {...(feedCards.length > 0 ? { lead: feed?.stage === 'full' ? [COPY.feed.homeLead] : [], leadExtra: <FeedNote id={FEED_HOME_NOTE_ID} /> } : {})}
+          prevLabel={prev}
+          nextLabel={next}
+        >
           {products.map((p) => {
             const item = itemOf(p.supplyItemId);
             return (
@@ -342,6 +359,23 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
                 href={encodeURI(`/${type.slug}/products/${p.id}`)}
                 specLine={item ? specLine(item.specSchema, p.specValues) || null : null}
                 glyph={item?.glyph ?? null}
+              />
+            );
+          })}
+          {feedCards.map((c) => {
+            const r = reqs.find((x) => x.supplyItemId === c.supplyItemId) as PublicRequirement;
+            return (
+              <FeedCard
+                key={`feed-${c.supplyItemId}`}
+                supplyItemId={c.supplyItemId}
+                itemName={r.item.name}
+                title={c.title}
+                url={c.url}
+                imageUrl={c.imageUrl}
+                priceAmount={feedChecked !== null && c.price ? c.price.amount : null}
+                checkedLine={feedChecked}
+                specLine={specLine(r.item.specSchema, c.specValues) || null}
+                fallbackPhoto={r.photo}
               />
             );
           })}
