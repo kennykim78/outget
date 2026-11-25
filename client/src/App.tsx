@@ -9,7 +9,7 @@ import { useAnimalSelection } from './animal/selection';
 import { deepLinkFor } from './app/deepLink';
 import { useLivePage } from './app/feedClock';
 import { installLayerLinks } from './app/layerLinks';
-import { LayerPageProvider } from './app/layerPage';
+import { DocumentAlternativesContext, LayerPageProvider } from './app/layerPage';
 import { installLayerWarmup, layerRegistry, layerWsId } from './app/layerRegistry';
 import { routeView } from './app/routeView';
 import StaticMain from './app/StaticMain';
@@ -59,6 +59,13 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
     else layerStore.clearStaleState();
   }, []);
 
+  // 383: /supplies/{item}/{type} 의 대안 목록(ws-data 에 없는 품목) — 보관한 정적 aside 의 것.
+  const docAlts = useRef(
+    page.route.kind === 'SUPPLY_ITEM_TYPE' && page.layer?.kind === 'L4' && captured.layer?.alternatives
+      ? { typeId: page.layer.typeId, itemId: page.layer.itemId, list: captured.layer.alternatives }
+      : null,
+  );
+
   // 문서 안 레이어 URL 링크 → 같은 문서 ws-data 에 대상이 있으면 push(C-R5-5).
   const pageRef = useRef(page);
   pageRef.current = page;
@@ -105,7 +112,9 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
       {view}
       <Footer affNote={layerAffiliateOn(page, open) || feedFooterOn(livePage, open)} />
       <LayerPageProvider page={livePage}>
-        <LayerHost registry={layerRegistry} wsIdFor={(k, p) => layerWsId(page, k, p)} />
+        <DocumentAlternativesContext.Provider value={docAlts.current}>
+          <LayerHost registry={layerRegistry} wsIdFor={(k, p) => layerWsId(page, k, p)} />
+        </DocumentAlternativesContext.Provider>
       </LayerPageProvider>
     </>
   );

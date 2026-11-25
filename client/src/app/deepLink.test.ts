@@ -37,6 +37,20 @@ describe('deepLinkFor', () => {
     expect(routeView(p)).toEqual({ view: 'homeA' });
   });
 
+  // 383(PRD 183-187): 용품으로 찾기의 /supplies/{item}/{type} 도 같은 L4. 부모 = /supplies/{item}(프리렌더 misc.ts 가 선언한 부모, 같은 문서).
+  it('SUPPLY_ITEM_TYPE + L4: 부모 = /supplies/{item}(같은 문서), L4 아닌 레이어 → null', () => {
+    const extra = { typeId: golden.id, path: '/supplies/cage/hamster-golden' };
+    const p = pageOf('SUPPLY_ITEM_TYPE', {}, { ...extra, layer: { kind: 'L4', typeId: golden.id, itemId: 'cage' } });
+    expect(deepLinkFor(p, { kind: 'L4', wsId: 'supplyRequirements#r1' }, golden)).toEqual({
+      kind: 'L4',
+      props: { typeId: golden.id, itemId: 'cage' },
+      parent: '/supplies/cage',
+      documentParent: false,
+      wsId: 'supplyRequirements#r1',
+    });
+    expect(deepLinkFor(pageOf('SUPPLY_ITEM_TYPE', {}, { ...extra, layer: { kind: 'L5', typeId: golden.id, itemId: 'cage' } }), null, null)).toBeNull();
+  });
+
   it('레이어 없는 TYPE·HOME·타입 불일치 → null', () => {
     expect(deepLinkFor(pageOf('TYPE', {}, { typeId: golden.id }), null, null)).toBeNull();
     expect(deepLinkFor(pageOf('HOME'), null, null)).toBeNull();

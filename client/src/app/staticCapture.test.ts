@@ -35,4 +35,10 @@ describe('captureStatic', () => {
     expect(root.querySelectorAll('li.ws-product')).toHaveLength(1);
     expect(captureStatic(root).main).toContain('curatedProducts#p1');
   });
+  it('383: aside 의 대안 목록은 품목 id·이름만 보관한다', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<main class="ws-page"></main><aside class="ws-layer" data-ws-layer="L4" data-ws-id="supplyRequirements#r"><section data-ws-part="alternatives"><ul><li data-ws-id="supplyItems#saucer"><a href="/x/supplies/saucer">플라잉소서</a></li></ul></section></aside>';
+    expect(captureStatic(root).layer).toEqual({ kind: 'L4', wsId: 'supplyRequirements#r', alternatives: [{ itemId: 'saucer', name: '플라잉소서' }] });
+  });
 });

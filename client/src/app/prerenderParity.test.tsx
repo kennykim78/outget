@@ -5,11 +5,12 @@
 //   서버 모듈 import 예외(사유): 클라 규칙은 서버 파일을 @ws/* 별칭으로만 가져온다(.eslintrc no-restricted-imports, tsconfig paths).
 //   프리렌더(site.ts)·픽스처는 node:fs/node:crypto 를 쓰는 빌드 타임 코드라 별칭 대상이 아니다. 이 테스트만 lazy import.meta.glob 으로
 //   가져온다(번들에 들어가지 않음 — *.test.tsx, 클라 tsconfig 에 node 타입을 들이지 않음). 반환 타입은 아래 최소 인터페이스.
-import { act, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor, within } from '@testing-library/react';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COPY } from '@ws/copy';
 import type { RouteKind } from '@ws/engine';
-import { layerStore } from '../ui/layer/useLayer';
+import { layerStore, readLayerState } from '../ui/layer/useLayer';
 import { boot } from './boot';
 import { readPageData } from './pageData';
 
@@ -482,8 +483,9 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
 
 // R4-3(R4 시안 affiliate_candidates): 제휴 켜짐 빌드 — 푸터 고지 F 는 「지금 화면에 제휴 링크가 그려질 때만」(프리렌더 renderFooter(affOn)
 //   · React Footer affNote = layerAffiliateOn). 타입 딥링크(L4·L7)는 하이드레이션 전후 푸터가 같다. 레이어 없는 문서는 양쪽 다 0.
-//   /supplies/{item}/{type}(SUPPLY_ITEM_TYPE): 기존 동작상 하이드레이션 뒤 정적 L4 aside 가 걷히고 React 레이어를 열지 않는다(deepLinkFor = TYPE 만)
-//   — 제휴 링크가 화면에서 사라지므로 고지 F 도 0(링크 없는 화면에 고지 없음). 그 밖 푸터는 같다.
+//   /supplies/{item}/{type}(SUPPLY_ITEM_TYPE): 383 — PRD 183-187(US-008 「선택 → US-007과 같은 상세」, URL /supplies/{item}/{type})에 따라
+//   하이드레이션 뒤에도 같은 L4 를 연다 → 타입 딥링크처럼 제휴 링크·고지 F 가 남는다. 이전 sit 단언(하이드레이션 뒤 링크 0·고지 0)은
+//   요구와 어긋난 옛 동작을 고정한 것이라 바꿨다(379 §3).
 describe('R4-3 제휴 on 빌드 — 푸터 고지 F 프리렌더 ↔ React', () => {
   const footerState = () => {
     const fs = document.querySelectorAll('footer.ws-footer');
@@ -515,13 +517,16 @@ describe('R4-3 제휴 on 빌드 — 푸터 고지 F 프리렌더 ↔ React', () 
       hydrate(p);
       // 딥링크 문서는 첫 커밋이 레이어 청크를 기다린다 — 레이어가 store 에 열리고(React 렌더 뒤) 내용이 그려질 때까지.
       if (mode === 'deep') await waitFor(() => expect(footerState().affLinks).toBeGreaterThan(0), { timeout: 15000 });
+      // 383(PRD 183-187): 정적 aside 가 걷힌 뒤 React L4 의 링크를 본다(정적 링크로 통과하지 않게).
+      if (mode === 'sit')
+        await waitFor(() => expect([document.querySelector('aside.ws-layer'), document.querySelectorAll('[role="dialog"] a[href^="https://link.coupang.com/a/"]').length > 0]).toEqual([null, true]), { timeout: 15000 });
       if (mode === 'l5') await waitFor(() => expect(layerStore.get()).not.toBeNull(), { timeout: 15000 });
       const after = footerState();
       expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: after.affLinks > 0 ? 1 : 0 });
       expect(after.texts).toEqual(before.texts);
       for (const t of [...before.noteText, ...after.noteText]) expect(t).toBe('이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.');
       if (mode === 'deep') expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: 1 });
-      if (mode === 'sit') expect({ path: p.route.path, notes: after.notes, affLinks: after.affLinks }).toEqual({ path: p.route.path, notes: 0, affLinks: 0 });
+      if (mode === 'sit') expect({ path: p.route.path, notes: after.notes, affLinks: after.affLinks }).toEqual({ path: p.route.path, notes: 1, affLinks: before.affLinks });
       if (mode === 'plain' || mode === 'l5') expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: 0 });
       act(() => root?.unmount());
       root = null;
@@ -834,4 +839,179 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
       mockMedia();
     }
   }, 60_000);
+
+  it('383 /supplies/wheel/hamster-golden 변형: 피드 블록 동일 + 고지 F 1, 닫으면 0', async () => {
+    for (const [s, file] of [
+      [full, 'supplies/wheel/hamster-golden/index.feed.html'],
+      [late, 'supplies/wheel/hamster-golden/index.feed-noprice.html'],
+    ] as const) {
+      stubFeedFetch(s);
+      const p = variant(s, file);
+      expect(p.route.kind).toBe('SUPPLY_ITEM_TYPE');
+      loadStatic(p);
+      const stat = document.querySelector('section[data-ws-part="feed"]') as Element;
+      expect(stat, file).not.toBeNull();
+      const before = skel(stat);
+      const beforeText = norm(stat.textContent);
+      expect(document.querySelectorAll('footer [data-ws-aff="note-f"]')).toHaveLength(1);
+      hydrate(p);
+      await waitFor(() => expect(document.querySelectorAll('[role="dialog"] section[data-ws-part="feed"] li.ws-feed-row').length).toBeGreaterThan(0), { timeout: 15000 });
+      const live = document.querySelector('[role="dialog"] section[data-ws-part="feed"]') as Element;
+      const d: string[] = [];
+      diff(before, skel(live), 'feed', d);
+      expect(d).toEqual([]);
+      expect(norm(live.textContent)).toBe(beforeText);
+      if (s === late) expect(norm(live.textContent)).not.toMatch(PRICE_OR_DATE);
+      expect(document.querySelectorAll('footer [data-ws-aff="note-f"]')).toHaveLength(1);
+      fireEvent.keyDown(document, { key: 'Escape' });
+      await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+      expect(document.querySelectorAll('[data-ws-aff]')).toHaveLength(0);
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+      vi.unstubAllGlobals();
+      mockMedia();
+    }
+  }, 60_000);
+});
+
+// 383 — PRD 183-187: /supplies/{item}/{type} 는 US-007 과 같은 상세. 프리렌더가 내는 모든 URL 에서 본문(main + L4)이 하이드레이션 전후 같다.
+//   부모 = 프리렌더가 선언한 것(misc.ts 「같은 부모 + L4」: main = /supplies/{item}, 정적 레이어 닫기 링크 href).
+describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4', () => {
+  let realSite: SiteLite;
+  beforeAll(async () => {
+    const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ realSeed: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    realSite = siteMod.buildSite(fx.realSeed(), { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) });
+  }, 60_000);
+
+  beforeEach(() => {
+    // L4 의 같은 오리진 보조 요청(호환 카탈로그·반응)은 이 시험 범위 밖 — 404.
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response('', { status: 404 })));
+  });
+
+  const sitPages = (from: SiteLite): BuiltPageLite[] => from.pages.filter((p) => p.route.kind === 'SUPPLY_ITEM_TYPE');
+  const texts = (el: Element, sel: string): string[] => Array.from(el.querySelectorAll(sel)).map((x) => norm(x.textContent));
+  const attrs = (el: Element, sel: string, name: string): string[] => Array.from(el.querySelectorAll(sel)).map((x) => x.getAttribute(name) ?? '');
+
+  /** 정적 aside 와 React 레이어에서 같은 뜻의 내용만 뽑는다(감싸는 마크업은 타입 L4 와 똑같이 다르다). */
+  function body(layer: Element, kind: 'static' | 'react') {
+    const q = (sel: string) => layer.querySelector(sel);
+    const merchants = kind === 'static' ? '.ws-search a' : '.ws-search-merchants a';
+    const notNow = Array.from(layer.querySelectorAll(kind === 'static' ? ':scope > p:not([class])' : '[data-ws-part="notNow"] p'))
+      .map((x) => norm(x.textContent))
+      .filter((x) => x.startsWith(norm(COPY.supplyLayer.notNow)));
+    return {
+      layer: layer.getAttribute('data-ws-layer'),
+      wsId: layer.getAttribute('data-ws-id'),
+      title: norm(q('#ws-layer-title, h2')?.textContent ?? ''),
+      eyebrow: norm(q('.ws-supply-eyebrow')?.textContent ?? ''),
+      meta: texts(layer, kind === 'static' ? ':scope > p.ws-meta' : '.ws-supply-meta'),
+      notNow,
+      why: texts(layer, '[data-ws-part="why"] p'),
+      conditions: texts(layer, kind === 'static' ? '[data-ws-part="conditions"] li' : '[data-ws-part="conditions"] .ws-cond-list li'),
+      caution: texts(layer, '[data-ws-part="caution"] p'),
+      avoid: texts(layer, '[data-ws-part="avoid"] p'),
+      altIds: attrs(layer, '[data-ws-part="alternatives"] li', 'data-ws-id'),
+      altHrefs: attrs(layer, '[data-ws-part="alternatives"] a', 'href'),
+      altNames: texts(layer, '[data-ws-part="alternatives"] a'),
+      productIds: attrs(layer, '[data-ws-part="products"] li.ws-product', 'data-ws-id'),
+      productHrefs: attrs(layer, '[data-ws-part="products"] li.ws-product > a', 'href'),
+      productTitles: texts(layer, '[data-ws-part="products"] .ws-product-title'),
+      sources: attrs(layer, '[data-ws-part="verified"] a', 'href'),
+      generalInfo: layer.querySelectorAll('[data-ws-source="general-info"]').length,
+      photo: attrs(layer, '[data-ws-photo]', 'data-ws-photo'),
+      checkLink: attrs(layer, 'a[href*="/check/"]:not(.ws-compat-link)', 'href'),
+      merchants: Array.from(layer.querySelectorAll(merchants)).map((a) => `${a.getAttribute('href')} ${(a.getAttribute('rel') ?? '').split(' ').sort().join(' ')}`),
+      noteA: texts(layer, '[data-ws-aff="note-a"]'),
+      noteB: texts(layer, '[data-ws-aff="note-b"]'),
+    };
+  }
+
+  async function openSit(p: BuiltPageLite) {
+    loadStatic(p);
+    const aside = document.querySelector('aside.ws-layer') as Element;
+    expect(aside, p.route.path).not.toBeNull();
+    const before = {
+      main: skel(mainEl()),
+      mainText: norm(mainEl().textContent),
+      body: body(aside, 'static'),
+      parent: aside.querySelector('a.ws-layer-close')?.getAttribute('href') ?? '',
+      noteF: document.querySelectorAll('footer [data-ws-aff="note-f"]').length,
+      affLinks: document.querySelectorAll('a[href^="https://link.coupang.com/a/"]').length,
+    };
+    hydrate(p);
+    await waitFor(() => expect([document.querySelector('aside.ws-layer'), document.querySelector('[role="dialog"] .ws-supply') !== null], p.route.path).toEqual([null, true]), { timeout: 15000 });
+    expect(document.querySelectorAll('[role="dialog"]'), p.route.path).toHaveLength(1);
+    return { before, dialog: document.querySelector('[role="dialog"]') as HTMLElement };
+  }
+
+  function unmount() {
+    act(() => root?.unmount());
+    root = null;
+    act(() => layerStore.resetForTest());
+    document.body.innerHTML = '';
+    document.documentElement.style.overflow = '';
+  }
+
+  it.each(['off', 'aff', 'dwarf', 'real'] as const)(
+    '모든 URL(%s 빌드): main 골격·L4 본문 동일, 고지는 링크가 있을 때만(F·A·B), 부모 = 프리렌더 닫기 링크',
+    async (which) => {
+      const from = which === 'off' ? site : which === 'aff' ? affSite : which === 'dwarf' ? dwarfSite : realSite;
+      const pages = sitPages(from);
+      expect(pages.length).toBeGreaterThan(0);
+      let withAlts = 0;
+      for (const p of pages) {
+        const path = p.route.path;
+        const { before, dialog } = await openSit(p);
+        const d: string[] = [];
+        diff(before.main, skel(mainEl()), 'main', d);
+        expect({ path, d }).toEqual({ path, d: [] });
+        expect({ path, text: norm(mainEl().textContent) }).toEqual({ path, text: before.mainText });
+        expect({ path, ...body(dialog, 'react') }).toEqual({ path, ...before.body });
+        const on = which === 'aff' ? 1 : 0;
+        const noteF = document.querySelectorAll('footer [data-ws-aff="note-f"]').length;
+        expect({ path, f: [before.noteF, noteF], a: before.body.noteA.length, b: before.body.noteB.length, links: before.affLinks > 0 }).toEqual({ path, f: [on, on], a: on, b: on, links: on === 1 });
+        expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsDepth: 0, wsParent: before.parent });
+        if (before.body.altIds.length) withAlts += 1;
+        unmount();
+      }
+      if (which === 'real') expect(withAlts).toBeGreaterThan(0); // 대안 있는 URL 이 실제로 비교됐다
+    },
+    180_000,
+  );
+
+  it.each(['close-button', 'escape'] as const)('닫기(%s): replaceState(부모) · history.length 불변 · main 유지 · 고지 0', async (how) => {
+    const { before, dialog } = await openSit(sitPages(affSite)[0]);
+    const len = window.history.length;
+    if (how === 'escape') fireEvent.keyDown(document, { key: 'Escape' });
+    else fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+    expect(window.location.pathname).toBe(before.parent);
+    expect(window.history.length).toBe(len);
+    expect(readLayerState(window.history.state)).toBeNull();
+    expect(norm(mainEl().textContent)).toBe(before.mainText);
+    expect(document.querySelectorAll('[data-ws-aff]')).toHaveLength(0);
+  });
+
+  // 대안 품목은 이 문서 ws-data 에 없다(프리렌더 출력 불변) → 이름·id 는 보관한 정적 aside 에서, 이동은 정적 링크 그대로(문서 이동, D10).
+  it('대안 링크: 정적과 같은 href 로 문서 이동(가로채지 않음) — 그 URL 은 프리렌더가 낸 L4 문서', async () => {
+    const p = sitPages(realSite).find((x) => x.html.includes('data-ws-part="alternatives"'));
+    if (!p) throw new Error('대안 있는 SUPPLY_ITEM_TYPE 페이지 없음');
+    const { before, dialog } = await openSit(p);
+    const href = before.body.altHrefs[0];
+    expect(pageAt(href, realSite).html).toContain('data-ws-layer="L4"');
+    let intercepted: boolean | null = null;
+    const watch = (e: Event) => {
+      intercepted = e.defaultPrevented;
+      e.preventDefault(); // jsdom 은 문서 이동 미구현
+    };
+    window.addEventListener('click', watch);
+    fireEvent.click(dialog.querySelector(`[data-ws-part="alternatives"] a[href="${href}"]`) as Element);
+    window.removeEventListener('click', watch);
+    expect(intercepted).toBe(false);
+    expect(window.location.pathname).toBe(p.route.path);
+  });
 });

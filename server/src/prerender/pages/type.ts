@@ -344,8 +344,8 @@ function searchBlock(r: RequirementModel): string {
  *   → 상품 2~3 → 검수 내용(마지막 검수 · 출처) → [규격 확인] + 찾기(상인 링크).
  */
 /**
- * 313(311 S-3): 팁 진입 링크는 L4 안에 넣지 않는다. /supplies/{item}/{type} 의 정적 aside 는 하이드레이션 후 사라지므로(309 D6)
- *   레이어 안 링크는 JS 끔에서만 보여 링크 수·위치가 JS 켬/끔에서 달라졌다 → 본문(main) 「ws-tips-entries」 한 곳만 남긴다(renderSupplyItem).
+ * 313(311 S-3): 팁 진입 링크는 L4 안에 넣지 않는다 → 본문(main) 「ws-tips-entries」 한 곳만(renderSupplyItem).
+ *   383: /supplies/{item}/{type} 도 하이드레이션 뒤 React L4 가 같은 내용을 연다(client app/deepLink) — React L4 에도 팁 링크는 없다.
  */
 export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = base(t), feed?: PageFeed): string {
   const p = r.pub;
