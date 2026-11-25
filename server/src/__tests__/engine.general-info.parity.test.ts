@@ -63,7 +63,7 @@ describe('상수 패리티', () => {
 });
 
 describe('행 판정 패리티 — engine isGeneralInfoMeta ↔ mjs generalInfoRowOk', () => {
-  const base: Row = { reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', contentKind: 'CARE', draftedAt: DRAFTED };
+  const base: Row = { reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', contentKind: 'CARE', draftedAt: DRAFTED, source: SRC };
   const variants: Row[] = [
     {},
     { contentKind: 'SPEC' }, { contentKind: 'LEGAL' }, { contentKind: 'OTHER' }, { contentKind: undefined },
@@ -81,6 +81,7 @@ describe('행 판정 패리티 — engine isGeneralInfoMeta ↔ mjs generalInfoR
     { contentKind: 'FOOD', crossCheck: CC, source: SRC }, { contentKind: 'HEALTH', crossCheck: CC, source: SRC },
     { contentKind: 'FOOD', crossCheck: CC, source: [] }, { contentKind: 'FOOD', crossCheck: CC, source: [{ url: 'http://example.org/a' }] },
     { contentKind: 'HEALTH', crossCheck: CC, source: [null] }, { contentKind: 'HEALTH', crossCheck: CC, source: 'https://example.org' },
+    { contentKind: 'FOOD', crossCheck: CC, source: undefined },
   ];
   const day = isoDayNumber(AS_OF) as number;
   it.each(variants.map((v) => [JSON.stringify(v), v] as const))('%s', (_n, v) => {
