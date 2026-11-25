@@ -72,6 +72,8 @@ export const STALE_DAYS = 180;
 /** 356: 일반 참고 정보 등급 허용 6종 — server/src/engine/general-info.ts 와 같아야 한다(패리티 engine.general-info.parity). */
 export const GENERAL_INFO_TYPE_IDS = Object.freeze(['hamster-robo', 'gerbil-mongolian', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure']);
 export const GENERAL_INFO_MAX_AGE_DAYS = STALE_DAYS;
+/** 엔진 server/src/engine/exposure.ts FEED_EXCLUDED_CATEGORIES 미러(피드 0 품목 분류). */
+export const FEED_EXCLUDED_CATEGORY_SET = new Set(['FOOD', 'HEALTH']);
 const GI_KINDS = new Set(['SPEC', 'CARE', 'FOOD', 'HEALTH']);
 const GI_CROSS_KINDS = new Set(['FOOD', 'HEALTH']);
 
@@ -670,5 +672,7 @@ export function computeExposure(seed, asOf) {
   }
   const licenseUrls = new Map();
   for (const p of rows('photos')) if (isObj(p) && ccByPhotos.includes(p.id)) licenseUrls.set(p.id, p.licenseUrl);
-  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes };
+  // 362 N16(365/367 틈): 피드 금지 품목 — SupplyItem 행 중 하나라도 FOOD/HEALTH 면(엔진 FEED_EXCLUDED_CATEGORIES 미러, 같은 id 여러 행도 fail-closed).
+  const feedExcludedItems = new Set([...items].filter(([, rs]) => rs.some((r) => FEED_EXCLUDED_CATEGORY_SET.has(r?.category))).map(([id]) => id));
+  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes, feedExcludedItems };
 }

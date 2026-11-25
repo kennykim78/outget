@@ -205,7 +205,14 @@ function checkWsData(d, rel, line, ex, add) {
         bad('data.feed 형식');
         continue;
       }
-      for (const it of arr.items) if (!ex.ids.supplyItems.has(it)) bad(`data.feed.items ${L(it)}`);
+      // 362 N16: FOOD/HEALTH 품목 피드 0(불변식 ⑤ — 엔진 FEED_EXCLUDED_CATEGORIES). ex 에 집합이 없으면 fail-closed.
+      const feedBad = (it) => !(ex.feedExcludedItems instanceof Set) || ex.feedExcludedItems.has(it);
+      const foodHealth = (w) => add('C11-FEED-OUT', 'FAIL', rel, line, `ws-data ${w} — FOOD/HEALTH 품목 피드 0`);
+      for (const it of arr.items) {
+        if (!ex.ids.supplyItems.has(it)) bad(`data.feed.items ${L(it)}`);
+        if (feedBad(it)) foodHealth(`data.feed.items ${L(it)}`);
+      }
+      for (const c of arr.rail) if (isObj(c) && feedBad(c.supplyItemId)) foodHealth(`data.feed.rail ${L(c.supplyItemId)}`);
       for (const c of arr.rail) {
         const tid = isObj(r) ? r.typeId : undefined; // 레일 카드는 라우트 타입 문맥(카드에 타입 id 없음)
         if (!isObj(c) || !ex.pairs.has(`${tid}|${c.supplyItemId}`)) bad(`data.feed.rail ${pairLabel(tid, c?.supplyItemId)}`);
@@ -1020,6 +1027,22 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     }
     for (const h of lintText(nodes.map((n) => n.text).join(''), bw)) {
       if (h.rule === 'L01' && !nodeTerms.has(h.term)) add('C4-BANNED', 'FAIL', rel, null, `태그 경계에 걸친 금지어 "${L(h.term)}"`);
+    }
+  }
+
+  // 362 N16: 피드 JSON({slug}/feed/{item}[.noprice].json) — 경로 품목·본문 supplyItemId 가 FOOD/HEALTH 면 FAIL(피드 0, 불변식 ⑤).
+  for (const abs of all.filter((f) => /\/feed\/[^/]+\.json$/.test(relPosix(dist, f)))) {
+    const rel = relPosix(root, abs);
+    const m = /\/feed\/([^/]+?)(?:\.noprice)?\.json$/.exec(relPosix(dist, abs));
+    const ids = new Set([m?.[1]]);
+    try {
+      const d = JSON.parse(stripBom(readFileSync(abs, 'utf8')));
+      if (isObj(d) && d.supplyItemId !== undefined) ids.add(d.supplyItemId);
+    } catch {
+      // 파싱 실패는 C11-FEED-OUT(rules-affiliate checkFeedJsonOut)이 FAIL — 여기선 경로 품목만 본다.
+    }
+    for (const it of ids) {
+      if (!(ex.feedExcludedItems instanceof Set) || ex.feedExcludedItems.has(it)) add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON 품목 ${L(it)} — FOOD/HEALTH 품목 피드 0`);
     }
   }
 

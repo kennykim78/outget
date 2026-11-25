@@ -140,6 +140,27 @@ describe('N12 피드 산출물(C11-FEED-OUT·C2-PRICE·C8)', () => {
     expect(r.filter((x) => x.rule === 'C11-FEED-OUT').length, JSON.stringify(r)).toBeGreaterThanOrEqual(2);
   });
 
+  // 362 N16(365/367 틈): FOOD/HEALTH 품목 피드 0 을 산출물 스캐너가 따로 잠근다 — ws-data data.feed.items/rail · 피드 JSON 경로/본문.
+  it.each([
+    ['data.feed.items 에 food', T_FULL, (s: string) => s.replace(/"items":\["/, '"items":["food","')],
+    ['data.feed.rail 카드 품목 scale', 'hamster/golden/index.feed.html', (s: string) => s.replace(/"rail":\[\{"supplyItemId":"[^"]+"/, '"rail":[{"supplyItemId":"scale"')],
+  ])('%s → C11-FEED-OUT', (_n, file, f) => {
+    const r = scanBuilt(GEN_MS + H, edit(file, f));
+    expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /FOOD\/HEALTH/.test(x.message)), JSON.stringify(r)).toBe(true);
+  });
+
+  it('피드 JSON 이 FOOD/HEALTH 품목(경로·본문) → C11-FEED-OUT', () => {
+    const r = scanBuilt(GEN_MS + H, (files) => {
+      const k = 'hamster/golden/feed/wheel.json';
+      const d = JSON.parse(files.get(k) as string) as Record<string, unknown>;
+      files.set('hamster/golden/feed/food.json', JSON.stringify({ ...d, supplyItemId: 'food' }));
+      files.set(k, JSON.stringify({ ...d, supplyItemId: 'hay' }));
+    });
+    const hits = r.filter((x) => x.rule === 'C11-FEED-OUT' && /FOOD\/HEALTH/.test(x.message)).map((x) => x.message);
+    expect(hits.some((m) => m.includes('food')), JSON.stringify(r)).toBe(true);
+    expect(hits.some((m) => m.includes('hay')), JSON.stringify(r)).toBe(true);
+  });
+
   it('홈 변형 피드 카드 0 유지(홈 기본 파일 피드 없음)', () => {
     const b = buildSite(seed, { ...opt(), productFeed: { rows: ROWS, generatedAt: GEN, buildAtMs: GEN_MS + H, isTitleBanned: () => false } });
     expect(b.files.get('index.html') ?? '').not.toContain('ws-feed-card');
