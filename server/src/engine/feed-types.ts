@@ -272,3 +272,40 @@ export function feedCheckedParts(checkedOn: unknown): { month: number; day: numb
   const day = Number(m[3]);
   return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
 }
+
+/** 377 S1: data.feed 에서 시각 판정이 보는 필드만(WsFeedData — 이 파일은 public.ts 를 import 하지 않는다, C10-AFF-IMPORT). */
+export interface FeedClockData {
+  stage: FeedLiveStage;
+  freshMs: number;
+  priceCheckedOn?: string;
+  rail: ReadonlyArray<{ price?: unknown }>;
+}
+
+/**
+ * 377 S1: ws-data data.feed 를 지금 시각 기준 단계로 낮춘다(올리지 않는다). freshMs 기준 ≤72h 그대로 · ≤168h noprice(가격·확인일 키 0) ·
+ *   그 뒤·FEED_CLOCK_SKEW_MS 넘는 미래·시각 이상 → undefined(fail-closed). 바뀔 것 없으면 같은 객체.
+ */
+export function feedDataAt<T extends FeedClockData>(feed: T | undefined, nowMs: number): T | undefined {
+  if (!feed) return undefined;
+  const age = nowMs - feed.freshMs;
+  if (!(age >= -FEED_CLOCK_SKEW_MS && age <= FEED_BLOCK_HOURS * HOUR_MS)) return undefined;
+  if (feed.stage === 'noprice' || age <= FEED_PRICE_HOURS * HOUR_MS) return feed;
+  const out: T = {
+    ...feed,
+    stage: 'noprice',
+    rail: feed.rail.map((c) => {
+      const card = { ...c };
+      delete card.price;
+      return card;
+    }),
+  };
+  delete out.priceCheckedOn;
+  return out;
+}
+
+/** 377 S1: feedDataAt 결과가 다음으로 바뀌는 시각(ms). 더 바뀔 것 없으면 null. */
+export function feedNextChangeMs(feed: FeedClockData, nowMs: number): number | null {
+  const live = feedDataAt(feed, nowMs);
+  if (!live) return null;
+  return feed.freshMs + (live.stage === 'full' ? FEED_PRICE_HOURS : FEED_BLOCK_HOURS) * HOUR_MS + 1;
+}

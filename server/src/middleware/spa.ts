@@ -417,6 +417,7 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
       const base = decoded.slice(1).replace(/\.(?:br|gz)$/, '');
       const st = stageNow();
       if ((st === 'full' && feedMan.json.full.has(base)) || (st !== 'nofeed' && feedMan.json.noprice.has(base))) {
+        res.setHeader('Cache-Control', 'no-store'); // 377 S1: 만료 뒤 캐시본이 다시 나오지 않게(send 는 미리 정한 값 유지)
         next();
         return;
       }
@@ -522,7 +523,10 @@ export function mountSpa(app: Express, opts: MountSpaOptions = {}): void {
         const csp = cspFor(n.path);
         const r = manifest.get(n.path);
         if (r) {
-          sendHtml(req, res, pageFileFor(r), r.status, csp);
+          const file = pageFileFor(r);
+          // 377 S1: 피드 변형은 no-store — 브라우저·SW ws-html 캐시가 만료 뒤의 가격·블록을 다시 내놓지 못하게.
+          if (file !== r.file) res.setHeader('Cache-Control', 'no-store');
+          sendHtml(req, res, file, r.status, csp);
           return;
         }
         if (SPA_ONLY_PATHS.has(n.path)) {

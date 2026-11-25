@@ -36,3 +36,41 @@ for (const [name, id, len] of CASES) {
     assert.ok(!ruleIds(text).includes(id));
   });
 }
+
+// 377 S5: *_SECRET 이 아닌 키 이름과 transport 자격 필드 이름(secretKey·appSecret — shop-api.mjs CRED_FIELD).
+const ENV_ID_CASES = [
+  ['COUPANG_PARTNERS_ACCESS_KEY', fake(36)],
+  ['ALIEXPRESS_APP_KEY', fake(32)],
+  ['ALIEXPRESS_APP_KEY', ['50', '1937', '28'].join('')],
+  ['ALIEXPRESS_TRACKING_ID', fake(20)],
+];
+for (const [name, value] of ENV_ID_CASES) {
+  test(`withsmall-shop-api-id: ${name} 가짜 값(${value.length}자) 적중`, { skip }, () => {
+    for (const line of [`${name}=${value}`, `${name}: '${value}'`, `${name} = "${value}"`]) {
+      assert.ok(ruleIds(`${line}\n`).includes('withsmall-shop-api-id'), '미적중');
+    }
+  });
+}
+for (const name of ['secretKey', 'appSecret']) {
+  test(`withsmall-shop-api-secret-field: ${name} 따옴표 값 적중`, { skip }, () => {
+    for (const line of [`{"${name}": "${fake(40)}"}`, `{ ${name}: '${fake(32)}' }`, `const ${name} = "${fake(32)}";`]) {
+      assert.ok(ruleIds(`${line}\n`).includes('withsmall-shop-api-secret-field'), '미적중');
+    }
+  });
+}
+test('377 S5: 빈 값·자리표시·env 참조·필드 이름 매핑은 적중 0', { skip }, () => {
+  const names = ['COUPANG_PARTNERS_ACCESS_KEY', 'ALIEXPRESS_APP_KEY', 'ALIEXPRESS_TRACKING_ID'];
+  const text = [
+    ...names.flatMap((n) => [`${n}=`, `# ${n}=`, `${n}=<your-value-here>`, `${n}=\${${n}}`, `${n}: env.${n}.trim()`]),
+    "  COUPANG_PARTNERS_ACCESS_KEY: 'accessKey',",
+    "  ALIEXPRESS_APP_KEY: 'appKey',",
+    "  ALIEXPRESS_TRACKING_ID: 'trackingId',",
+    '{"secretKey": ""}',
+    '{"appSecret": "<your-secret>"}',
+    'const o = { secretKey: creds.secretKey, appSecret: env.ALIEXPRESS_APP_SECRET };',
+    "  COUPANG_PARTNERS_SECRET_KEY: 'secretKey',",
+    "  ALIEXPRESS_APP_SECRET: 'appSecret',",
+    '',
+  ].join('\n');
+  assert.deepEqual(ruleIds(text).filter((id) => id.startsWith('withsmall-')), []);
+});

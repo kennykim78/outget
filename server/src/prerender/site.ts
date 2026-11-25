@@ -154,8 +154,8 @@ function pageFeedFor(route: RoutePlan, feed: FeedOutput, stage: FeedLiveStage): 
     if (!b) return null;
     const one: WsFeedData =
       stage === 'full' && data.priceCheckedOn !== undefined
-        ? { v: 1, stage, priceCheckedOn: data.priceCheckedOn, items: [route.itemId], rail: [] }
-        : { v: 1, stage, items: [route.itemId], rail: [] };
+        ? { v: 1, stage, freshMs: data.freshMs, priceCheckedOn: data.priceCheckedOn, items: [route.itemId], rail: [] }
+        : { v: 1, stage, freshMs: data.freshMs, items: [route.itemId], rail: [] };
     return { blocks: new Map([[route.itemId, b]]), data: one };
   }
   return null;

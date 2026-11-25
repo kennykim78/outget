@@ -147,7 +147,7 @@ export {
 export type { ProviderAffiliate, ProviderEntry, ProviderId, ProviderSearch } from './providers.js';
 export * from './public.js';
 // 362 N9 — 피드 변형 경로·표기 공용(프리렌더·클라·spa). 값 상수는 feed-types(제휴 모듈 아님), 링크·이미지 검사는 feed-wire(providers 경유 — HomeB 는 import 금지).
-export { FEED_PAGE_VARIANT, FEED_SCREEN_ROWS, feedCheckedParts, feedJsonFile, feedJsonPath, feedPriceText, feedStage, feedVariantFile } from './feed-types.js';
+export { FEED_PAGE_VARIANT, FEED_SCREEN_ROWS, feedCheckedParts, feedDataAt, feedNextChangeMs, feedJsonFile, feedJsonPath, feedPriceText, feedStage, feedVariantFile } from './feed-types.js';
 export type { FeedLiveStage, FeedStage } from './feed-types.js';
 export { isFeedImageUrl, isFeedLink, isWsFeedData } from './feed-wire.js';
 export { WS_WIRE_VERSION, WS_WIRE_VERSION_AFF, decodeWsPage, encodeWsPage, toWsPageV1 } from './ws-wire.js';

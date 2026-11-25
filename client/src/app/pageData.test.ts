@@ -128,8 +128,8 @@ describe('readPageData — 362 N9 data.feed(피드 변형 페이지만 7번째 �
 
   it('정상 full·noprice data.feed 통과(키 7개)', () => {
     for (const feed of [
-      { v: 1, stage: 'full', priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [{ ...card, price: { amount: 12900, currency: 'KRW' } }] },
-      { v: 1, stage: 'noprice', items: ['wheel', 'hideout'], rail: [card] },
+      { v: 1, freshMs: 1795392720000, stage: 'full', priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [{ ...card, price: { amount: 12900, currency: 'KRW' } }] },
+      { v: 1, freshMs: 1795392720000, stage: 'noprice', items: ['wheel', 'hideout'], rail: [card] },
     ]) {
       document.body.innerHTML = '';
       mountScript(JSON.stringify(withFeed(feed)));
@@ -139,12 +139,12 @@ describe('readPageData — 362 N9 data.feed(피드 변형 페이지만 7번째 �
 
   it('형식 위반 data.feed 하나라도 → 페이지 전체 null(링크·이미지 호스트·noprice 가격·verdict·품목 밖)', () => {
     const bads = [
-      { v: 1, stage: 'noprice', items: ['wheel'], rail: [{ ...card, url: 'https://evil.example/x' }] },
-      { v: 1, stage: 'noprice', items: ['wheel'], rail: [{ ...card, imageUrl: 'https://evil.example/a.jpg' }] },
-      { v: 1, stage: 'noprice', items: ['wheel'], rail: [{ ...card, price: { amount: 1, currency: 'KRW' } }] },
-      { v: 1, stage: 'noprice', items: ['wheel'], rail: [{ ...card, verdict: 'BELOW_MIN' }] },
-      { v: 1, stage: 'noprice', items: ['hideout'], rail: [card] },
-      { v: 1, stage: 'full', items: ['wheel'], rail: [] },
+      { v: 1, freshMs: 1795392720000, stage: 'noprice', items: ['wheel'], rail: [{ ...card, url: 'https://evil.example/x' }] },
+      { v: 1, freshMs: 1795392720000, stage: 'noprice', items: ['wheel'], rail: [{ ...card, imageUrl: 'https://evil.example/a.jpg' }] },
+      { v: 1, freshMs: 1795392720000, stage: 'noprice', items: ['wheel'], rail: [{ ...card, price: { amount: 1, currency: 'KRW' } }] },
+      { v: 1, freshMs: 1795392720000, stage: 'noprice', items: ['wheel'], rail: [{ ...card, verdict: 'BELOW_MIN' }] },
+      { v: 1, freshMs: 1795392720000, stage: 'noprice', items: ['hideout'], rail: [card] },
+      { v: 1, freshMs: 1795392720000, stage: 'full', items: ['wheel'], rail: [] },
       [],
     ];
     for (const feed of bads) {
@@ -155,7 +155,7 @@ describe('readPageData — 362 N9 data.feed(피드 변형 페이지만 7번째 �
   });
 
   it('feed 외 7번째 키·feed 와 함께 8번째 키는 여전히 null', () => {
-    const p = withFeed({ v: 1, stage: 'noprice', items: [], rail: [] });
+    const p = withFeed({ v: 1, freshMs: 1795392720000, stage: 'noprice', items: [], rail: [] });
     (p.data as Record<string, unknown>).extra = [];
     mountScript(JSON.stringify(p));
     expect(readPageData(document)).toBeNull();

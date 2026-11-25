@@ -152,7 +152,7 @@ describe('N9 L4 블록(full)', () => {
 
   it('/supplies/wheel/hamster-golden 변형: 같은 블록, data.feed items=[wheel]·rail 0', () => {
     const p = on.feedPages.find((x) => x.file === 'supplies/wheel/hamster-golden/index.feed.html');
-    expect(p?.data.data.feed).toEqual({ v: 1, stage: 'full', priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [] });
+    expect(p?.data.data.feed).toEqual({ v: 1, stage: 'full', freshMs: Date.UTC(2026, 10, 23, 0, 12, 0), priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [] });
     expect(feedSection(p?.html ?? '')).toContain('<li class="ws-feed-row"');
   });
 });

@@ -69,7 +69,8 @@ export function isWsFeedData(v: unknown): v is WsFeedData {
   if (!isRecord(v) || v.v !== 1) return false;
   const full = v.stage === 'full';
   if (!full && v.stage !== 'noprice') return false;
-  if (!exactKeys(v, full ? ['v', 'stage', 'priceCheckedOn', 'items', 'rail'] : ['v', 'stage', 'items', 'rail'])) return false;
+  if (!exactKeys(v, full ? ['v', 'stage', 'freshMs', 'priceCheckedOn', 'items', 'rail'] : ['v', 'stage', 'freshMs', 'items', 'rail'])) return false;
+  if (!Number.isSafeInteger(v.freshMs) || (v.freshMs as number) <= 0) return false;
   if (full && feedCheckedParts(v.priceCheckedOn) === null) return false;
   const items = v.items;
   if (!Array.isArray(items) || items.length > MAX_ITEMS) return false;

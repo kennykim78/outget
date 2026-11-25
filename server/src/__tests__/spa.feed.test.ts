@@ -132,6 +132,32 @@ describe('N11 피드 변형 선택', () => {
   });
 });
 
+// 377 S1 — 피드 변형 응답은 no-store: SW ws-html·브라우저 캐시가 만료 뒤의 가격·블록을 다시 내놓지 못하게.
+describe('S1 피드 응답 Cache-Control', () => {
+  const cc = async (app: Express, p: string): Promise<string> => String((await request(app).get(p)).headers['cache-control'] ?? '');
+
+  it('변형 HTML(full·noprice)과 피드 JSON = no-store', async () => {
+    const d = dist();
+    for (const h of [1, 80]) {
+      const app = appFor(d, GEN_MS + h * H);
+      for (const p of ['/hamster/golden', '/hamster/golden/supplies/wheel', `/${T}/feed/wheel.noprice.json`]) {
+        expect(await cc(app, p), `${p} +${h}h`).toBe('no-store');
+      }
+    }
+    expect(await cc(appFor(d, GEN_MS + H), `/${T}/feed/wheel.json`)).toBe('no-store');
+  });
+
+  it('기본 파일(피드 꺼짐·만료·홈)은 no-store 를 붙이지 않는다', async () => {
+    for (const [d, h, p] of [
+      [dist(), 1, '/'],
+      [dist(), 169, '/hamster/golden'],
+      [dist({ feedManifest: null }), 1, '/hamster/golden'],
+    ] as const) {
+      expect(await cc(appFor(d, GEN_MS + h * H), p), `${p} +${h}h`).not.toContain('no-store');
+    }
+  });
+});
+
 describe('N11 WS_FEED_IMG_HOSTS', () => {
   it('빈 값(기본) → SPA_CSP 바이트 동일, VET_CSP 불변', async () => {
     expect(parseFeedImgHosts(undefined)).toEqual([]);

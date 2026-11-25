@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 // 성능 P1(font2 + jslate) — 진입 module·전체 글꼴 CSS 를 첫 페인트 뒤로(빌드 전용). 사양은 build/wsAfterPaint.ts 머리말.
 import { wsAfterPaint } from './build/wsAfterPaint';
+import { wsHtmlNoStore } from './build/swNoStore';
 
 // R6 F2b ③ 첫 화면 글꼴 preload(빌드 전용). Pretendard dynamic-subset 중 첫 화면 제목·헤더·히어로 글자의 대부분이
 //   들어 있는 조각 90(한글 최빈)·91(라틴+한글 최빈) 둘만 — 빌드 산출 해시명을 번들에서 찾아 head 에 주입.
@@ -93,6 +94,8 @@ export default defineConfig({
               cacheName: 'ws-html',
               networkTimeoutSeconds: 3,
               expiration: { maxEntries: 50, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              // 377 S1: no-store(피드 변형 HTML)는 담지도 내놓지도 않는다.
+              plugins: [wsHtmlNoStore],
             },
           },
           {

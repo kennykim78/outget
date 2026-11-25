@@ -257,10 +257,12 @@ export const WS_DATA_FEED_KEY = 'feed';
  *   items: 이 페이지에서 피드 JSON 이 있는 품목 id(요구사항 순서). 레이어 L4 는 여기 있는 품목만 feedJsonPath(slug, item, stage) 를 읽는다(그 밖 fetch 0).
  *   rail: 홈 B 「기준에 맞는 준비물」 레일 뒤에 붙는 피드 카드(D-2 LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장). GENERAL_INFO 종 = [].
  *   stage 'noprice' 면 priceCheckedOn·rail[].price 키 자체가 없다.
+ *   freshMs: 신선도 기준 시각(epoch ms, feedFreshAt — manifest.generatedAt 과 같은 시각). 클라가 자기 시계로 단계를 다시 잰다(377 S1, feedDataAt).
  */
 export interface WsFeedData {
   v: 1;
   stage: 'full' | 'noprice';
+  freshMs: number;
   priceCheckedOn?: string;
   items: string[];
   rail: PublicFeedRailCard[];

@@ -3,8 +3,9 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { COPY } from '@ws/copy';
 import type { PublicFeedRailCard, PublicRequirement, WsFeedData } from '@ws/engine';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
+import { feedClock } from '../app/feedClock';
 import { NO_CAPTURE } from '../app/staticCapture';
 import { golden, pageOf, product, req } from '../test/fixtures';
 import { layerStore } from '../ui/layer/useLayer';
@@ -38,10 +39,12 @@ function page(feed: WsFeedData | undefined, products = [product('p1', 'wheel', '
   return p;
 }
 
-const FULL = (rail: PublicFeedRailCard[]): WsFeedData => ({ v: 1, stage: 'full', priceCheckedOn: '2026-11-23', items: rail.map((c) => c.supplyItemId), rail });
+const FRESH = Date.UTC(2026, 10, 23, 0, 12, 0);
+const FULL = (rail: PublicFeedRailCard[]): WsFeedData => ({ v: 1, stage: 'full', freshMs: FRESH, priceCheckedOn: '2026-11-23', items: rail.map((c) => c.supplyItemId), rail });
 const NOPRICE = (rail: PublicFeedRailCard[]): WsFeedData => ({
   v: 1,
   stage: 'noprice',
+  freshMs: FRESH,
   items: rail.map((c) => c.supplyItemId),
   rail: rail.map(({ price: _p, ...c }) => (void _p, c)),
 });
@@ -50,12 +53,14 @@ const sec = () => document.querySelector('[data-ws-section="products"]') as HTML
 const PRICE_OR_DATE = /\d[\d,]*\s*원|₩|￦|KRW|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}|12,?900/i;
 
 beforeEach(() => {
+  vi.spyOn(feedClock, 'now').mockReturnValue(FRESH + 3_600_000);
   localStorage.clear();
   act(() => layerStore.resetForTest());
 });
 afterEach(() => {
   cleanup();
   act(() => layerStore.resetForTest());
+  vi.restoreAllMocks();
 });
 
 describe('362 N10 홈 B 피드 카드', () => {
@@ -99,7 +104,7 @@ describe('362 N10 홈 B 피드 카드', () => {
 
   it('요구사항 밖·FOOD/HEALTH·알리 카드는 그리지 않는다 — 남는 카드 0 이면 lead·고지 0', () => {
     const rail = [card('ghost'), card('pellet'), card('wheel', { provider: 'ALIEXPRESS', url: 'https://s.click.aliexpress.com/e/_abcd1' })];
-    render(<App page={page({ v: 1, stage: 'full', priceCheckedOn: '2026-11-23', items: [], rail })} captured={NO_CAPTURE} />);
+    render(<App page={page({ v: 1, stage: 'full', freshMs: FRESH, priceCheckedOn: '2026-11-23', items: [], rail })} captured={NO_CAPTURE} />);
     const s = sec() as HTMLElement;
     expect(s.querySelectorAll('li.ws-feed-card')).toHaveLength(0);
     expect(s.textContent).not.toContain(COPY.feed.homeLead);

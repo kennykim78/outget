@@ -78,9 +78,9 @@ export function feedWsDataBytes(f: WsFeedData): number {
 }
 
 /** data.feed 조립 + 예산 맞추기(레일 카드를 뒤에서부터 뺀다 — 요구사항 순서 앞 카드 우선, 결정론). 형식 위반·품목만으로 초과면 throw. */
-export function fitWsFeed(stage: FeedLiveStage, checkedOn: string, items: string[], rail: readonly PublicFeedRailCard[]): WsFeedData {
+export function fitWsFeed(stage: FeedLiveStage, freshMs: number, checkedOn: string, items: string[], rail: readonly PublicFeedRailCard[]): WsFeedData {
   const cards = [...rail];
-  const make = (): WsFeedData => ({ v: 1, stage, ...(stage === 'full' ? { priceCheckedOn: checkedOn } : {}), items: [...items], rail: [...cards] });
+  const make = (): WsFeedData => ({ v: 1, stage, freshMs, ...(stage === 'full' ? { priceCheckedOn: checkedOn } : {}), items: [...items], rail: [...cards] });
   let f = make();
   while (feedWsDataBytes(f) > FEED_WS_DATA_MAX_BYTES && cards.length > 0) {
     cards.pop();
@@ -146,7 +146,7 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
           ? c
           : { supplyItemId: c.supplyItemId, provider: c.provider, title: c.title, url: c.url, imageUrl: c.imageUrl, verdict: c.verdict, specValues: c.specValues },
       );
-      data[st] = fitWsFeed(st, checkedOn, items, stCards);
+      data[st] = fitWsFeed(st, genMs, checkedOn, items, stCards);
     }
     out.types.set(t.id, { blocks, data });
   }

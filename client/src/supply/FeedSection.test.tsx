@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { COPY } from '@ws/copy';
 import type { PublicFeedBlock, PublicRequirement, WsFeedData, WsPageData } from '@ws/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { feedClock } from '../app/feedClock';
 import { LayerPageProvider } from '../app/layerPage';
 import { layerRegistry, layerWsId } from '../app/layerRegistry';
 import { reactionApi } from '../reaction/reactionStore';
@@ -35,8 +36,9 @@ function wheel(over: Partial<PublicRequirement> = {}): PublicRequirement {
   };
 }
 
-const FULL: WsFeedData = { v: 1, stage: 'full', priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [] };
-const NOPRICE: WsFeedData = { v: 1, stage: 'noprice', items: ['wheel'], rail: [] };
+const FRESH = Date.UTC(2026, 10, 23, 0, 12, 0);
+const FULL: WsFeedData = { v: 1, stage: 'full', freshMs: FRESH, priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [] };
+const NOPRICE: WsFeedData = { v: 1, stage: 'noprice', freshMs: FRESH, items: ['wheel'], rail: [] };
 
 function rowFull(n: number, over: Record<string, unknown> = {}) {
   return {
@@ -72,6 +74,7 @@ const fetchMock = vi.fn<(path: string) => Promise<Response>>();
 const jsonRes = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 beforeEach(() => {
+  vi.spyOn(feedClock, 'now').mockReturnValue(FRESH + 3_600_000);
   window.localStorage.clear();
   resetFeedCacheForTest();
   fetchMock.mockReset();

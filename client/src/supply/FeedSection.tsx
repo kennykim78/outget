@@ -4,6 +4,7 @@
 import type { ReactNode } from 'react';
 import { COPY } from '@ws/copy';
 import { specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
+import { useLivePage } from '../app/feedClock';
 import { FeedNote, FeedRow, feedCheckedLine, feedNoteId } from '../home/FeedCard';
 import StateBlock from '../ui/StateBlock';
 import { feedPathFor, useFeedBlock } from './feedBlock';
@@ -23,11 +24,14 @@ function Shell({ children }: { children: ReactNode }) {
 
 export default function FeedSection({ page, type, requirement }: { page: WsPageData; type: PublicAnimalType; requirement: PublicRequirement }) {
   const r = requirement;
-  const path = feedPathFor(page, type, r);
+  // 377 S1: App 이 이미 거른 page 를 주지만 여기서도 지금 시각으로 다시 잰다(방어 심화). 탭 캐시의 full 블록은 단계가 낮아지면 쓰지 않는다.
+  const live = useLivePage(page);
+  const path = feedPathFor(live, type, r);
   const generalInfo = Boolean(r.generalInfo || type.generalInfo);
-  const { state, retry } = useFeedBlock(path, { typeId: type.id, itemId: r.supplyItemId, stage: page.data.feed?.stage ?? null, generalInfo });
+  const { state, retry } = useFeedBlock(path, { typeId: type.id, itemId: r.supplyItemId, stage: live.data.feed?.stage ?? null, generalInfo });
 
-  if (state.kind === 'none') return null;
+  // path null(만료) → useFeedBlock 이 아직 옛 상태를 들고 있어도 그리지 않는다.
+  if (path === null || state.kind === 'none') return null;
   if (state.kind === 'loading') {
     return (
       <Shell>
@@ -48,7 +52,7 @@ export default function FeedSection({ page, type, requirement }: { page: WsPageD
   }
   const b = state.block;
   const noteId = feedNoteId(r.supplyItemId);
-  const checked = b.priceCheckedOn !== undefined ? feedCheckedLine(b.priceCheckedOn) : null;
+  const checked = live.data.feed?.stage === 'full' && b.priceCheckedOn !== undefined ? feedCheckedLine(b.priceCheckedOn) : null;
   return (
     <Shell>
       <p className="ws-t-meta ws-muted ws-feed-sub">{COPY.feed.sub}</p>

@@ -60,7 +60,7 @@ const KW = buildSearchKeyword(golden, wheelReq);
 function feedDir(aliRows: unknown[], coupang = '{}', coupangRows: unknown[] = []): string {
   const d = tmp('pf');
   const empty = (p: string) => ({ v: 1, provider: p, source: 'OFFICIAL_API', api: { method: null, sort: null }, terms: { checkedAt: null, displayFields: [] }, generatedAt: null, rows: [] });
-  const cp = { v: 1, provider: 'COUPANG', source: 'OFFICIAL_API', api: { method: 'search', sort: null }, terms: { checkedAt: '2026-11-23', displayFields: ['title', 'url', 'imageUrl', 'price'] }, generatedAt: GEN, rows: coupangRows };
+  const cp = { v: 1, provider: 'COUPANG', source: 'OFFICIAL_API', api: { method: 'search', sort: 'S' }, terms: { checkedAt: '2026-11-23', displayFields: ['title', 'url', 'imageUrl', 'price'] }, generatedAt: GEN, rows: coupangRows };
   writeFileSync(join(d, 'coupang.json'), coupang !== '{}' ? coupang : coupangRows.length ? JSON.stringify(cp) : JSON.stringify(empty('COUPANG')));
   const ali =
     aliRows.length === 0

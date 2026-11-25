@@ -289,6 +289,18 @@ test('예시 env: 시크릿 자리는 __SET_ME__ 만, 값 0', () => {
   assert.match(s, /^PUBLIC_ORIGIN=https:\/\/withsmall\.kr$/m);
 });
 
+// 377 S5: 상품 피드 env 이름이 예시에 있고 값은 비어 있다.
+test('예시 env: 상품 피드 이름 7개 — 빈 값만', () => {
+  const names = ['WS_PRODUCT_FEED', 'WS_FEED_IMG_HOSTS', 'COUPANG_PARTNERS_ACCESS_KEY', 'COUPANG_PARTNERS_SECRET_KEY',
+    'ALIEXPRESS_APP_KEY', 'ALIEXPRESS_APP_SECRET', 'ALIEXPRESS_TRACKING_ID'];
+  for (const [f, t] of [['.env.example', read('.env.example')], ['deploy/server.env.example', read('deploy', 'server.env.example')]]) {
+    for (const n of names) {
+      const hits = t.split(String.fromCharCode(10)).filter((l) => new RegExp(`^(?:# )?${n}=`).test(l));
+      assert.deepEqual(hits.map((l) => l.replace(/^# /, '')), [`${n}=`], `${f} ${n}`);
+    }
+  }
+});
+
 test('deploy/*.sh: sh -n 문법 통과', () => {
   const sh = process.platform === 'win32'
     ? [process.env.ProgramFiles && join(process.env.ProgramFiles, 'Git', 'usr', 'bin', 'sh.exe'), process.env.ProgramFiles && join(process.env.ProgramFiles, 'Git', 'bin', 'sh.exe')].find((p) => p && existsSync(p))

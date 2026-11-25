@@ -5,13 +5,14 @@
 //     - 키 집합 엄격(초과·누락 → throw), 원문 중복 키 → throw, __proto__·constructor·prototype → throw.
 //     - url = 공급자별 링크 형태(providers.ts FEED_LINK_RE), imageUrl = FEED_IMAGE_HOSTS 정확 일치 https 또는 null.
 //     - generatedAt 은 rows=[] 일 때만 null. 행이 있으면 terms.checkedAt 필수(약관 확인 전 노출 금지)·표시 필드 선언 필수.
+//     - 377 S6: 행이 있으면 api.method·api.sort non-null, 빌드 시 terms.checkedAt 은 90일(TERMS_MAX_AGE_DAYS) 이내.
 //     - 공급자 × (타입·품목)당 FEED_ROW_CAP 행 이하, rank 는 그 안에서 1부터 중복 없음.
 //   게이트: production ∧ WS_PRODUCT_FEED=public ∧ origin ∈ WS_AFFILIATE_ORIGINS. 하나라도 거짓 → 꺼짐(파일을 읽지도 않는다).
 //   오류 메시지에 제목·URL 값은 넣지 않는다(위치·규칙만).
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FEED_IMAGE_HOSTS, FEED_LINK_RE } from '../engine/providers.js';
-import { FEED_CLOCK_SKEW_MS, FEED_PROVIDERS, FEED_ROW_CAP, parseFeedInstant, type FeedFile, type FeedProvider, type FeedRowIn } from '../engine/feed-types.js';
+import { FEED_CLOCK_SKEW_MS, FEED_PROVIDERS, FEED_ROW_CAP, parseFeedInstant, seoulDate, type FeedFile, type FeedProvider, type FeedRowIn } from '../engine/feed-types.js';
 import { FORBIDDEN_KEYS, hasForbiddenKey } from '../engine/ws-wire.js';
 import { hasDuplicateJsonKey } from './affiliate.js';
 
@@ -36,6 +37,18 @@ const API_ID_RE = /^[A-Za-z0-9._-]{1,80}$/;
 const TITLE_MAX = 300;
 /** fetchedAt 은 generatedAt 이하(+1h 허용, 353 §2). */
 const FETCH_SLACK_MS = 3_600_000;
+/** 377 S6: 약관 확인일(terms.checkedAt)은 빌드일(서울) 기준 이 일수 이내여야 한다. */
+export const TERMS_MAX_AGE_DAYS = 90;
+
+/** 확인일 → 빌드일(서울)까지 지난 날수. 달력에 없는 날짜면 null. */
+function termsAgeDays(checkedAt: string, nowMs: number): number | null {
+  const [y, m, d] = checkedAt.split('-').map(Number);
+  const at = Date.UTC(y, m - 1, d);
+  const back = new Date(at);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== m - 1 || back.getUTCDate() !== d) return null;
+  const today = seoulDate(nowMs);
+  return Math.round((Date.UTC(today.year, today.month - 1, today.day) - at) / 86_400_000);
+}
 
 /** 제어 문자(U+0000~U+001F)·꺾쇠 포함 여부(정규식 제어 문자 클래스 대신 — no-control-regex). */
 function hasControlOrAngle(s: string): boolean {
@@ -108,6 +121,14 @@ export function parseProductFeed(json: unknown, expected: FeedProvider, opts: { 
   if (rows.length > 0) {
     if (terms.checkedAt === null) fail('rows 가 있으면 terms.checkedAt 필수(약관 확인 전 노출 금지)');
     for (const f of ['title', 'url']) if (!display.includes(f)) fail(`rows 가 있으면 terms.displayFields 에 ${f}`);
+    // 377 S6: 조회 방식·정렬 근거와 약관 확인의 신선도 — 하나라도 없으면 켜지 않는다(fail-closed).
+    for (const k of API_KEYS) if (api[k] === null) fail(`rows 가 있으면 api.${k} 필수`);
+    if (opts.nowMs !== undefined) {
+      const age = termsAgeDays(terms.checkedAt as string, opts.nowMs);
+      if (age === null) fail('terms.checkedAt 은 달력에 있는 날짜');
+      if ((age as number) < 0) fail('terms.checkedAt 이 빌드일보다 미래');
+      if ((age as number) > TERMS_MAX_AGE_DAYS) fail(`terms.checkedAt 이 ${TERMS_MAX_AGE_DAYS}일 넘게 지남(약관 재확인 필요)`);
+    }
   }
 
   const perGroup = new Map<string, Set<number>>();

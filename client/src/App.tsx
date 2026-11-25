@@ -7,6 +7,7 @@ import { Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import type { WsPageData } from '@ws/engine';
 import { useAnimalSelection } from './animal/selection';
 import { deepLinkFor } from './app/deepLink';
+import { useLivePage } from './app/feedClock';
 import { installLayerLinks } from './app/layerLinks';
 import { LayerPageProvider } from './app/layerPage';
 import { installLayerWarmup, layerRegistry, layerWsId } from './app/layerRegistry';
@@ -38,6 +39,8 @@ export interface AppProps {
 }
 
 export default function App({ page, captured, storedTypeId }: AppProps) {
+  // 377 S1: 피드를 보여 주는 화면(홈 B·푸터·레이어)은 지금 시각 기준 page 를 받는다.
+  const livePage = useLivePage(page);
   const layer = useLayer();
   const open = useOpenLayer();
   const selection = useAnimalSelection(page.data.types);
@@ -75,7 +78,7 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   if (rv.view === 'homeA') {
     view = <HomeA page={page} continueType={continueType} onPick={openL1} />;
   } else if (rv.view === 'homeB') {
-    view = <HomeB page={page} type={rv.type} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
+    view = <HomeB page={livePage} type={rv.type} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
   } else if (rv.view === 'vet') {
     const fallback = <StaticMain kind={page.route.kind} html={captured.main} />;
     view = (
@@ -100,8 +103,8 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
         onSpecCheckIntent={() => startIntent('SPEC_CHECK')}
       />
       {view}
-      <Footer affNote={layerAffiliateOn(page, open) || feedFooterOn(page, open)} />
-      <LayerPageProvider page={page}>
+      <Footer affNote={layerAffiliateOn(page, open) || feedFooterOn(livePage, open)} />
+      <LayerPageProvider page={livePage}>
         <LayerHost registry={layerRegistry} wsIdFor={(k, p) => layerWsId(page, k, p)} />
       </LayerPageProvider>
     </>
