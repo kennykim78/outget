@@ -4423,3 +4423,49 @@ for (const [name, rel, body] of [
     expectClean(res);
   });
 }
+
+// 362 N12 — 피드 파일(C11-FEED)·시드 가격 키(C2-PRICE)·런타임 → 피드 로더(C10-AFF-RUNTIME FAIL)
+const FCP = j('link.coup', 'ang.com');
+const FAE = j('s.click.ali', 'express.com');
+const FIMG = j('ae01.ali', 'cdn.com');
+const FEED_GEN = '2026-11-23T09:12:00+09:00';
+const feedFile = (over = {}, rowOver = {}, provider = 'COUPANG') => ({
+  v: 1, provider, source: 'OFFICIAL_API', api: { method: null, sort: null }, terms: { checkedAt: null, displayFields: [] }, generatedAt: FEED_GEN,
+  rows: [{ animalTypeId: 'hamster-golden', supplyItemId: 'wheel', keyword: '햄스터 쳇바퀴', rank: 1, title: '햄스터 쳇바퀴 30cm', url: `${HTTPS}${FCP}/a/Mk1x`, imageUrl: null, price: { amount: 12900, currency: 'KRW' }, fetchedAt: FEED_GEN, ...rowOver }],
+  ...over,
+});
+const CF = 'server/product-feed/coupang.json';
+const AF = 'server/product-feed/aliexpress.json';
+
+test('362 N12 C11-FEED: 피드 파일 형식·링크·이미지·제목 린트, 수수료 키는 C10-AFF-FIELD', async () => {
+  expectNoAff(await affScan({ [CF]: JSON.stringify(feedFile()) }), 'C11-FEED', '정상 쿠팡 피드');
+  expectNoAff(await affScan({ [AF]: JSON.stringify(feedFile({}, { url: `${HTTPS}${FAE}/e/_abcd`, imageUrl: `${HTTPS}${FIMG}/kf/x.jpg` }, 'ALIEXPRESS')) }), 'C11-FEED', '정상 알리 피드(허용 이미지 호스트)');
+  const bad = [
+    ['다른 파일 이름', 'server/product-feed/naver.json', JSON.stringify(feedFile())],
+    ['파싱 실패', CF, '{ bad'],
+    ['최상위 키 초과', CF, JSON.stringify({ ...feedFile(), extra: 1 })],
+    ['공급자·파일 불일치', CF, JSON.stringify(feedFile({ provider: 'ALIEXPRESS' }))],
+    ['generatedAt 없음인데 행', CF, JSON.stringify(feedFile({ generatedAt: null }))],
+    ['링크 형식 밖', CF, JSON.stringify(feedFile({}, { url: `${HTTPS}www.coupang.com/vp/products/1` }))],
+    ['쿠팡 이미지(허용 호스트 0)', CF, JSON.stringify(feedFile({}, { imageUrl: `${HTTPS}${j('thumbnail.coup', 'angcdn.com')}/x.jpg` }))],
+    ['알리 이미지 호스트 밖', AF, JSON.stringify(feedFile({}, { url: `${HTTPS}${FAE}/e/_abcd`, imageUrl: `${HTTPS}evil.example/x.jpg` }, 'ALIEXPRESS'))],
+    ['제목 금지어', CF, JSON.stringify(feedFile({}, { title: '베스트 쳇바퀴' }))],
+  ];
+  for (const [label, file, text] of bad) expectAff(await affScan({ [file]: text }), 'C11-FEED', file, label);
+  expectAff(await affScan({ [CF]: JSON.stringify(feedFile({}, { commissionRate: 3 })) }), 'C10-AFF-FIELD', CF, '행 수수료 키');
+});
+
+test('362 N12 C2-PRICE: 시드 가격류 키(price·amount·currency) FAIL', async () => {
+  for (const k of ['price', 'amount', 'currency']) {
+    expectAff(scan(await makeRoot({ source: (s) => Object.assign(s, affEngineClient()), seed: (sd) => { sd['curated-products.json'][0][k] = 1; } })), 'C2-PRICE', null, `시드 ${k}`);
+  }
+});
+
+test('362 N12 C10-AFF-RUNTIME: 서버 런타임이 피드 로더에 닿으면 FAIL(맵은 WARN 그대로)', async () => {
+  const res = await affScan({
+    'server/src/index.ts': "import { loadFeed } from './prerender/cli.js';\nexport const s = loadFeed;\n",
+    'server/src/prerender/cli.ts': "import { loadProductFeed } from './product-feed.js';\nexport const loadFeed = () => loadProductFeed;\n",
+    'server/src/prerender/product-feed.ts': 'export const loadProductFeed = () => null;\n',
+  });
+  expectAff(res, 'C10-AFF-RUNTIME', null, '런타임 → 피드 로더');
+});

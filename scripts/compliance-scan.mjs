@@ -82,7 +82,7 @@ function main() {
   const notes = [];
 
   const { files } = scanSources(opts.root, { add, bw }, notes);
-  scanAffiliateSources(opts.root, add); // 260: C10-AFF-IMPORT·RUNTIME·HOST·REDIRECT·FIELD(258 단계 7)
+  scanAffiliateSources(opts.root, add, bw); // 260: C10-AFF-IMPORT·RUNTIME·HOST·REDIRECT·FIELD(258 단계 7)
 
   const seedDir = join(opts.root, 'server', 'seed');
   const { seed } = readSeed(seedDir);

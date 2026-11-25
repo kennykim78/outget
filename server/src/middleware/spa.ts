@@ -76,7 +76,7 @@ export function spaCsp(feedImgHosts: readonly string[] = []): string {
 
 /** 정규화된 요청 경로 → CSP. 지도 호스트는 /vet 과 그 하위만. */
 export function cspForPath(p: string, feedImgHosts: readonly string[] = []): string {
-  return p === '/vet' || p.startsWith('/vet/') ? VET_CSP : spaCsp(feedImgHosts);
+  return p === '/vet' || p.startsWith('/vet/') ? VET_CSP : feedImgHosts.length === 0 ? SPA_CSP : spaCsp(feedImgHosts);
 }
 
 // ── 362 N11: 피드 변형 선택(353 §6-3) — 요청 시각 기준 파일 선택만(외부 호출 0) ───────────────

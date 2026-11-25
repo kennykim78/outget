@@ -20,7 +20,7 @@ describe('isWsFeedData', () => {
     ['stage 밖', (f) => ({ ...f, stage: 'nofeed' })],
     ['v ≠ 1', (f) => ({ ...f, v: 2 })],
     ['추가 키', (f) => ({ ...f, extra: 1 })],
-    ['full 인데 확인일 없음', ({ priceCheckedOn: _p, ...f }) => f],
+    ['full 인데 확인일 없음', (f) => Object.fromEntries(Object.entries(f).filter(([k]) => k !== 'priceCheckedOn'))],
     ['확인일 형식 밖', (f) => ({ ...f, priceCheckedOn: '2026-13-40' })],
     ['품목 id 형식 밖', (f) => ({ ...f, items: ['../x'] })],
     ['품목 중복', (f) => ({ ...f, items: ['wheel', 'wheel'] })],

@@ -160,6 +160,26 @@ function checkWsWire(d, rel, line, add) {
   for (let i = 0; i < table.length; i++) if (!used.has(i)) bad(`v2 sources[${i}] 미참조 표 항목`);
 }
 
+/** 362 N12 C2-PRICE: 가격류 키(price·amount·currency) 경로 — data.feed 하위는 제외. 반복 탐색. */
+const PRICE_KEY_SET = new Set(['price', 'amount', 'currency']);
+function priceKeysOutsideFeed(root, hit) {
+  const stack = [[root, '']];
+  while (stack.length > 0) {
+    const [v, p] = stack.pop();
+    if (typeof v !== 'object' || v === null) continue;
+    if (p === 'data.feed') continue;
+    if (Array.isArray(v)) {
+      v.forEach((x, i) => stack.push([x, `${p}[${i}]`]));
+      continue;
+    }
+    for (const k of Object.keys(v)) {
+      const q = p ? `${p}.${k}` : k;
+      if (PRICE_KEY_SET.has(k)) hit(q.slice(0, 60));
+      stack.push([v[k], q]);
+    }
+  }
+}
+
 /** ws-data (§6-3 WsPageData) id 검사. */
 function checkWsData(d, rel, line, ex, add) {
   const bad = (what) => add('C3-OUT-ID', 'FAIL', rel, line, `ws-data 비노출 ${what}`);
@@ -171,6 +191,7 @@ function checkWsData(d, rel, line, ex, add) {
     return;
   }
   checkWsWire(d, rel, line, add);
+  priceKeysOutsideFeed(d, (p) => add('C2-PRICE', 'FAIL', rel, line, `ws-data 가격류 키 ${L(p)} — 가격은 data.feed 에만(353 §4)`));
   const r = d.route;
   if (isObj(r) && r.typeId !== undefined && !ex.ids.animalTypes.has(r.typeId)) bad(`route.typeId ${L(r.typeId)}`);
   checkLayer(d.layer, ex, (w) => bad(`layer ${w}`));
@@ -178,6 +199,19 @@ function checkWsData(d, rel, line, ex, add) {
   if (data === undefined) return;
   if (!isObj(data)) return bad('data 형식');
   for (const [k, arr] of Object.entries(data)) {
+    // 362 N12: data.feed(객체) — 품목 id·레일 카드 짝이 노출 집합 안인지만(형식·링크·가격은 서버 isWsFeedData + C11-FEED-OUT).
+    if (k === 'feed') {
+      if (!isObj(arr) || arr.v !== 1 || !Array.isArray(arr.items) || !Array.isArray(arr.rail)) {
+        bad('data.feed 형식');
+        continue;
+      }
+      for (const it of arr.items) if (!ex.ids.supplyItems.has(it)) bad(`data.feed.items ${L(it)}`);
+      for (const c of arr.rail) {
+        const tid = isObj(r) ? r.typeId : undefined; // 레일 카드는 라우트 타입 문맥(카드에 타입 id 없음)
+        if (!isObj(c) || !ex.pairs.has(`${tid}|${c.supplyItemId}`)) bad(`data.feed.rail ${pairLabel(tid, c?.supplyItemId)}`);
+      }
+      continue;
+    }
     if (!Array.isArray(arr)) {
       bad(`data.${L(k)} 형식`);
       continue;
@@ -957,7 +991,9 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
         }
         if (href === '/credits') hasCreditsLink = true;
       }
-      if (t.name !== 'script' && t.name !== 'a' && t.name !== 'link') {
+      // 362 N12: 피드 썸네일(img.ws-feed-thumb, no-referrer) 의 외부 src 는 C11-FEED-OUT(rules-affiliate.mjs)이 피드 블록 안·FEED_IMAGE_HOSTS 정확 일치로 따로 잠근다.
+      const feedThumb = t.name === 'img' && /(?:^|\s)ws-feed-thumb(?:\s|$)/.test(a.class ?? '') && (a.referrerpolicy ?? '').trim().toLowerCase() === 'no-referrer' && a.srcset === undefined;
+      if (t.name !== 'script' && t.name !== 'a' && t.name !== 'link' && !feedThumb) {
         for (const k of ['src', 'srcset', 'poster', 'data']) {
           if (a[k] !== undefined && a[k].split(',').some((u) => isExternal(u.trim().split(/\s+/)[0] ?? ''))) {
             add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 리소스 ${L(t.name)}[${k}]: ${L(a[k])}`);
