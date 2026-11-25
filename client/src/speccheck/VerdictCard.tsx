@@ -47,7 +47,7 @@ export interface VerdictCardProps {
   searchLinks: readonly SearchLink[];
   lastVerifiedYm: string | null;
   sourceCount: number;
-  /** 356: 일반 참고 정보(GENERAL_INFO) 요구사항 — 검수 meta 자리에 「출처 일반 사육 자료 종합」(고지 문장은 종 페이지 헤더 1회). */
+  /** 356: 일반 참고 정보(GENERAL_INFO) 요구사항 — 검수 meta 자리에 「출처 관련 참고 링크」(고지 문장은 종 페이지 헤더 1회). */
   generalInfo?: boolean;
   /** 제출 회차. */
   seq: number;
