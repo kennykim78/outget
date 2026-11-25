@@ -282,6 +282,42 @@ describe('374 D2 재검 — 통화 기호·코드·수사+원·맥락 날짜·�
   });
 });
 
+// ── 374 R1(요일 괄호)·R2(숫자 바로 뒤 원+단어) ───────────────────────────────────────────
+const R_LEAKS = [
+  '11/20(금) 출고', '11.20(금) 입고', '11/20(수)출고', '11.20 (금) 발송', '11.20（금）발송', '11-20(목요일) 마감', '20일(금) 입고',
+  '12,900원단독', '9,900원색상랜덤', '9900원통관', '5900원터치', '9900원피스', '9900원형', '9900원목', '10원통',
+].map((s) => `햄스터 쳇바퀴 30cm 통면 ${s}`);
+const R_SPECS = ['3원통', '2원단', '원목 2층', '3원색', '원목 하우스', '원형 쳇바퀴', '원터치 케이지', '2단 원목', '11.20cm'].map((s) => `햄스터 ${s} 통면`);
+describe('374 R1·R2 — 요일 괄호 맥락 날짜·숫자 바로 뒤 원+단어 가격 적중, 원목·원통 상품명 비적중', () => {
+  it.each(R_LEAKS.map((t) => [t] as const))('적중: %s', (t) => {
+    expect(feedTitleHasPriceOrDate(t)).toBe(true);
+  });
+  it.each(R_SPECS.map((t) => [t] as const))('비적중: %s', (t) => {
+    expect(feedTitleHasPriceOrDate(t)).toBe(false);
+  });
+  it('스캐너(rules-affiliate.mjs) 판정 = 엔진 판정', async () => {
+    const mod = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'rules-affiliate.mjs')).href)) as { feedTitleHasPriceOrDate: (t: string) => boolean };
+    for (const t of [...R_LEAKS, ...R_SPECS]) expect(mod.feedTitleHasPriceOrDate(t), t).toBe(feedTitleHasPriceOrDate(t));
+  });
+  it('374 R2 재현: buildSite noprice(80h) — 「12,900원단독」·「9,900원색상랜덤」·「11/20(금) 출고」 산출물 0', () => {
+    const b = buildSite(
+      seed,
+      siteOpts(GEN_MS + 80 * H, [
+        row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 12,900원단독'),
+        row(G, 'wheel', '햄스터 쳇바퀴 31cm 통면 9,900원색상랜덤'),
+        row(G, 'wheel', '햄스터 쳇바퀴 32cm 통면 11/20(금) 출고'),
+        row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 3원통'),
+      ]),
+    );
+    for (const [k, v] of b.files) {
+      expect(v.includes('12,900원단독'), k).toBe(false);
+      expect(v.includes('9,900원색상랜덤'), k).toBe(false);
+      expect(v.includes('11/20(금) 출고'), k).toBe(false);
+    }
+    expect(b.files.get('hamster/golden/feed/wheel.noprice.json')).toContain('햄스터 쳇바퀴 30cm 통면 3원통');
+  });
+});
+
 // ── D3 ────────────────────────────────────────────────────────────────────────────────
 const FUT = '2027-11-23T09:12:00+09:00';
 function aliFile(generatedAt: string, fetchedAt: string): Record<string, unknown> {
