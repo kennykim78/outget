@@ -13,6 +13,7 @@ import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRec
 import { PHOTO_AI_LICENSE, PHOTO_ASSET_RE, isAiPhotoRecordOk } from './photo-ai.js';
 import { generalInfoOkAt, isGeneralInfoTypeId } from './general-info.js';
 import {
+  COMBINING_MARK_RE,
   DEFAULT_IGNORABLE_RE,
   FEED_AVOID_WORDS,
   FEED_CLOCK_SKEW_MS,
@@ -258,6 +259,7 @@ const feedNorm = (s: string): { spaced: string; stripped: string } => {
   const spaced = s
     .replace(DEFAULT_IGNORABLE_RE, '')
     .normalize('NFKC')
+    .replace(COMBINING_MARK_RE, '') // 374 N3
     .replace(DEFAULT_IGNORABLE_RE, '')
     .replace(/\s+/g, ' ');
   return { spaced, stripped: spaced.replace(/ /g, '') };

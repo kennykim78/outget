@@ -86,19 +86,26 @@ export const FEED_TITLE_DENY = /치료|효능|예방|영양제|처방|약용|질
 
 /** 373 D2·D5: 기본 무시 문자(Default_Ignorable_Code_Point — 제로폭·이음표·변형 선택자·한글 채움 문자·태그 등) 전부. */
 export const DEFAULT_IGNORABLE_RE = /\p{Default_Ignorable_Code_Point}/gu;
+/** 374 N3: 결합 부호(\p{M}) — NFKC 뒤에도 남는(합성 안 되는) 부호만 지워진다. 한글 음절·합성 가능 라틴은 영향 없음. */
+export const COMBINING_MARK_RE = /\p{M}/gu;
 
 /**
- * 373 D2: 상품 제목 안 가격·날짜 표기 — 원문 개작 0 이라 이런 행은 싣지 않는다(selectFeedRows — 만료 뒤 noprice 변형에도 남는 값이라).
- *   통화 기호(₩·$·€·£·¥·\ — ￦·＄ 는 NFKC 로 같은 글자)+숫자 · 숫자+원(만원·천원, 원형·원목 제외) · 숫자+KRW·USD·won·달러 · KRW·USD+숫자 ·
- *   연도(2026년) · 월(11월) · 연월일(2026-11-20·26.11.20) · 월/일(11/20). 규격 치수(30cm·60×40×35cm·1.5kg·6개월)는 걸리지 않는다.
+ * 373 D2·374 N1/N2: 상품 제목 안 가격·날짜 표기 — 원문 개작 0 이라 이런 행은 싣지 않는다(selectFeedRows — 만료 뒤 noprice 변형에도 남는 값).
+ *   가격: 통화 기호 \p{Sc} 어디든(￦ 는 NFKC 로 ₩) · \ 앞뒤 숫자 · 통화 코드 KRW·USD·EUR·JPY·CNY·RMB·GBP · 숫자+달러·위안·유로·円·元·won·엔·불 ·
+ *     숫자/한글 수사(구천구백·만)+원(원형·원목·원통·원단·원색·원터치·원피스 제외).
+ *   날짜: 연도(2026년)·연식(26년형·25년식)·월(11월)·연월일(2026-11-20·26.11.20, 뒤 단위 cm·mm·kg 등이면 제외) ·
+ *     맥락어(입고·입하·출고·발송·도착·기준·까지·특가·세일·마감·한정·행사) 붙은 MM.DD·MM-DD·DD/MM · 「N일 입고」 · 영문 월 이름+숫자.
+ *   남긴 틈(구분 불가): 맥락어 없는 맨몸 「11-20」·「11/20」·「20/11」(치수 21/27/30cm·1/2·모델명과 같은 꼴) — 비적중.
+ *   규격(30cm·60×40×35cm·60.5-40-35cm·21/27/30cm·3/4인치·1.5kg·6개월·2단·24시간)은 걸리지 않는다.
  *   scripts/lib/rules-affiliate.mjs FEED_TITLE_PRICE_DATE 와 source·flags 동일(compliance.feed-output 시험).
  */
 export const FEED_TITLE_PRICE_DATE =
-  /[₩$€£¥\\]\s*\d|\d\s*(?:[만천]\s*)?원(?!형|목)|\d\s*(?:krw|usd|won|달러)(?![a-z])|(?<![a-z])(?:krw|usd)\s*\d|\d{4}\s*년|\d\s*월|(?<!\d)\d{2,4}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{1,2}(?!\d)|(?<![\d./])(?:0?[1-9]|1[0-2])\s*\/\s*(?:0?[1-9]|[12]\d|3[01])(?![\d/])/iu;
+  /\p{Sc}|\\\s*\d|\d\s*\\|(?<![a-z])(?:krw|usd|eur|jpy|cny|rmb|gbp)(?![a-z])|(?<![a-z])won\s*\d|\d\s*(?:달러|위안|유로|[円元圆])|\d\s*(?:won|엔|불)(?![a-z가-힣])|\d\s*(?:[십백천만억]\s*)*원(?!형|목|통|단|색|터치|피스)|(?<![가-힣])[일이삼사오육칠팔구]?(?:[십백천만억][일이삼사오육칠팔구]?)+\s*원(?!형|목|통|단|색|터치|피스)|\d{4}\s*년|\d{2}\s*년\s*[형식]|\d\s*월|(?<![\d.])(?:\d{4}|\d{2})\s*[-./]\s*(?:0?[1-9]|1[0-2])\s*[-./]\s*(?:0?[1-9]|[12]\d|3[01])(?!\d|\.\d|\s*(?:cm|mm|m|kg|g|인치|in)(?![a-z]))|(?<![\d.,/-])\d{1,2}\s*[./-]\s*\d{1,2}(?![\d.,/-])\s*(?:일\s*)?~?\s*(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사|sale)|(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사|sale)\s*[:~]?\s*\d{1,2}\s*[./-]\s*\d{1,2}(?![\d.,/-])|(?<!\d)\d{1,2}\s*일\s*(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사)|(?<![a-z])(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?![a-z])\.?\s*\d{1,2}(?!\d)|(?<!\d)\d{1,2}\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?![a-z])/iu;
 
 /** 제목 정규화(기본 무시 문자 제거 → NFKC → 다시 제거 → 공백 하나) 뒤 FEED_TITLE_PRICE_DATE 적중 여부. */
 export function feedTitleHasPriceOrDate(title: string): boolean {
-  const t = title.replace(DEFAULT_IGNORABLE_RE, '').normalize('NFKC').replace(DEFAULT_IGNORABLE_RE, '').replace(/\s+/g, ' ');
+  // 374 N3: NFKC 뒤 결합 부호(\p{M}) 제거 — 「12,900́원」처럼 부호로 쪼갠 표기.
+  const t = title.replace(DEFAULT_IGNORABLE_RE, '').normalize('NFKC').replace(COMBINING_MARK_RE, '').replace(DEFAULT_IGNORABLE_RE, '').replace(/\s+/g, ' ');
   return FEED_TITLE_PRICE_DATE.test(t);
 }
 

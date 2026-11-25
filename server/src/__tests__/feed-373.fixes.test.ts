@@ -237,6 +237,51 @@ describe('D2 제목 가격·날짜 → 행을 싣지 않음(selectFeedRows 한 �
   });
 });
 
+// ── 374 D2 재검(N1 누수·N2 오탐) ─────────────────────────────────────────────────────────
+const N1_LEAKS = [
+  '12,900 ₩', '12,900₩', '12900￦', '12.99$', '1290¥', '€12', '£12', 'EUR 12', 'usd 12', 'JPY 1290', 'CNY 69', 'GBP 9', '1290円', '69元',
+  '구천구백원', '만원', `12,900${String.fromCodePoint(0x301)}원`,
+  '11.20 입고', '11-20 입고', '20일 입고', '20/11 입고', '입고 11.20', '11.25 까지', '11/30 마감', '11.20 특가', '세일 11-20', '11.20 기준',
+  'Nov 20', '20 Nov', 'November 20', 'dec. 3', '26년형', '25년식',
+].map((s) => `햄스터 쳇바퀴 30cm 통면 ${s}`);
+const N2_SPECS = ['21/27/30cm', '12/16cm', '8/10mm', '1/2 사이즈', '3/4인치', '60.5-40-35cm', '3원통', '2원단', '24시간', '5000mAh', 'Deco 3', 'Max 20'].map(
+  (s) => `햄스터 쳇바퀴 ${s} 통면`,
+);
+
+describe('374 D2 재검 — 통화 기호·코드·수사+원·맥락 날짜·월 이름·년형 적중, 규격 표기 비적중', () => {
+  it.each(N1_LEAKS.map((t) => [t] as const))('N1 적중: %s', (t) => {
+    expect(feedTitleHasPriceOrDate(t)).toBe(true);
+  });
+  it.each(N2_SPECS.map((t) => [t] as const))('N2 비적중: %s', (t) => {
+    expect(feedTitleHasPriceOrDate(t)).toBe(false);
+  });
+  it('기존 372·373 표기·규격 판정 유지', () => {
+    for (const t of PRICE_DATE_TITLES) expect(feedTitleHasPriceOrDate(t), t).toBe(true);
+    for (const t of SPEC_TITLES) expect(feedTitleHasPriceOrDate(t), t).toBe(false);
+  });
+  it('374 재현: buildSite noprice(80h) — 「12,900 ₩」·「11.20 입고」 제목이 산출물 어디에도 없다', () => {
+    const b = buildSite(
+      seed,
+      siteOpts(GEN_MS + 80 * H, [row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 12,900 ₩'), row(G, 'wheel', '햄스터 쳇바퀴 32cm 통면 11.20 입고'), row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면')]),
+    );
+    for (const [k, v] of b.files) {
+      expect(v.includes('12,900 ₩'), k).toBe(false);
+      expect(v.includes('11.20 입고'), k).toBe(false);
+    }
+    expect(b.files.get('hamster/golden/feed/wheel.noprice.json')).toContain('햄스터 쳇바퀴 30cm 통면');
+  });
+  it('N3: 결합 부호로 쪼갠 금지어 → 적중(server·scripts 같은 정규화)', async () => {
+    const mod = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'normalize.mjs')).href)) as ScriptsNormalize;
+    const bw = mod.compileBannedWords(JSON.parse(readFileSync(join(ROOT, 'server', 'src', 'seed', 'banned-words.json'), 'utf8')));
+    for (const mark of [0x300, 0x301, 0x323]) {
+      const s = `햄스터 인${String.fromCodePoint(mark)}기 구${String.fromCodePoint(mark)}매`;
+      expect(lintText(s).map((h) => h.term), s).toEqual(expect.arrayContaining(['인기', '구매']));
+      expect(mod.lintText(s, bw).map((h) => h.term), s).toEqual(expect.arrayContaining(['인기', '구매']));
+      expect(mod.normalizeLintText(s, 'spaced')).toBe(normalizeLintText(s, 'spaced'));
+    }
+  });
+});
+
 // ── D3 ────────────────────────────────────────────────────────────────────────────────
 const FUT = '2027-11-23T09:12:00+09:00';
 function aliFile(generatedAt: string, fetchedAt: string): Record<string, unknown> {

@@ -166,12 +166,18 @@ describe('N12 피드 산출물(C11-FEED-OUT·C2-PRICE·C8)', () => {
     ['noprice HTML 피드 제목에 가격', T_NP, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">)/, '$1 12,900원 ')],
     ['noprice HTML 피드 제목에 날짜', T_NP, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">)/, '$1 11월 20일 입고 ')],
     ['full HTML 피드 제목에 KRW', T_FULL, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">)/, '$1 KRW 12900 ')],
+    ['374 noprice HTML 피드 제목에 뒤붙은 ₩', T_NP, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">[^<]*)/, '$1 12,900 ₩')],
+    ['374 noprice HTML 피드 제목에 11.20 입고', T_NP, (s: string) => s.replace(/(<p class="ws-t-cta ws-feed-title">[^<]*)/, '$1 11.20 입고')],
   ])('%s → C11-FEED-OUT', (_n, file, f) => {
     const r = scanBuilt(file === T_NP ? GEN_MS + 80 * H : GEN_MS + H, edit(file, f));
     expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /가격·날짜/.test(x.message)), JSON.stringify(r)).toBe(true);
   });
   it('noprice 피드 JSON title 에 가격 → C11-FEED-OUT', () => {
     const r = scanBuilt(GEN_MS + 80 * H, edit('hamster/golden/feed/wheel.noprice.json', (s) => s.replace('"title":"햄스터', '"title":"₩12,900 햄스터')));
+    expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /가격·날짜/.test(x.message)), JSON.stringify(r)).toBe(true);
+  });
+  it.each([['12,900 ₩'], ['11.20 입고']])('374 noprice 피드 JSON title 끝에 %s → C11-FEED-OUT', (tail) => {
+    const r = scanBuilt(GEN_MS + 80 * H, edit('hamster/golden/feed/wheel.noprice.json', (s) => s.replace('"title":"햄스터 쳇바퀴 30cm 통면', `"title":"햄스터 쳇바퀴 30cm 통면 ${tail}`)));
     expect(r.some((x) => x.rule === 'C11-FEED-OUT' && /가격·날짜/.test(x.message)), JSON.stringify(r)).toBe(true);
   });
   it('FEED_TITLE_PRICE_DATE 스캐너 = feed-types.ts(source·flags)', async () => {

@@ -54,7 +54,7 @@ export function providerCreds(provider, env) {
 const ZW_RE = /\p{Default_Ignorable_Code_Point}/gu;
 /** 금지어 검사(seed/lint.ts 보다 엄격): 기본 무시 문자 제거·NFKC 후, 공백 유지·제거 두 형태 모두에서 banned·stems 하나라도 걸리면 true. */
 export function titleBanned(title, bannedJson) {
-  const spaced = String(title).replace(ZW_RE, '').normalize('NFKC').replace(ZW_RE, '').replace(/\s+/g, ' ');
+  const spaced = String(title).replace(ZW_RE, '').normalize('NFKC').replace(/\p{M}/gu, '').replace(ZW_RE, '').replace(/\s+/g, ' '); // 374 N3
   const stripped = spaced.replace(/ /g, '');
   const list = [...(bannedJson?.banned ?? []), ...(bannedJson?.stems ?? [])];
   return list.some((w) => {
@@ -68,6 +68,7 @@ function cleanTitle(s) {
   const t = s
     .replace(ZW_RE, '')
     .normalize('NFKC')
+    .replace(/\p{M}/gu, '') // 374 N3
     .replace(ZW_RE, '')
     .replace(/<[^>]*>/g, '')
     .replace(/[<>]/g, '')

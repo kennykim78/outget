@@ -63,6 +63,7 @@ export function normalizeLintText(s: string, mode: 'spaced' | 'stripped'): strin
   const spaced = s
     .replace(DEFAULT_IGNORABLE, '')
     .normalize('NFKC')
+    .replace(/\p{M}/gu, '') // 374 N3: NFKC 뒤 남는 결합 부호(인́기) 제거
     .replace(DEFAULT_IGNORABLE, '')
     .replace(/\s+/g, ' ');
   return mode === 'spaced' ? spaced : spaced.replace(/ /g, '');

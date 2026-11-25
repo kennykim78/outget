@@ -23,7 +23,8 @@ const INVISIBLE = /\p{Default_Ignorable_Code_Point}/gu;
 
 /** @param {string} s @param {'spaced'|'stripped'} mode */
 export function normalizeLintText(s, mode) {
-  const spaced = String(s).replace(INVISIBLE, '').normalize('NFKC').replace(INVISIBLE, '').replace(/\s+/g, ' ');
+  // 374 N3: NFKC 뒤 결합 부호(\p{M}) 제거 — lint.ts 와 같은 순서.
+  const spaced = String(s).replace(INVISIBLE, '').normalize('NFKC').replace(/\p{M}/gu, '').replace(INVISIBLE, '').replace(/\s+/g, ' ');
   return mode === 'spaced' ? spaced : spaced.replace(/ /g, '');
 }
 
