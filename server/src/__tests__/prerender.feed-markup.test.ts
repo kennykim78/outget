@@ -1,7 +1,7 @@
 // 362 N9 — 피드 HTML 변형(index.feed.html · index.feed-noprice.html) 마크업 + ws-data data.feed.
 //   기본 파일은 피드 꺼짐 빌드와 바이트 동일(변형은 새 파일만). GENERAL_INFO 종은 △만·홈 피드 카드 0. ws-data 증가 ≤ 1.5KB·전체 ≤ 32KB.
 import { describe, expect, it } from 'vitest';
-import { buildSearchKeyword, createCatalog, decodeWsPage, isWsFeedData, resolveRequirement, type AnimalTypeRec } from '../engine/index.js';
+import { buildSearchKeyword, createCatalog, decodeWsPage, FEED_EXCLUDED_CATEGORIES, feedJsonFile, isWsFeedData, resolveRequirement, type AnimalTypeRec } from '../engine/index.js';
 import { FEED_POPULAR_SORTS, type FeedRowIn } from '../engine/feed-types.js';
 import { feedSortsOf } from '../prerender/product-feed.js';
 import type { ProductFeedInput } from '../prerender/feed-out.js';
@@ -85,13 +85,17 @@ describe('N9 기본 파일 불변', () => {
     for (const k of added) expect(k, k).toMatch(/(^|\/)feed\/[^/]+\.json$|^feed-manifest\.json$|\/index\.feed(-noprice)?\.html$/);
   });
 
-  it('변형 대상: 블록 있는 타입의 TYPE 라우트 + 블록 있는 /supplies/{item}/{type} 만(SETUP·TIPS·홈 0)', () => {
+  it('변형 대상: 블록 있는 타입의 TYPE 라우트 + 문서 요구사항 중 블록 있는 SIT만(SETUP·TIPS·홈 0)', () => {
     for (const p of on.feedPages) {
       expect(['TYPE', 'SUPPLY_ITEM_TYPE']).toContain(p.route.kind);
       expect(p.file).toBe(p.route.file.replace(/index\.html$/, p.stage === 'full' ? 'index.feed.html' : 'index.feed-noprice.html'));
     }
     expect(on.feedPages.some((p) => p.file === 'index.feed.html')).toBe(false);
-    expect(on.feedPages.some((p) => p.file === 'supplies/food/hamster-golden/index.feed.html')).toBe(false);
+    // 387: food 자체는 제외지만 이 문서에서 열 수 있는 wheel 블록이 있어 변형은 존재한다.
+    const food = on.feedPages.find((p) => p.file === 'supplies/food/hamster-golden/index.feed.html');
+    expect(food?.data.data.feed?.items).toEqual(['wheel']);
+    expect(feedSection(food?.html ?? '')).toBe('');
+    expect(count(food?.html ?? '', 'data-ws-aff="note-f"')).toBe(0);
   });
 });
 
@@ -153,10 +157,85 @@ describe('N9 L4 블록(full)', () => {
     expect(s2).not.toContain('ws-feed-spec');
   });
 
-  it('/supplies/wheel/hamster-golden 변형: 같은 블록, data.feed items=[wheel]·rail 0', () => {
+  it('/supplies/wheel/hamster-golden 변형: 같은 블록, 문서 요구사항 중 피드 있는 items·rail 0', () => {
     const p = on.feedPages.find((x) => x.file === 'supplies/wheel/hamster-golden/index.feed.html');
-    expect(p?.data.data.feed).toEqual({ v: 1, stage: 'full', freshMs: Date.UTC(2026, 10, 23, 0, 12, 0), priceCheckedOn: '2026-11-23', items: ['wheel'], rail: [] });
+    const typeFeed = on.feedPages.find((x) => x.route.path === '/hamster/golden' && x.stage === 'full')!.data.data.feed!;
+    const items = typeFeed.items.filter((id) => p?.data.data.requirements.some((r) => r.supplyItemId === id));
+    expect(p?.data.data.feed).toEqual({ v: 1, stage: 'full', freshMs: Date.UTC(2026, 10, 23, 0, 12, 0), priceCheckedOn: '2026-11-23', items, rail: [] });
     expect(feedSection(p?.html ?? '')).toContain('<li class="ws-feed-row"');
+  });
+});
+
+describe('387 SIT 피드: 문서에 실린 요구사항과 이동 대상 일치', () => {
+  it.each([
+    ['full', true], ['full', false], ['noprice', true], ['noprice', false],
+  ] as const)('%s · 원래 품목 블록 %s: 요구사항 교집합·순서·정적 본문·고지·JSON·예산', (stage, original) => {
+    const rows = [
+      ...(original ? [row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면')] : []),
+      row(G, 'saucer', '햄스터 플라잉 소서'),
+      row(G, 'cage', '햄스터 케이지 120x60x60cm'),
+      row(G, 'hideout', '햄스터 나무 은신처'),
+      row(G, 'food', '햄스터 사료'),
+      row(G, 'scale', '햄스터 체중계'),
+    ];
+    // 합성 케이지 기준: 실제 골든 기준은 cm·mm 혼재가 필요해 제목 파서가 블록을 만들지 않는다.
+    // 이 시험의 메모리 시드만 단일 cm 규칙으로 구성해 케이지 피드가 있는 입력을 만든다(실시드·선택기 변경 0).
+    const synthetic = structuredClone(seed);
+    synthetic.supplyRequirements.find((r) => r.id === 'req-syrian-cage')!.minSpec = {
+      rules: [{ key: 'floorWcm', op: 'gte', value: 100, reason: '시험 케이지 기준' }],
+    };
+    const b = buildSite(synthetic, opts(GEN_MS + (stage === 'full' ? 1 : 80) * H, rows));
+    const type = b.feedPages.find((p) => p.route.path === '/hamster/golden' && p.stage === stage)!;
+    const p = b.feedPages.find((p) => p.route.path === '/supplies/wheel/hamster-golden' && p.stage === stage);
+    expect(p, '원래 품목 블록이 없어도 대안·케이지 블록으로 변형 생성').toBeDefined();
+    const reqs = off.pages.find((p) => p.route.path === '/supplies/wheel/hamster-golden')!.data.data.requirements;
+    const expected = type.data.data.feed!.items.filter((id) => reqs.some((r) => r.supplyItemId === id));
+    expect(expected).toContain('saucer');
+    expect(expected).toContain('cage');
+    expect(type.data.data.feed!.items).toContain('hideout'); // 타입에는 있지만 SIT 요구사항 밖
+    expect(expected).not.toContain('hideout');
+    const f = p!.data.data.feed!;
+    expect(f.items).toEqual(expected);
+    expect(f.rail).toEqual([]);
+    expect(isWsFeedData(f)).toBe(true);
+    expect(Object.hasOwn(f, 'priceCheckedOn')).toBe(stage === 'full');
+    if (stage === 'full') expect(f.priceCheckedOn).toBe('2026-11-23');
+    expect(decodeWsPage(wsData(p!.html))?.data.feed).toEqual(f);
+    const sec = feedSection(p!.html);
+    expect(count(sec, '<li class="ws-feed-row"')).toBe(original ? 1 : 0);
+    if (original) expect(sec).toContain('id="ws-aff-feed-wheel"');
+    expect(sec).not.toContain('플라잉 소서');
+    expect(sec).not.toContain('120x60x60');
+    expect(count(p!.html, 'data-ws-aff="note-f"')).toBe(original ? 1 : 0);
+    const manifest = JSON.parse(b.files.get('feed-manifest.json')!) as { variants: Record<string, string[]>; pages: Record<string, string[]> };
+    expect(manifest.pages[stage]).toContain(p!.file);
+    for (const q of b.feedPages.filter((q) => q.route.kind === 'SUPPLY_ITEM_TYPE')) {
+      const feed = q.data.data.feed!;
+      expect(feed.items, q.file).toEqual(type.data.data.feed!.items.filter((id) => q.data.data.requirements.some((r) => r.supplyItemId === id)));
+      expect(feed.rail, q.file).toEqual([]);
+      const originalOn = feed.items.includes(q.route.itemId!);
+      expect(count(feedSection(q.html), '<li class="ws-feed-row"'), q.file).toBe(originalOn ? 1 : 0);
+      expect(count(q.html, 'data-ws-aff="note-f"'), q.file).toBe(originalOn ? 1 : 0);
+      expect(feedWsDataBytes(feed), q.file).toBeLessThanOrEqual(FEED_WS_DATA_MAX_BYTES);
+      expect(q.wsDataBytes, q.file).toBeLessThanOrEqual(WS_DATA_MAX_BYTES);
+      for (const id of feed.items) {
+        const r = q.data.data.requirements.find((r) => r.supplyItemId === id)!;
+        expect(FEED_EXCLUDED_CATEGORIES).not.toContain(r.item.category);
+        const file = feedJsonFile('hamster/golden', id, q.stage);
+        expect(manifest.variants[q.stage]).toContain(file);
+        const block = JSON.parse(b.files.get(file)!);
+        expect(block.supplyItemId).toBe(id);
+        expect(block.rows.length).toBeGreaterThan(0);
+        expect(Object.hasOwn(block, 'priceCheckedOn')).toBe(q.stage === 'full');
+        for (const row of block.rows) expect(Object.hasOwn(row, 'price')).toBe(q.stage === 'full');
+      }
+    }
+    for (const id of ['food', 'scale']) {
+      expect(type.data.data.feed!.items).not.toContain(id);
+      expect([...b.files.keys()].some((k) => k.includes(`/feed/${id}.`))).toBe(false);
+    }
+    const baseline = buildSite(synthetic, baseOptions(REAL_AS_OF));
+    for (const [file, content] of baseline.files) expect(b.files.get(file), file).toBe(content);
   });
 });
 
@@ -287,8 +366,13 @@ describe('N9 홈 B 레일', () => {
 
 describe('N9 푸터 고지 F(D-5) — 피드 몰 링크가 그려진 문서만', () => {
   const noteF = (html: string) => count(html, 'data-ws-aff="note-f"');
-  it('골든 변형(레일 카드 있음) 전부 1, 로보 L4 피드 블록 1, 로보 피드 링크 0 문서 0, 기본 파일은 off 그대로', () => {
-    for (const p of on.feedPages.filter((x) => x.route.typeId === G)) expect(noteF(p.html), p.file).toBe(1);
+  it('골든 TYPE(레일 있음) 1, SIT·로보는 그려진 피드 링크가 있을 때만 1, 기본 파일은 off 그대로', () => {
+    for (const p of on.feedPages.filter((x) => x.route.typeId === G)) {
+      // 387: items에 다른 품목만 있는 SIT 변형은 정적 링크 0·고지 0. TYPE의 레일 계약은 그대로.
+      const expected = p.route.kind === 'TYPE' || p.data.data.feed!.items.includes(p.route.itemId!) ? 1 : 0;
+      expect(noteF(p.html), p.file).toBe(expected);
+      expect(count(p.html, 'class="ws-btn ws-btn--outline ws-feed-go') > 0, p.file).toBe(expected === 1);
+    }
     for (const p of gi.feedPages.filter((x) => x.route.typeId === J)) {
       const links = count(p.html, 'class="ws-btn ws-btn--outline ws-feed-go');
       expect(noteF(p.html), p.file).toBe(links > 0 ? 1 : 0);

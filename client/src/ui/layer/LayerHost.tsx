@@ -70,8 +70,13 @@ export default function LayerHost({ registry, wsIdFor }: LayerHostProps) {
 
   useEffect(() => {
     const onPop = (e: PopStateEvent) => layerStore.onPopState(e);
+    const onShow = (e: PageTransitionEvent) => layerStore.onPageShow(e);
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.addEventListener('pageshow', onShow);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pageshow', onShow);
+    };
   }, []);
 
   // 문서 제목: Layer 의 포털·제목은 자식 layout effect 에서 붙으므로 여기(부모 layout effect)에서 읽을 수 있다.
@@ -86,7 +91,9 @@ export default function LayerHost({ registry, wsIdFor }: LayerHostProps) {
       return;
     }
     if (baseTitle.current === null) {
-      baseTitle.current = readLayerState(window.history.state)?.wsDepth === 0 ? COPY.site.homeTitle : document.title;
+      // 딥링크(depth 0): 부모 문서 제목이 있으면 그것(387 D3 — /supplies/{item}/{type} → /supplies/{item}), 없으면 홈 제목.
+      baseTitle.current =
+        readLayerState(window.history.state)?.wsDepth === 0 ? layerStore.deepLinkParentTitle() ?? COPY.site.homeTitle : document.title;
     }
     const sync = (): void => {
       const heading = openLayerHeading(document) || entryTitle;

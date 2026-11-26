@@ -18,11 +18,15 @@ export function intentHref(action: LinkedAction, type: Pick<PublicAnimalType, 'i
     case 'SPEC_CHECK': {
       // 홈 ws-data 는 요구사항을 싣지 않고 타입별 specCheckItemId(서버가 노출 요구사항에서 파생, R6 G3b)만 싣는다.
       //   요구사항이 실린 문서(타입 페이지)면 같은 규칙(규격 필드가 있는 첫 노출 요구사항)으로 찾는다.
+      //   SIT의 보조 요구사항은 화면 대상을 바꾸지 않는다 — fallback은 원래 route 품목만.
       const fromType = page.data.types.find((t) => t.id === type.id)?.specCheckItemId;
       const itemId =
         typeof fromType === 'string' && fromType !== ''
           ? fromType
-          : page.data.requirements.find((x) => x.animalTypeId === type.id && x.item.specSchema.fields.length > 0)?.supplyItemId;
+          : page.data.requirements.find((x) =>
+              x.animalTypeId === type.id && x.item.specSchema.fields.length > 0 &&
+              (page.route.kind !== 'SUPPLY_ITEM_TYPE' || x.supplyItemId === page.route.itemId),
+            )?.supplyItemId;
       return itemId ? `${home}/check/${encodeURIComponent(itemId)}` : home;
     }
     case 'VET':

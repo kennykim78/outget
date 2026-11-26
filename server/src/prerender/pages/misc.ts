@@ -67,7 +67,7 @@ function page(
   return {
     head: renderHead(ctx, { title: o.title, description: o.description, crumbs: o.crumbs }),
     body: [
-      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), o.data),
+      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), o.data, ctx.route),
       mainOpen(ctx, o.typeId, o.mainAttrs, o.mainClass),
       ...o.main,
       '</main>',
@@ -449,6 +449,39 @@ export function renderSupplies(m: SiteModel, ctx: PageContext): RenderedPage {
 }
 
 /** /supplies/{item} — "어떤 친구의 기준을 볼까요?" + 이 항목을 노출하는 타입. /supplies/{item}/{type} 은 같은 부모 + L4. */
+/** 엔진 ownedItems 키 = 케이지 SupplyItem id(client context/cageStore CAGE_ITEM_ID 와 같은 값). */
+const CAGE_ITEM_ID = 'cage';
+
+/**
+ * 387(384 D1·D2): /supplies/{item}/{type} ws-data 요구사항·상품 — 이 문서에서 여는 L4·L5·L6 이 대조 타입 문서(/{slug}/supplies/{item})와
+ *   같은 판정을 내도록 같은 종의 필요한 것만 싣는다. 노출 경로는 타입 문서와 같다: t.requirements(노출 요구사항, 엔진 순서) · t.products
+ *   (규격 → 검수 → 선호, 미달 0 · VERIFIED 만). 그 안에서 고르기만 한다(재정렬·추가 노출 0).
+ *     ① 이 품목 ② 대안 품목(대안의 대안까지 — 이 문서에서 push 로 여는 대안 L4 가 같은 대안 목록을 그리게)
+ *     ③ 케이지(L4 호환 서브카드·L5 케이지 줄·L6 자체 최소 규격) ④ 케이지와 호환 규칙이 있는 품목(L6 용품 간 호환 — 공개 카탈로그 규칙, 이 종 프로필 범위)
+ *   ③④도 L5에서 L4로 열 수 있으므로 모두 재귀 대안과 상품까지 싣는다(L4 「기준에 맞는 준비물」·L7).
+ */
+function supplyItemTypeData(m: SiteModel, t: TypeModel, r: TypeModel['requirements'][number]): Pick<WsPageData['data'], 'requirements' | 'products'> {
+  const byItem = new Map(t.requirements.map((x) => [x.item.id, x]));
+  const layered = new Set<string>();
+  const queue = [r.item.id, CAGE_ITEM_ID];
+  for (const c of m.catalog.compatibilityRules) {
+    if (c.careProfileId && c.careProfileId !== t.pub.careProfileId) continue;
+    const other = c.a === CAGE_ITEM_ID ? c.b : c.b === CAGE_ITEM_ID ? c.a : null;
+    if (other !== null) queue.push(other);
+  }
+  while (queue.length > 0) {
+    const id = queue.shift() as string;
+    const x = byItem.get(id);
+    if (!x || layered.has(id)) continue;
+    layered.add(id);
+    queue.push(...x.pub.item.alternativeIds);
+  }
+  return {
+    requirements: t.requirements.filter((x) => layered.has(x.item.id)).map((x) => x.pub),
+    products: t.products.filter((p) => layered.has(p.supplyItemId)),
+  };
+}
+
 export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
   const it = m.items.find((i) => i.id === ctx.route.itemId);
   if (!it) throw new Error(`pages: 노출 항목 ${ctx.route.itemId} 없음`);
@@ -468,10 +501,11 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     typeId = t.id;
     header = t;
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
-    data.requirements = [r.pub];
-    data.products = r.products;
+    const sit = supplyItemTypeData(m, t, r);
+    data.requirements = sit.requirements;
+    data.products = sit.products;
     data.testimonials = specCheckTestimonials(m, t.id); // D6-B: 여기서 연 L4 → L5 결과 아래 후기(타입 페이지와 같은 1건)
-    // 362 N9: 피드 변형이면 이 품목만(items=[item], 레일 0 — 이 페이지엔 홈 레일이 없다).
+    // 387: 피드 변형은 이 문서 요구사항 중 블록 있는 품목 모두. 정적 L4·고지는 위에서 원래 품목만 판정, 레일은 0.
     if (ctx.feed) data.feed = ctx.feed.data;
   }
   // 301: 이 항목 팁이 있는 타입만 — /{slug}/tips#ws-tips-{cat}. 없으면 0줄.

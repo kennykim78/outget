@@ -21,6 +21,7 @@ interface BuiltPageLite {
 }
 interface SiteLite {
   pages: BuiltPageLite[];
+  files?: Map<string, string>;
 }
 type BuildSite = (seed: unknown, opts: Record<string, unknown>) => SiteLite;
 
@@ -885,6 +886,75 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
     }
   }, 60_000);
 
+  it.each([
+    ['full', true], ['full', false], ['noprice', true], ['noprice', false],
+  ] as const)('387 SIT 앱 안 이동 L4 = 같은 URL 직접 진입: %s · 원래 블록 %s', async (stage, original) => {
+    resetFeedCacheForTest();
+    const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
+    const fx = await serverModule<{ realSeed: () => unknown }>('__tests__/fixtures/prerender-seed.ts');
+    const eng = await import('@ws/engine');
+    const seed = fx.realSeed() as Parameters<typeof eng.createCatalog>[0];
+    const cat = eng.createCatalog(seed);
+    const animal = seed.animalTypes.find((t) => t.id === 'hamster-golden')!;
+    const rows = [
+      ...(original ? [['wheel', '햄스터 쳇바퀴 30cm 통면']] : []),
+      ['saucer', '햄스터 플라잉 소서'], ['cage', '햄스터 케이지 120x60x60cm'],
+    ].map(([id, title], i) => ({
+      provider: 'COUPANG', animalTypeId: animal.id, supplyItemId: id,
+      keyword: eng.buildSearchKeyword(animal, eng.resolveRequirement(cat, animal.id, id)!),
+      rank: i + 1, title, url: `https://link.coupang.com/a/Sit387x${i}`,
+      imageUrl: null, price: { amount: 12900, currency: 'KRW' }, fetchedAt: GEN,
+    }));
+    const buildAtMs = GEN_MS + (stage === 'full' ? 1 : 80) * H;
+    vi.setSystemTime(buildAtMs);
+    const s = siteMod.buildSite(seed, {
+      template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: '2026-11-26',
+      productFeed: { rows, generatedAt: GEN, buildAtMs, isTitleBanned: () => false },
+    });
+    stubFeedFetch(s);
+    const suffix = stage === 'full' ? 'index.feed.html' : 'index.feed-noprice.html';
+    const from = variant(s, `supplies/wheel/hamster-golden/${suffix}`);
+    const noteF = () => document.querySelectorAll('footer [data-ws-aff="note-f"]').length;
+    const liveFeed = () => document.querySelector('[role="dialog"] [data-ws-part="feed"]');
+    const snapshot = (el: Element) => ({
+      skeleton: skel(el), text: norm(el.textContent),
+      links: Array.from(el.querySelectorAll('a'), (a) => a.getAttribute('href')), footer: noteF(),
+    });
+    const unmount = () => {
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      resetFeedCacheForTest(); // 직접 진입은 이동 때의 캐시를 재사용하지 않는다
+      document.body.innerHTML = '';
+    };
+    loadStatic(from);
+    expect(document.querySelectorAll('aside [data-ws-part="feed"] li.ws-feed-row')).toHaveLength(original ? 1 : 0);
+    expect(noteF()).toBe(original ? 1 : 0);
+    hydrate(from);
+    await waitFor(() => expect(document.querySelector('[role="dialog"] .ws-supply')).not.toBeNull());
+    if (original) await waitFor(() => expect(liveFeed()?.querySelectorAll('li.ws-feed-row')).toHaveLength(1));
+    else expect(liveFeed()).toBeNull();
+    expect(noteF()).toBe(original ? 1 : 0);
+    const href = '/hamster/golden/supplies/saucer';
+    fireEvent.click(document.querySelector(`[role="dialog"] [data-ws-part="alternatives"] a[href="${href}"]`)!);
+    expect(window.location.pathname).toBe(href);
+    expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsDepth: 1, wsLayerProps: { itemId: 'saucer' } });
+    await waitFor(() => expect(liveFeed()?.querySelectorAll('li.ws-feed-row')).toHaveLength(1));
+    const moved = snapshot(liveFeed()!);
+    expect(moved.footer).toBe(1);
+    expect(moved.links).toHaveLength(1);
+    if (stage === 'noprice') expect(moved.text).not.toMatch(PRICE_OR_DATE);
+    else expect(moved.text).toContain('12,900원');
+    unmount();
+    const direct = variant(s, `hamster/golden/supplies/saucer/${suffix}`);
+    expect(direct.route.path).toBe(href);
+    loadStatic(direct);
+    expect(snapshot(document.querySelector('aside [data-ws-part="feed"]')!)).toEqual(moved);
+    hydrate(direct);
+    await waitFor(() => expect(liveFeed()?.querySelectorAll('li.ws-feed-row')).toHaveLength(1));
+    expect(snapshot(liveFeed()!)).toEqual(moved);
+  }, 30_000);
+
   // 385(381 D2): popular 블록(시험 주입 허용 목록 — 제품 FEED_POPULAR_SORTS 는 빈 목록 그대로)의 제목은 하이드레이션·로딩·실패 내내 「많이 찾는 상품」.
   it('popular 변형 L4 딥링크: 정적 → 로딩 → 실패 → 다시 시도 → 행 내내 제목 동일, 골격 차이 0', async () => {
     const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
@@ -1030,6 +1100,11 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
     const before = {
       main: skel(mainEl()),
       mainText: norm(mainEl().textContent),
+      mainLinks: attrs(mainEl(), 'a', 'href'),
+      header: skel(document.querySelector('header.ws-header') as Element),
+      headerLinks: attrs(document.querySelector('header.ws-header') as Element, 'a', 'href'),
+      footer: skel(document.querySelector('footer') as Element),
+      footerLinks: attrs(document.querySelector('footer') as Element, 'a', 'href'),
       body: body(aside, 'static'),
       parent: aside.querySelector('a.ws-layer-close')?.getAttribute('href') ?? '',
       noteF: document.querySelectorAll('footer [data-ws-aff="note-f"]').length,
@@ -1063,6 +1138,17 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
         diff(before.main, skel(mainEl()), 'main', d);
         expect({ path, d }).toEqual({ path, d: [] });
         expect({ path, text: norm(mainEl().textContent) }).toEqual({ path, text: before.mainText });
+        expect(attrs(mainEl(), 'a', 'href'), path).toEqual(before.mainLinks);
+        expect(skel(document.querySelector('header.ws-header') as Element), path).toEqual(before.header);
+        expect(attrs(document.querySelector('header.ws-header') as Element, 'a', 'href'), path).toEqual(before.headerLinks);
+        expect(skel(document.querySelector('footer') as Element), path).toEqual(before.footer);
+        expect(attrs(document.querySelector('footer') as Element, 'a', 'href'), path).toEqual(before.footerLinks);
+        const page = readPageData(document)!;
+        const type = page.data.types.find((t) => t.id === page.route.typeId)!;
+        const original = page.data.requirements.find((r) => r.supplyItemId === page.route.itemId)!;
+        const specItem = type.specCheckItemId || (original.item.specSchema.fields.length ? original.supplyItemId : null);
+        expect(document.querySelector('[data-ws-nav="spec-check"]')?.getAttribute('href'), path)
+          .toBe(`/${type.slug}${specItem ? `/check/${encodeURIComponent(specItem)}` : ''}`);
         expect({ path, ...body(dialog, 'react') }).toEqual({ path, ...before.body });
         const on = which === 'aff' ? 1 : 0;
         const noteF = document.querySelectorAll('footer [data-ws-aff="note-f"]').length;
@@ -1089,8 +1175,8 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
     expect(document.querySelectorAll('[data-ws-aff]')).toHaveLength(0);
   });
 
-  // 대안 품목은 이 문서 ws-data 에 없다(프리렌더 출력 불변) → 이름·id 는 보관한 정적 aside 에서, 이동은 정적 링크 그대로(문서 이동, D10).
-  it('대안 링크: 정적과 같은 href 로 문서 이동(가로채지 않음) — 그 URL 은 프리렌더가 낸 L4 문서', async () => {
+  // 387(384 D2): 대안 품목은 이 문서 ws-data 에 실린다(대조 타입 문서와 같은 노출 경로) → 대안 링크는 타입 문서처럼 push 로 대안 L4.
+  it('387 대안 링크: 타입 문서와 같이 가로채 push(대안 L4, depth 1) — 그 URL 은 프리렌더가 낸 L4 문서', async () => {
     const p = sitPages(realSite).find((x) => x.html.includes('data-ws-part="alternatives"'));
     if (!p) throw new Error('대안 있는 SUPPLY_ITEM_TYPE 페이지 없음');
     const { before, dialog } = await openSit(p);
@@ -1104,7 +1190,146 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
     window.addEventListener('click', watch);
     fireEvent.click(dialog.querySelector(`[data-ws-part="alternatives"] a[href="${href}"]`) as Element);
     window.removeEventListener('click', watch);
-    expect(intercepted).toBe(false);
-    expect(window.location.pathname).toBe(p.route.path);
+    expect(intercepted).toBe(true);
+    expect(window.location.pathname).toBe(href);
+    const altId = before.body.altIds[0].slice('supplyItems#'.length);
+    expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsDepth: 1, wsParent: before.parent, wsLayerProps: { itemId: altId } });
+  });
+
+  // ---- 387(384 D1~D4) ----
+  const GOLDEN = 'hamster-golden';
+  const SIT_WHEEL = '/supplies/wheel/hamster-golden';
+  const TYPE_WHEEL = '/hamster/golden/supplies/wheel';
+
+  /** 빌드가 낸 공개 카탈로그(같은 오리진 정적 파일)만 돌려준다 — 그 밖은 404. */
+  function serveCatalog(from: SiteLite): void {
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
+      const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/^\//, '');
+      const body = /^data\/catalog\.v1\.[0-9a-f]{8}\.json$/.test(path) ? from.files?.get(path) : undefined;
+      return Promise.resolve(body === undefined ? new Response('', { status: 404 }) : new Response(body, { status: 200, headers: { 'content-type': 'application/json' } }));
+    });
+  }
+
+  /** 384 D1 재현값: 최소 규격(100×50×50) 미달 리빙박스. */
+  function storeSmallCage(): void {
+    localStorage.setItem('ws.animalType', GOLDEN);
+    localStorage.setItem(
+      `ws.context.${GOLDEN}.cage`,
+      JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 30, floorDcm: 20, heightCm: 20, updatedAt: new Date().toISOString() }),
+    );
+  }
+
+  /** L4 → 「규격 확인」(L5 push) → 케이지 줄 「수정」(L6 스텝) → 등록 케이지 요약의 자체 판정·호환 판정. */
+  async function cageL6(path: string) {
+    storeSmallCage();
+    serveCatalog(realSite);
+    const { dialog } = await openSit(pageAt(path, realSite));
+    fireEvent.click(dialog.querySelector('a[href="/hamster/golden/check/wheel"]') as Element);
+    const edit = await waitFor(() => within(document.querySelector('[role="dialog"]') as HTMLElement).getByRole('button', { name: COPY.cage.edit }), { timeout: 15000 });
+    fireEvent.click(edit);
+    await waitFor(() => {
+      const s = document.querySelector('[data-ws-cage="summary"]');
+      expect(s).not.toBeNull();
+      expect(s?.querySelector('[data-ws-state-kind="loading"]')).toBeNull();
+    }, { timeout: 15000 });
+    const summary = document.querySelector('[data-ws-cage="summary"]') as Element;
+    const self = Array.from(summary.querySelectorAll('[data-ws-cage-part="self"]'));
+    return {
+      selfCount: self.length,
+      tone: self[0]?.getAttribute('data-ws-tone') ?? null,
+      selfText: self.map((x) => norm(x.textContent)),
+      reasons: self[0] ? Array.from(self[0].querySelectorAll(':scope > p.ws-t-body:not(.ws-cage-summary-muted)'), (x) => norm(x.textContent)) : [],
+      compat: Array.from(summary.querySelectorAll('[data-ws-cage-part="compat"]'), (x) => `${x.getAttribute('data-ws-item')} ${norm(x.textContent)}`),
+    };
+  }
+
+  it('387 D1: 작은 케이지 저장 → SIT L4 → 규격 확인 → 수정 — self 경고 1 + 미달 사유 3건, 대조 타입 문서와 같다', async () => {
+    const type = await cageL6(TYPE_WHEEL);
+    unmount();
+    const sit = await cageL6(SIT_WHEEL);
+    expect(type.selfCount).toBe(1); // 대조(하네스 확인)
+    expect(type.reasons).toHaveLength(3);
+    expect(sit).toEqual(type);
+  }, 60_000);
+
+  /** L4 → 규격 확인 → 지름 15 → 확인하기 → 판정 대안 링크. */
+  async function l5Alternatives(path: string) {
+    serveCatalog(realSite);
+    const { dialog } = await openSit(pageAt(path, realSite));
+    fireEvent.click(dialog.querySelector('a[href="/hamster/golden/check/wheel"]') as Element);
+    const d = document.querySelector('[role="dialog"]') as HTMLElement;
+    const submit = await waitFor(() => {
+      const b = within(d).getByRole('button', { name: COPY.checkLayer.submit });
+      expect(b).not.toBeDisabled();
+      return b;
+    }, { timeout: 15000 });
+    fireEvent.change(d.querySelector('input[name="diameterCm"]') as Element, { target: { value: '15' } });
+    fireEvent.click(submit);
+    const alts = await waitFor(() => {
+      const x = d.querySelector('.ws-verdict-alts[data-ws-part="alternatives"]');
+      expect(x).not.toBeNull();
+      return x as Element;
+    }, { timeout: 15000 });
+    return { links: attrs(alts, 'a', 'href'), names: texts(alts, 'li') };
+  }
+
+  it('387 D2: SIT L5 판정 대안은 대조 타입 문서처럼 링크 — 누르면 push 로 대안 L4', async () => {
+    const type = await l5Alternatives(TYPE_WHEEL);
+    unmount();
+    const sit = await l5Alternatives(SIT_WHEEL);
+    expect(type.links).toContain('/hamster/golden/supplies/saucer'); // 대조
+    expect(sit).toEqual(type);
+    fireEvent.click(document.querySelector('.ws-verdict-alts a[href="/hamster/golden/supplies/saucer"]') as Element);
+    await waitFor(() => expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsLayerProps: { itemId: 'saucer' }, wsParent: '/supplies/wheel' }));
+    expect(window.location.pathname).toBe('/hamster/golden/supplies/saucer');
+  }, 60_000);
+
+  const titleOf = (p: BuiltPageLite): string => new DOMParser().parseFromString(p.html, 'text/html').title;
+
+  it('387 D3: 닫은 뒤 document.title = 부모 /supplies/{item} 문서 제목', async () => {
+    const p = pageAt(SIT_WHEEL, realSite);
+    document.title = titleOf(p);
+    const { dialog } = await openSit(p);
+    fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+    expect(window.location.pathname).toBe('/supplies/wheel');
+    expect(document.title).toBe(titleOf(pageAt('/supplies/wheel', realSite)));
+  });
+
+  /** Navigation API 흉내(jsdom 미구현): 같은 오리진 history 항목 URL 목록 + 현재 위치. */
+  function stubNavigation(urls: readonly string[], index: number): void {
+    vi.stubGlobal('navigation', {
+      entries: () => urls.map((u, i) => ({ url: `${window.location.origin}${u}`, index: i, sameDocument: i === index })),
+      currentEntry: { url: `${window.location.origin}${urls[index]}`, index, sameDocument: true },
+    });
+  }
+
+  it('387 D4: 바로 앞 history 항목이 부모 /supplies/{item} 문서면 닫기 = 뒤로(중복 항목 0)', async () => {
+    stubNavigation(['/supplies', '/supplies/wheel', SIT_WHEEL], 2);
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const replace = vi.spyOn(window.history, 'replaceState');
+    const { dialog } = await openSit(pageAt(SIT_WHEEL, realSite));
+    replace.mockClear();
+    fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+    fireEvent.keyDown(document, { key: 'Escape' }); // 연타 — 두 번 뒤로 가지 않는다
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(replace).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe(SIT_WHEEL); // 이동은 브라우저가(문서 이동) — URL 을 부모로 바꿔 쓰지 않는다
+    back.mockRestore();
+    replace.mockRestore();
+  });
+
+  it('387 D4: 앞 항목이 부모가 아니면(새 탭·다른 문서에서 진입) 이전처럼 replaceState(부모)', async () => {
+    stubNavigation(['/supplies', SIT_WHEEL], 1);
+    const back = vi.spyOn(window.history, 'back');
+    const { dialog } = await openSit(pageAt(SIT_WHEEL, realSite));
+    const len = window.history.length;
+    fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+    expect(back).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/supplies/wheel');
+    expect(window.history.length).toBe(len);
+    back.mockRestore();
   });
 });

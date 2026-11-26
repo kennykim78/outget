@@ -47,6 +47,7 @@ describe('deepLinkFor', () => {
       parent: '/supplies/cage',
       documentParent: false,
       wsId: 'supplyRequirements#r1',
+      backToParent: true,
     });
     expect(deepLinkFor(pageOf('SUPPLY_ITEM_TYPE', {}, { ...extra, layer: { kind: 'L5', typeId: golden.id, itemId: 'cage' } }), null, null)).toBeNull();
   });

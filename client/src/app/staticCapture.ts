@@ -8,13 +8,6 @@ export interface CapturedLayer {
   kind: string | null;
   /** aside 의 data-ws-id — React 패널이 같은 값을 유지한다. */
   wsId: string | null;
-  /** 383: aside 대안 목록(품목 id·이름, 텍스트만). /supplies/{item}/{type} 의 ws-data 에는 대안 품목이 없다. 0건이면 키 없음. */
-  alternatives?: StaticAlternative[];
-}
-
-export interface StaticAlternative {
-  itemId: string;
-  name: string;
 }
 
 export interface CapturedStatic {
@@ -54,16 +47,6 @@ export function captureStatic(root: Element | null, opts: CaptureOptions = {}): 
   const aside = root.querySelector('aside.ws-layer');
   return {
     main: main ? main.outerHTML : null,
-    layer: aside ? captureLayer(aside) : null,
+    layer: aside ? { kind: aside.getAttribute('data-ws-layer'), wsId: aside.getAttribute('data-ws-id') } : null,
   };
-}
-
-function captureLayer(aside: Element): CapturedLayer {
-  const layer: CapturedLayer = { kind: aside.getAttribute('data-ws-layer'), wsId: aside.getAttribute('data-ws-id') };
-  const alternatives = Array.from(aside.querySelectorAll('[data-ws-part="alternatives"] li[data-ws-id^="supplyItems#"]'), (li) => ({
-    itemId: (li.getAttribute('data-ws-id') ?? '').slice('supplyItems#'.length),
-    name: (li.textContent ?? '').trim(),
-  }));
-  if (alternatives.length) layer.alternatives = alternatives;
-  return layer;
 }

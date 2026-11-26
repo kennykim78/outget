@@ -123,7 +123,7 @@ export interface SiteBuild {
   feedRail: Map<string, PublicFeedRailCard[]>;
   /**
    * 362 N9 피드 HTML 변형(dist {dir}/index.feed.html · index.feed-noprice.html). 기본 파일(pages)은 피드 없음 그대로.
-   *   대상: 피드 블록이 1개 이상인 타입의 TYPE 라우트 전부(홈 B 레일·L4/L5/L7 — 같은 main) + 블록 있는 /supplies/{item}/{type}. 그 밖 라우트는 변형 0.
+   *   대상: 피드 블록이 1개 이상인 타입의 TYPE 라우트 전부(홈 B 레일·L4/L5/L7 — 같은 main) + 문서 요구사항 중 블록이 있는 /supplies/{item}/{type}. 그 밖 라우트는 변형 0.
    */
   feedPages: BuiltFeedPage[];
 }
@@ -135,7 +135,8 @@ export interface BuiltFeedPage extends BuiltPage {
 }
 
 /** 이 라우트의 피드 변형 입력(없으면 null — 변형 파일 0). */
-function pageFeedFor(route: RoutePlan, feed: FeedOutput, stage: FeedLiveStage): PageFeed | null {
+function pageFeedFor(page: BuiltPage, feed: FeedOutput, stage: FeedLiveStage): PageFeed | null {
+  const { route } = page;
   if (route.typeId === undefined) return null;
   const tf = feed.types.get(route.typeId);
   const data = tf?.data[stage];
@@ -150,13 +151,20 @@ function pageFeedFor(route: RoutePlan, feed: FeedOutput, stage: FeedLiveStage): 
     return { blocks, data };
   }
   if (route.kind === 'SUPPLY_ITEM_TYPE' && route.itemId !== undefined) {
-    const b = blockOf(route.itemId);
-    if (!b) return null;
-    const one: WsFeedData =
+    // 387: supplyItemTypeData 가 기본 문서에 실은 결과를 그대로 사용한다(대안·케이지·호환 대상 중복 계산 0).
+    const included = new Set(page.data.data.requirements.map((r) => r.supplyItemId));
+    const blocks = new Map<string, PublicFeedBlock>();
+    for (const id of data.items) {
+      const b = blockOf(id);
+      if (included.has(id) && b) blocks.set(id, b);
+    }
+    if (blocks.size === 0) return null;
+    const items = [...blocks.keys()];
+    const sit: WsFeedData =
       stage === 'full' && data.priceCheckedOn !== undefined
-        ? { v: 1, stage, freshMs: data.freshMs, priceCheckedOn: data.priceCheckedOn, items: [route.itemId], rail: [] }
-        : { v: 1, stage, freshMs: data.freshMs, items: [route.itemId], rail: [] };
-    return { blocks: new Map([[route.itemId, b]]), data: one };
+        ? { v: 1, stage, freshMs: data.freshMs, priceCheckedOn: data.priceCheckedOn, items, rail: [] }
+        : { v: 1, stage, freshMs: data.freshMs, items, rail: [] };
+    return { blocks, data: sit };
   }
   return null;
 }
@@ -278,8 +286,9 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
     feedRail = feed.rail;
     if (feed.manifest) {
       for (const stage of feed.stages) {
-        for (const route of routes) {
-          const pf = pageFeedFor(route, feed, stage);
+        for (const base of pages) {
+          const { route } = base;
+          const pf = pageFeedFor(base, feed, stage);
           if (!pf) continue;
           const file = feedVariantFile(route.file, stage);
           if (file === null) throw new Error(`site: 피드 변형 파일 이름을 만들 수 없다 ${route.file}`);

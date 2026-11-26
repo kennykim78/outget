@@ -3,7 +3,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { WsPageData } from '@ws/engine';
 import { resolvePageData } from './pageData';
-import type { StaticAlternative } from './staticCapture';
 
 const LayerPageContext = createContext<WsPageData | null>(null);
 
@@ -18,20 +17,4 @@ export function useLayerPage(): WsPageData {
   if (page) return page;
   if (!documentPage) documentPage = resolvePageData(document, window.location);
   return documentPage;
-}
-
-// 383: /supplies/{item}/{type} 딥링크 L4 — 이 문서의 ws-data 에 없는 대안 품목의 이름은 보관한 정적 aside 에서 온다(그 용품에만).
-export interface DocumentAlternatives {
-  typeId: string;
-  itemId: string;
-  list: readonly StaticAlternative[];
-}
-
-export const DocumentAlternativesContext = createContext<DocumentAlternatives | null>(null);
-
-const NONE: readonly StaticAlternative[] = [];
-
-export function useDocumentAlternatives(typeId: string, itemId: string): readonly StaticAlternative[] {
-  const d = useContext(DocumentAlternativesContext);
-  return d && d.typeId === typeId && d.itemId === itemId ? d.list : NONE;
 }

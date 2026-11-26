@@ -8,7 +8,7 @@
 import { useId, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { COPY } from '@ws/copy';
 import { SPEC_WORDS, chipSpecText, ruleText, specLine, type PublicRequirement, type SpecSchema, type SpecRule } from '@ws/engine';
-import { useDocumentAlternatives, useLayerPage } from '../app/layerPage';
+import { useLayerPage } from '../app/layerPage';
 import { toDeriveOptions, useCageCompatState as useChecklistCompat } from '../checklist/cageCompat';
 import { deriveChecklist, type ItemState } from '../checklist/derive';
 import { useSetup } from '../checklist/setupStore';
@@ -181,7 +181,6 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
   const itemId = typeof props.itemId === 'string' ? props.itemId : '';
   const requirement = page.data.requirements.find((r) => r.animalTypeId === typeId && r.supplyItemId === itemId) ?? null;
   const type = page.data.types.find((t) => t.id === typeId) ?? null;
-  const documentAlts = useDocumentAlternatives(typeId, itemId);
   const searchHeadId = `ws-search-head-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   useLayoutEffect(() => {
@@ -216,8 +215,7 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
   const lm = yearMonth(r.lastVerifiedAt);
   const alts = r.item.alternativeIds.flatMap((id) => {
     const x = page.data.requirements.find((q) => q.animalTypeId === typeId && q.supplyItemId === id);
-    const name = x?.item.name ?? documentAlts.find((d) => d.itemId === id)?.name;
-    return name ? [{ id, name }] : [];
+    return x ? [x] : [];
   });
   const products = page.data.products.filter((p) => p.supplyItemId === r.supplyItemId).slice(0, MAX_PRODUCTS);
 
@@ -272,8 +270,8 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
               <p className="ws-t-meta">{COPY.supplyLayer.alternativesNote}</p>
               <ul className="ws-supply-alts">
                 {alts.map((x) => (
-                  <li key={x.id} data-ws-id={`supplyItems#${x.id}`}>
-                    <a href={href(`/supplies/${x.id}`)}>{x.name}</a>
+                  <li key={x.supplyItemId} data-ws-id={`supplyItems#${x.supplyItemId}`}>
+                    <a href={href(`/supplies/${x.supplyItemId}`)}>{x.item.name}</a>
                   </li>
                 ))}
               </ul>

@@ -45,6 +45,53 @@ afterEach(() => {
 });
 
 describe('useLayer history (C-R5-5)', () => {
+  it.each([false, true])('387 bfcache: 부모 → SIT L4 → L5(%s) → 닫기 → persisted 복원은 L4·제목 일치, 즉시 닫기', async (withL5) => {
+    const parent = '/supplies/wheel';
+    const sit = '/supplies/wheel/hamster-golden';
+    const props = { typeId: 'hamster-golden', itemId: 'wheel' };
+    window.history.replaceState(null, '', parent);
+    window.history.pushState(null, '', sit);
+    const navigation = {
+      entries: () => [{ url: `${location.origin}${parent}`, sameDocument: false }, { url: `${location.origin}${sit}`, sameDocument: true }],
+      currentEntry: { index: 1 },
+    };
+    Object.defineProperty(window, 'navigation', { configurable: true, value: navigation });
+    host();
+    act(() => layerStore.initDeepLink('L4', props, parent, { backToParent: true, wsId: 'supplyRequirements#wheel' }));
+    const entry = window.history.state;
+    const pop = vi.fn();
+    window.addEventListener('popstate', pop);
+    let beforeLeave: ReturnType<typeof layerStore.get> | undefined;
+    // jsdom에 없는 cross-document traversal만 모의한다. go(-1)은 실제 popstate를 발생시키며,
+    // 떠날 때 pagehide와 도착 URL, 돌아올 때 pageshow를 발생시켜 문서 저장소·DOM을 검사한다.
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {
+      beforeLeave = layerStore.get();
+      window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+      window.history.replaceState(null, '', parent);
+    });
+    try {
+      if (withL5) act(() => layerStore.open('L5', props, { url: '/hamster/golden/check/wheel' }));
+      expect(dialogKind()).toBe(withL5 ? 'L5' : 'L4');
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      await waitFor(() => expect(back).toHaveBeenCalledTimes(1), WAIT);
+      expect(window.location.pathname).toBe(parent);
+      if (withL5) expect(pop).toHaveBeenCalled();
+      act(() => {
+        window.history.replaceState(entry, '', sit);
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+      });
+      const restored = { beforeLeave: beforeLeave?.kind, state: readLayerState(history.state)?.wsLayer, screen: dialogKind(), title: document.title };
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      expect({ ...restored, backCalls: back.mock.calls.length }).toEqual({ beforeLeave: 'L4', state: 'L4', screen: 'L4', title: layerDocumentTitle('L4 제목'), backCalls: 2 });
+      expect(window.location.pathname).toBe(parent);
+    } finally {
+      window.removeEventListener('popstate', pop);
+      Reflect.deleteProperty(window, 'navigation');
+      // 실제 go가 남긴 forward L5 항목을 잘라 다음 시험의 history.length 기준을 격리한다.
+      window.history.pushState(null, '', parent);
+    }
+  });
+
   it('L2 → L4 push: URL·state 기록, 뒤로 = L2(같은 문서, 한 번에 하나)', async () => {
     host();
     const len0 = window.history.length;

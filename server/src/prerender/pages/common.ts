@@ -158,8 +158,9 @@ export const NAV_ID = 'ws-nav';
  * 「크기 확인」 메뉴 대상(U2b, D3 ①) — client home/intent.ts intentHref('SPEC_CHECK') 와 같은 규칙·같은 입력(이 문서 ws-data).
  *   타입 없음 = /pick(무JS: L1 → 타입 홈, 하이드레이션 후 L1 경유 의도 보존) · 대상 항목 = ws-data types[].specCheckItemId,
  *   없으면 이 문서 requirements 중 그 타입의 규격 필드가 있는 첫 항목 · 둘 다 없으면 타입 홈.
+ *   SUPPLY_ITEM_TYPE의 fallback은 route 품목만(확장된 보조 요구사항이 헤더를 바꾸지 않게).
  */
-export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null, data: WsPageData['data'] | null): string {
+export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null, data: WsPageData['data'] | null, route?: WsPageData['route']): string {
   if (!type) return PICK_PATH;
   const home = hrefOf(`/${type.slug}`);
   if (!data) return home;
@@ -167,7 +168,10 @@ export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null
   const itemId =
     typeof fromType === 'string' && fromType !== ''
       ? fromType
-      : data.requirements.find((x) => x.animalTypeId === type.id && x.item.specSchema.fields.length > 0)?.supplyItemId;
+      : data.requirements.find((x) =>
+          x.animalTypeId === type.id && x.item.specSchema.fields.length > 0 &&
+          (route?.kind !== 'SUPPLY_ITEM_TYPE' || x.supplyItemId === route.itemId),
+        )?.supplyItemId;
   return itemId ? `${home}/check/${encodeURIComponent(itemId)}` : home;
 }
 
@@ -181,6 +185,7 @@ export function renderHeader(
   type: Pick<PublicAnimalType, 'id' | 'slug' | 'displayName'> | null,
   current: NavCurrent = null,
   data: WsPageData['data'] | null = null,
+  route?: WsPageData['route'],
 ): string {
   // K1(51 레인 A ③): 칩은 JS 없이도 정적 /pick(홈 A 부모 + L1 정적 본문). 하이드레이션 후엔 client AnimalChip 이 L1 을 연다.
   const chip = type
@@ -193,7 +198,7 @@ export function renderHeader(
     `<button type="button" class="ws-menu-btn" aria-expanded="false" aria-controls="${NAV_ID}">${h(COPY.nav.menu)}</button>`,
     `<nav class="ws-nav" id="${NAV_ID}" aria-label="${a(COPY.nav.menuLabel)}">`,
     `<a href="/supplies"${cur(current === 'supplies')}>${h(COPY.nav.menuSupplies)}</a>`,
-    `<a data-ws-nav="spec-check" href="${a(specCheckHref(type, data))}">${h(COPY.nav.menuSpecCheck)}</a>`,
+    `<a data-ws-nav="spec-check" href="${a(specCheckHref(type, data, route))}">${h(COPY.nav.menuSpecCheck)}</a>`,
     `<a href="/vet"${cur(current === 'vet')}>${h(COPY.nav.vet)}</a>`,
     chip,
     '</nav>',

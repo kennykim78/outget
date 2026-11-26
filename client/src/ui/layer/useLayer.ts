@@ -38,6 +38,10 @@ export interface DeepLinkOptions {
   documentParent?: boolean;
   /** 프리렌더 aside 의 data-ws-id(React 패널이 유지). */
   wsId?: string | null;
+  /** 다 닫았을 때 문서 제목(387 D3 — /supplies/{item}/{type} 의 부모 제목). 없으면 LayerHost 기본. */
+  parentTitle?: string | null;
+  /** 바로 앞 history 항목이 부모 문서면 닫기 = history.back()(387 D4 — 같은 URL 항목 중복 0). 아니면 replaceState. */
+  backToParent?: boolean;
 }
 
 export interface LayerControl {
@@ -76,6 +80,8 @@ function clearBackPending(): void {
 /** 딥링크 부모가 다른 문서인지(이 문서 수명 동안). */
 let deepLinkDocumentParent = false;
 let deepLinkWsId: string | null = null;
+let deepLinkParentTitle: string | null = null;
+let deepLinkBackToParent = false;
 const listeners = new Set<Listener>();
 
 /** 문서 이동(다른 문서 부모). 테스트는 replace 를 바꿔 끼운다(jsdom location 은 교체 불가). */
@@ -183,8 +189,42 @@ function fromState(s: LayerHistoryState): OpenLayer {
     : { kind: s.wsLayer, props: { ...s.wsLayerProps } };
 }
 
+/** 바로 앞 history 항목이 다른 문서이고 그 경로가 parent 인지(Navigation API — 없으면 false → replaceState). */
+function previousEntryIsParent(parent: string): boolean {
+  const nav = (window as unknown as { navigation?: unknown }).navigation;
+  if (!isRecord(nav) || typeof nav.entries !== 'function' || !isRecord(nav.currentEntry)) return false;
+  const idx = nav.currentEntry.index;
+  if (typeof idx !== 'number' || idx < 1) return false;
+  const entries: unknown = (nav.entries as () => unknown)();
+  if (!Array.isArray(entries)) return false;
+  const prev: unknown = entries[idx - 1];
+  if (!isRecord(prev) || prev.sameDocument === true || typeof prev.url !== 'string') return false;
+  try {
+    const u = new URL(prev.url);
+    if (u.origin !== window.location.origin) return false;
+    return `${u.pathname}${u.search}` === parent || decodeURI(u.pathname) === decodeURI(parent);
+  } catch {
+    return false;
+  }
+}
+
 /** 딥링크 항목(depth 0)에서 닫기: 부모 경로로 교체(재로드 없음) 또는 다른 문서면 location.replace. */
 function closeDeepLinkEntry(s: LayerHistoryState): void {
+  if (deepLinkBackToParent && previousEntryIsParent(s.wsParent)) {
+    // go(-depth)로 도착한 L4를 문서 이동 전에 저장한다. bfcache가 L5 화면을 보관하지 않게 한다.
+    currentState = s;
+    current = fromState(s);
+    emit();
+    // 부모 문서로 뒤로(문서 이동) — 레이어는 이동까지 그대로 둔다. 연타 방지 = closingAll + 안전 해제.
+    closingAll = true;
+    if (closingTimer !== null) clearTimeout(closingTimer);
+    closingTimer = setTimeout(() => {
+      closingTimer = null;
+      closingAll = false;
+    }, CLOSING_SAFETY_MS);
+    window.history.back();
+    return;
+  }
   releaseScroll();
   current = null;
   currentState = null;
@@ -236,6 +276,8 @@ export const layerStore = {
   initDeepLink(kind: LayerKind, props: LayerProps, parentPath: string, opts: DeepLinkOptions = {}): void {
     deepLinkDocumentParent = opts.documentParent === true;
     deepLinkWsId = opts.wsId ?? null;
+    deepLinkParentTitle = opts.parentTitle ?? null;
+    deepLinkBackToParent = opts.backToParent === true;
     const state: LayerHistoryState = { wsLayer: kind, wsLayerProps: sanitizeProps(props), wsParent: parentPath, wsDepth: 0 };
     window.history.replaceState({ ...(stripLayerKeys(window.history.state) ?? {}), ...state }, '');
     holdScroll();
@@ -243,6 +285,10 @@ export const layerStore = {
     current = fromState(state);
     currentState = state;
     emit();
+  },
+  /** 딥링크 부모 문서 제목(닫은 뒤 document.title). 없으면 null. */
+  deepLinkParentTitle(): string | null {
+    return deepLinkParentTitle;
   },
   /** 문서 부팅 시 딥링크가 아니면: 이전 문서가 남긴 레이어 state 를 지운다(재로드 후 유령 레이어 방지). */
   clearStaleState(): void {
@@ -320,6 +366,14 @@ export const layerStore = {
     current = next;
     emit();
   },
+  /** bfcache 복원은 popstate 없이도 일어난다. 떠날 때 남은 닫기 잠금·타이머를 해제하고 도착 항목을 다시 읽는다. */
+  onPageShow(e: PageTransitionEvent): void {
+    if (!e.persisted) return;
+    closingAll = false;
+    if (closingTimer !== null) clearTimeout(closingTimer);
+    closingTimer = null;
+    layerStore.onPopState(new PopStateEvent('popstate', { state: window.history.state }));
+  },
   /** 테스트 전용 초기화. */
   resetForTest(): void {
     current = null;
@@ -328,6 +382,10 @@ export const layerStore = {
     clearBackPending();
     deepLinkDocumentParent = false;
     deepLinkWsId = null;
+    deepLinkParentTitle = null;
+    deepLinkBackToParent = false;
+    if (closingTimer !== null) clearTimeout(closingTimer);
+    closingTimer = null;
     if (scrollRelease !== null) clearTimeout(scrollRelease.timer);
     setRestoration(scrollRelease?.mode ?? scrollHold?.mode ?? null);
     scrollRelease = null;
