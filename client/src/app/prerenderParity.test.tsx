@@ -768,6 +768,15 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
     late = siteMod.buildSite(fx.promoted(), { ...base, productFeed: productFeed(GEN_MS + 80 * H) });
   }, 30_000);
 
+  // 하이드레이션은 신선도를 「지금」 시계로 다시 잰다(377 S1). 합성 피드(GEN)가 실제 날짜로 72h 를 넘기면 가격이 사라지므로 Date 만 고정.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(GEN_MS + H);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const variant = (s: FeedSiteLite, file: string) => {
     const p = s.feedPages.find((x) => x.file === file);
     if (!p) throw new Error(`no feed page ${file} — ${s.feedPages.map((x) => x.file).join(', ')}`);
