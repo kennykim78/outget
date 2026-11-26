@@ -71,11 +71,14 @@ export default function LayerHost({ registry, wsIdFor }: LayerHostProps) {
   useEffect(() => {
     const onPop = (e: PopStateEvent) => layerStore.onPopState(e);
     const onShow = (e: PageTransitionEvent) => layerStore.onPageShow(e);
+    const onHide = () => layerStore.onPageHide();
     window.addEventListener('popstate', onPop);
     window.addEventListener('pageshow', onShow);
+    window.addEventListener('pagehide', onHide);
     return () => {
       window.removeEventListener('popstate', onPop);
       window.removeEventListener('pageshow', onShow);
+      window.removeEventListener('pagehide', onHide);
     };
   }, []);
 

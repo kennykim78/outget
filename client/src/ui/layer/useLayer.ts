@@ -7,6 +7,7 @@
 //   L3(L2 안)·L6(L5·L2 안)은 레이어가 아니라 스텝 — wsLayerProps.step.
 //   상태는 모듈 단일 저장소 — LayerHost 가 구독하고 popstate 를 연결한다(Provider 불필요).
 import { useSyncExternalStore } from 'react';
+import { wsSessionStorage } from '../../lib/storage';
 import { captureMagicToken, hasMagicHash } from '../../save/magicLink';
 
 export const LAYER_KINDS = ['L1', 'L2', 'L4', 'L5', 'L7', 'L8'] as const;
@@ -189,17 +190,32 @@ function fromState(s: LayerHistoryState): OpenLayer {
     : { kind: s.wsLayer, props: { ...s.wsLayerProps } };
 }
 
+/** no-referrer 문서 이동용: 항목 key 에 부모 pathname·entry id 만 연결한다(쿼리·해시 저장 금지). */
+const PARENT_ENTRY_PREFIX = 'ws.layer.parentEntry:';
+const SUPPLY_PARENT_PATH = /^\/supplies\/[^/]+$/;
+
 /** 바로 앞 history 항목이 다른 문서이고 그 경로가 parent 인지(Navigation API — 없으면 false → replaceState). */
 function previousEntryIsParent(parent: string): boolean {
-  const nav = (window as unknown as { navigation?: unknown }).navigation;
-  if (!isRecord(nav) || typeof nav.entries !== 'function' || !isRecord(nav.currentEntry)) return false;
-  const idx = nav.currentEntry.index;
-  if (typeof idx !== 'number' || idx < 1) return false;
-  const entries: unknown = (nav.entries as () => unknown)();
-  if (!Array.isArray(entries)) return false;
-  const prev: unknown = entries[idx - 1];
-  if (!isRecord(prev) || prev.sameDocument === true || typeof prev.url !== 'string') return false;
   try {
+    const nav = (window as unknown as { navigation?: unknown }).navigation;
+    if (!isRecord(nav) || typeof nav.entries !== 'function' || !isRecord(nav.currentEntry)) return false;
+    const idx = nav.currentEntry.index;
+    if (typeof idx !== 'number' || idx < 1) return false;
+    const entries: unknown = (nav.entries as () => unknown)();
+    if (!Array.isArray(entries)) return false;
+    const prev: unknown = entries[idx - 1];
+    if (!isRecord(prev) || prev.sameDocument === true) return false;
+    if (prev.url === null) {
+      if (typeof prev.key !== 'string' || prev.key === '' || typeof prev.id !== 'string') return false;
+      const saved = wsSessionStorage().get(`${PARENT_ENTRY_PREFIX}${prev.key}`);
+      if (saved === null) return false;
+      const record: unknown = JSON.parse(saved);
+      if (!isRecord(record) || Object.keys(record).length !== 2
+        || typeof record.path !== 'string' || typeof record.id !== 'string' || record.id !== prev.id) return false;
+      const path = record.path;
+      return SUPPLY_PARENT_PATH.test(path) && (path === parent || decodeURI(path) === decodeURI(parent));
+    }
+    if (typeof prev.url !== 'string') return false;
     const u = new URL(prev.url);
     if (u.origin !== window.location.origin) return false;
     return `${u.pathname}${u.search}` === parent || decodeURI(u.pathname) === decodeURI(parent);
@@ -365,6 +381,24 @@ export const layerStore = {
     else if (current === null) holdScroll(); // 앞으로 가기로 레이어 항목 재진입
     current = next;
     emit();
+  },
+  /** 부모 문서를 떠날 때 기록한다. bfcache 로 호스트가 유지되어도 매번 현재 항목을 읽는다. */
+  onPageHide(): void {
+    try {
+      const nav = (window as unknown as { navigation?: unknown }).navigation;
+      if (!isRecord(nav) || !isRecord(nav.currentEntry)) return;
+      const key = nav.currentEntry.key;
+      if (typeof key !== 'string' || key === '') return;
+      const storageKey = `${PARENT_ENTRY_PREFIX}${key}`;
+      // 같은 key의 URL 변경·저장 실패 때도 낡은 부모 기록이 남지 않게 먼저 지운다.
+      wsSessionStorage().remove(storageKey);
+      const path = window.location.pathname;
+      const id = nav.currentEntry.id;
+      if (!SUPPLY_PARENT_PATH.test(path) || typeof id !== 'string') return;
+      wsSessionStorage().set(storageKey, JSON.stringify({ path, id }));
+    } catch {
+      // Navigation API·저장소를 쓸 수 없으면 기록 없이 기존 replaceState 경로를 사용한다.
+    }
   },
   /** bfcache 복원은 popstate 없이도 일어난다. 떠날 때 남은 닫기 잠금·타이머를 해제하고 도착 항목을 다시 읽는다. */
   onPageShow(e: PageTransitionEvent): void {

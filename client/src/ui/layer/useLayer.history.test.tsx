@@ -92,6 +92,137 @@ describe('useLayer history (C-R5-5)', () => {
     }
   });
 
+  // 388 D1: 서버의 Referrer-Policy: no-referrer 때문에 다른 문서 항목은 url=null — 부모 문서가 떠날 때 남긴 entry key 로 판정한다.
+  it.each([
+    ['부모가 남긴 key', '/supplies/wheel', 'k-parent', 1],
+    ['기록 없음', null, 'k-parent', 0],
+    ['다른 항목의 key', '/supplies/wheel', 'k-other', 0],
+    ['다른 용품 부모', '/supplies/saucer', 'k-parent', 0],
+  ] as const)('388 no-referrer(앞 항목 url=null) — %s (기록 %s, key %s) → back %i회', (_name, left, prevKey, calls) => {
+    const parent = '/supplies/wheel';
+    const sit = '/supplies/wheel/hamster-golden';
+    window.sessionStorage.clear();
+    const view = host();
+    if (left !== null) {
+      window.history.replaceState(null, '', left);
+      Object.defineProperty(window, 'navigation', { configurable: true, value: { currentEntry: { index: 0, key: 'k-parent', id: 'id-parent' } } });
+      act(() => void window.dispatchEvent(new PageTransitionEvent('pagehide')));
+    }
+    view.unmount();
+    window.history.replaceState(null, '', sit);
+    const navigation = {
+      entries: () => [{ url: null, key: prevKey, id: 'id-parent', sameDocument: false }, { url: `${location.origin}${sit}`, key: 'k-sit', id: 'id-sit', sameDocument: true }],
+      currentEntry: { index: 1, key: 'k-sit', id: 'id-sit' },
+    };
+    Object.defineProperty(window, 'navigation', { configurable: true, value: navigation });
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    try {
+      host();
+      act(() => layerStore.initDeepLink('L4', { typeId: 'hamster-golden', itemId: 'wheel' }, parent, { backToParent: true }));
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      expect(back).toHaveBeenCalledTimes(calls);
+    } finally {
+      Reflect.deleteProperty(window, 'navigation');
+      window.sessionStorage.clear();
+    }
+  });
+
+  describe('388 D1 낡은 부모 기록 무효화', () => {
+    const parent = '/supplies/wheel';
+    const storageKey = 'ws.layer.parentEntry:k-parent';
+    let entry: { index: number; key: string; id: unknown };
+
+    beforeEach(() => {
+      window.sessionStorage.clear();
+      entry = { index: 0, key: 'k-parent', id: 'id-parent' };
+      Object.defineProperty(window, 'navigation', { configurable: true, value: { currentEntry: entry } });
+      window.history.replaceState(null, '', parent);
+      host();
+    });
+
+    afterEach(() => {
+      Reflect.deleteProperty(window, 'navigation');
+      window.sessionStorage.clear();
+    });
+
+    function pagehide(): void {
+      act(() => void window.dispatchEvent(new PageTransitionEvent('pagehide')));
+    }
+
+    function expectNoBack(prevId: unknown): void {
+      const sit = `${parent}/hamster-golden`;
+      window.history.replaceState(null, '', sit);
+      Object.defineProperty(window, 'navigation', {
+        configurable: true,
+        value: {
+          entries: () => [{ url: null, key: entry.key, id: prevId, sameDocument: false }],
+          currentEntry: { index: 1, key: 'k-sit', id: 'id-sit' },
+        },
+      });
+      const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+      act(() => layerStore.initDeepLink('L4', { typeId: 'hamster-golden', itemId: 'wheel' }, parent, { backToParent: true }));
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      expect(back).toHaveBeenCalledTimes(0);
+      expect(window.location.pathname).toBe(parent);
+    }
+
+    it('부모 기록 → 같은 key가 /hamster/golden으로 변경 → pagehide → ✕ = back 0회', () => {
+      pagehide();
+      expect(window.sessionStorage.getItem(storageKey)).not.toBeNull();
+      window.history.replaceState(null, '', '/hamster/golden');
+      pagehide();
+      expectNoBack(entry.id);
+      expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+    });
+
+    it('pagehide 없이 id만 바뀜 → ✕ = back 0회', () => {
+      pagehide();
+      expect(window.sessionStorage.getItem(storageKey)).not.toBeNull();
+      entry.id = 'id-replaced';
+      expectNoBack(entry.id);
+    });
+
+    it('setItem 예외 시 낡은 기록 0', () => {
+      pagehide();
+      expect(window.sessionStorage.getItem(storageKey)).not.toBeNull();
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+      pagehide();
+      expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+      expectNoBack(entry.id);
+    });
+
+    it('저장 값에는 pathname과 id만 포함한다', () => {
+      window.history.replaceState(null, '', `${parent}?sample=value#section`);
+      pagehide();
+      expect(JSON.parse(window.sessionStorage.getItem(storageKey)!)).toEqual({ path: parent, id: 'id-parent' });
+    });
+
+    it.each([undefined, null, 17])('currentEntry.id가 문자열이 아니면 기존 기록 삭제 후 저장하지 않는다: %s', (id) => {
+      pagehide();
+      entry.id = id;
+      pagehide();
+      expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+      expectNoBack(entry.id);
+    });
+
+    it.each([undefined, null, 17])('prev.id가 문자열이 아니면 back 0회: %s', (id) => {
+      pagehide();
+      expectNoBack(id);
+    });
+
+    it.each([
+      '/supplies/wheel', '{', 'null', '[]',
+      '{"path":"/supplies/wheel"}',
+      '{"path":"/supplies/wheel","id":17}',
+      '{"path":17,"id":"id-parent"}',
+      '{"path":"/hamster/golden","id":"id-parent"}',
+      '{"path":"/supplies/wheel","id":"id-parent","extra":true}',
+    ])('깨진 저장 형식이면 back 0회: %s', (value) => {
+      window.sessionStorage.setItem(storageKey, value);
+      expectNoBack(entry.id);
+    });
+  });
+
   it('L2 → L4 push: URL·state 기록, 뒤로 = L2(같은 문서, 한 번에 하나)', async () => {
     host();
     const len0 = window.history.length;
