@@ -97,6 +97,8 @@ export interface PublicAnimalType {
    *   홈 A 시작 카드·설명 장면 사진. 사용 가능 장면이 없거나 홈이 아닌 페이지면 키 자체가 없다.
    */
   homeScenes?: PublicHomeScenes;
+  /** 타입 홈 제목. 원문이 비어 있거나 공백뿐이면 키를 싣지 않는다. */
+  seoTitle?: string;
 }
 
 /**

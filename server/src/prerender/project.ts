@@ -291,6 +291,8 @@ function projectType(
     ...(generalInfo ? { generalInfo: true as const } : {}),
     // 359 D-2: 종 자리 사진(habitat·nowLead·spec — 사용 가능 자리만). 없으면 키 없음(바이트 불변).
     ...(photos ? { photos } : {}),
+    // 388 D2: renderTypePage와 같은 판정, 값은 원문 보존. 빈 값은 키 부재로 기존 ws-data 바이트 유지.
+    ...(typeof at.seoTitle === 'string' && at.seoTitle.trim() !== '' ? { seoTitle: at.seoTitle } : {}),
   };
 }
 

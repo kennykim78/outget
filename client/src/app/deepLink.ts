@@ -5,7 +5,7 @@
 //     부모 문서면 닫기 = 뒤로(같은 URL 항목이 둘 생기지 않게 — useLayer closeDeepLinkEntry).
 //   - /pick(K1): L1, 부모 = / (같은 문서 = 홈 A) → 닫기 replaceState('/').
 //   - SAVE(/save): L8, 부모 = 저장 타입 홈 또는 / — 이 문서의 화면은 홈 A 라 / 면 replaceState, 타입 홈이면 문서 이동(location.replace).
-import { COPY } from '@ws/copy';
+import { COPY, formatCopy } from '@ws/copy';
 import type { PublicAnimalType, WsPageData } from '@ws/engine';
 import { typeHomeHref } from '../shell/shellType';
 import type { HistoryLayerProps, LayerKind } from '../ui/layer/useLayer';
@@ -54,5 +54,6 @@ export function deepLinkFor(page: WsPageData, captured: CapturedLayer | null, sa
       backToParent: true,
     };
   }
-  return { kind: layer.kind, props, parent: typeHomeHref(type), documentParent: false, wsId };
+  const parentTitle = type.seoTitle ?? formatCopy(COPY.site.typeTitle, { animal: type.displayName }) + COPY.site.titleSuffix;
+  return { kind: layer.kind, props, parent: typeHomeHref(type), documentParent: false, wsId, parentTitle };
 }

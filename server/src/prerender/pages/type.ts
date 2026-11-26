@@ -358,6 +358,8 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     });
     return rows.length ? `<h4>${h(title)}</h4>\n<ul>\n${rows.join('\n')}\n</ul>` : '';
   };
+  const minRules = rules(COPY.supplyLayer.min, p.minSpec.rules);
+  const recommendedRules = rules(COPY.supplyLayer.recommended, p.recommendedSpec.rules);
   const alts = p.item.alternativeIds
     .map((id) => t.requirements.find((x) => x.item.id === id))
     .filter((x): x is RequirementModel => x !== undefined);
@@ -373,10 +375,9 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     photoTile(p.photo, 'ws-supply-photo'),
     p.priority === 'NOT_NOW' ? `<p>${h(COPY.supplyLayer.notNow)}${p.notNowReason ? ` — ${h(p.notNowReason)}` : ''}</p>` : '',
     `<section data-ws-part="why"><h3>${h(COPY.supplyLayer.why)}</h3><p>${h(p.why)}</p></section>`,
-    `<section data-ws-part="conditions"><h3>${h(COPY.supplyLayer.conditions)}</h3>`,
-    rules(COPY.supplyLayer.min, p.minSpec.rules),
-    rules(COPY.supplyLayer.recommended, p.recommendedSpec.rules),
-    '</section>',
+    ...(minRules || recommendedRules
+      ? [`<section data-ws-part="conditions"><h3>${h(COPY.supplyLayer.conditions)}</h3>`, minRules, recommendedRules, '</section>']
+      : []),
     p.caution ? `<section data-ws-part="caution"><h3>${h(COPY.supplyLayer.caution)}</h3><p>${h(p.caution)}</p></section>` : '',
     p.avoid ? `<section data-ws-part="avoid"><h3>${h(COPY.supplyLayer.avoid)}</h3><p>${h(p.avoid)}</p></section>` : '',
     alts.length

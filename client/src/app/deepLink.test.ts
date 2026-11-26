@@ -1,5 +1,11 @@
 // app/deepLink — 딥링크 레이어 판정(C-R5-5 · D-55).
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { COPY, formatCopy } from '@ws/copy';
+import type { WsLayer } from '@ws/engine';
+import LayerHost from '../ui/layer/LayerHost';
+import { layerStore } from '../ui/layer/useLayer';
 import { golden, pageOf } from '../test/fixtures';
 import { deepLinkFor } from './deepLink';
 import { routeView } from './routeView';
@@ -13,6 +19,7 @@ describe('deepLinkFor', () => {
       parent: '/hamster/golden',
       documentParent: false,
       wsId: 'supplyRequirements#r1',
+      parentTitle: formatCopy(COPY.site.typeTitle, { animal: golden.displayName }) + COPY.site.titleSuffix,
     });
     expect(deepLinkFor(p, { kind: 'L7', wsId: 'curatedProducts#x' }, null)?.wsId).toBeNull();
   });
@@ -20,6 +27,49 @@ describe('deepLinkFor', () => {
   it('TYPE + L7: productId props', () => {
     const p = pageOf('TYPE', {}, { typeId: golden.id, layer: { kind: 'L7', typeId: golden.id, productId: 'p1' } });
     expect(deepLinkFor(p, null, null)?.props).toEqual({ typeId: golden.id, productId: 'p1' });
+  });
+
+  describe('388 D2: TYPE 부모 제목', () => {
+    const layers: WsLayer[] = [
+      { kind: 'L4', typeId: golden.id, itemId: 'cage' },
+      { kind: 'L5', typeId: golden.id, itemId: 'cage' },
+      { kind: 'L7', typeId: golden.id, productId: 'p1' },
+    ];
+    it.each(layers)('$kind: SEO 원문을 보존하고, 키가 없으면 타입 제목을 쓴다', (layer) => {
+      const seoTitle = '  골든햄스터 맞춤 제목  ';
+      const withSeo = pageOf('TYPE', { types: [{ ...golden, seoTitle }] }, { typeId: golden.id, layer });
+      expect(deepLinkFor(withSeo, null, null)?.parentTitle).toBe(seoTitle);
+      // null·빈 문자열·공백 원문은 projectType에서 키 자체를 생략한다(서버 투영 시험으로 검증).
+      const withoutSeo = pageOf('TYPE', {}, { typeId: golden.id, layer });
+      expect(deepLinkFor(withoutSeo, null, null)?.parentTitle).toBe(
+        formatCopy(COPY.site.typeTitle, { animal: golden.displayName }) + COPY.site.titleSuffix,
+      );
+    });
+
+    it('L4 직접 진입 → ✕: 타입 홈 URL과 document.title로 복원한다', () => {
+      const oldTitle = document.title;
+      const oldUrl = window.location.href;
+      const oldState: unknown = window.history.state;
+      act(() => layerStore.resetForTest());
+      const p = pageOf('TYPE', {}, { typeId: golden.id, path: '/hamster/golden/supplies/cage', layer: layers[0] });
+      const link = deepLinkFor(p, null, null)!;
+      window.history.replaceState(null, '', p.route.path);
+      document.title = '케이지 레이어 제목';
+      const view = render(createElement(LayerHost, { registry: { L4: { title: '케이지', Component: () => null } } }));
+      try {
+        act(() => layerStore.initDeepLink(link.kind, link.props, link.parent, link));
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(window.location.pathname).toBe('/hamster/golden');
+        expect(document.title).toBe(formatCopy(COPY.site.typeTitle, { animal: golden.displayName }) + COPY.site.titleSuffix);
+      } finally {
+        view.unmount();
+        act(() => layerStore.resetForTest());
+        window.history.replaceState(oldState, '', oldUrl);
+        document.title = oldTitle;
+      }
+    });
   });
 
   it('SAVE: 저장 타입 있으면 부모 = 타입 홈(다른 문서), 없으면 "/"(같은 문서)', () => {
