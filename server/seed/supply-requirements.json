@@ -3794,7 +3794,7 @@
     "supplyItemId": "food",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "로보가 먹을 수 있는 햄스터용 주식을 기본으로 해요. 여러 영양소를 섭취할 수 있게 씨앗 한 종류만 주지 않아요.",
+    "why": "펠릿을 기본으로 해요. 씨앗 한 종류만 주지 않아요.",
     "caution": "씨앗이나 간식이 주식을 대신하지 않게 해요. 먹는 양이나 체중에 뚜렷한 변화가 있으면 병원에 문의해요.",
     "avoid": "씨앗 한 종류만 주는 식단 · 간식 위주 식단",
     "minSpec": {
@@ -4046,8 +4046,8 @@
     "supplyItemId": "scale",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "로보의 체중 변화를 살펴요.",
-    "caution": "낮은 위치에서 통에 들어가게 해요. 체중이 뚜렷하게 달라지면 병원에 문의해요.",
+    "why": "로보의 체중 감소를 살펴요.",
+    "caution": "체중이 뚜렷하게 달라지면 병원에 문의해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
@@ -4217,8 +4217,8 @@
     "supplyItemId": "bird-food",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "소형 앵무에게 맞는 주식을 준비해요. 씨앗만으로 식단을 채우기보다 영양을 갖춘 펠릿과 먹을 수 있는 채소 등을 함께 활용해요.",
-    "caution": "새 모이는 실제로 먹는지 확인하며 천천히 익숙해지게 해요. 먹지 않거나 기운이 없으면 병원에 문의해요.",
+    "why": "소형 앵무에게 맞는 주식을 준비해요. 씨앗만으로 식단을 채우지 않고 펠릿을 활용해요.",
+    "caution": "새 모이는 천천히 익숙해지게 해요. 먹지 않거나 기운이 없으면 병원에 문의해요.",
     "avoid": "아보카도 · 초콜릿 · 카페인 · 양파 · 알코올",
     "minSpec": {
       "rules": []
@@ -4229,13 +4229,13 @@
           "key": "form",
           "op": "eq",
           "value": "PELLET",
-          "reason": "좋아하는 씨앗만 골라 먹는 편식을 줄이는 데 도움이 돼요."
+          "reason": "조류용 펠릿을 권해요."
         },
         {
           "key": "forSize",
           "op": "eq",
           "value": "SMALL",
-          "reason": "소형 앵무용을 권해요."
+          "reason": "사랑앵무에게는 소형 조류용 펠릿을 권해요."
         }
       ]
     },
@@ -4331,8 +4331,8 @@
     "supplyItemId": "mineral",
     "priority": "OPTIONAL",
     "orderHint": "AS_NEEDED",
-    "why": "조류용 미네랄 블록은 식단에 따라 선택하는 보조 용품이에요. 모든 새에게 별도로 필요한 것은 아니에요.",
-    "caution": "주식에 포함된 영양 성분을 먼저 확인해요. 미네랄 용품으로 주식을 대신하지 않아요. 보충제는 병원과 상의해요.",
+    "why": "모든 새에게 별도로 필요한 것은 아니에요.",
+    "caution": "보충제는 병원과 상의해요.",
     "avoid": "소화를 돕는다는 이유로 모래나 자갈을 모이에 섞는 방식",
     "minSpec": {
       "rules": []
@@ -4532,24 +4532,17 @@
     "supplyItemId": "scale",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "몸무게를 기록하면 겉모습만으로 놓치기 쉬운 변화를 살피는 데 도움이 돼요. 평소 기록과 비교해요.",
+    "why": "몸무게 변화를 살펴요.",
     "caution": "몸무게가 줄거나 먹는 양이 줄면 병원에 문의해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
     },
     "recommendedSpec": {
-      "rules": [
-        {
-          "key": "resolutionG",
-          "op": "lte",
-          "value": 1,
-          "reason": "몸집이 작은 새의 몸무게 변화를 기록하기에는 1g 이하 눈금을 권해요."
-        }
-      ]
+      "rules": []
     },
     "notNowReason": null,
-    "searchKeyword": "{animal} 조류 전자저울 1g",
+    "searchKeyword": "{animal} 조류 전자저울",
     "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
@@ -4702,8 +4695,8 @@
     "supplyItemId": "bird-food",
     "priority": "REQUIRED",
     "orderHint": "BEFORE_ARRIVAL",
-    "why": "앵무용 균형 잡힌 주식을 중심으로 채소 등 다양한 먹이를 함께 제공해요. 씨앗만 골라 먹는 식단은 영양이 치우치기 쉬워요.",
-    "caution": "처음에는 먹던 사료를 준비하고 새 먹이는 실제로 먹는지 확인하며 천천히 익숙하게 해요. 먹는 양이나 체중이 달라지면 병원에 문의해요.",
+    "why": "앵무용 주식을 중심으로 제공해요. 씨앗만 주는 식단은 피해요.",
+    "caution": "새 먹이는 천천히 익숙하게 해요. 먹는 양이나 체중이 달라지면 병원에 문의해요.",
     "avoid": "씨앗만 주는 식단 · 아보카도 · 초콜릿 · 카페인 · 양파 · 알코올",
     "minSpec": {
       "rules": []
@@ -4714,7 +4707,7 @@
           "key": "form",
           "op": "eq",
           "value": "PELLET",
-          "reason": "종과 성장 단계에 맞춘 주식용 펠릿은 씨앗만 골라 먹는 식단의 영양 편중을 줄이는 데 도움이 돼요"
+          "reason": "조류용 주식 펠릿을 권해요."
         }
       ]
     },
@@ -4815,9 +4808,9 @@
     "supplyItemId": "mineral",
     "priority": "OPTIONAL",
     "orderHint": "AS_NEEDED",
-    "why": "미네랄 블록은 식단에 따라 선택하는 보조 먹이예요. 균형 잡힌 주식을 대신하지는 않아요.",
-    "caution": "주식에 포함된 영양 성분을 먼저 살펴요. 여러 보충제를 겹쳐 쓰지 않고, 알을 낳는다는 이유만으로 임의로 추가하지 않아요. 알을 자주 낳거나 보충이 필요한지 궁금하면 병원에 문의해요.",
-    "avoid": "주식 대신 제공하는 미네랄 · 소화용 모래나 자갈을 상시 먹이는 방식",
+    "why": "모든 새에게 별도로 필요한 것은 아니에요.",
+    "caution": "알을 낳는다는 이유만으로 임의로 추가하지 않아요. 알을 자주 낳거나 보충이 필요한지 궁금하면 병원에 문의해요.",
+    "avoid": "썬코뉴어에게 소화용 모래나 자갈을 상시 먹이는 방식",
     "minSpec": {
       "rules": []
     },
@@ -5026,24 +5019,17 @@
     "supplyItemId": "scale",
     "priority": "RECOMMENDED",
     "orderHint": "FIRST_WEEK",
-    "why": "눈으로 알아보기 어려운 체중 변화를 기록해요. 재면 평소 몸무게와 비교하기 좋아요.",
+    "why": "체중 변화를 살펴요.",
     "caution": "체중이 줄거나 먹는 양과 활력이 달라지면 병원에 문의해요.",
     "avoid": null,
     "minSpec": {
       "rules": []
     },
     "recommendedSpec": {
-      "rules": [
-        {
-          "key": "resolutionG",
-          "op": "lte",
-          "value": 1,
-          "reason": "1g 이하 눈금이면 새의 작은 체중 변화를 기록하기 편해요"
-        }
-      ]
+      "rules": []
     },
     "notNowReason": null,
-    "searchKeyword": "{animal} 앵무 체중 저울 1g",
+    "searchKeyword": "{animal} 앵무 체중 저울",
     "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
