@@ -3,7 +3,7 @@
 - 판정: Codex `aux/codex/withsmall/261127_1301_src8-verify.md` (인용문 대조). 8행 모두 축소·삭제 대상.
 - 적용: server/seed · seed-draft `supply-requirements.json` 동일. 삭제·축소만, 새 숫자 0. reviewStatus·source·crossCheck(11/23, 축소 전 문구 기준) 그대로.
 - PM 추가 원문 확인(11/27 curl, VCA lovebirds-feeding V3): "The recommended diet for lovebirds is pelleted food formulated for birds." · "Seeds should only be a very small part of a balanced diet but should never be the majority of the diet." · "slowly weaned off seeds onto a pelleted diet."
-  → 소형 사료 why 는 Codex 의 「사랑앵무」 좁히기 대신 「소형 앵무」 유지(V2+V3). forSize 이유는 V3 에 크기 문장이 없어 사랑앵무로 좁힘.
+  → 소형 사료 why 는 Codex 의 「사랑앵무」 좁히기 대신 「소형 앵무」 유지(V2+V3). forSize 규칙은 아래 CI 뒤 정정 참고.
 
 | 행 | 판정 → 처리 (고친 문구) | 출처 |
 |---|---|---|
@@ -19,3 +19,8 @@
 ## 남긴 숙제
 - 저울(scale) 공개 전: 로보·중형 저울 「통/받침 무게」 안내가 없어 통째 값을 몸무게로 오해할 수 있음(현재 노출 0).
 - 「갑오징어뼈」는 mineral 검색어·용품 설명에 남음(8행 범위 밖).
+
+## CI 뒤 정정 (PR #15 run 45944308676 실패 → 수정)
+- 공유 프로필 문구에는 종 이름을 넣지 않는다(qa356r). 「사랑앵무에게는…」 forSize 이유 → 모란앵무 근거가 없어 **forSize 권장 규칙 삭제**. 위 표의 해당 문구는 폐기.
+- 중형 미네랄 avoid → 「소화용 모래나 자갈을 상시 먹이는 방식」(「썬코뉴어에게」 삭제). PM 추가 원문(11/27 curl, V4 cockatiels-feeding): "Cockatiels do not need gravel or grit because they remove the outer hull of the seed before ingesting the kernel."
+- 경고 기준선 시험: 문장이 줄어 L03 경고 감소 → 기대값 갱신.
