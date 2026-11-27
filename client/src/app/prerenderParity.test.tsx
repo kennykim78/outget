@@ -1308,6 +1308,47 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
     }
   });
 
+  // 399 A-4: 닫기 뒤 실제로 도착하는 부모 문서를 띄워 확인 — 저장 종 ≠ 진입 종이어도 URL·머리(저장 종)·본문·스펙 링크가 어긋나지 않는다.
+  //   jsdom 은 문서 이동이 없어 「location.replace 대상 문서를 새로 읽고 부팅」을 손으로 재현한다(제목은 파서가 읽은 그 문서의 title).
+  it('399 A-4: 저장 골든 → 다른 종 SIT 직접 진입 → 닫기 → 도착한 부모 문서의 URL·제목·머리·본문·스펙 링크가 일치', async () => {
+    const p = sitPages(realSite).find((x) => !x.route.path.endsWith(`/${GOLDEN}`));
+    if (!p) throw new Error('골든이 아닌 SUPPLY_ITEM_TYPE 페이지 없음');
+    const entryTypeId = p.route.path.split('/').at(-1)!;
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    let parentPath = '';
+    let entrySlug = '';
+    try {
+      localStorage.setItem('ws.animalType', GOLDEN);
+      const { before, dialog } = await openSit(p);
+      const entry = readPageData(document)!;
+      entrySlug = entry.data.types.find((t) => t.id === entryTypeId)!.slug;
+      fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      await waitFor(() => expect(nav).toHaveBeenCalledWith(before.parent));
+      parentPath = before.parent;
+    } finally {
+      nav.mockRestore();
+    }
+    expect(localStorage.getItem('ws.animalType')).toBe(GOLDEN); // 직접 진입·닫기가 저장 종을 바꾸지 않는다
+    unmount();
+    const parent = pageAt(parentPath, realSite);
+    const doc = new DOMParser().parseFromString(parent.html, 'text/html');
+    loadStatic(parent);
+    document.title = doc.title;
+    const staticText = norm(mainEl().textContent);
+    const staticLinks = attrs(mainEl(), 'a', 'href');
+    hydrate(parent);
+    await waitFor(() => expect(document.querySelector('[data-ws-nav="spec-check"]')?.getAttribute('href')).toMatch(/^\/hamster\/golden(\/|$)/), { timeout: 15000 });
+    expect(window.location.pathname).toBe(parentPath);
+    expect(document.title).toBe(doc.title);
+    expect(document.title).not.toBe(titleOf(p));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('aside.ws-layer')).toBeNull();
+    expect(norm(mainEl().textContent)).toBe(staticText);
+    expect(attrs(mainEl(), 'a', 'href')).toEqual(staticLinks);
+    // 머리의 어떤 링크도 진입 종을 가리키지 않는다(저장 종 문맥).
+    expect(attrs(document.querySelector('header.ws-header') as Element, 'a', 'href').filter((h) => h === `/${entrySlug}` || h.startsWith(`/${entrySlug}/`))).toEqual([]);
+  }, 60_000);
+
   /** Navigation API 흉내(jsdom 미구현): 같은 오리진 history 항목 URL 목록 + 현재 위치. */
   function stubNavigation(urls: readonly string[], index: number): void {
     vi.stubGlobal('navigation', {

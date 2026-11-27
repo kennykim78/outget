@@ -4784,14 +4784,14 @@ test('398 C3 C4-BANNED: 피드 JSON(full·noprice) 제목 금지어 → FAIL, �
 
 test('398 GI C11-FEED-OUT: GENERAL_INFO 체인 쌍의 피드 JSON·generalInfo:true·ws-data data.feed → FAIL, VERIFIED 체인 → 0', async () => {
   const gf = 'parrot/budgie/feed/item-390.json';
-  const ws = (items) => ({ v: 1, route: { kind: 'TYPE', path: '/parrot/budgie', typeId: 'budgie' }, layer: null, data: { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], feed: { v: 1, stage: 'full', items, rail: [] } } });
+  const ws = (items, stage) => ({ v: 1, route: { kind: 'TYPE', path: '/parrot/budgie', typeId: 'budgie' }, layer: null, data: { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], feed: { v: 1, stage, items, rail: [] } } });
   const res = await scan398({
     seed: r398GiReq,
     out: (o) => {
       o[gf] = JSON.stringify(r398Block({ typeId: 'budgie', supplyItemId: 'item-390' }));
       o['hamster/golden/feed/cage.json'] = JSON.stringify(r398Block({ generalInfo: true }));
-      o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390']));
-      o[R398_VAR_NP] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390-other']));
+      o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390'], 'full'));
+      o[R398_VAR_NP] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390-other'], 'noprice'));
     },
     feedManifest: R398_FM({ full: [R398_VAR], noprice: [R398_VAR_NP] }),
   });
@@ -4820,3 +4820,45 @@ test('398 C4 C6-IMG-SPECIES-SRC: client 소스에 "ph-budgie-habitat" 고정 →
   expectFail(res, 'C6-IMG-SPECIES-SRC');
   assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === 1), JSON.stringify(srcPhotoOf(res)));
 });
+
+// ── 399 B-1: HTML 에만 넣은 피드 상품 — HTML → ws-data data.feed 방향 대조 ──
+const r399Page = ({ cards = ['cage'], secItem = 'cage', looseRow = false, feed = { v: 1, stage: 'full', items: ['cage'], rail: [{ supplyItemId: 'cage' }] } } = {}) => {
+  const row = '<li class="ws-feed-row" data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p></li>';
+  return j(
+    '<html><body><main><section data-ws-section="mall"><ul>',
+    cards.map((id) => `<li class="ws-feed-card"${id === null ? '' : ` data-ws-item="${id}"`} data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p></li>`).join(''),
+    '</ul></section>',
+    secItem === null ? '' : `<section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-${secItem}" data-ws-aff="note-feed">고지</p><ul>${row}</ul></section>`,
+    looseRow ? `<ul>${row}</ul>` : '',
+    '</main><script id="ws-data" type="application/json">', JSON.stringify({ v: 1, data: { feed } }), '</script></body></html>',
+  );
+};
+const R399_MSG = /ws-data data\.feed|section\[data-ws-part=feed\]/;
+const r399Fails = async (html) => (await r398Aff(html)).filter((f) => f.rule === 'C11-FEED-OUT' && f.severity === 'FAIL' && R399_MSG.test(f.message));
+test('399 B-1 C11-FEED-OUT clean: HTML 카드·L4 블록 품목이 ws-data 와 일치 → 0', async () => {
+  assert.deepEqual(await r399Fails(r399Page()), []);
+});
+for (const [name, over] of [
+  ['레일에 없는 품목 카드를 HTML 에만 추가', { cards: ['cage', 'item-390'] }],
+  ['data-ws-item 없는 몰 카드', { cards: ['cage', null] }],
+  ['items 에 없는 품목의 L4 블록', { secItem: 'item-390' }],
+  ['피드 블록 밖 li.ws-feed-row', { looseRow: true }],
+]) {
+  test(`399 B-1 C11-FEED-OUT: ${name} → FAIL`, async () => {
+    assert.ok((await r399Fails(r399Page(over))).length > 0, name);
+  });
+}
+test('399 B-1 C11-FEED-OUT: 품목 고지 id 없는 피드 블록 → FAIL', async () => {
+  const html = r399Page().replace(' id="ws-aff-feed-cage"', '');
+  assert.ok((await r399Fails(html)).length > 0);
+});
+
+// ── 399 B-2: 피드 JSON 의 표시 제목은 URL 모양이어도 금지어 검사 ──
+for (const [name, title] of [['「/」로 시작', j('/', KO.safe, ' 케이지')], ['URL 로 시작', j(HTTPS, 'x.example/ ', KO.safe, ' 케이지')]]) {
+  test(`399 B-2 C4-BANNED: 피드 JSON 제목이 ${name}해도 금지어 FAIL`, async () => {
+    for (const f of ['hamster/golden/feed/cage.json', 'hamster/golden/feed/cage.noprice.json']) {
+      const bad = await scan398({ out: (o) => { o[f] = JSON.stringify(r398Block({}, { title })); } });
+      assert.equal(bad.fails('C4-BANNED', f).length, 1, JSON.stringify(bad.findings));
+    }
+  });
+}

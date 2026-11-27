@@ -1138,6 +1138,10 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
       try {
         // 398 C3: L4 가 읽는 피드 JSON 의 글자(제목 등) 금지어 — data/ 밖이라 아래 카탈로그 JSON 검사에 안 걸린다.
         jsonStrings(d, '', (t, k) => bannedIn(t, rel, null, `피드 JSON ${L(k)}`, add, bw));
+        // 399 B-2: jsonStrings 는 URL 모양 글자를 건너뛴다 — 화면에 그리는 rows[].title 은 모양과 무관하게 검사(건너뛴 것만, 중복 0).
+        for (const row of isObj(d) && Array.isArray(d.rows) ? d.rows : []) {
+          if (isObj(row) && typeof row.title === 'string' && /^(https?:\/\/|\/)/i.test(row.title)) bannedIn(row.title, rel, null, '피드 JSON title', add, bw);
+        }
         // 398 GI(불변식 ⑦ 예외 2 — GENERAL_INFO 체인에 연결된 상품은 노출하지 않는다): 피드 블록의 (typeId, 품목) 체인 전 행 VERIFIED ∧ 유효만.
         //   블록 generalInfo 가 false 가 아니면(키 없음 포함) FAIL — 산출물 표지만 믿지 않고 시드 체인으로도 따로 본다.
         if (isObj(d)) {

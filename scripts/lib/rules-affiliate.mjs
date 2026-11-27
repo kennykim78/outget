@@ -1932,9 +1932,24 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       const p = e.parent >= 0 ? els[e.parent] : null;
       return p !== null && p.name === 'span' && classesOf(p).includes('ws-photo-frame') && classesOf(p).includes('ws-feed-photo');
     };
+    // 399 B-1: HTML → ws-data data.feed 방향 대조(HTML 에만 넣은 상품은 ws-data 쪽 품목·GENERAL_INFO 체인 판정을 비켜 간다).
+    const railItems = new Set(wsFeed && Array.isArray(wsFeed.rail) ? wsFeed.rail.map((c) => (isObj(c) ? c.supplyItemId : undefined)) : []);
+    const l4Items = new Set(wsFeed && Array.isArray(wsFeed.items) ? wsFeed.items : []);
+    const isFeedSec = (x) => els[x].name === 'section' && els[x].attrs['data-ws-part'] === 'feed';
+    const notedSecs = new Set(); // 품목 고지 id 를 가진 피드 블록
+    const FEED_NOTE_ID_RE = /^ws-aff-feed-/;
     for (let i = 0; i < n; i++) {
       const e = els[i];
       const cls = classesOf(e);
+      if (e.name === 'li' && cls.includes('ws-feed-row') && !(feedUp[i] >= 0 && isFeedSec(feedUp[i]))) out(i, '피드 행(li.ws-feed-row)은 section[data-ws-part=feed] 안에만');
+      if (wsFeed) {
+        if (e.name === 'li' && cls.includes('ws-feed-card') && !railItems.has(e.attrs['data-ws-item'])) out(i, `몰 카드 품목 ${L(String(e.attrs['data-ws-item']))} 이 ws-data data.feed.rail 에 없다`);
+        if (feedUp[i] >= 0 && isFeedSec(feedUp[i]) && FEED_NOTE_ID_RE.test(e.attrs.id ?? '')) {
+          notedSecs.add(feedUp[i]);
+          const item = e.attrs.id.replace(FEED_NOTE_ID_RE, '');
+          if (!l4Items.has(item)) out(i, `피드 블록 품목 ${L(item)} 이 ws-data data.feed.items 에 없다`);
+        }
+      }
       // 380 S2: 몰 카드는 「몰에 올라온 상품」 레일(data-ws-section=mall)에만, 그 레일은 운영자 확인 레일 뒤·운영자 카드 0.
       if (e.name === 'li' && cls.includes('ws-feed-card') && homeSecOf(i) !== 'mall') out(i, '피드 카드가 「몰에 올라온 상품」 레일 밖(운영자 확인 준비물과 섞지 않는다)');
       if (e.name === 'section' && e.attrs['data-ws-section'] === 'mall') {
@@ -1984,6 +1999,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
         if (!/\d{1,2}월 \d{1,2}일 확인/.test(decodeEntities(html.slice(box.start, box.end ?? box.start)))) out(i, '가격 줄에 확인일(「M월 D일 확인」) 동반 없음');
       }
     }
+    if (wsFeed) for (let i = 0; i < n; i++) if (isFeedSec(i) && !notedSecs.has(i)) out(i, '피드 블록 section[data-ws-part=feed] 에 품목 고지 id(ws-aff-feed-{품목}) 없음');
     if (boxes > 0 && variant === null) out(null, '피드 마크업이 기본 파일에 — 변형 파일(index.feed[-noprice].html)에만(피드 꺼짐 바이트 동일)');
     if (variant !== null) {
       if (!wsFeed) out(null, `피드 변형(${variant})인데 ws-data data.feed 없음`);
