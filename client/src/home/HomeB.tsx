@@ -1,7 +1,7 @@
 // 홈 B(동물 선택) — R4 시안 home_selected 톤(R4-2) + PRD US-003·UX §3.1 B 섹션(R4-2b 복원, Kenny 11-14 15:21):
 //   컨텍스트 헤더(눈썹 · 이름 · 바꾸기, 섹션 아님) → 지금 필요한 것(요약 카드 + 남은 필수 항목 카드 · ≤767 은 항목 링크 줄)
 //   → 나중에 필요한 것(NOT_NOW 시드 레코드) → 처음 준비한다면(BundleCard 레일 → /setup) → {용품} 규격 확인(엔진 minSpecFigure 숫자)
-//   → 기준에 맞는 준비물(ProductCard 레일 → L7) → {동물}를 진료하는 병원(VetCard 레일 또는 「확인된 병원이 아직 없어요」) → 저장 안내(L8).
+//   → 기준에 맞는 준비물(ProductCard 레일 → L7) → 몰에 올라온 상품(380 S2, 피드 변형 문서만) → {동물}를 진료하는 병원(VetCard 레일 또는 「확인된 병원이 아직 없어요」) → 저장 안내(L8).
 //   PRD 순서(지금 → 처음 준비 → 준비물 → 병원 → 저장)를 지키고 R4 시안 섹션(나중에·규격)은 관련 섹션 뒤에 둔다.
 //   숫자·품목명·이유·상품·병원은 전부 ws-data(시드 → resolveRequirement · 노출 판정) — 하드코딩 0, 재정렬 0(불변식 ③·⑥·⑦). 데이터 없는 섹션은 그리지 않는다(병원은 빈 안내).
 //   2질문(L3) 전: 개수 숫자 0 — 요약 카드 줄 "필수 준비를 먼저 확인해요", 항목 카드 neutral(상태 표시 없음).
@@ -10,7 +10,7 @@
 //   서버 프리렌더 server/src/prerender/pages/type.ts typeMain 이 빈 저장소(L3 전·케이지 없음·미연결) 출력과 같은 태그·클래스·id·aria.
 //   route.typeId ≠ 저장된 ws.animalType 이면 저장 + species_selected{via:'url'} 1회(selection 이 같은 값이면 생략).
 import { useEffect, useMemo, useRef } from 'react';
-import { figureValueText, minSpecFigure, reasonLine, specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
+import { FEED_EXCLUDED_CATEGORIES, figureValueText, minSpecFigure, reasonLine, specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';
 import { COPY, formatCopy, objectParticle } from '@ws/copy';
 import { useAnimalSelection } from '../animal/selection';
 import { deriveChecklist, type ChecklistRow, type ItemState } from '../checklist/derive';
@@ -28,6 +28,7 @@ import { NO_FILTER, vetFilterSearch } from '../vet/filters';
 import { sortVets } from '../vet/order';
 import VetCard from '../vet/VetCard';
 import BundleCard from './BundleCard';
+import FeedCard, { FEED_HOME_NOTE_ID, FeedNote, feedCheckedLine } from './FeedCard';
 import ProductCard from './ProductCard';
 
 export type NowState = 'neutral' | 'first' | 'check' | 'ready' | 'later';
@@ -35,11 +36,7 @@ const STATE_OF: Record<ItemState, NowState> = { READY: 'ready', FIRST: 'first', 
 /** 홈 B 병원 레일 상한(서버 TYPE_VETS_MAX 와 같은 값 — ws-data 가 이미 ≤20). */
 const MAX_VETS = 20;
 
-/** photos.json 슬롯(전부 SLOT → 빈 블록, 생성 이미지 금지 ①) — 추적용 id. 요약 카드 = 사료·급수·은신처 코너, 규격 = 자로 재는 케이지. */
-const PHOTO_NOW = 'ph-03';
-const PHOTO_SPEC = 'ph-08';
-/** 항목 카드 사진 슬롯(L4 슬롯이 있는 항목만, 없으면 요약 카드 슬롯) — 표시 영향 0, 추적용. */
-const ITEM_PHOTO: Readonly<Record<string, string>> = { cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' };
+// 사진(359 단계 5, 감사 356r M2): 고정 id 0 — 요약 카드·규격 = type.photos.nowLead·spec, 항목 카드 = requirement.photo(ws-data, 프리렌더 type.ts 와 같은 값).
 
 export interface HomeBProps {
   page: WsPageData;
@@ -102,7 +99,7 @@ function NowCard({ row, state, href }: { row: ChecklistRow; state: NowState; hre
   return (
     <li className="ws-now-item" data-ws-item={r.supplyItemId} data-ws-id={`supplyRequirements#${r.requirementId}`}>
       <a className="ws-now-card" href={href} data-ws-state={state}>
-        <PhotoTile photoId={ITEM_PHOTO[r.supplyItemId] ?? PHOTO_NOW} className="ws-now-photo" />
+        <PhotoTile photo={r.photo} className="ws-now-photo" />
         <span className="ws-t-title ws-now-name">{r.item.name}</span>
         <StateTag state={state} />
         {reason ? <span className="ws-t-body ws-muted ws-now-reason">{reason}</span> : null}
@@ -177,6 +174,14 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
   const vets = useMemo(() => sortVets(page.data.vets).slice(0, MAX_VETS), [page.data.vets]); // /vet 과 같은 순서(vet/order.ts 단일 출처).
   const typeNames = useMemo(() => new Map(page.data.types.map((t) => [t.id, t.displayName] as const)), [page.data.types]);
   const itemOf = (supplyItemId: string) => reqs.find((r) => r.supplyItemId === supplyItemId)?.item;
+  // 362 N10(D-2·D-7): 피드 변형 문서의 홈 레일 카드 — 운영자 카드 전부 뒤, ws-data data.feed.rail 순서 그대로(pageData isWsFeedData 검사 통과분).
+  //   일반 참고 정보 종은 0장, 노출 요구사항 밖·FOOD/HEALTH 품목 카드는 그리지 않는다(서버 selectFeedRows 와 같은 규칙 — 방어 심화).
+  const feed = page.data.feed;
+  const feedCards = feed && !type.generalInfo ? feed.rail.filter((c) => {
+    const r = reqs.find((x) => x.supplyItemId === c.supplyItemId);
+    return c.provider === 'COUPANG' && r !== undefined && !r.generalInfo && !FEED_EXCLUDED_CATEGORIES.includes(r.item.category);
+  }) : [];
+  const feedChecked = feed?.stage === 'full' ? feedCheckedLine(feed.priceCheckedOn) : null;
   const vetTitle = formatCopy(COPY.homeB.vetTitle, { animal: objectParticle(type.displayName) });
   const prev = copyAt('rail.prev');
   const next = copyAt('rail.next');
@@ -227,7 +232,7 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
         <SectionHead id="ws-sec-now-title" title={COPY.homeB.nowTitle} lead={COPY.homeB.nowLead} />
         <ul className="ws-now-grid" role="list">
           <li className="ws-now-lead">
-            <PhotoTile photoId={PHOTO_NOW} className="ws-now-photo" />
+            <PhotoTile photo={type.photos?.nowLead} className="ws-now-photo" />
             <h3 className="ws-t-title ws-now-name">{COPY.homeB.nowCardTitle}</h3>
             {countLine ? <p className="ws-t-body ws-muted ws-now-count">{countLine}</p> : null}
             <button type="button" className="ws-btn ws-btn--fill ws-now-cta" data-ws-action="open-checklist" onClick={onOpenL2}>
@@ -330,13 +335,20 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
               <Arrow />
             </a>
           </div>
-          <PhotoTile photoId={PHOTO_SPEC} className="ws-spec-sec-photo" />
+          <PhotoTile photo={type.photos?.spec} className="ws-spec-sec-photo" />
         </section>
       ) : null}
 
       {/* 기준에 맞는 준비물 — ws-data 순서 그대로(규격 → 검수 → 선호, 미달 0 · VERIFIED 만 — 불변식 ③·⑦), 0 이면 섹션 없음. 카드 → L7 */}
       {products.length > 0 ? (
-        <RailSection id="products" kind="product" tone="home" title={COPY.homeB.productsTitle} prevLabel={prev} nextLabel={next}>
+        <RailSection
+          id="products"
+          kind="product"
+          tone="home"
+          title={COPY.homeB.productsTitle}
+          prevLabel={prev}
+          nextLabel={next}
+        >
           {products.map((p) => {
             const item = itemOf(p.supplyItemId);
             return (
@@ -346,6 +358,38 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
                 href={encodeURI(`/${type.slug}/products/${p.id}`)}
                 specLine={item ? specLine(item.specSchema, p.specValues) || null : null}
                 glyph={item?.glyph ?? null}
+              />
+            );
+          })}
+        </RailSection>
+      ) : null}
+
+      {/* 380 S2: 몰에 올라온 상품 — 운영자 확인 준비물과 섞지 않는 별도 레일(바로 아래). 피드 카드 0 이면 레일 없음. */}
+      {feedCards.length > 0 ? (
+        <RailSection
+          id="mall"
+          kind="product"
+          tone="home"
+          title={COPY.homeB.mallTitle}
+          lead={feed?.stage === 'full' ? [COPY.feed.homeLead] : []}
+          leadExtra={<FeedNote id={FEED_HOME_NOTE_ID} />}
+          prevLabel={prev}
+          nextLabel={next}
+        >
+          {feedCards.map((c) => {
+            const r = reqs.find((x) => x.supplyItemId === c.supplyItemId) as PublicRequirement;
+            return (
+              <FeedCard
+                key={`feed-${c.supplyItemId}`}
+                supplyItemId={c.supplyItemId}
+                itemName={r.item.name}
+                title={c.title}
+                url={c.url}
+                imageUrl={c.imageUrl}
+                priceAmount={feedChecked !== null && c.price ? c.price.amount : null}
+                checkedLine={feedChecked}
+                specLine={specLine(r.item.specSchema, c.specValues) || null}
+                fallbackPhoto={r.photo}
               />
             );
           })}

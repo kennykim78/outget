@@ -1,10 +1,11 @@
 // 페이지 공통 조각(계획 §6-2) — head·헤더·푸터·규격 문장. 모든 시드 텍스트는 escapeHtml/escapeAttr 를 거친다.
-import { PICK_PATH, naverMapSearchUrl, type PublicAnimalType, type PublicVet, type WsPageData } from '../../engine/index.js';
+import { PICK_PATH, naverMapSearchUrl, type PublicAnimalType, type PublicPhoto, type PublicVet, type WsPageData } from '../../engine/index.js';
 import { COPY, GLYPH } from '../copy.js';
 import { escapeAttr as a, escapeHtml as h, jsonForScript } from '../html.js';
 import type { SiteModel } from '../project.js';
 import type { RoutePlan } from '../routes.js';
 import { encodeSitemapPath } from '../sitemap.js';
+import type { PageFeed } from './feed.js';
 
 export interface PageContext {
   origin: string;
@@ -16,6 +17,8 @@ export interface PageContext {
   mascots: ReadonlyMap<string, string>;
   /** 294: false 면 /privacy 를 내보내지 않은 빌드 — 푸터 처리방침 링크 0(site.ts privacyPagePublished). 생략 = true(바이트 동일). */
   privacyPage?: boolean;
+  /** 362 N9 — 피드 HTML 변형 렌더 때만(site.ts). 생략 = 피드 마크업·data.feed 0(기본 파일 = 피드 꺼짐 빌드와 바이트 동일). */
+  feed?: PageFeed;
 }
 
 export interface RenderedPage {
@@ -29,13 +32,39 @@ export interface Crumb {
   path: string;
 }
 
+/**
+ * 사진 자리 하나(359 단계 4 · 359d 스펙 §2) — 8곳(시작 카드·설명 2·habitat 카드·now 카드·now-lead·규격 섹션·L4)의 단일 출처.
+ *   없음(SLOT·사용 불가 — ws-data 에 키 없음): 지금 바이트 그대로 빈 블록 span.ws-photo[aria-hidden](data-ws-photo 없음).
+ *   실사: img.ws-photo.{slot}(alt 빈 값 — 장식, lazy·async, data-ws-photo=photoId).
+ *   생성(aiGenerated): img 는 자식을 못 가져 틀 span.ws-photo-frame.{slot} 로 감싸고 그 안에 표기 1개(aria-hidden — 링크 이름에 끼지 않게).
+ *     틀엔 ws-photo 클래스를 붙이지 않는다(빈 자리 세는 시험과 분리). 문구는 COPY.photoNotice.aiGenerated 단일 출처.
+ *   client ui/PhotoTile.tsx 와 같은 마크업(다음 라운드 단계 5에서 맞춘다 — T14 패리티).
+ */
+export function photoTile(photo: PublicPhoto | undefined, slotClass: string): string {
+  if (!photo) return `<span class="ws-photo ${a(slotClass)}" aria-hidden="true"></span>`;
+  const img = (cls: string) =>
+    `<img class="${a(cls)}" src="${a(photo.asset)}" alt="" loading="lazy" decoding="async" data-ws-photo="${a(photo.photoId)}">`;
+  if (photo.aiGenerated !== true) return img(`ws-photo ${slotClass}`);
+  return `<span class="ws-photo-frame ${a(slotClass)}">${img('ws-photo')}<span class="ws-photo-notice ws-t-meta" aria-hidden="true">${h(COPY.photoNotice.aiGenerated)}</span></span>`;
+}
+
 export function emptyData(): WsPageData['data'] {
   return { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [] };
 }
 
-/** ws-data types — 모든 페이지에 노출 타입 전체(R4 A2(a): AnimalChip·L1 이 어느 페이지에서든 같은 목록). */
-export function allTypes(m: Pick<SiteModel, 'types'>): WsPageData['data']['types'] {
-  return m.types.map((t) => t.pub);
+/**
+ * ws-data types — 모든 페이지에 노출 타입 전체(R4 A2(a): AnimalChip·L1 이 어느 페이지에서든 같은 목록).
+ *   359 D-2: 종 자리 사진(pub.photos)은 그 페이지의 종(ownTypeId)에만 남긴다 — 다른 종 페이지 ws-data 에 다른 종 사진 id 가 실리지 않게
+ *   (compliance C6-IMG-SPECIES 가 라우트 종 기준으로 본다). 홈(homeTypes)은 habitat 카드가 종별 사진을 쓰므로 별도 경로.
+ *   photos 는 pub 의 맨 뒤 키라 빼도 나머지 키 순서는 그대로(SLOT 동안 키 자체가 없어 바이트 불변).
+ */
+export function allTypes(m: Pick<SiteModel, 'types'>, ownTypeId?: string): WsPageData['data']['types'] {
+  return m.types.map((t) => {
+    if (t.pub.photos === undefined || t.id === ownTypeId) return t.pub;
+    const rest = { ...t.pub };
+    delete rest.photos;
+    return rest;
+  });
 }
 
 export function urlOf(origin: string, path: string): string {
@@ -129,8 +158,9 @@ export const NAV_ID = 'ws-nav';
  * 「크기 확인」 메뉴 대상(U2b, D3 ①) — client home/intent.ts intentHref('SPEC_CHECK') 와 같은 규칙·같은 입력(이 문서 ws-data).
  *   타입 없음 = /pick(무JS: L1 → 타입 홈, 하이드레이션 후 L1 경유 의도 보존) · 대상 항목 = ws-data types[].specCheckItemId,
  *   없으면 이 문서 requirements 중 그 타입의 규격 필드가 있는 첫 항목 · 둘 다 없으면 타입 홈.
+ *   SUPPLY_ITEM_TYPE의 fallback은 route 품목만(확장된 보조 요구사항이 헤더를 바꾸지 않게).
  */
-export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null, data: WsPageData['data'] | null): string {
+export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null, data: WsPageData['data'] | null, route?: WsPageData['route']): string {
   if (!type) return PICK_PATH;
   const home = hrefOf(`/${type.slug}`);
   if (!data) return home;
@@ -138,7 +168,10 @@ export function specCheckHref(type: Pick<PublicAnimalType, 'id' | 'slug'> | null
   const itemId =
     typeof fromType === 'string' && fromType !== ''
       ? fromType
-      : data.requirements.find((x) => x.animalTypeId === type.id && x.item.specSchema.fields.length > 0)?.supplyItemId;
+      : data.requirements.find((x) =>
+          x.animalTypeId === type.id && x.item.specSchema.fields.length > 0 &&
+          (route?.kind !== 'SUPPLY_ITEM_TYPE' || x.supplyItemId === route.itemId),
+        )?.supplyItemId;
   return itemId ? `${home}/check/${encodeURIComponent(itemId)}` : home;
 }
 
@@ -152,6 +185,7 @@ export function renderHeader(
   type: Pick<PublicAnimalType, 'id' | 'slug' | 'displayName'> | null,
   current: NavCurrent = null,
   data: WsPageData['data'] | null = null,
+  route?: WsPageData['route'],
 ): string {
   // K1(51 레인 A ③): 칩은 JS 없이도 정적 /pick(홈 A 부모 + L1 정적 본문). 하이드레이션 후엔 client AnimalChip 이 L1 을 연다.
   const chip = type
@@ -164,7 +198,7 @@ export function renderHeader(
     `<button type="button" class="ws-menu-btn" aria-expanded="false" aria-controls="${NAV_ID}">${h(COPY.nav.menu)}</button>`,
     `<nav class="ws-nav" id="${NAV_ID}" aria-label="${a(COPY.nav.menuLabel)}">`,
     `<a href="/supplies"${cur(current === 'supplies')}>${h(COPY.nav.menuSupplies)}</a>`,
-    `<a data-ws-nav="spec-check" href="${a(specCheckHref(type, data))}">${h(COPY.nav.menuSpecCheck)}</a>`,
+    `<a data-ws-nav="spec-check" href="${a(specCheckHref(type, data, route))}">${h(COPY.nav.menuSpecCheck)}</a>`,
     `<a href="/vet"${cur(current === 'vet')}>${h(COPY.nav.vet)}</a>`,
     chip,
     '</nav>',
@@ -346,6 +380,8 @@ export function railSection(o: {
   /** R4-2b 홈 B 톤 — client RailSection tone='home' 과 같은 마크업(section + ws-home-sec ws-{id}-sec, 제목 display, lead 문단, 레일 아래 → 링크). */
   tone?: 'home';
   lead?: readonly string[];
+  /** 362 N9 — lead 뒤에 붙는 이미 만든 마크업 조각(피드 고지 p.ws-aff-note). tone='home' 일 때만. */
+  leadHtml?: readonly string[];
   foot?: { label: string; href: string } | null;
   items: readonly string[];
 }): string {
@@ -361,7 +397,7 @@ export function railSection(o: {
     home
       ? `<div class="ws-rail-heading ws-home-sec-head"><h2 id="${titleId}" class="ws-t-display ws-home-sec-title">${o.titleHtml}</h2>${(o.lead ?? [])
           .map((x) => `<p class="ws-t-body ws-muted ws-home-sec-lead">${h(x)}</p>`)
-          .join('')}</div>`
+          .join('')}${(o.leadHtml ?? []).join('')}</div>`
       : `<div class="ws-rail-heading"><h2 id="${titleId}" class="ws-t-section">${o.titleHtml}</h2>${o.sub ? `<p class="ws-rail-sub ws-t-body">${h(o.sub)}</p>` : ''}</div>`,
     `<div class="ws-rail-tools">${more}</div>`,
     '</div>',

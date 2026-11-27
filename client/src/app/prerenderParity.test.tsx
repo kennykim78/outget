@@ -5,11 +5,13 @@
 //   서버 모듈 import 예외(사유): 클라 규칙은 서버 파일을 @ws/* 별칭으로만 가져온다(.eslintrc no-restricted-imports, tsconfig paths).
 //   프리렌더(site.ts)·픽스처는 node:fs/node:crypto 를 쓰는 빌드 타임 코드라 별칭 대상이 아니다. 이 테스트만 lazy import.meta.glob 으로
 //   가져온다(번들에 들어가지 않음 — *.test.tsx, 클라 tsconfig 에 node 타입을 들이지 않음). 반환 타입은 아래 최소 인터페이스.
-import { act, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor, within } from '@testing-library/react';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COPY } from '@ws/copy';
 import type { RouteKind } from '@ws/engine';
-import { layerStore } from '../ui/layer/useLayer';
+import { resetFeedCacheForTest } from '../supply/feedBlock';
+import { layerNav, layerStore, readLayerState } from '../ui/layer/useLayer';
 import { boot } from './boot';
 import { readPageData } from './pageData';
 
@@ -19,6 +21,7 @@ interface BuiltPageLite {
 }
 interface SiteLite {
   pages: BuiltPageLite[];
+  files?: Map<string, string>;
 }
 type BuildSite = (seed: unknown, opts: Record<string, unknown>) => SiteLite;
 
@@ -482,8 +485,9 @@ describe('레인 T 프리렌더 ↔ 하이드레이션 main 골격', () => {
 
 // R4-3(R4 시안 affiliate_candidates): 제휴 켜짐 빌드 — 푸터 고지 F 는 「지금 화면에 제휴 링크가 그려질 때만」(프리렌더 renderFooter(affOn)
 //   · React Footer affNote = layerAffiliateOn). 타입 딥링크(L4·L7)는 하이드레이션 전후 푸터가 같다. 레이어 없는 문서는 양쪽 다 0.
-//   /supplies/{item}/{type}(SUPPLY_ITEM_TYPE): 기존 동작상 하이드레이션 뒤 정적 L4 aside 가 걷히고 React 레이어를 열지 않는다(deepLinkFor = TYPE 만)
-//   — 제휴 링크가 화면에서 사라지므로 고지 F 도 0(링크 없는 화면에 고지 없음). 그 밖 푸터는 같다.
+//   /supplies/{item}/{type}(SUPPLY_ITEM_TYPE): 383 — PRD 183-187(US-008 「선택 → US-007과 같은 상세」, URL /supplies/{item}/{type})에 따라
+//   하이드레이션 뒤에도 같은 L4 를 연다 → 타입 딥링크처럼 제휴 링크·고지 F 가 남는다. 이전 sit 단언(하이드레이션 뒤 링크 0·고지 0)은
+//   요구와 어긋난 옛 동작을 고정한 것이라 바꿨다(379 §3).
 describe('R4-3 제휴 on 빌드 — 푸터 고지 F 프리렌더 ↔ React', () => {
   const footerState = () => {
     const fs = document.querySelectorAll('footer.ws-footer');
@@ -515,13 +519,16 @@ describe('R4-3 제휴 on 빌드 — 푸터 고지 F 프리렌더 ↔ React', () 
       hydrate(p);
       // 딥링크 문서는 첫 커밋이 레이어 청크를 기다린다 — 레이어가 store 에 열리고(React 렌더 뒤) 내용이 그려질 때까지.
       if (mode === 'deep') await waitFor(() => expect(footerState().affLinks).toBeGreaterThan(0), { timeout: 15000 });
+      // 383(PRD 183-187): 정적 aside 가 걷힌 뒤 React L4 의 링크를 본다(정적 링크로 통과하지 않게).
+      if (mode === 'sit')
+        await waitFor(() => expect([document.querySelector('aside.ws-layer'), document.querySelectorAll('[role="dialog"] a[href^="https://link.coupang.com/a/"]').length > 0]).toEqual([null, true]), { timeout: 15000 });
       if (mode === 'l5') await waitFor(() => expect(layerStore.get()).not.toBeNull(), { timeout: 15000 });
       const after = footerState();
       expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: after.affLinks > 0 ? 1 : 0 });
       expect(after.texts).toEqual(before.texts);
       for (const t of [...before.noteText, ...after.noteText]) expect(t).toBe('이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.');
       if (mode === 'deep') expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: 1 });
-      if (mode === 'sit') expect({ path: p.route.path, notes: after.notes, affLinks: after.affLinks }).toEqual({ path: p.route.path, notes: 0, affLinks: 0 });
+      if (mode === 'sit') expect({ path: p.route.path, notes: after.notes, affLinks: after.affLinks }).toEqual({ path: p.route.path, notes: 1, affLinks: before.affLinks });
       if (mode === 'plain' || mode === 'l5') expect({ path: p.route.path, notes: after.notes }).toEqual({ path: p.route.path, notes: 0 });
       act(() => root?.unmount());
       root = null;
@@ -669,5 +676,718 @@ describe('305 /{slug}/tips — 프리렌더 ↔ 하이드레이션', () => {
     diff(beforeSkel, skel(mainEl()), 'main', d);
     expect(d).toEqual([]);
     expect(entries()).toEqual(before);
+  });
+});
+
+// 359 T18(감사 356r M2): 사진 자리 — 실시드 사본에서 장면 행을 READY(생성 이미지, 시험 안에서만 — 자산 파일·시드 변경 0)로 바꿔
+//   프리렌더(server photoTile) ↔ 하이드레이션 뒤(PhotoTile) 사진 자리 마크업이 같다(태그·클래스·src·data-ws-photo·표기 수).
+//   ph-01(habitat·startSetup)·ph-08(spec·cage·startSpecCheck)·ph-02(explainFigures) 는 골든(장면 허용 종)에만 실린다(D-1 A).
+describe('359 T18 사진 자리 — 프리렌더 ↔ 하이드레이션', () => {
+  let photoSite: SiteLite;
+  beforeAll(async () => {
+    const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ realSeed: () => Record<string, unknown>; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    const seed = fx.realSeed();
+    for (const id of ['ph-01', 'ph-08', 'ph-02']) {
+      const row = (seed.photos as Array<Record<string, unknown>>).find((r) => r.id === id);
+      if (!row) throw new Error(`photo ${id} 없음`);
+      // server prerender.photo.test.ts readyAi 와 같은 형식(사용권·종 확인을 갖춘 사용 가능 AI 행 — 시험 고정값)
+      Object.assign(row, {
+        status: 'READY', license: 'AI_GENERATED', source: 'CODEX', sourceUrl: null, licenseUrl: null, author: null, downloadedAt: null,
+        modified: false, generatedAt: '2026-11-20', promptPath: `docs/assets/prompts/${String(row.slot)}.md`, asset: `/assets/photos/${String(row.slot)}.webp`,
+        speciesCheck: { checkedBy: '시험 운영자', checkedAt: '2026-11-21' },
+      });
+    }
+    photoSite = siteMod.buildSite(seed, { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) });
+  }, 30_000);
+
+  const photoSlots = (): string[] =>
+    Array.from(document.querySelectorAll('main .ws-photo, main .ws-photo-frame')).map((el) =>
+      [el.tagName, el.className, el.getAttribute('src') ?? '', el.getAttribute('data-ws-photo') ?? '', el.getAttribute('aria-hidden') ?? '', el.querySelectorAll('.ws-photo-notice').length].join('|'),
+    );
+
+  it.each(['/', '/hamster/golden', '/parrot/budgie'])('%s: 사진 자리 프리렌더 = 하이드레이션 뒤, 골든 외 종 페이지엔 장면 id 0', (path) => {
+    const p = pageAt(path, photoSite);
+    loadStatic(p);
+    const before = photoSlots();
+    expect(before.length).toBeGreaterThan(0);
+    if (path === '/parrot/budgie') expect(before.join('\n')).not.toMatch(/ph-\d\d\b/);
+    else expect(before.some((x) => x.startsWith('IMG|') || x.startsWith('SPAN|ws-photo-frame'))).toBe(true);
+    hydrate(p);
+    expect(photoSlots()).toEqual(before);
+    if (path === '/parrot/budgie') expect(mainEl().innerHTML).not.toMatch(/ph-\d\d\b/);
+  });
+});
+
+// 362 N10: 피드 켜짐 빌드(승격 픽스처 + 합성 피드 행 — 실호출·키 0). 변형 문서(index.feed[-noprice].html) 프리렌더 ↔ 하이드레이션.
+//   홈 B 레일: main 골격 동일(허용 목록 외 차이 0). L4 딥링크: 피드 블록 골격 동일(같은 오리진 JSON 은 site.files 에서 모의 fetch).
+//   noprice: 하이드레이션 전후 가격·확인일이 어떤 표기로도 0.
+describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => {
+  interface FeedSiteLite extends SiteLite {
+    files: Map<string, string>;
+    feedPages: Array<BuiltPageLite & { stage: 'full' | 'noprice'; file: string }>;
+  }
+  let full: FeedSiteLite;
+  let late: FeedSiteLite;
+  const GEN = '2026-11-23T09:12:00+09:00';
+  const GEN_MS = Date.UTC(2026, 10, 23, 0, 12, 0);
+  const H = 3_600_000;
+  const PRICE_OR_DATE = /\d[\d,]*\s*원|₩|￦|KRW|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}|12,?900/i;
+
+  beforeAll(async () => {
+    const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ promoted: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    const eng = await import('@ws/engine');
+    const seed = fx.promoted() as Parameters<typeof eng.createCatalog>[0] & { animalTypes: Array<{ id: string }> };
+    const cat = eng.createCatalog(seed);
+    const at = seed.animalTypes.find((a) => a.id === 'hamster-golden') as Parameters<typeof eng.buildSearchKeyword>[0];
+    let seq = 0;
+    const row = (i: string, title: string) => {
+      const r = eng.resolveRequirement(cat, 'hamster-golden', i);
+      if (!r) throw new Error(`no requirement ${i}`);
+      seq += 1;
+      return {
+        provider: 'COUPANG',
+        animalTypeId: 'hamster-golden',
+        supplyItemId: i,
+        keyword: eng.buildSearchKeyword(at, r),
+        rank: seq,
+        title,
+        url: `https://link.coupang.com/a/Mk${seq}x`,
+        imageUrl: null,
+        price: { amount: 12900, currency: 'KRW' },
+        fetchedAt: GEN,
+      };
+    };
+    // 399 R-1b: 단위 없는 숫자(「1호」) 제목은 규격 판정이 없어 피드에서 빠진다 → 서버 feed-markup 시험과 같은 모델명 표기.
+    const rows = [row('wheel', '햄스터 쳇바퀴 30cm 통면 HW-1'), row('wheel', '햄스터 쳇바퀴 30cm 통면 HW-2')];
+    const base = { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) };
+    // 제목 금지어 판정은 서버 lintText 몫 — 합성 제목은 금지어 0 이라 여기선 항상 통과로 둔다.
+    const productFeed = (buildAtMs: number) => ({ rows, generatedAt: GEN, buildAtMs, isTitleBanned: () => false });
+    full = siteMod.buildSite(fx.promoted(), { ...base, productFeed: productFeed(GEN_MS + H) });
+    late = siteMod.buildSite(fx.promoted(), { ...base, productFeed: productFeed(GEN_MS + 80 * H) });
+  }, 30_000);
+
+  // 하이드레이션은 신선도를 「지금」 시계로 다시 잰다(377 S1). 합성 피드(GEN)가 실제 날짜로 72h 를 넘기면 가격이 사라지므로 Date 만 고정.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(GEN_MS + H);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const variant = (s: FeedSiteLite, file: string) => {
+    const p = s.feedPages.find((x) => x.file === file);
+    if (!p) throw new Error(`no feed page ${file} — ${s.feedPages.map((x) => x.file).join(', ')}`);
+    return p;
+  };
+  const stubFeedFetch = (s: FeedSiteLite) =>
+    vi.stubGlobal('fetch', (input: string) => {
+      const key = String(input).replace(/^\//, '');
+      const body = s.files.get(key);
+      return Promise.resolve(body === undefined ? new Response('', { status: 404 }) : new Response(body, { status: 200 }));
+    });
+
+  it('홈 B(TYPE 변형 full·noprice): main 골격 동일 — 피드 카드·고지가 하이드레이션 전후 같은 자리', () => {
+    for (const [s, file] of [
+      [full, 'hamster/golden/index.feed.html'],
+      [late, 'hamster/golden/index.feed-noprice.html'],
+    ] as const) {
+      const p = variant(s, file);
+      loadStatic(p);
+      expect(readPageData(document)?.data.feed?.stage).toBe(s === full ? 'full' : 'noprice');
+      const staticCards = document.querySelectorAll('main li.ws-feed-card').length;
+      expect(staticCards, file).toBeGreaterThan(0);
+      const before = skel(mainEl());
+      const beforeTokens = classTokens(mainEl());
+      expect(mainEl().querySelector('[data-ws-section="mall"] li.ws-feed-card'), file).not.toBeNull();
+      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="mall"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
+      hydrate(p);
+      const after = skel(mainEl());
+      const d: string[] = [];
+      diff(before, after, 'main', d);
+      expect([...beforeTokens].filter((c) => !classTokens(mainEl()).has(c))).toEqual([]);
+      expect(unexplained('TYPE', d)).toEqual([]);
+      expect(document.querySelectorAll('main li.ws-feed-card')).toHaveLength(staticCards);
+      expect(mainEl().querySelector('[data-ws-section="mall"] li.ws-feed-card'), file).not.toBeNull();
+      if (s === late) expect(norm(mainEl().querySelector('[data-ws-section="mall"]')?.textContent ?? '')).not.toMatch(PRICE_OR_DATE);
+      act(() => root?.unmount());
+      root = null;
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('L4 딥링크(/supplies/wheel 변형): 피드 블록 골격 프리렌더 = 하이드레이션 후, noprice 는 전후 가격·확인일 0', async () => {
+    for (const [s, file] of [
+      [full, 'hamster/golden/supplies/wheel/index.feed.html'],
+      [late, 'hamster/golden/supplies/wheel/index.feed-noprice.html'],
+    ] as const) {
+      stubFeedFetch(s);
+      const p = variant(s, file);
+      loadStatic(p);
+      const stat = document.querySelector('section[data-ws-part="feed"]');
+      expect(stat, file).not.toBeNull();
+      const before = skel(stat as Element);
+      const beforeText = norm(stat?.textContent ?? '');
+      if (s === late) expect(beforeText).not.toMatch(PRICE_OR_DATE);
+      hydrate(p);
+      await waitFor(() => expect(document.querySelectorAll('[role="dialog"] section[data-ws-part="feed"] li.ws-feed-row').length).toBeGreaterThan(0), { timeout: 15000 });
+      const live = document.querySelector('[role="dialog"] section[data-ws-part="feed"]') as Element;
+      const d: string[] = [];
+      diff(before, skel(live), 'feed', d);
+      expect(d).toEqual([]);
+      expect(norm(live.textContent)).toBe(beforeText);
+      if (s === late) expect(norm(live.textContent)).not.toMatch(PRICE_OR_DATE);
+      // 푸터 고지 F: 피드 블록이 있는 L4 는 1(서버 feedLinksOn 과 같은 규칙)
+      expect(document.querySelectorAll('footer [data-ws-aff="note-f"]')).toHaveLength(1);
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+      vi.unstubAllGlobals();
+      mockMedia();
+    }
+  }, 60_000);
+
+  it('383 /supplies/wheel/hamster-golden 변형: 피드 블록 동일 + 고지 F 1, 닫으면 0', async () => {
+    for (const [s, file] of [
+      [full, 'supplies/wheel/hamster-golden/index.feed.html'],
+      [late, 'supplies/wheel/hamster-golden/index.feed-noprice.html'],
+    ] as const) {
+      stubFeedFetch(s);
+      const p = variant(s, file);
+      expect(p.route.kind).toBe('SUPPLY_ITEM_TYPE');
+      loadStatic(p);
+      const stat = document.querySelector('section[data-ws-part="feed"]') as Element;
+      expect(stat, file).not.toBeNull();
+      const before = skel(stat);
+      const beforeText = norm(stat.textContent);
+      expect(document.querySelectorAll('footer [data-ws-aff="note-f"]')).toHaveLength(1);
+      hydrate(p);
+      await waitFor(() => expect(document.querySelectorAll('[role="dialog"] section[data-ws-part="feed"] li.ws-feed-row').length).toBeGreaterThan(0), { timeout: 15000 });
+      const live = document.querySelector('[role="dialog"] section[data-ws-part="feed"]') as Element;
+      const d: string[] = [];
+      diff(before, skel(live), 'feed', d);
+      expect(d).toEqual([]);
+      expect(norm(live.textContent)).toBe(beforeText);
+      if (s === late) expect(norm(live.textContent)).not.toMatch(PRICE_OR_DATE);
+      expect(document.querySelectorAll('footer [data-ws-aff="note-f"]')).toHaveLength(1);
+      fireEvent.keyDown(document, { key: 'Escape' });
+      await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+      expect(document.querySelectorAll('[data-ws-aff]')).toHaveLength(0);
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+      vi.unstubAllGlobals();
+      mockMedia();
+    }
+  }, 60_000);
+
+  it.each([
+    ['full', true], ['full', false], ['noprice', true], ['noprice', false],
+  ] as const)('387 SIT 앱 안 이동 L4 = 같은 URL 직접 진입: %s · 원래 블록 %s', async (stage, original) => {
+    resetFeedCacheForTest();
+    const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
+    const fx = await serverModule<{ realSeed: () => unknown }>('__tests__/fixtures/prerender-seed.ts');
+    const eng = await import('@ws/engine');
+    const seed = fx.realSeed() as Parameters<typeof eng.createCatalog>[0];
+    const cat = eng.createCatalog(seed);
+    const animal = seed.animalTypes.find((t) => t.id === 'hamster-golden')!;
+    const rows = [
+      ...(original ? [['wheel', '햄스터 쳇바퀴 30cm 통면']] : []),
+      ['saucer', '햄스터 플라잉 소서'], ['cage', '햄스터 케이지 120x60x60cm'],
+    ].map(([id, title], i) => ({
+      provider: 'COUPANG', animalTypeId: animal.id, supplyItemId: id,
+      keyword: eng.buildSearchKeyword(animal, eng.resolveRequirement(cat, animal.id, id)!),
+      rank: i + 1, title, url: `https://link.coupang.com/a/Sit387x${i}`,
+      imageUrl: null, price: { amount: 12900, currency: 'KRW' }, fetchedAt: GEN,
+    }));
+    const buildAtMs = GEN_MS + (stage === 'full' ? 1 : 80) * H;
+    vi.setSystemTime(buildAtMs);
+    const s = siteMod.buildSite(seed, {
+      template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: '2026-11-26',
+      productFeed: { rows, generatedAt: GEN, buildAtMs, isTitleBanned: () => false },
+    });
+    stubFeedFetch(s);
+    const suffix = stage === 'full' ? 'index.feed.html' : 'index.feed-noprice.html';
+    const from = variant(s, `supplies/wheel/hamster-golden/${suffix}`);
+    const noteF = () => document.querySelectorAll('footer [data-ws-aff="note-f"]').length;
+    const liveFeed = () => document.querySelector('[role="dialog"] [data-ws-part="feed"]');
+    const snapshot = (el: Element) => ({
+      skeleton: skel(el), text: norm(el.textContent),
+      links: Array.from(el.querySelectorAll('a'), (a) => a.getAttribute('href')), footer: noteF(),
+    });
+    const unmount = () => {
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      resetFeedCacheForTest(); // 직접 진입은 이동 때의 캐시를 재사용하지 않는다
+      document.body.innerHTML = '';
+    };
+    loadStatic(from);
+    expect(document.querySelectorAll('aside [data-ws-part="feed"] li.ws-feed-row')).toHaveLength(original ? 1 : 0);
+    expect(noteF()).toBe(original ? 1 : 0);
+    hydrate(from);
+    await waitFor(() => expect(document.querySelector('[role="dialog"] .ws-supply')).not.toBeNull());
+    if (original) await waitFor(() => expect(liveFeed()?.querySelectorAll('li.ws-feed-row')).toHaveLength(1));
+    else expect(liveFeed()).toBeNull();
+    expect(noteF()).toBe(original ? 1 : 0);
+    const href = '/hamster/golden/supplies/saucer';
+    fireEvent.click(document.querySelector(`[role="dialog"] [data-ws-part="alternatives"] a[href="${href}"]`)!);
+    expect(window.location.pathname).toBe(href);
+    expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsDepth: 1, wsLayerProps: { itemId: 'saucer' } });
+    await waitFor(() => expect(liveFeed()?.querySelectorAll('li.ws-feed-row')).toHaveLength(1));
+    const moved = snapshot(liveFeed()!);
+    expect(moved.footer).toBe(1);
+    expect(moved.links).toHaveLength(1);
+    if (stage === 'noprice') expect(moved.text).not.toMatch(PRICE_OR_DATE);
+    else expect(moved.text).toContain('12,900원');
+    unmount();
+    const direct = variant(s, `hamster/golden/supplies/saucer/${suffix}`);
+    expect(direct.route.path).toBe(href);
+    loadStatic(direct);
+    expect(snapshot(document.querySelector('aside [data-ws-part="feed"]')!)).toEqual(moved);
+    hydrate(direct);
+    await waitFor(() => expect(liveFeed()?.querySelectorAll('li.ws-feed-row')).toHaveLength(1));
+    expect(snapshot(liveFeed()!)).toEqual(moved);
+  }, 30_000);
+
+  // 385(381 D2): popular 블록(시험 주입 허용 목록 — 제품 FEED_POPULAR_SORTS 는 빈 목록 그대로)의 제목은 하이드레이션·로딩·실패 내내 「많이 찾는 상품」.
+  it('popular 변형 L4 딥링크: 정적 → 로딩 → 실패 → 다시 시도 → 행 내내 제목 동일, 골격 차이 0', async () => {
+    const siteMod = await serverModule<{ buildSite: (seed: unknown, opts: Record<string, unknown>) => FeedSiteLite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ promoted: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    const eng = await import('@ws/engine');
+    const seed = fx.promoted() as Parameters<typeof eng.createCatalog>[0] & { animalTypes: Array<{ id: string }> };
+    const at = seed.animalTypes.find((a) => a.id === 'hamster-golden') as Parameters<typeof eng.buildSearchKeyword>[0];
+    const r = eng.resolveRequirement(eng.createCatalog(seed), 'hamster-golden', 'wheel');
+    if (!r) throw new Error('no requirement wheel');
+    const pop = siteMod.buildSite(fx.promoted(), {
+      template: TEMPLATE,
+      origin: 'http://localhost:3001',
+      seedDigest: 'a'.repeat(64),
+      asOf: fx.FIXTURE_AS_OF,
+      mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')),
+      productFeed: {
+        rows: [
+          {
+            provider: 'COUPANG',
+            animalTypeId: 'hamster-golden',
+            supplyItemId: 'wheel',
+            keyword: eng.buildSearchKeyword(at, r),
+            rank: 1,
+            title: '햄스터 쳇바퀴 30cm 통면 HW-1',
+            url: 'https://link.coupang.com/a/Mk1x',
+            imageUrl: null,
+            price: { amount: 12900, currency: 'KRW' },
+            fetchedAt: GEN,
+          },
+        ],
+        generatedAt: GEN,
+        buildAtMs: GEN_MS + H,
+        isTitleBanned: () => false,
+        sorts: { COUPANG: 'S' },
+        popularSorts: { COUPANG: ['S'], ALIEXPRESS: [] },
+      },
+    });
+    const title = (root_: string) => document.querySelector(`${root_} section[data-ws-part="feed"] > h3`)?.textContent;
+    for (const file of ['hamster/golden/supplies/wheel/index.feed.html', 'supplies/wheel/hamster-golden/index.feed.html']) {
+      resetFeedCacheForTest();
+      const pending: Array<(res: Response) => void> = [];
+      vi.stubGlobal('fetch', (input: string) =>
+        String(input).includes('/feed/') ? new Promise<Response>((res) => pending.push(res)) : Promise.resolve(new Response('', { status: 404 })),
+      );
+      const p = variant(pop, file);
+      loadStatic(p);
+      const stat = document.querySelector('section[data-ws-part="feed"]') as Element;
+      const before = skel(stat);
+      const beforeText = norm(stat.textContent);
+      expect(title('aside.ws-layer'), file).toBe(COPY.feed.title);
+      hydrate(p);
+      const dlg = '[role="dialog"]';
+      await waitFor(() => expect(pending).toHaveLength(1), { timeout: 15000 });
+      expect(document.querySelector(`${dlg} [data-ws-part="feed"] li.ws-feed-row`), file).toBeNull();
+      expect(title(dlg), `${file} 로딩`).toBe(COPY.feed.title);
+      await act(async () => pending[0]!(new Response('', { status: 500 })));
+      const retry = await waitFor(() => within(document.querySelector(`${dlg} [data-ws-part="feed"]`) as HTMLElement).getByRole('button', { name: COPY.feed.retry }));
+      expect(title(dlg), `${file} 실패`).toBe(COPY.feed.title);
+      act(() => {
+        fireEvent.click(retry);
+      });
+      await waitFor(() => expect(pending).toHaveLength(2));
+      expect(title(dlg), `${file} 다시 시도 로딩`).toBe(COPY.feed.title);
+      const json = pop.files.get('hamster/golden/feed/wheel.json');
+      expect(json).toBeDefined();
+      await act(async () => pending[1]!(new Response(json, { status: 200 })));
+      await waitFor(() => expect(document.querySelector(`${dlg} [data-ws-part="feed"] li.ws-feed-row`)).not.toBeNull());
+      const live = document.querySelector(`${dlg} section[data-ws-part="feed"]`) as Element;
+      const d: string[] = [];
+      diff(before, skel(live), 'feed', d);
+      expect(d, file).toEqual([]);
+      expect(norm(live.textContent), file).toBe(beforeText);
+      act(() => root?.unmount());
+      root = null;
+      act(() => layerStore.resetForTest());
+      document.body.innerHTML = '';
+      vi.unstubAllGlobals();
+      mockMedia();
+    }
+    resetFeedCacheForTest();
+  }, 60_000);
+});
+
+// 383 — PRD 183-187: /supplies/{item}/{type} 는 US-007 과 같은 상세. 프리렌더가 내는 모든 URL 에서 본문(main + L4)이 하이드레이션 전후 같다.
+//   부모 = 프리렌더가 선언한 것(misc.ts 「같은 부모 + L4」: main = /supplies/{item}, 정적 레이어 닫기 링크 href).
+describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4', () => {
+  let realSite: SiteLite;
+  beforeAll(async () => {
+    const siteMod = await serverModule<{ buildSite: BuildSite }>('prerender/site.ts');
+    const mascotMod = await serverModule<{ loadMascots: (dir: string) => ReadonlyMap<string, string> }>('prerender/mascot.ts');
+    const fx = await serverModule<{ realSeed: () => unknown; FIXTURE_AS_OF: string }>('__tests__/fixtures/prerender-seed.ts');
+    realSite = siteMod.buildSite(fx.realSeed(), { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) });
+  }, 60_000);
+
+  beforeEach(() => {
+    // L4 의 같은 오리진 보조 요청(호환 카탈로그·반응)은 이 시험 범위 밖 — 404.
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response('', { status: 404 })));
+  });
+
+  const sitPages = (from: SiteLite): BuiltPageLite[] => from.pages.filter((p) => p.route.kind === 'SUPPLY_ITEM_TYPE');
+  const texts = (el: Element, sel: string): string[] => Array.from(el.querySelectorAll(sel)).map((x) => norm(x.textContent));
+  const attrs = (el: Element, sel: string, name: string): string[] => Array.from(el.querySelectorAll(sel)).map((x) => x.getAttribute(name) ?? '');
+
+  /** 정적 aside 와 React 레이어에서 같은 뜻의 내용만 뽑는다(감싸는 마크업은 타입 L4 와 똑같이 다르다). */
+  function body(layer: Element, kind: 'static' | 'react') {
+    const q = (sel: string) => layer.querySelector(sel);
+    const merchants = kind === 'static' ? '.ws-search a' : '.ws-search-merchants a';
+    const notNow = Array.from(layer.querySelectorAll(kind === 'static' ? ':scope > p:not([class])' : '[data-ws-part="notNow"] p'))
+      .map((x) => norm(x.textContent))
+      .filter((x) => x.startsWith(norm(COPY.supplyLayer.notNow)));
+    return {
+      layer: layer.getAttribute('data-ws-layer'),
+      wsId: layer.getAttribute('data-ws-id'),
+      title: norm(q('#ws-layer-title, h2')?.textContent ?? ''),
+      eyebrow: norm(q('.ws-supply-eyebrow')?.textContent ?? ''),
+      meta: texts(layer, kind === 'static' ? ':scope > p.ws-meta' : '.ws-supply-meta'),
+      notNow,
+      why: texts(layer, '[data-ws-part="why"] p'),
+      conditions: texts(layer, kind === 'static' ? '[data-ws-part="conditions"] li' : '[data-ws-part="conditions"] .ws-cond-list li'),
+      caution: texts(layer, '[data-ws-part="caution"] p'),
+      avoid: texts(layer, '[data-ws-part="avoid"] p'),
+      altIds: attrs(layer, '[data-ws-part="alternatives"] li', 'data-ws-id'),
+      altHrefs: attrs(layer, '[data-ws-part="alternatives"] a', 'href'),
+      altNames: texts(layer, '[data-ws-part="alternatives"] a'),
+      productIds: attrs(layer, '[data-ws-part="products"] li.ws-product', 'data-ws-id'),
+      productHrefs: attrs(layer, '[data-ws-part="products"] li.ws-product > a', 'href'),
+      productTitles: texts(layer, '[data-ws-part="products"] .ws-product-title'),
+      sources: attrs(layer, '[data-ws-part="verified"] a', 'href'),
+      generalInfo: layer.querySelectorAll('[data-ws-source="general-info"]').length,
+      photo: attrs(layer, '[data-ws-photo]', 'data-ws-photo'),
+      checkLink: attrs(layer, 'a[href*="/check/"]:not(.ws-compat-link)', 'href'),
+      merchants: Array.from(layer.querySelectorAll(merchants)).map((a) => `${a.getAttribute('href')} ${(a.getAttribute('rel') ?? '').split(' ').sort().join(' ')}`),
+      noteA: texts(layer, '[data-ws-aff="note-a"]'),
+      noteB: texts(layer, '[data-ws-aff="note-b"]'),
+    };
+  }
+
+  async function openSit(p: BuiltPageLite) {
+    loadStatic(p);
+    const aside = document.querySelector('aside.ws-layer') as Element;
+    expect(aside, p.route.path).not.toBeNull();
+    const before = {
+      main: skel(mainEl()),
+      mainText: norm(mainEl().textContent),
+      mainLinks: attrs(mainEl(), 'a', 'href'),
+      header: skel(document.querySelector('header.ws-header') as Element),
+      headerLinks: attrs(document.querySelector('header.ws-header') as Element, 'a', 'href'),
+      footer: skel(document.querySelector('footer') as Element),
+      footerLinks: attrs(document.querySelector('footer') as Element, 'a', 'href'),
+      body: body(aside, 'static'),
+      parent: aside.querySelector('a.ws-layer-close')?.getAttribute('href') ?? '',
+      noteF: document.querySelectorAll('footer [data-ws-aff="note-f"]').length,
+      affLinks: document.querySelectorAll('a[href^="https://link.coupang.com/a/"]').length,
+    };
+    hydrate(p);
+    await waitFor(() => expect([document.querySelector('aside.ws-layer'), document.querySelector('[role="dialog"] .ws-supply') !== null], p.route.path).toEqual([null, true]), { timeout: 15000 });
+    expect(document.querySelectorAll('[role="dialog"]'), p.route.path).toHaveLength(1);
+    return { before, dialog: document.querySelector('[role="dialog"]') as HTMLElement };
+  }
+
+  function unmount() {
+    act(() => root?.unmount());
+    root = null;
+    act(() => layerStore.resetForTest());
+    document.body.innerHTML = '';
+    document.documentElement.style.overflow = '';
+  }
+
+  it.each(['off', 'aff', 'dwarf', 'real'] as const)(
+    '모든 URL(%s 빌드): main 골격·L4 본문 동일, 고지는 링크가 있을 때만(F·A·B), 부모 = 프리렌더 닫기 링크',
+    async (which) => {
+      const from = which === 'off' ? site : which === 'aff' ? affSite : which === 'dwarf' ? dwarfSite : realSite;
+      const pages = sitPages(from);
+      expect(pages.length).toBeGreaterThan(0);
+      let withAlts = 0;
+      for (const p of pages) {
+        const path = p.route.path;
+        const { before, dialog } = await openSit(p);
+        const d: string[] = [];
+        diff(before.main, skel(mainEl()), 'main', d);
+        expect({ path, d }).toEqual({ path, d: [] });
+        expect({ path, text: norm(mainEl().textContent) }).toEqual({ path, text: before.mainText });
+        expect(attrs(mainEl(), 'a', 'href'), path).toEqual(before.mainLinks);
+        expect(skel(document.querySelector('header.ws-header') as Element), path).toEqual(before.header);
+        expect(attrs(document.querySelector('header.ws-header') as Element, 'a', 'href'), path).toEqual(before.headerLinks);
+        expect(skel(document.querySelector('footer') as Element), path).toEqual(before.footer);
+        expect(attrs(document.querySelector('footer') as Element, 'a', 'href'), path).toEqual(before.footerLinks);
+        const page = readPageData(document)!;
+        const type = page.data.types.find((t) => t.id === page.route.typeId)!;
+        const original = page.data.requirements.find((r) => r.supplyItemId === page.route.itemId)!;
+        const specItem = type.specCheckItemId || (original.item.specSchema.fields.length ? original.supplyItemId : null);
+        expect(document.querySelector('[data-ws-nav="spec-check"]')?.getAttribute('href'), path)
+          .toBe(`/${type.slug}${specItem ? `/check/${encodeURIComponent(specItem)}` : ''}`);
+        expect({ path, ...body(dialog, 'react') }).toEqual({ path, ...before.body });
+        const on = which === 'aff' ? 1 : 0;
+        const noteF = document.querySelectorAll('footer [data-ws-aff="note-f"]').length;
+        expect({ path, f: [before.noteF, noteF], a: before.body.noteA.length, b: before.body.noteB.length, links: before.affLinks > 0 }).toEqual({ path, f: [on, on], a: on, b: on, links: on === 1 });
+        expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsDepth: 0, wsParent: before.parent });
+        if (before.body.altIds.length) withAlts += 1;
+        unmount();
+      }
+      if (which === 'real') expect(withAlts).toBeGreaterThan(0); // 대안 있는 URL 이 실제로 비교됐다
+    },
+    180_000,
+  );
+
+  // 398 B-2: 이 문서의 route·헤더·본문은 진입 종 기준 — 닫기는 URL 만 바꾸지 않고 부모 문서로 실제 이동(location.replace, history.length 불변).
+  it.each(['close-button', 'escape'] as const)('닫기(%s): location.replace(부모) 1회 · URL 을 부모로 바꿔 쓰지 않음 · history.length 불변', async (how) => {
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    try {
+      const p = sitPages(affSite)[0];
+      const { before, dialog } = await openSit(p);
+      const len = window.history.length;
+      if (how === 'escape') fireEvent.keyDown(document, { key: 'Escape' });
+      else fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      fireEvent.keyDown(document, { key: 'Escape' }); // 연타 — 이동 두 번 없음
+      await waitFor(() => expect(nav).toHaveBeenCalledTimes(1));
+      expect(nav).toHaveBeenCalledWith(before.parent);
+      expect(window.location.pathname).toBe(p.route.path);
+      expect(window.history.length).toBe(len);
+    } finally {
+      nav.mockRestore();
+    }
+  });
+
+  // 387(384 D2): 대안 품목은 이 문서 ws-data 에 실린다(대조 타입 문서와 같은 노출 경로) → 대안 링크는 타입 문서처럼 push 로 대안 L4.
+  it('387 대안 링크: 타입 문서와 같이 가로채 push(대안 L4, depth 1) — 그 URL 은 프리렌더가 낸 L4 문서', async () => {
+    const p = sitPages(realSite).find((x) => x.html.includes('data-ws-part="alternatives"'));
+    if (!p) throw new Error('대안 있는 SUPPLY_ITEM_TYPE 페이지 없음');
+    const { before, dialog } = await openSit(p);
+    const href = before.body.altHrefs[0];
+    expect(pageAt(href, realSite).html).toContain('data-ws-layer="L4"');
+    let intercepted: boolean | null = null;
+    const watch = (e: Event) => {
+      intercepted = e.defaultPrevented;
+      e.preventDefault(); // jsdom 은 문서 이동 미구현
+    };
+    window.addEventListener('click', watch);
+    fireEvent.click(dialog.querySelector(`[data-ws-part="alternatives"] a[href="${href}"]`) as Element);
+    window.removeEventListener('click', watch);
+    expect(intercepted).toBe(true);
+    expect(window.location.pathname).toBe(href);
+    const altId = before.body.altIds[0].slice('supplyItems#'.length);
+    expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsDepth: 1, wsParent: before.parent, wsLayerProps: { itemId: altId } });
+  });
+
+  // ---- 387(384 D1~D4) ----
+  const GOLDEN = 'hamster-golden';
+  const SIT_WHEEL = '/supplies/wheel/hamster-golden';
+  const TYPE_WHEEL = '/hamster/golden/supplies/wheel';
+
+  /** 빌드가 낸 공개 카탈로그(같은 오리진 정적 파일)만 돌려준다 — 그 밖은 404. */
+  function serveCatalog(from: SiteLite): void {
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
+      const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/^\//, '');
+      const body = /^data\/catalog\.v1\.[0-9a-f]{8}\.json$/.test(path) ? from.files?.get(path) : undefined;
+      return Promise.resolve(body === undefined ? new Response('', { status: 404 }) : new Response(body, { status: 200, headers: { 'content-type': 'application/json' } }));
+    });
+  }
+
+  /** 384 D1 재현값: 최소 규격(100×50×50) 미달 리빙박스. */
+  function storeSmallCage(): void {
+    localStorage.setItem('ws.animalType', GOLDEN);
+    localStorage.setItem(
+      `ws.context.${GOLDEN}.cage`,
+      JSON.stringify({ v: 1, type: 'LIVING_BOX', floorWcm: 30, floorDcm: 20, heightCm: 20, updatedAt: new Date().toISOString() }),
+    );
+  }
+
+  /** L4 → 「규격 확인」(L5 push) → 케이지 줄 「수정」(L6 스텝) → 등록 케이지 요약의 자체 판정·호환 판정. */
+  async function cageL6(path: string) {
+    storeSmallCage();
+    serveCatalog(realSite);
+    const { dialog } = await openSit(pageAt(path, realSite));
+    fireEvent.click(dialog.querySelector('a[href="/hamster/golden/check/wheel"]') as Element);
+    const edit = await waitFor(() => within(document.querySelector('[role="dialog"]') as HTMLElement).getByRole('button', { name: COPY.cage.edit }), { timeout: 15000 });
+    fireEvent.click(edit);
+    await waitFor(() => {
+      const s = document.querySelector('[data-ws-cage="summary"]');
+      expect(s).not.toBeNull();
+      expect(s?.querySelector('[data-ws-state-kind="loading"]')).toBeNull();
+    }, { timeout: 15000 });
+    const summary = document.querySelector('[data-ws-cage="summary"]') as Element;
+    const self = Array.from(summary.querySelectorAll('[data-ws-cage-part="self"]'));
+    return {
+      selfCount: self.length,
+      tone: self[0]?.getAttribute('data-ws-tone') ?? null,
+      selfText: self.map((x) => norm(x.textContent)),
+      reasons: self[0] ? Array.from(self[0].querySelectorAll(':scope > p.ws-t-body:not(.ws-cage-summary-muted)'), (x) => norm(x.textContent)) : [],
+      compat: Array.from(summary.querySelectorAll('[data-ws-cage-part="compat"]'), (x) => `${x.getAttribute('data-ws-item')} ${norm(x.textContent)}`),
+    };
+  }
+
+  it('387 D1: 작은 케이지 저장 → SIT L4 → 규격 확인 → 수정 — self 경고 1 + 미달 사유 3건, 대조 타입 문서와 같다', async () => {
+    const type = await cageL6(TYPE_WHEEL);
+    unmount();
+    const sit = await cageL6(SIT_WHEEL);
+    expect(type.selfCount).toBe(1); // 대조(하네스 확인)
+    expect(type.reasons).toHaveLength(3);
+    expect(sit).toEqual(type);
+  }, 60_000);
+
+  /** L4 → 규격 확인 → 지름 15 → 확인하기 → 판정 대안 링크. */
+  async function l5Alternatives(path: string) {
+    serveCatalog(realSite);
+    const { dialog } = await openSit(pageAt(path, realSite));
+    fireEvent.click(dialog.querySelector('a[href="/hamster/golden/check/wheel"]') as Element);
+    const d = document.querySelector('[role="dialog"]') as HTMLElement;
+    const submit = await waitFor(() => {
+      const b = within(d).getByRole('button', { name: COPY.checkLayer.submit });
+      expect(b).not.toBeDisabled();
+      return b;
+    }, { timeout: 15000 });
+    fireEvent.change(d.querySelector('input[name="diameterCm"]') as Element, { target: { value: '15' } });
+    fireEvent.click(submit);
+    const alts = await waitFor(() => {
+      const x = d.querySelector('.ws-verdict-alts[data-ws-part="alternatives"]');
+      expect(x).not.toBeNull();
+      return x as Element;
+    }, { timeout: 15000 });
+    return { links: attrs(alts, 'a', 'href'), names: texts(alts, 'li') };
+  }
+
+  it('387 D2: SIT L5 판정 대안은 대조 타입 문서처럼 링크 — 누르면 push 로 대안 L4', async () => {
+    const type = await l5Alternatives(TYPE_WHEEL);
+    unmount();
+    const sit = await l5Alternatives(SIT_WHEEL);
+    expect(type.links).toContain('/hamster/golden/supplies/saucer'); // 대조
+    expect(sit).toEqual(type);
+    fireEvent.click(document.querySelector('.ws-verdict-alts a[href="/hamster/golden/supplies/saucer"]') as Element);
+    await waitFor(() => expect(readLayerState(window.history.state)).toMatchObject({ wsLayer: 'L4', wsLayerProps: { itemId: 'saucer' }, wsParent: '/supplies/wheel' }));
+    expect(window.location.pathname).toBe('/hamster/golden/supplies/saucer');
+  }, 60_000);
+
+  const titleOf = (p: BuiltPageLite): string => new DOMParser().parseFromString(p.html, 'text/html').title;
+
+  // 398 B-2: 닫은 뒤 제목·본문은 실제 부모 문서(프리렌더 /supplies/wheel)가 낸다 — 이동 대상이 그 문서다.
+  it('387 D3 · 398 B-2: 닫기 = 부모 /supplies/{item} 문서로 이동(그 문서 제목 = 부모 제목)', async () => {
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    try {
+      const p = pageAt(SIT_WHEEL, realSite);
+      document.title = titleOf(p);
+      const { dialog } = await openSit(p);
+      fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      await waitFor(() => expect(nav).toHaveBeenCalledWith('/supplies/wheel'));
+      expect(titleOf(pageAt('/supplies/wheel', realSite))).not.toBe(titleOf(p));
+    } finally {
+      nav.mockRestore();
+    }
+  });
+
+  // 399 A-4: 닫기 뒤 실제로 도착하는 부모 문서를 띄워 확인 — 저장 종 ≠ 진입 종이어도 URL·머리(저장 종)·본문·스펙 링크가 어긋나지 않는다.
+  //   jsdom 은 문서 이동이 없어 「location.replace 대상 문서를 새로 읽고 부팅」을 손으로 재현한다(제목은 파서가 읽은 그 문서의 title).
+  it('399 A-4: 저장 골든 → 다른 종 SIT 직접 진입 → 닫기 → 도착한 부모 문서의 URL·제목·머리·본문·스펙 링크가 일치', async () => {
+    const p = sitPages(realSite).find((x) => !x.route.path.endsWith(`/${GOLDEN}`));
+    if (!p) throw new Error('골든이 아닌 SUPPLY_ITEM_TYPE 페이지 없음');
+    const entryTypeId = p.route.path.split('/').at(-1)!;
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    let parentPath = '';
+    let entrySlug = '';
+    try {
+      localStorage.setItem('ws.animalType', GOLDEN);
+      const { before, dialog } = await openSit(p);
+      const entry = readPageData(document)!;
+      entrySlug = entry.data.types.find((t) => t.id === entryTypeId)!.slug;
+      fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      await waitFor(() => expect(nav).toHaveBeenCalledWith(before.parent));
+      parentPath = before.parent;
+    } finally {
+      nav.mockRestore();
+    }
+    expect(localStorage.getItem('ws.animalType')).toBe(GOLDEN); // 직접 진입·닫기가 저장 종을 바꾸지 않는다
+    unmount();
+    const parent = pageAt(parentPath, realSite);
+    const doc = new DOMParser().parseFromString(parent.html, 'text/html');
+    loadStatic(parent);
+    document.title = doc.title;
+    const staticText = norm(mainEl().textContent);
+    const staticLinks = attrs(mainEl(), 'a', 'href');
+    hydrate(parent);
+    await waitFor(() => expect(document.querySelector('[data-ws-nav="spec-check"]')?.getAttribute('href')).toMatch(/^\/hamster\/golden(\/|$)/), { timeout: 15000 });
+    expect(window.location.pathname).toBe(parentPath);
+    expect(document.title).toBe(doc.title);
+    expect(document.title).not.toBe(titleOf(p));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('aside.ws-layer')).toBeNull();
+    expect(norm(mainEl().textContent)).toBe(staticText);
+    expect(attrs(mainEl(), 'a', 'href')).toEqual(staticLinks);
+    // 머리의 어떤 링크도 진입 종을 가리키지 않는다(저장 종 문맥).
+    expect(attrs(document.querySelector('header.ws-header') as Element, 'a', 'href').filter((h) => h === `/${entrySlug}` || h.startsWith(`/${entrySlug}/`))).toEqual([]);
+  }, 60_000);
+
+  /** Navigation API 흉내(jsdom 미구현): 같은 오리진 history 항목 URL 목록 + 현재 위치. */
+  function stubNavigation(urls: readonly string[], index: number): void {
+    vi.stubGlobal('navigation', {
+      entries: () => urls.map((u, i) => ({ url: `${window.location.origin}${u}`, index: i, sameDocument: i === index })),
+      currentEntry: { url: `${window.location.origin}${urls[index]}`, index, sameDocument: true },
+    });
+  }
+
+  it('387 D4: 바로 앞 history 항목이 부모 /supplies/{item} 문서면 닫기 = 뒤로(중복 항목 0)', async () => {
+    stubNavigation(['/supplies', '/supplies/wheel', SIT_WHEEL], 2);
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const replace = vi.spyOn(window.history, 'replaceState');
+    const { dialog } = await openSit(pageAt(SIT_WHEEL, realSite));
+    replace.mockClear();
+    fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+    fireEvent.keyDown(document, { key: 'Escape' }); // 연타 — 두 번 뒤로 가지 않는다
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(replace).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe(SIT_WHEEL); // 이동은 브라우저가(문서 이동) — URL 을 부모로 바꿔 쓰지 않는다
+    back.mockRestore();
+    replace.mockRestore();
+  });
+
+  it('387 D4 · 398 B-2: 앞 항목이 부모가 아니면(새 탭·다른 문서에서 진입) location.replace(부모)', async () => {
+    stubNavigation(['/supplies', SIT_WHEEL], 1);
+    const back = vi.spyOn(window.history, 'back');
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    try {
+      const { dialog } = await openSit(pageAt(SIT_WHEEL, realSite));
+      const len = window.history.length;
+      fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      await waitFor(() => expect(nav).toHaveBeenCalledWith('/supplies/wheel'));
+      expect(back).not.toHaveBeenCalled();
+      expect(window.location.pathname).toBe(SIT_WHEEL);
+      expect(window.history.length).toBe(len);
+    } finally {
+      back.mockRestore();
+      nav.mockRestore();
+    }
   });
 });

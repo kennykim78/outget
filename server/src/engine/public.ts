@@ -87,6 +87,44 @@ export interface PublicAnimalType {
    *   (engine home-a.ts homeAExplainOf — 노출 요구사항의 시드 값 그대로). 숫자·이름이 하나도 없거나 홈이 아닌 페이지면 키 자체가 없다.
    */
   homeExplain?: HomeAExplain;
+  /**
+   * 359(감사 356r M2, D-2): 이 종의 종 자리 사진(engine resolvePhoto → publicPhotoOf). 사용 가능(usable ∧ asset) 자리만 키,
+   *   하나도 없으면 키 자체가 없다(SLOT 동안 ws-data 바이트 불변). 사진 고르기는 엔진 한 곳 — 클라이언트는 재판정하지 않는다.
+   */
+  photos?: PublicTypePhotos;
+  /**
+   * 359 D-3 — 홈(HOME·PICK·SAVE) ws-data 에서만, 대표 타입에만, 그 타입이 장면 행 허용 종(engine SCENE_PHOTO_TYPE_IDS)일 때만:
+   *   홈 A 시작 카드·설명 장면 사진. 사용 가능 장면이 없거나 홈이 아닌 페이지면 키 자체가 없다.
+   */
+  homeScenes?: PublicHomeScenes;
+  /** 타입 홈 제목. 원문이 비어 있거나 공백뿐이면 키를 싣지 않는다. */
+  seoTitle?: string;
+}
+
+/**
+ * 359 공개 사진(ws-data) — 자리 하나의 고른 결과. id 키 이름은 photoId(C3-OUT-ID 의 타입 id 검사와 섞이지 않게).
+ *   speciesCheck(사람 이름)·promptPath·source·author 는 싣지 않는다. aiGenerated 는 「생성 이미지 · 임시」 표기 대상일 때만 키.
+ */
+export interface PublicPhoto {
+  photoId: string;
+  asset: string;
+  aiGenerated?: true;
+}
+
+/** 종 자리 3개(habitat·now-lead·spec) — 있을 때만 키. */
+export interface PublicTypePhotos {
+  habitat?: PublicPhoto;
+  nowLead?: PublicPhoto;
+  spec?: PublicPhoto;
+}
+
+/** 홈 A 장면 자리(engine HOME_A_SCENE_PHOTOS 키와 같다) — 있을 때만 키. */
+export interface PublicHomeScenes {
+  startChecklist?: PublicPhoto;
+  startSpecCheck?: PublicPhoto;
+  startSetup?: PublicPhoto;
+  explainNeed?: PublicPhoto;
+  explainFigures?: PublicPhoto;
 }
 
 /** 홈 A 설명 섹션 데이터(286 U3c·U3d) — 값은 노출 요구사항의 시드 값 그대로(minSpecFigure·item.name). */
@@ -129,6 +167,8 @@ export interface PublicRequirement {
   lastVerifiedAt: string;
   /** 356 M11: 체인 메타 중 GENERAL_INFO 가 하나라도 있으면 true(lastVerifiedAt 뒤). 없으면 키 자체가 없다. */
   generalInfo?: true;
+  /** 359 D-2: 품목 자리 사진(engine resolvePhoto use=item → publicPhotoOf). 사용 가능할 때만 키(맨 뒤). */
+  photo?: PublicPhoto;
 }
 
 export interface PublicProduct {
@@ -203,7 +243,31 @@ export interface WsPageData {
     bundles: PublicBundle[];
     vets: PublicVet[];
     testimonials: PublicTestimonial[];
+    /**
+     * 362 N9 — 피드 HTML 변형(index.feed.html·index.feed-noprice.html)에만 있는 7번째 키. 기본 파일(피드 없음)에는 키 자체가 없다(바이트 동일).
+     *   클라 검증: engine/feed-wire.ts isWsFeedData(실패면 페이지 데이터 전체 null — fail-closed).
+     */
+    feed?: WsFeedData;
   };
+}
+
+/** ws-data `data` 의 선택 키(WS_DATA_KEYS 6개 밖, 피드 변형에만). */
+export const WS_DATA_FEED_KEY = 'feed';
+
+/**
+ * 362 N9 ws-data data.feed(C1 ③ 「홈 레일 최소 필드만」). 라우트당 증가 ≤ FEED_WS_DATA_MAX_BYTES(1.5KB) — 넘으면 레일 카드를 뒤에서부터 덜어 낸다(결정론).
+ *   items: 이 페이지에서 피드 JSON 이 있는 품목 id(요구사항 순서). 레이어 L4 는 여기 있는 품목만 feedJsonPath(slug, item, stage) 를 읽는다(그 밖 fetch 0).
+ *   rail: 홈 B 「기준에 맞는 준비물」 레일 뒤에 붙는 피드 카드(D-2 LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장). GENERAL_INFO 종 = [].
+ *   stage 'noprice' 면 priceCheckedOn·rail[].price 키 자체가 없다.
+ *   freshMs: 신선도 기준 시각(epoch ms, feedFreshAt — manifest.generatedAt 과 같은 시각). 클라가 자기 시계로 단계를 다시 잰다(377 S1, feedDataAt).
+ */
+export interface WsFeedData {
+  v: 1;
+  stage: 'full' | 'noprice';
+  freshMs: number;
+  priceCheckedOn?: string;
+  items: string[];
+  rail: PublicFeedRailCard[];
 }
 
 /**
@@ -225,4 +289,61 @@ export type PublicCatalogMeta = {
 export interface PublicCatalog extends CatalogInput {
   v: 1;
   seedDigest: string;
+}
+
+/**
+ * 362 N6(C1): 정적 피드 JSON /{slug}/feed/{item}.json(full)·{item}.noprice.json — ws-data 밖, 같은 오리진 빌드 산출물(외부 호출 0).
+ *   값은 엔진 selectFeedRows 결과만(노출 결정 한 곳). 수집 메타(rank·keyword·fetchedAt)는 싣지 않는다.
+ *   noprice 변형: priceCheckedOn·rows[].price 키 자체가 없다(72h 초과, N7). nofeed(168h 초과)는 파일 0.
+ */
+export interface PublicFeedRow {
+  provider: 'COUPANG' | 'ALIEXPRESS';
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price?: { amount: number; currency: 'KRW' } | null;
+  verdict: 'OK' | 'BELOW_RECOMMENDED' | null;
+  specValues: Record<string, SpecValue> | null;
+}
+
+export interface PublicFeedBlock {
+  v: 1;
+  typeId: string;
+  supplyItemId: string;
+  badge: 'LISTED_PASS' | 'CHECK_NEEDED';
+  /** 398(불변식 7): 서버는 항상 false 만 싣는다(GENERAL_INFO 체인은 블록 0). 클라는 false 가 아니면 블록 거부. */
+  generalInfo: boolean;
+  /** 380 S3: 보이는 행이 모두 인기순 확인 sort(FEED_POPULAR_SORTS)에서 온 블록만 true. 그 밖엔 키 없음. */
+  popular?: true;
+  /** 가격 확인일(Asia/Seoul YYYY-MM-DD, generatedAt 기준). noprice 변형엔 키 없음. */
+  priceCheckedOn?: string;
+  rows: PublicFeedRow[];
+}
+
+/**
+ * 362 N6 홈 B 레일 최소 카드(D-2: LISTED_PASS ∧ 비 GENERAL_INFO, 품목당 1장 = 정렬 첫 행). N9 프리렌더·N10 클라가 그린다.
+ *   verdict·specValues 는 규격 한 줄(engine specLine)과 클라 방어 검사용 — LISTED_PASS 카드라 null 이 없다.
+ */
+export interface PublicFeedRailCard {
+  supplyItemId: string;
+  provider: 'COUPANG' | 'ALIEXPRESS';
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price?: { amount: number; currency: 'KRW' } | null;
+  verdict: 'OK' | 'BELOW_RECOMMENDED';
+  specValues: Record<string, SpecValue>;
+}
+
+/**
+ * 362 N7 feed-manifest.json — 만료 시각(+09:00)과 변형별 파일 목록(N11 spa 가 시각으로 고른다, 빌드 시각은 싣지 않는다).
+ *   pages(N9): 피드 마크업이 든 HTML 변형 파일(dist 상대). 기본 파일은 피드 없음 — spa 가 단계별로 변형을 고르고, 변형 직접 요청은 막는다.
+ */
+export interface FeedManifest {
+  v: 1;
+  generatedAt: string;
+  priceUntil: string;
+  blockUntil: string;
+  variants: { full: string[]; noprice: string[] };
+  pages: { full: string[]; noprice: string[] };
 }

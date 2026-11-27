@@ -399,6 +399,40 @@ describe('홈 A 설명 섹션(286 U3c·U3d·U3e)', () => {
     expect(d.textContent ?? '').not.toContain('앵무새');
   });
 
+  // 359 T17(감사 356r M2): 사진은 ws-data 값(engine resolvePhoto)만 — 고정 id 0. 합성 사진 id·경로(시드 아님).
+  it('359 T17: habitat 카드 = 종별 photos.habitat(있는 종만 img), 시작 카드·설명 = 대표 타입 homeScenes, 없으면 빈 블록·ph-NN 0', () => {
+    const habitat = { photoId: 'ph-fx-habitat', asset: '/assets/photos/fx-habitat.webp' };
+    const scenes = {
+      startChecklist: { photoId: 'ph-fx-start', asset: '/assets/photos/fx-start.webp', aiGenerated: true as const },
+      explainNeed: { photoId: 'ph-fx-need', asset: '/assets/photos/fx-need.webp' },
+      explainFigures: { photoId: 'ph-fx-fig', asset: '/assets/photos/fx-fig.webp' },
+    };
+    const parrot = { ...golden, id: 'fixture-parrot', slug: 'parrot/fixture', group: 'PARROT' as const, displayName: '픽스처앵무', aliases: [], careProfileId: 'cp-fixture-parrot' };
+    const types = [{ ...golden, homeExplain: explain, specCheckItemId: 'cage-x', setupAvailable: true as const, photos: { habitat }, homeScenes: scenes }, parrot];
+    const { unmount } = render(<App page={home({ types })} captured={NO_CAPTURE} />);
+    const habCard = (id: string) => document.querySelector(`[data-ws-section="habitats"] a[data-ws-id="animalTypes#${id}"]`) as HTMLElement;
+    expect(habCard(golden.id).querySelector('img.ws-photo.ws-starter-photo')?.getAttribute('data-ws-photo')).toBe('ph-fx-habitat');
+    expect(habCard(parrot.id).querySelector('img')).toBeNull();
+    expect(habCard(parrot.id).querySelector('span.ws-photo.ws-starter-photo[aria-hidden="true"]')).not.toBeNull();
+    const start = (x: string) => document.querySelector(`[data-ws-section="starters"] a[data-ws-intent="${x}"]`) as HTMLElement;
+    // 생성 이미지 → 틀 + 표기 1(359d)
+    expect(start('CHECKLIST').querySelector('.ws-photo-frame.ws-starter-photo img')?.getAttribute('data-ws-photo')).toBe('ph-fx-start');
+    expect(start('CHECKLIST').querySelectorAll('.ws-photo-notice')).toHaveLength(1);
+    for (const x of ['SPEC_CHECK', 'SETUP']) {
+      expect(start(x).querySelector('img')).toBeNull();
+      expect(start(x).querySelector('span.ws-photo.ws-starter-photo[aria-hidden="true"]')).not.toBeNull();
+    }
+    expect(document.querySelector('[data-ws-section="need-split"] img.ws-photo.ws-explain-photo')?.getAttribute('data-ws-photo')).toBe('ph-fx-need');
+    expect(document.querySelector('[data-ws-section="figures"] img.ws-photo.ws-explain-photo')?.getAttribute('data-ws-photo')).toBe('ph-fx-fig');
+    // 고정 장면 id(ph-01~12) 0 — 앵무 카드에 골든 장면이 실리던 경로(H2) 닫힘
+    expect(document.body.innerHTML).not.toMatch(/ph-\d\d\b/);
+    unmount();
+    // 사진 키 없음 → 시작 카드 span 3, img·data-ws-photo 0
+    render(<App page={home({ types: [{ ...golden, homeExplain: explain, specCheckItemId: 'cage-x', setupAvailable: true }, parrot] })} captured={NO_CAPTURE} />);
+    expect(document.querySelectorAll('[data-ws-section="starters"] span.ws-photo.ws-starter-photo[aria-hidden="true"]')).toHaveLength(3);
+    expect(document.querySelectorAll('main img.ws-photo, main [data-ws-photo], main .ws-photo-frame')).toHaveLength(0);
+  });
+
   it('금지어 0 · 채운 버튼은 하단 CTA 1개뿐', () => {
     const { container } = render(<App page={full({ vets: [vet] })} captured={NO_CAPTURE} />);
     const main = screen.getByRole('main');

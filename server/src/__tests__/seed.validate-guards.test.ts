@@ -107,6 +107,12 @@ describe('X01 — 노출 타입의 REQUIRED 요구사항 비노출 금지(G-2, K
     s.curatedProducts = (s.curatedProducts as Rec[]).filter((p) => p.supplyItemId !== 'hideout');
     // 308: budget-tips 의 hideout 팁도 참조 정리(V-TIP-0 「요구사항 없음」) — 행만 깔끔히 지운 경우.
     s.budgetTips = ((s.budgetTips ?? []) as Rec[]).filter((t) => t.supplyItemId !== 'hideout');
+    // 359 D-1 A: 골든 비매핑 품목(hideout)에 프로필 사진 SLOT 행(ph-hamster-syrian-hideout, scope cp-hamster-syrian×hideout)이 생겼다 —
+    //   같은 참조 정리(I05 「요구 품목 없음」 방지). 단언(X01 외 오류 0)은 그대로.
+    s.photos = ((s.photos ?? []) as Rec[]).filter((p) => {
+      const sc = p.scope as Rec | null | undefined;
+      return !(sc?.careProfileId === 'cp-hamster-syrian' && sc.supplyItemId === 'hideout');
+    });
     const res = validateSeed(s, { now: FIXTURE_AS_OF });
     expect(res.errors.filter((i) => i.rule !== 'X01')).toEqual([]);
     const x = errs(res, 'X01');

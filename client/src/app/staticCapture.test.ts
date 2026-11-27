@@ -26,9 +26,10 @@ describe('captureStatic', () => {
       '<main class="ws-page"><h1>골든햄스터</h1>' +
       '<section data-ws-section="products"><ul class="ws-products"><li class="ws-product" data-ws-id="curatedProducts#p1">카드</li></ul></section>' +
       '<section data-ws-part="products"><p>L4 상품</p></section><p data-ws-id="curatedProducts#p2">단독</p>' +
+      '<section data-ws-section="mall"><h2>몰에 올라온 상품</h2></section>' +
       '<section data-ws-section="vet"><a href="/vet">병원</a></section></main>';
     const c = captureStatic(root, { stripProducts: true });
-    expect(c.main).not.toMatch(/ws-product|curatedProducts|data-ws-section="products"|data-ws-part="products"|카드|단독|L4 상품/);
+    expect(c.main).not.toMatch(/ws-product|curatedProducts|data-ws-section="products"|data-ws-part="products"|data-ws-section="mall"|몰에 올라온|카드|단독|L4 상품/);
     expect(c.main).toContain('<h1>골든햄스터</h1>');
     expect(c.main).toContain('href="/vet"');
     expect(root.querySelectorAll('li.ws-product')).toHaveLength(1);

@@ -1,5 +1,5 @@
 # WithSmall gitleaks 설정(작업 247 / 계획 243 C1). 핀 버전: scripts/gitleaks-pin.json.
-# 기본 규칙 전부 유지(끄는 규칙 0) + 프로젝트 특화 규칙 3개. 허용은 파일 단위 최소 — 늘릴 때는 사유 주석 필수(docs/ops/secret-scan.md).
+# 기본 규칙 전부 유지(끄는 규칙 0) + 프로젝트 특화 규칙 7개. 허용은 파일 단위 최소 — 늘릴 때는 사유 주석 필수(docs/ops/secret-scan.md).
 title = "WithSmall gitleaks"
 
 [extend]
@@ -30,6 +30,41 @@ description = "Resend API key"
 regex = '''\bre_[A-Za-z0-9]{6,}_[A-Za-z0-9]{16,}\b'''
 entropy = 3.5
 keywords = ["re_"]
+
+# 상품 피드 생성기(운영자 전용) 몰 API 비밀 — 형태 조건은 withsmall-env-secret 과 같다.
+[[rules]]
+id = "withsmall-coupang-partners-secret"
+description = "Coupang Partners API secret key with a literal value"
+regex = '''COUPANG_PARTNERS_SECRET_KEY['"]?[ \t]*[:=][ \t]*['"]?([A-Za-z0-9+/=_-]{16,})(?:['"\s,;]|$)'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["coupang_partners_secret_key"]
+
+[[rules]]
+id = "withsmall-aliexpress-app-secret"
+description = "AliExpress affiliate app secret with a literal value"
+regex = '''ALIEXPRESS_APP_SECRET['"]?[ \t]*[:=][ \t]*['"]?([A-Za-z0-9+/=_-]{16,})(?:['"\s,;]|$)'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["aliexpress_app_secret"]
+
+# 377 S5: 몰 API 식별 키 env 이름(*_SECRET 아님). 숫자만이면 6자 이상(앱 키), 그 밖은 20자 이상(이력의 16자 표시된 가짜 값 제외).
+[[rules]]
+id = "withsmall-shop-api-id"
+description = "Shop API access key / app key / tracking id env name with a literal value"
+regex = '''(?:COUPANG_PARTNERS_ACCESS_KEY|ALIEXPRESS_APP_KEY|ALIEXPRESS_TRACKING_ID)['"]?[ \t]*[:=][ \t]*['"]?([A-Za-z0-9+/=_-]{20,}|[0-9]{6,})(?:['"\s,;]|$)'''
+secretGroup = 1
+entropy = 2.0
+keywords = ["coupang_partners_access_key", "aliexpress_app_key", "aliexpress_tracking_id"]
+
+# 377 S5: transport 자격 필드 이름(scripts/lib/shop-api.mjs CRED_FIELD) 옆의 따옴표 값 — 식별자 참조(creds.x)는 제외.
+[[rules]]
+id = "withsmall-shop-api-secret-field"
+description = "secretKey / appSecret field with a quoted literal value"
+regex = '''(?:secretKey|appSecret)['"]?[ \t]*[:=][ \t]*['"]([A-Za-z0-9+/=_-]{16,})['"]'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["secretkey", "appsecret"]
 
 # 허용 목록 — 파일 단위만(폴더 와일드카드 금지), 최대 3개. 항목을 늘릴 때는 줄마다 사유를 단다.
 [[allowlists]]

@@ -5,3 +5,6 @@
 deploy/** text eol=lf
 # git 훅(.githooks — Git for Windows 도 내장 sh 로 실행): CRLF 면 shebang·조건문이 깨진다. LF 고정(작업 247).
 .githooks/* text eol=lf
+# 서명 재현 시험이 디스크 바이트를 비교한다 — Windows autocrlf 체크아웃에서도 LF 고정(총괄 11/26 01:2x, _workspace/379)
+server/seed/*.json text eol=lf
+docs/planning-artifacts/seed-draft/*.json text eol=lf

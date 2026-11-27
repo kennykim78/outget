@@ -2917,7 +2917,7 @@ test('C3-OUT-REVIEWMETA 356: JS 번들의 AI_DRAFT 상수(엔진 열거형)는 �
 // ── 356 단계 10: C9-GENERAL — 코드 고정 6종 라우트 HTML 에 고지 원문 정확히 1회, 그 밖 타입 라우트 0(합성 HTML 픽스처) ─────────────
 const GI_NOTICE = '일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요';
 const BUDGIE_HTML = 'parrot/budgie/index.html';
-/** 합성 노출 타입 budgie(코드 고정 6종 id — VERIFIED 자리표시라 체인 관대함 없이 노출. 실제 종 사실 아님). */
+/** 합성 노출 타입 budgie(코드 고정 6종 id. 여기서는 VERIFIED 자리표시 — 고지를 기대하는 시험은 타입 행을 GENERAL_INFO 로 바꾼다. 실제 종 사실 아님). */
 const withBudgieSeed = (d) => {
   d['animal-types.json'].push({
     id: 'budgie', slug: 'parrot/budgie', group: 'PARROT', displayName: '픽스처 앵무', status: 'ACTIVE',
@@ -2934,8 +2934,13 @@ const budgieManifest = (digest) => {
   return m;
 };
 const c9GeneralOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-GENERAL');
+/** 390: 고지 1회를 기대하는 356 시험의 시드 — budgie 타입 행이 GENERAL_INFO. */
+const withBudgieGiSeed = (d) => {
+  withBudgieSeed(d);
+  Object.assign(d['animal-types.json'].find((r) => r.id === 'budgie'), general390Meta({ contentKind: 'CARE' }));
+};
 async function scanGeneral(body, goldenExtra) {
-  return scan(await makeRoot({ seed: withBudgieSeed, output: budgieOut(body, goldenExtra), manifest: budgieManifest }));
+  return scan(await makeRoot({ seed: withBudgieGiSeed,output: budgieOut(body, goldenExtra), manifest: budgieManifest }));
 }
 
 test('C9-GENERAL 고지 원문 = rules-output GENERAL_INFO_NOTICE', async () => {
@@ -2968,6 +2973,204 @@ test('C9-GENERAL: typeId 없는 라우트(HOME)는 규칙 밖', async () => {
   const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${GI_NOTICE}</p></main>`); } }));
   expectClean(res);
 });
+
+// ── 390: 시드 + asOf 의 독립 노출 체인으로 고지 기대값 판정(합성 파일만, CLI의 git 호출·빌드 없음) ─────────────
+const general390Meta = (over = {}) => meta({
+  reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null,
+  draftedAt: '2026-09-30', source: [], ...over,
+});
+const general390Chain = (d) => ({
+  type: d['animal-types.json'].find((r) => r.id === 'budgie'),
+  profile: d['care-profiles.json'].find((r) => r.id === 'cp-390'),
+  requirement: d['supply-requirements.json'].find((r) => r.id === 'req-390'),
+  item: d['supply-items.json'].find((r) => r.id === 'item-390'),
+});
+function withGeneral390Seed(d) {
+  withBudgieSeed(d);
+  d['animal-types.json'].find((r) => r.id === 'budgie').careProfileId = 'cp-390';
+  d['care-profiles.json'].push({ ...d['care-profiles.json'][0], id: 'cp-390' });
+  // 두 번째 VERIFIED 요구사항은 첫 체인이 만료돼도 타입 노출을 유지한다.
+  for (const suffix of ['390', '390-other']) {
+    d['supply-items.json'].push({ ...d['supply-items.json'][0], id: `item-${suffix}` });
+    d['supply-requirements.json'].push({
+      ...d['supply-requirements.json'][0], id: `req-${suffix}`, careProfileId: 'cp-390', supplyItemId: `item-${suffix}`,
+    });
+  }
+}
+async function scanGeneral390({ mutate = noop, count = 0, goldenCount = 0, asOf = FIXED_NOW, seedFile = null } = {}) {
+  const root = await makeRoot({
+    seed: (d) => { withGeneral390Seed(d); mutate(d, general390Chain(d)); },
+    output: budgieOut(`<p>${GI_NOTICE}</p>`.repeat(count), `<p>${GI_NOTICE}</p>`.repeat(goldenCount)),
+    manifest: budgieManifest,
+  });
+  // 읽기 실패도 CLI와 같은 readSeed → computeExposure 경로로 확인한다.
+  if (seedFile === 'missing') unlinkSync(join(root, 'server/seed/animal-types.json'));
+  if (seedFile === 'invalid') writeFileSync(join(root, 'server/seed/animal-types.json'), '{');
+  const { readSeed, computeExposure, seedDigest } = await import('../lib/seed-exposure.mjs');
+  const { scanOutputs } = await import('../lib/rules-output.mjs');
+  const { loadBannedWords } = await import('../lib/normalize.mjs');
+  const { seed } = readSeed(join(root, 'server/seed'));
+  const ex = computeExposure(seed, asOf);
+  const findings = [];
+  assert.equal(scanOutputs({
+    root, dist: join(root, 'client/dist'), seed, ex, digest: seedDigest(join(root, 'server/seed')),
+    bw: loadBannedWords(join(root, 'server/src/seed/banned-words.json')), requireOutput: true,
+    add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }),
+  }), 'RUN');
+  return { ex, findings, general: findings.filter((f) => f.rule === 'C9-GENERAL') };
+}
+function expectGeneral390(res, want, count, typeId = 'budgie') {
+  if (count === want) {
+    assert.deepEqual(res.general, []);
+    assert.deepEqual(res.findings.filter((f) => f.severity === 'FAIL'), []);
+  } else {
+    assert.equal(res.general.length, 1, JSON.stringify(res.general));
+    assert.equal(res.general[0].severity, 'FAIL');
+    assert.ok(res.general[0].message.includes(`${typeId} 라우트`), JSON.stringify(res.general));
+    assert.ok(res.general[0].message.includes(`${count}회(기대 ${want}회)`), JSON.stringify(res.general));
+  }
+}
+
+for (const count of [0, 1]) {
+  test(`390 C9-GENERAL: 전 행 VERIFIED + 고지 ${count} → 기대 0`, async () => {
+    const res = await scanGeneral390({ count });
+    assert.ok(res.ex.types.has('budgie'));
+    expectGeneral390(res, 0, count);
+  });
+  for (const row of ['type', 'profile', 'requirement', 'item']) {
+    test(`390 C9-GENERAL: ${row} 만 GI + 고지 ${count} → 기대 1`, async () => {
+      const res = await scanGeneral390({ count, mutate: (_d, chain) => Object.assign(chain[row], general390Meta()) });
+      assert.ok(res.ex.types.has('budgie'));
+      assert.ok(res.ex.pairs.has('budgie|item-390'));
+      expectGeneral390(res, 1, count);
+    });
+  }
+  for (const row of ['requirement', 'item']) {
+    for (const typeGi of [false, true]) {
+      test(`390 C9-GENERAL: ${row} GI 만료·타입 GI ${typeGi} + 고지 ${count}`, async () => {
+        const res = await scanGeneral390({ count, mutate: (_d, chain) => {
+          Object.assign(chain[row], general390Meta({ draftedAt: '2026-04-03' }));
+          if (typeGi) Object.assign(chain.type, general390Meta());
+        } });
+        assert.ok(res.ex.types.has('budgie'));
+        assert.ok(res.ex.pairs.has('budgie|item-390-other'));
+        assert.ok(!res.ex.pairs.has('budgie|item-390'));
+        expectGeneral390(res, typeGi ? 1 : 0, count);
+      });
+    }
+  }
+  for (const state of ['inactive', 'no-requirements', 'missing', 'invalid']) {
+    test(`390 C9-GENERAL: 비노출·판정 불가 ${state} + 고지 ${count} → FAIL`, async () => {
+      const res = await scanGeneral390({ count, seedFile: state, mutate: (d, chain) => {
+        if (state === 'inactive') chain.type.status = 'PLANNED';
+        if (state === 'no-requirements') d['supply-requirements.json'] = d['supply-requirements.json'].filter((r) => r.careProfileId !== 'cp-390');
+      } });
+      assert.ok(!res.ex.types.has('budgie'));
+      assert.ok(res.general.some((f) => f.severity === 'FAIL' && /budgie.*노출.*판정/.test(f.message)), JSON.stringify(res.general));
+    });
+  }
+}
+test('390 C9-GENERAL: 6종 밖 + 고지 1 → FAIL', async () => {
+  expectGeneral390(await scanGeneral390({ goldenCount: 1 }), 0, 1, 'hamster-golden');
+});
+test('390 C9-GENERAL: 같은 시드의 asOf 180일·181일 경계 → GI 요구사항만 제외', async () => {
+  const mutate = (_d, chain) => Object.assign(chain.requirement, general390Meta({ draftedAt: '2026-04-04' }));
+  const fresh = await scanGeneral390({ mutate, asOf: '2026-10-01', count: 1 });
+  assert.ok(fresh.ex.pairs.has('budgie|item-390'));
+  expectGeneral390(fresh, 1, 1);
+  const expired = await scanGeneral390({ mutate, asOf: '2026-10-02', count: 0 });
+  assert.ok(expired.ex.types.has('budgie'));
+  assert.ok(!expired.ex.pairs.has('budgie|item-390'));
+  expectGeneral390(expired, 0, 0);
+});
+
+// ── 391: C9-GENERAL — 고정 6종 전부 × typeId 를 가진 프리렌더 경로 형태 전부(합성 픽스처, 실제 종 사실 아님) ─────────────
+// 형태는 server/src/prerender/routes.ts 와 같다: L4·L5·L7 은 타입 slug 아래 kind TYPE, SUPPLY_ITEM_TYPE 만 /supplies/{item}/{type}.
+const SHAPES391 = (typeId) => {
+  const base = `/parrot/${typeId}`;
+  const itemId = 'item-390-other';
+  const productId = 'prod-391';
+  return [
+    { name: 'TYPE', path: base, kind: 'TYPE', indexable: true },
+    { name: 'SETUP', path: `${base}/setup`, kind: 'SETUP', indexable: true },
+    { name: 'TIPS', path: `${base}/tips`, kind: 'TIPS', indexable: true },
+    { name: 'L4', path: `${base}/supplies/${itemId}`, kind: 'TYPE', itemId, layer: { kind: 'L4', typeId, itemId }, indexable: true },
+    { name: 'L5', path: `${base}/check/${itemId}`, kind: 'TYPE', itemId, layer: { kind: 'L5', typeId, itemId }, indexable: true },
+    { name: 'L7', path: `${base}/products/${productId}`, kind: 'TYPE', productId, layer: { kind: 'L7', typeId, productId }, indexable: true },
+    { name: 'SIT', path: `/supplies/${itemId}/${typeId}`, kind: 'SUPPLY_ITEM_TYPE', itemId, layer: { kind: 'L4', typeId, itemId }, indexable: false },
+  ].map((r) => ({ ...r, typeId, file: `${r.path.slice(1)}/index.html` }));
+};
+/** counts: 형태 이름 → 고지 횟수(없으면 want). */
+async function scanGeneral391({ typeId, giRow, counts = {} }) {
+  const want = giRow ? 1 : 0;
+  const shapes = SHAPES391(typeId);
+  const root = await makeRoot({
+    seed: (d) => {
+      withGeneral390Seed(d);
+      Object.assign(d['animal-types.json'].find((r) => r.id === 'budgie'), { id: typeId, slug: `parrot/${typeId}` });
+      // GI 는 req-390 체인에만 — L7 상품이 붙는 item-390-other 체인은 VERIFIED(356r M1).
+      if (giRow) Object.assign(d['supply-requirements.json'].find((r) => r.id === 'req-390'), general390Meta());
+      d['curated-products.json'].push({ ...d['curated-products.json'][0], id: 'prod-391', careProfileIds: ['cp-390'], supplyItemId: 'item-390-other' });
+    },
+    output: (o) => {
+      for (const r of shapes) {
+        const n = counts[r.name] ?? want;
+        o[r.file] = page(`<main class="ws-page" data-ws-route="${r.kind}" data-ws-type="${typeId}"><h1>픽스처</h1>${`<p>${GI_NOTICE}</p>`.repeat(n)}</main>`);
+      }
+    },
+    manifest: (digest) => {
+      const m = manifestFor(digest);
+      m.routes.push(...shapes.map(({ name, ...r }) => r));
+      return m;
+    },
+  });
+  const { readSeed, computeExposure, seedDigest, GENERAL_INFO_TYPE_IDS } = await import('../lib/seed-exposure.mjs');
+  const { scanOutputs } = await import('../lib/rules-output.mjs');
+  const { loadBannedWords } = await import('../lib/normalize.mjs');
+  const { seed } = readSeed(join(root, 'server/seed'));
+  const ex = computeExposure(seed, FIXED_NOW);
+  const findings = [];
+  assert.equal(scanOutputs({
+    root, dist: join(root, 'client/dist'), seed, ex, digest: seedDigest(join(root, 'server/seed')),
+    bw: loadBannedWords(join(root, 'server/src/seed/banned-words.json')), requireOutput: true,
+    add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }),
+  }), 'RUN');
+  assert.ok(GENERAL_INFO_TYPE_IDS.includes(typeId));
+  assert.ok(ex.types.has(typeId));
+  assert.ok(ex.productTypes.has(`${typeId}|prod-391`), 'L7 상품 노출');
+  return {
+    shapes,
+    // 합성 경로가 매니페스트 검사를 통과해야 의미가 있다. TIPS 고지 원문(C9-TIPS)은 이 시험 대상이 아니다.
+    routeFails: findings.filter((f) => f.rule === 'C3-OUT-ROUTE' && f.severity === 'FAIL'),
+    general: findings.filter((f) => f.rule === 'C9-GENERAL'),
+  };
+}
+test('391 C9-GENERAL: 경로 형태 7종 목록 고정', () => {
+  assert.deepEqual(SHAPES391('budgie').map((r) => r.name), ['TYPE', 'SETUP', 'TIPS', 'L4', 'L5', 'L7', 'SIT']);
+});
+// 목록을 코드에서 가져오지 않고 고정한다 — 6종에서 하나가 빠지면 includes 단언이 실패한다.
+for (const typeId of ['hamster-robo', 'gerbil-mongolian', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure']) {
+  for (const giRow of [true, false]) {
+    const want = giRow ? 1 : 0;
+    test(`391 C9-GENERAL: ${typeId} GI ${giRow} — 7개 경로 형태 고지 ${want}회 → clean`, async () => {
+      const res = await scanGeneral391({ typeId, giRow });
+      assert.deepEqual(res.routeFails, []);
+      assert.deepEqual(res.general, []);
+    });
+    test(`391 C9-GENERAL: ${typeId} GI ${giRow} — 7개 경로 형태 고지 ${1 - want}회 → 경로마다 FAIL`, async () => {
+      const names = SHAPES391(typeId).map((r) => r.name);
+      const res = await scanGeneral391({ typeId, giRow, counts: Object.fromEntries(names.map((n) => [n, 1 - want])) });
+      assert.deepEqual(res.routeFails, []);
+      assert.equal(res.general.length, res.shapes.length, JSON.stringify(res.general));
+      for (const r of res.shapes) {
+        const hit = res.general.filter((f) => f.file.replaceAll('\\', '/').endsWith(`dist/${r.file}`));
+        assert.equal(hit.length, 1, `${r.name}: ${JSON.stringify(res.general)}`);
+        assert.equal(hit[0].severity, 'FAIL');
+        assert.ok(hit[0].message.includes(`${1 - want}회(기대 ${want}회)`), hit[0].message);
+      }
+    });
+  }
+}
 
 // ── 계획 86 P11: C9-PRIVACY — /privacy 존재·모든 라우트 링크·자리표시(빌드는 항상 WARN — 차단은 운영 기동 검사)·기간 숫자 = policy.ts ─────────────
 const c9Of = (res, severity) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-PRIVACY' && (!severity || f.severity === severity));
@@ -4192,4 +4395,637 @@ test('C6-IMG-AI-PRODUCT(354): 상품 행에 생성 사용권·생성 도구·생
   // 상품 행이 아닌 사진 행의 AI_GENERATED 는 이 규칙 대상이 아니다.
   const ph = scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto()); } }));
   assert.ok(!rulesOf(ph).includes('C6-IMG-AI-PRODUCT'), JSON.stringify(ph.json?.findings));
+});
+
+// ── 359 단계 6: C6-IMG-SPECIES — 사진 id 와 라우트 종·프로필·품목 범위(「앵무 라우트 햄스터 사진 id 0」), T19~T22 + 장면 표 패리티(T23 일부) ─────────────
+//   합성 픽스처(실제 종 사실 아님): budgie·lovebird-peach(PARROT) 와 hamster-dwarf(SMALL_MAMMAL, 장면 비허용)가 골든과 같은 cp-syrian 을 공유한다.
+//   소스 규칙 C6-IMG-SPECIES-SRC 시험은 이 파일 끝.
+const SP_PHOTO = (id, over = {}) => aiPhoto({ id, slot: 'intro-3', promptPath: `docs/assets/prompts/${id}.md`, asset: `/assets/photos/${id}.webp`, ...over });
+const SP_IDS = ['ph-08', 'ph-03', 'ph-budgie-spec', 'ph-cp-syrian-cage'];
+const spFiles = (s) => {
+  for (const id of SP_IDS) {
+    s[`docs/assets/prompts/${id}.md`] = `# ${id}\n`;
+    s[`client/public/assets/photos/${id}.webp`] = 'RIFF';
+  }
+};
+const spType = (id, slug, group) => ({
+  id, slug, group, displayName: `픽스처 ${id}`, status: 'ACTIVE', aliases: [], taxonId: 'tx-fixture', careProfileId: 'cp-syrian', careOverrides: {}, oneLiner: null, ...meta({ contentKind: 'CARE' }),
+});
+const spSeed = (extra = noop) => (d) => {
+  d['animal-types.json'] = d['animal-types.json'].filter((t) => t.id !== 'hamster-dwarf');
+  d['animal-types.json'].push(spType('budgie', 'parrot/budgie', 'PARROT'), spType('lovebird-peach', 'parrot/lovebird-peach', 'PARROT'), spType('hamster-dwarf', 'hamster/dwarf', 'SMALL_MAMMAL'));
+  // 390: 고지를 싣는 SP_GI 타입은 타입 행이 GENERAL_INFO.
+  for (const t of d['animal-types.json']) if (SP_GI.has(t.id)) Object.assign(t, general390Meta({ contentKind: 'CARE' }));
+  d['photos.json'].push(
+    SP_PHOTO('ph-08'),
+    SP_PHOTO('ph-03'),
+    SP_PHOTO('ph-budgie-spec', { scope: { use: 'spec', animalTypeId: 'budgie' } }),
+    SP_PHOTO('ph-cp-syrian-cage', { scope: { use: 'item', careProfileId: 'cp-syrian', supplyItemId: 'cage' } }),
+    { id: 'ph-dwarf-spec', scene: 'x', slot: 'intro-9', query: 'q', source: null, license: null, author: null, sourceUrl: null, downloadedAt: null, modified: false, status: 'SLOT', scope: { use: 'spec', animalTypeId: 'hamster-dwarf' } },
+  );
+  extra(d);
+};
+const SP_PAGES = { budgie: 'parrot/budgie/index.html', 'lovebird-peach': 'parrot/lovebird-peach/index.html', 'hamster-dwarf': 'hamster/dwarf/index.html', 'hamster-golden': 'hamster/golden/index.html' };
+const SP_GI = new Set(['budgie', 'lovebird-peach']);
+const spImg = (id, asset = `/assets/photos/${id}.webp`) => `<img class="ws-photo ws-spec-sec-photo" src="${asset}" alt="" loading="lazy" decoding="async" data-ws-photo="${id}">`;
+const spData = (ws = {}) => ({ types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], ...ws });
+/** 타입 페이지 하나 — body 는 main 안 마크업, ws 는 ws-data data 덮어쓰기(types·requirements). */
+const spPage = (typeId, body = '', ws = {}) =>
+  page(
+    `<main class="ws-page" data-ws-route="TYPE" data-ws-type="${typeId}"><h1>픽스처</h1>${SP_GI.has(typeId) ? `<p>${GI_NOTICE}</p>` : ''}${body}</main>`,
+    { v: 1, route: { kind: 'TYPE', path: `/${SP_PAGES[typeId].replace('/index.html', '')}`, typeId }, layer: null, catalogUrl: '/data/catalog.v1.abcd1234.json', data: spData(ws) },
+  );
+/** pages: { typeId: [body, ws] } — 주지 않은 타입은 빈 페이지. home: [홈 main 본문, ws](선택). */
+const spOut = (pages = {}, home = null) => (o) => {
+  for (const tid of Object.keys(SP_PAGES)) o[SP_PAGES[tid]] = spPage(tid, ...(pages[tid] ?? []));
+  if (home !== null) o['index.html'] = page(`<main class="ws-page" data-ws-route="HOME">${home[0]}</main>`, { v: 1, data: spData(home[1]) });
+};
+const spManifest = (digest) => {
+  const m = manifestFor(digest);
+  for (const tid of ['budgie', 'lovebird-peach', 'hamster-dwarf']) m.routes.push({ path: `/${SP_PAGES[tid].replace('/index.html', '')}`, file: SP_PAGES[tid], kind: 'TYPE', typeId: tid, indexable: false });
+  return m;
+};
+const spOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C6-IMG-SPECIES');
+async function spScan(pages, { home = null, seed = noop } = {}) {
+  return scan(await makeRoot({ source: spFiles, seed: spSeed(seed), output: spOut(pages, home), manifest: spManifest }));
+}
+function expectSp(res, re, label) {
+  expectFail(res, 'C6-IMG-SPECIES');
+  assert.ok(spOf(res).some((f) => re.test(f.message)), `${label}: ${re} 기대, 실제 ${JSON.stringify(spOf(res))}`);
+}
+const typePhotos = (id, photos) => ({ id, slug: 'x', displayName: 'x', photos });
+const pp = (photoId) => ({ photoId, asset: `/assets/photos/${photoId}.webp`, aiGenerated: true });
+
+test('C6-IMG-SPECIES clean: 골든에 장면 ph-08(마크업·ws-data) · budgie 에 자기 종 행 · 공유 프로필 품목 행 → exit 0', async () => {
+  const res = await spScan({
+    'hamster-golden': [spImg('ph-08'), { types: [typePhotos('hamster-golden', { spec: pp('ph-08'), nowLead: pp('ph-03') })], requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'cage', photo: pp('ph-08') }] }],
+    budgie: [spImg('ph-budgie-spec'), { types: [typePhotos('budgie', { spec: pp('ph-budgie-spec') })], requirements: [{ animalTypeId: 'budgie', supplyItemId: 'cage', photo: pp('ph-cp-syrian-cage') }] }],
+  });
+  expectClean(res);
+});
+test('C6-IMG-SPECIES clean: 실시드 형태(사진 0 — span 자리만)는 규칙 밖', async () => {
+  expectClean(await spScan({ budgie: ['<span class="ws-photo ws-spec-sec-photo" aria-hidden="true"></span>'] }));
+});
+
+for (const [label, pages, re, opts] of [
+  // T19
+  ['T19 budgie HTML data-ws-photo=ph-08', { budgie: [spImg('ph-08')] }, /budgie.*장면.*ph-08/],
+  // T20
+  ['T20 budgie ws-data photoId ph-03(종 자리)', { budgie: ['', { types: [typePhotos('budgie', { nowLead: pp('ph-03') })] }] }, /budgie.*장면.*ph-03/],
+  ['T20 budgie ws-data requirement.photo ph-08', { budgie: ['', { requirements: [{ animalTypeId: 'budgie', supplyItemId: 'cage', photo: pp('ph-08') }] }] }, /budgie.*장면.*ph-08/],
+  ['T20 budgie img src 가 ph-08 행 asset(data-ws-photo 없음)', { budgie: ['<img class="ws-photo" src="/assets/photos/ph-08.webp" alt="">'] }, /budgie.*장면.*ph-08/],
+  ['T20 budgie 마크업 문자열 ph-08(보조 잠금)', { budgie: ['<span class="ws-photo" data-x="ph-08"></span>'] }, /budgie.*ph-08/],
+  // T21
+  ['T21 비허용 SMALL_MAMMAL(드워프)에 장면 ph-08', { 'hamster-dwarf': [spImg('ph-08')] }, /hamster-dwarf.*장면.*ph-08/],
+  // T22
+  ['T22 SLOT 행 id(data-ws-photo)', { 'hamster-dwarf': [spImg('ph-dwarf-spec')] }, /사용 불가.*ph-dwarf-spec/],
+  ['T22 SLOT 행 id(문자열)', { 'hamster-golden': ['<p data-x="ph-01"></p>'] }, /사용 불가.*ph-01/],
+  ['T22 시드에 없는 사진 id', { 'hamster-golden': [spImg('ph-99')] }, /ph-99/],
+  ['T22 budgie 종 행이 lovebird 라우트에', { 'lovebird-peach': [spImg('ph-budgie-spec')] }, /lovebird-peach.*ph-budgie-spec.*budgie/],
+  ['T22 budgie 종 행이 lovebird ws-data 에', { 'lovebird-peach': ['', { types: [typePhotos('lovebird-peach', { spec: pp('ph-budgie-spec') })] }] }, /lovebird-peach.*ph-budgie-spec/],
+  // 자리 일치(359 H3): 품목 자리 장면은 ITEM_SCENE_PHOTOS 표만, 종 자리 장면은 TYPE_SCENE_PHOTOS 표만, 품목 행은 그 품목에만
+  ['골든 wheel 품목 자리에 장면 ph-03(범용 대체 폐지)', { 'hamster-golden': ['', { requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'wheel', photo: pp('ph-03') }] }] }, /ph-03.*자리/],
+  ['골든 spec 종 자리에 장면 ph-03', { 'hamster-golden': ['', { types: [typePhotos('hamster-golden', { spec: pp('ph-03') })] }] }, /ph-03.*자리/],
+  ['cage 품목 행이 wheel 자리에', { 'hamster-golden': ['', { requirements: [{ animalTypeId: 'hamster-golden', supplyItemId: 'wheel', photo: pp('ph-cp-syrian-cage') }] }] }, /ph-cp-syrian-cage.*자리/],
+  ['ws-data asset 이 행 asset 과 다름', { 'hamster-golden': ['', { types: [typePhotos('hamster-golden', { spec: { photoId: 'ph-08', asset: '/assets/photos/ph-03.webp' } })] }] }, /asset/],
+  ['img src ≠ data-ws-photo 행 asset', { 'hamster-golden': [spImg('ph-08', '/assets/photos/ph-03.webp')] }, /ph-08/],
+  ['다른 종 ws-data types 항목의 사진(골든 라우트에 budgie 사진)', { 'hamster-golden': ['', { types: [typePhotos('budgie', { spec: pp('ph-budgie-spec') })] }] }, /hamster-golden.*ph-budgie-spec/],
+  ['시드에 없는 사진 파일 경로', { 'hamster-golden': ['<img src="/assets/photos/zz.webp" alt="">'] }, /zz\.webp/],
+  // 홈(규칙 3): habitat 카드는 카드의 종 기준, 그 밖은 대표 타입(시드 순 첫 노출 = 골든) 기준
+  ['홈 budgie 카드에 장면 ph-08', {}, /budgie.*장면.*ph-08/, { home: [`<a class="ws-starter ws-habitat" href="/parrot/budgie" data-ws-id="animalTypes#budgie">${spImg('ph-08')}</a>`] }],
+  ['홈 ws-data budgie 항목 homeScenes 장면', {}, /budgie.*ph-08/, { home: ['', { types: [{ id: 'budgie', slug: 'parrot/budgie', displayName: 'x', homeScenes: { startSpecCheck: pp('ph-08') } }] }] }],
+  ['홈 대표 타입이 앵무(시드 순 첫 노출)면 시작 카드 장면 FAIL', {}, /budgie.*장면.*ph-08/, {
+    home: [`<ul><li><a class="ws-starter" href="/pick">${spImg('ph-08')}</a></li></ul>`],
+    seed: (d) => { const b = d['animal-types.json'].find((t) => t.id === 'budgie'); d['animal-types.json'] = [b, ...d['animal-types.json'].filter((t) => t !== b)]; },
+  }],
+]) {
+  test(`C6-IMG-SPECIES: ${label} → FAIL`, async () => {
+    expectSp(await spScan(pages, opts ?? {}), re, label);
+  });
+}
+
+test('C6-IMG-SPECIES clean: 홈 — 시작 카드 장면(대표 골든) · 골든 카드 ph-08 · budgie 카드 자기 행', async () => {
+  const home = [
+    `<ul><li><a class="ws-starter" href="/pick">${spImg('ph-08')}</a></li></ul>`,
+    `<a class="ws-starter ws-habitat" href="/hamster/golden" data-ws-id="animalTypes#hamster-golden">${spImg('ph-08')}</a>`,
+    `<a class="ws-starter ws-habitat" href="/parrot/budgie" data-ws-id="animalTypes#budgie">${spImg('ph-budgie-spec')}</a>`,
+  ].join('');
+  const ws = {
+    types: [
+      { id: 'hamster-golden', slug: 'hamster/golden', displayName: 'x', homeScenes: { startSpecCheck: pp('ph-08'), startChecklist: pp('ph-03') }, photos: { spec: pp('ph-08') } },
+      typePhotos('budgie', { spec: pp('ph-budgie-spec') }),
+    ],
+  };
+  expectClean(await spScan({}, { home: [home, ws] }));
+});
+
+test('C6-IMG-SPECIES T23: seed-exposure 장면 표 == 엔진 photo-resolve.ts 상수(원문 대조, 엔진 import 없음)', async () => {
+  const src = readFileSync(join(REPO_ROOT, 'server', 'src', 'engine', 'photo-resolve.ts'), 'utf8');
+  const arr = (name) => {
+    const m = new RegExp(`export const ${name}\\b[^=]*=\\s*Object\\.freeze\\(\\[([^\\]]*)\\]`).exec(src);
+    assert.ok(m, `${name} 배열 상수를 찾지 못함`);
+    return [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
+  };
+  const obj = (name) => {
+    const m = new RegExp(`export const ${name}\\b[^=]*=\\s*Object\\.freeze\\(\\{([^}]*)\\}`).exec(src);
+    assert.ok(m, `${name} 표 상수를 찾지 못함`);
+    return Object.fromEntries([...m[1].matchAll(/'?([\w-]+)'?\s*:\s*'([^']*)'/g)].map((x) => [x[1], x[2]]));
+  };
+  const se = await import('../lib/seed-exposure.mjs');
+  assert.deepEqual([...se.SCENE_PHOTO_GROUPS], arr('SCENE_PHOTO_GROUPS'));
+  assert.deepEqual([...se.SCENE_PHOTO_TYPE_IDS], arr('SCENE_PHOTO_TYPE_IDS'));
+  assert.deepEqual({ ...se.TYPE_SCENE_PHOTOS }, obj('TYPE_SCENE_PHOTOS'));
+  assert.deepEqual({ ...se.ITEM_SCENE_PHOTOS }, obj('ITEM_SCENE_PHOTOS'));
+  assert.deepEqual({ ...se.HOME_A_SCENE_PHOTOS }, obj('HOME_A_SCENE_PHOTOS'));
+  // 엔진 ws-data 키(TYPE_PHOTO_KEYS) == PHOTO_WS_TYPE_KEYS
+  const keys = /TYPE_PHOTO_KEYS[^=]*=\s*\[([\s\S]*?)\];/.exec(src);
+  assert.ok(keys, 'TYPE_PHOTO_KEYS 를 찾지 못함');
+  assert.deepEqual({ ...se.PHOTO_WS_TYPE_KEYS }, Object.fromEntries([...keys[1].matchAll(/\['(\w+)',\s*'([\w-]+)'\]/g)].map((x) => [x[1], x[2]])));
+  assert.equal(se.sceneAllowedForType({ id: 'hamster-golden', group: 'SMALL_MAMMAL' }), true);
+  for (const t of [{ id: 'hamster-golden', group: 'PARROT' }, { id: 'gerbil-mongolian', group: 'SMALL_MAMMAL' }, { id: 'budgie', group: 'PARROT' }, null]) assert.equal(se.sceneAllowedForType(t), false);
+});
+
+// ── 359 단계 6: C6-IMG-SPECIES-SRC — 화면 경로 소스에 고정 사진 id 0(사진은 ws-data = 엔진 resolvePhoto 로만), T23 ─────────────
+const srcPhotoOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C6-IMG-SPECIES-SRC');
+const scanSrcPhoto = async (rel, body) => scan(await makeRoot({ source: (s) => { s[rel] = body; } }));
+for (const [name, rel, body] of [
+  ['client tsx 작은따옴표', 'client/src/x.tsx', "export const P = 'ph-03';"],
+  ['client ts 객체 값', 'client/src/home/x.ts', 'export const M = { cage: "ph-08" };'],
+  ['client JSX 속성', 'client/src/y.tsx', 'export const Y = () => <span data-ws-photo="ph-01" />;'],
+  ['프리렌더 템플릿 문자열', 'server/src/prerender/pages/x.ts', 'export const h = `<span data-ws-photo="ph-12"></span>`;'],
+  // 363(감사 361 결함 1): 대상 확장자 js/jsx/mjs 등 + client/src 의 asset 경로 리터럴·장면 표/선택 식별자
+  ['client js', 'client/src/x.js', "export const P = 'ph-03';"],
+  ['client jsx', 'client/src/x.jsx', "export const P = 'ph-03';"],
+  ['client mjs', 'client/src/x.mjs', "export const P = 'ph-03';"],
+  ['프리렌더 mjs', 'server/src/prerender/x.mjs', "export const P = 'ph-03';"],
+  // 398 C4: 시드의 이름형 사진 id(ph-budgie-habitat·ph-cp-… 등)도 고정 금지 — 예전엔 두 자리 숫자만 잡았다.
+  ['이름형 사진 id', 'client/src/w.ts', "export const P = 'ph-cp-syrian-cage';"],
+  ['client asset 사진 경로', 'client/src/a.tsx', "export const A = '/assets/photos/cage.webp';"],
+  ['client asset 품목 경로', 'client/src/a.ts', 'export const A = `/assets/items/${1}.webp`;'],
+  ['client HOME_A_SCENE_PHOTOS', 'client/src/b.ts', "import { HOME_A_SCENE_PHOTOS } from '@ws/engine';"],
+  ['client TYPE_SCENE_PHOTOS', 'client/src/b.ts', 'export const T = E.TYPE_SCENE_PHOTOS;'],
+  ['client ITEM_SCENE_PHOTOS', 'client/src/b.ts', 'export const T = E.ITEM_SCENE_PHOTOS;'],
+  ['client resolveScenePhoto', 'client/src/b.ts', 'export const T = resolveScenePhoto(1);'],
+  ['client resolvePhoto', 'client/src/b.tsx', 'export const T = resolvePhoto(1);'],
+  ['client scenePhotoIdFor', 'client/src/b.js', 'export const T = scenePhotoIdFor(1);'],
+]) {
+  test(`C6-IMG-SPECIES-SRC: ${name} → FAIL`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    expectFail(res, 'C6-IMG-SPECIES-SRC');
+    assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === 1), JSON.stringify(srcPhotoOf(res)));
+  });
+}
+for (const [name, rel, body] of [
+  ['*.test.tsx 는 제외', 'client/src/x.test.tsx', "export const P = 'ph-03';"],
+  ['client/src/test/ 는 제외', 'client/src/test/fx.ts', "export const P = 'ph-03';"],
+  ['주석 안 id', 'client/src/z.ts', '// 예전에는 ph-03 을 고정했다\nexport const P = 1;'],
+  ['엔진 장면 표는 대상 밖', 'server/src/engine/photo-resolve.ts', "export const S = ['ph-08'];"],
+  ['주석 안 식별자', 'client/src/c.ts', '// engine resolvePhoto → publicPhotoOf\nexport const P = 1;'],
+  ['주석 안 asset 경로', 'client/src/c.ts', '// /assets/photos/x.webp\nexport const P = 1;'],
+  ['테스트 파일 asset 경로·식별자', 'client/src/c.test.tsx', "const a = '/assets/items/fx.webp'; resolvePhoto(a);"],
+  ['프리렌더의 resolvePhoto 는 허용(서버 선택 한 곳)', 'server/src/prerender/p.ts', 'export const T = resolvePhoto(1);'],
+  ['다른 asset 경로', 'client/src/c.ts', "export const A = '/assets/mascot/x.svg';"],
+  ['비슷한 이름 식별자', 'client/src/c.ts', 'export const resolvePhotoLabel = 1;'],
+]) {
+  test(`C6-IMG-SPECIES-SRC clean: ${name}`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    assert.deepEqual(srcPhotoOf(res), []);
+    expectClean(res);
+  });
+}
+
+// ── 365 후속: 시드 직접 import·CSS url() 우회 차단 ─────────────
+for (const [name, rel, body, line] of [
+  ['정적 import', 'client/src/a.ts', "import photos from '../../server/seed/photos.json';", 1],
+  ['여러 줄 import', 'client/src/a.ts', "import {\n  a,\n} from '../../server/seed/types.json';", 3],
+  ['부수 효과 import', 'client/src/a.ts', "import '../../server/seed/photos.json';", 1],
+  ['export from', 'client/src/a.ts', "export { default as P } from '../../../server/seed-draft/photos.json';", 1],
+  ['동적 import', 'client/src/home/a.tsx', "export const p = () => import('../../../server/seed/photos.json');", 1],
+  ['동적 템플릿 import', 'client/src/a.ts', 'export const p = (n) => import(`../../server/seed-draft/${n}.json`);', 1],
+  ['require', 'client/src/a.js', "const p = require('../../server/seed/photos.json');", 1],
+  ['import.meta.glob', 'client/src/a.ts', "export const m = import.meta.glob(['../../server/seed/*.json']);", 1],
+  ['type 이라는 이름의 기본 import', 'client/src/a.ts', "import type from '../../server/seed/types.json';", 1],
+  ['CSS url 사진 따옴표', 'client/src/styles/a.css', ".a { background: url('/assets/photos/cage.webp'); }", 1],
+  ['CSS url 품목 따옴표 없음', 'client/src/a.css', '.a {\n  background-image: url(/assets/items/x.webp);\n}', 2],
+]) {
+  test(`C6-IMG-SPECIES-SRC: ${name} → FAIL`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    expectFail(res, 'C6-IMG-SPECIES-SRC');
+    assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === line), JSON.stringify(srcPhotoOf(res)));
+  });
+}
+for (const [name, rel, body] of [
+  ['import type 시드', 'client/src/a.ts', "import type P from '../../server/seed/photos.json';\nexport type { Q } from '../../server/seed/types.json';"],
+  ['typeof import 시드', 'client/src/a.ts', "export type P = typeof import('../../server/seed/photos.json');"],
+  ['테스트 파일 시드 import', 'client/src/a.test.ts', "import p from '../../server/seed/photos.json';"],
+  ['주석 안 시드 import', 'client/src/a.ts', "// import p from '../../server/seed/photos.json';\nexport const P = 1;"],
+  ['client 안의 seed 폴더', 'client/src/a.ts', "import p from './seed/x';\nexport const P = p;"],
+  ['CSS 주석 안 url', 'client/src/a.css', '/* url(/assets/photos/x.webp) */\n.a { color: red; }'],
+  ['CSS 다른 asset url', 'client/src/a.css', '.a { background: url(/assets/mascot/x.svg); }'],
+]) {
+  test(`C6-IMG-SPECIES-SRC clean: ${name}`, async () => {
+    const res = await scanSrcPhoto(rel, body);
+    assert.deepEqual(srcPhotoOf(res), []);
+    expectClean(res);
+  });
+}
+
+// 362 N12 — 피드 파일(C11-FEED)·시드 가격 키(C2-PRICE)·런타임 → 피드 로더(C10-AFF-RUNTIME FAIL)
+const FCP = j('link.coup', 'ang.com');
+const FAE = j('s.click.ali', 'express.com');
+const FIMG = j('ae01.ali', 'cdn.com');
+const FEED_GEN = '2026-11-23T09:12:00+09:00';
+const feedFile = (over = {}, rowOver = {}, provider = 'COUPANG') => ({
+  v: 1, provider, source: 'OFFICIAL_API', api: { method: null, sort: null }, terms: { checkedAt: null, displayFields: [] }, generatedAt: FEED_GEN,
+  rows: [{ animalTypeId: 'hamster-golden', supplyItemId: 'wheel', keyword: '햄스터 쳇바퀴', rank: 1, title: '햄스터 쳇바퀴 30cm', url: `${HTTPS}${FCP}/a/Mk1x`, imageUrl: null, price: { amount: 12900, currency: 'KRW' }, fetchedAt: FEED_GEN, ...rowOver }],
+  ...over,
+});
+const CF = 'server/product-feed/coupang.json';
+const AF = 'server/product-feed/aliexpress.json';
+
+test('362 N12 C11-FEED: 피드 파일 형식·링크·이미지·제목 린트, 수수료 키는 C10-AFF-FIELD', async () => {
+  expectNoAff(await affScan({ [CF]: JSON.stringify(feedFile()) }), 'C11-FEED', '정상 쿠팡 피드');
+  expectNoAff(await affScan({ [AF]: JSON.stringify(feedFile({}, { url: `${HTTPS}${FAE}/e/_abcd`, imageUrl: `${HTTPS}${FIMG}/kf/x.jpg` }, 'ALIEXPRESS')) }), 'C11-FEED', '정상 알리 피드(허용 이미지 호스트)');
+  const bad = [
+    ['다른 파일 이름', 'server/product-feed/naver.json', JSON.stringify(feedFile())],
+    ['파싱 실패', CF, '{ bad'],
+    ['최상위 키 초과', CF, JSON.stringify({ ...feedFile(), extra: 1 })],
+    ['공급자·파일 불일치', CF, JSON.stringify(feedFile({ provider: 'ALIEXPRESS' }))],
+    ['generatedAt 없음인데 행', CF, JSON.stringify(feedFile({ generatedAt: null }))],
+    ['링크 형식 밖', CF, JSON.stringify(feedFile({}, { url: `${HTTPS}www.coupang.com/vp/products/1` }))],
+    ['쿠팡 이미지(허용 호스트 0)', CF, JSON.stringify(feedFile({}, { imageUrl: `${HTTPS}${j('thumbnail.coup', 'angcdn.com')}/x.jpg` }))],
+    ['알리 이미지 호스트 밖', AF, JSON.stringify(feedFile({}, { url: `${HTTPS}${FAE}/e/_abcd`, imageUrl: `${HTTPS}evil.example/x.jpg` }, 'ALIEXPRESS'))],
+    ['제목 금지어', CF, JSON.stringify(feedFile({}, { title: '베스트 쳇바퀴' }))],
+  ];
+  for (const [label, file, text] of bad) expectAff(await affScan({ [file]: text }), 'C11-FEED', file, label);
+  expectAff(await affScan({ [CF]: JSON.stringify(feedFile({}, { commissionRate: 3 })) }), 'C10-AFF-FIELD', CF, '행 수수료 키');
+});
+
+test('362 N12 C2-PRICE: 시드 가격류 키(price·amount·currency) FAIL', async () => {
+  for (const k of ['price', 'amount', 'currency']) {
+    expectAff(scan(await makeRoot({ source: (s) => Object.assign(s, affEngineClient()), seed: (sd) => { sd['curated-products.json'][0][k] = 1; } })), 'C2-PRICE', null, `시드 ${k}`);
+  }
+});
+
+test('362 N12 C10-AFF-RUNTIME: 서버 런타임이 피드 로더에 닿으면 FAIL(맵은 WARN 그대로)', async () => {
+  const res = await affScan({
+    'server/src/index.ts': "import { loadFeed } from './prerender/cli.js';\nexport const s = loadFeed;\n",
+    'server/src/prerender/cli.ts': "import { loadProductFeed } from './product-feed.js';\nexport const loadFeed = () => loadProductFeed;\n",
+    'server/src/prerender/product-feed.ts': 'export const loadProductFeed = () => null;\n',
+  });
+  expectAff(res, 'C10-AFF-RUNTIME', null, '런타임 → 피드 로더');
+});
+
+// ── 398 C1~C4(codex_C) + GENERAL_INFO 체인 피드 0 — 합성 픽스처(실제 종·규격 사실 아님) ─────────────
+const r398Aff = async (html, rel = 'hamster/golden/index.feed.html') => {
+  const { checkHtmlAff } = await import('../lib/rules-affiliate.mjs');
+  const findings = [];
+  checkHtmlAff(html, rel, false, (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }));
+  return findings;
+};
+const R398_IMG_MSG = /img|referrerpolicy|FEED_IMAGE_HOSTS|사진/;
+const r398ImgFails = (fs) => fs.filter((f) => f.rule === 'C11-FEED-OUT' && f.severity === 'FAIL' && R398_IMG_MSG.test(f.message));
+const r398Row = (thumb) => j(
+  '<html><body><main>', r2cSection('L4', r2cRow({ title: '케이지', photo: thumb })), '</main></body></html>',
+);
+const R398_LOCAL = '<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-hamster-syrian-wheel.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-hamster-syrian-wheel">';
+const R398_LOCAL_AI = j('<span class="ws-photo-frame ws-feed-photo">', '<img class="ws-photo" src="/assets/items/ph-item-perch.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-item-perch">', '<span class="ws-photo-notice ws-t-meta" aria-hidden="true">생성 이미지 · 임시</span></span>');
+test('398 C1 C11-FEED-OUT clean: 피드 행 로컬 대체 사진(img.ws-photo · 실사·생성 틀)은 외부 썸네일 규칙 밖', async () => {
+  for (const thumb of [R398_LOCAL, R398_LOCAL_AI, '<span class="ws-photo ws-feed-photo" aria-hidden="true"></span>']) {
+    assert.deepEqual(r398ImgFails(await r398Aff(r398Row(thumb))), [], thumb);
+  }
+});
+for (const [name, thumb] of [
+  ['ws-photo 인데 외부 src', j('<img class="ws-photo ws-feed-photo" src="', HTTPS, 'evil.example/x.webp" alt="" data-ws-photo="ph-01">')],
+  ['ws-photo 인데 data-ws-photo 없음', '<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" alt="">'],
+  ['ws-photo 경로 순회', '<img class="ws-photo ws-feed-photo" src="/assets/photos/../x.webp" alt="" data-ws-photo="ph-01">'],
+  ['ws-photo 다른 로컬 폴더', '<img class="ws-photo ws-feed-photo" src="/assets/products/x.webp" alt="" data-ws-photo="ph-01">'],
+  ['ws-photo + srcset 외부', j('<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" srcset="', HTTPS, 'evil.example/x.webp 2x" alt="" data-ws-photo="ph-01">')],
+  ['ws-photo 와 ws-feed-thumb 동시(로컬 src)', '<img class="ws-feed-thumb ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" alt="" referrerpolicy="no-referrer" data-ws-photo="ph-01">'],
+  ['ws-photo 인데 피드 사진 자리 아님', '<img class="ws-photo ws-spec-sec-photo" src="/assets/photos/ph-01.webp" alt="" data-ws-photo="ph-01">'],
+  ['클래스 없는 로컬 img', '<img src="/assets/photos/ph-01.webp" alt="">'],
+  ['ws-feed-thumb 허용 밖 호스트', j('<img class="ws-feed-thumb" src="', HTTPS, 'evil.example/x.jpg" alt="" referrerpolicy="no-referrer">')],
+  ['ws-feed-thumb no-referrer 없음', j('<img class="ws-feed-thumb" src="', HTTPS, FIMG, '/kf/x.jpg" alt="">')],
+]) {
+  test(`398 C1 C11-FEED-OUT: ${name} → FAIL(느슨해지지 않음)`, async () => {
+    assert.ok(r398ImgFails(await r398Aff(r398Row(thumb))).length > 0, name);
+  });
+}
+
+const R398_VAR = 'parrot/budgie/index.feed.html';
+const R398_VAR_NP = 'parrot/budgie/index.feed-noprice.html';
+const r398Page = (body, ws) => page(`<main class="ws-page" data-ws-route="TYPE" data-ws-type="budgie"><h1>픽스처 앵무</h1>${body}</main>`, ws);
+/** 390 시드 체인(budgie, cp-390, req-390·item-390 / req-390-other·item-390-other) 위에 산출물만 바꿔 scanOutputs 를 직접 부른다. */
+async function scan398({ seed = noop, out = noop, feedManifest = null } = {}) {
+  const root = await makeRoot({
+    seed: (d) => { withGeneral390Seed(d); seed(d, general390Chain(d)); },
+    output: (o) => { budgieOut(`<p>${GI_NOTICE}</p>`)(o); out(o); if (feedManifest) o['feed-manifest.json'] = JSON.stringify(feedManifest); },
+    manifest: budgieManifest,
+  });
+  const { readSeed, computeExposure, seedDigest } = await import('../lib/seed-exposure.mjs');
+  const { scanOutputs } = await import('../lib/rules-output.mjs');
+  const { loadBannedWords } = await import('../lib/normalize.mjs');
+  const { seed: sd } = readSeed(join(root, 'server/seed'));
+  const ex = computeExposure(sd, FIXED_NOW);
+  const findings = [];
+  assert.equal(scanOutputs({
+    root, dist: join(root, 'client/dist'), seed: sd, ex, digest: seedDigest(join(root, 'server/seed')),
+    bw: loadBannedWords(join(root, 'server/src/seed/banned-words.json')), requireOutput: true,
+    add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }),
+  }), 'RUN');
+  return { ex, findings, fails: (rule, fileEnd) => findings.filter((f) => f.rule === rule && f.severity === 'FAIL' && (!fileEnd || String(f.file).endsWith(fileEnd))) };
+}
+const r398GiReq = (_d, chain) => Object.assign(chain.requirement, general390Meta());
+const R398_FM = (pages) => ({ v: 1, generatedAt: FEED_GEN, priceUntil: FEED_GEN, blockUntil: FEED_GEN, variants: { full: [], noprice: [] }, pages });
+
+test('398 C2 C9-GENERAL clean: GI 종 피드 변형 HTML 에도 고지 1회 → FAIL 0', async () => {
+  const res = await scan398({ seed: r398GiReq, out: (o) => { o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p>`); o[R398_VAR_NP] = r398Page(`<p>${GI_NOTICE}</p>`); }, feedManifest: R398_FM({ full: [R398_VAR], noprice: [R398_VAR_NP] }) });
+  assert.deepEqual(res.fails('C9-GENERAL'), []);
+  assert.deepEqual(res.fails('C3-OUT-ROUTE'), []);
+});
+for (const [name, listed] of [['feed-manifest pages 에 등록', true], ['feed-manifest 없이 디스크에만', false]]) {
+  test(`398 C2 C9-GENERAL: 기본 HTML 고지 유지·피드 변형에서만 삭제(${name}) → 변형 파일 FAIL`, async () => {
+    const res = await scan398({ seed: r398GiReq, out: (o) => { o[R398_VAR] = r398Page('<p>준비물</p>'); }, feedManifest: listed ? R398_FM({ full: [R398_VAR], noprice: [] }) : null });
+    assert.ok(res.fails('C9-GENERAL', R398_VAR).some((f) => /0회\(기대 1회\)/.test(f.message)), JSON.stringify(res.findings));
+    assert.deepEqual(res.fails('C9-GENERAL', BUDGIE_HTML), []);
+  });
+}
+test('398 C2 C6-IMG-SPECIES: 피드 변형 HTML 에만 사용 불가 사진(data-ws-photo) → 변형 파일 FAIL', async () => {
+  const res = await scan398({ seed: r398GiReq, out: (o) => { o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p><img class="ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" alt="" data-ws-photo="ph-01">`); }, feedManifest: R398_FM({ full: [R398_VAR], noprice: [] }) });
+  assert.ok(res.fails('C6-IMG-SPECIES', R398_VAR).some((f) => /사용 불가.*ph-01/.test(f.message)), JSON.stringify(res.findings));
+  assert.deepEqual(res.fails('C6-IMG-SPECIES', BUDGIE_HTML), []);
+});
+for (const [name, out, pages] of [
+  ['기본 라우트 없는 변형 파일', (o) => { o['parrot/ghost/index.feed.html'] = r398Page(''); }, null],
+  ['feed-manifest pages 에 있는데 파일 없음', noop, { full: [R398_VAR], noprice: [] }],
+  ['feed-manifest pages 가 변형 이름 아님', noop, { full: ['parrot/budgie/index.html'], noprice: [] }],
+]) {
+  test(`398 C2 C3-OUT-ROUTE: ${name} → FAIL`, async () => {
+    const res = await scan398({ out, feedManifest: pages ? R398_FM(pages) : null });
+    assert.ok(res.fails('C3-OUT-ROUTE').some((f) => /피드 변형/.test(f.message)), JSON.stringify(res.findings));
+  });
+}
+
+const r398Block = (over = {}, rowOver = {}) => ({
+  v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', badge: 'LISTED_PASS', generalInfo: false,
+  rows: [{ provider: 'COUPANG', title: '넓은 케이지', url: `${HTTPS}${FCP}/a/Mk1x`, imageUrl: null, verdict: 'OK', specValues: {}, ...rowOver }],
+  ...over,
+});
+test('398 C3 C4-BANNED: 피드 JSON(full·noprice) 제목 금지어 → FAIL, 정상 제목 → 0', async () => {
+  for (const f of ['hamster/golden/feed/cage.json', 'hamster/golden/feed/cage.noprice.json']) {
+    const bad = await scan398({ out: (o) => { o[f] = JSON.stringify(r398Block({}, { title: j(KO.safe, ' 케이지') })); } });
+    assert.ok(bad.fails('C4-BANNED', f).length > 0, JSON.stringify(bad.findings));
+    const ok = await scan398({ out: (o) => { o[f] = JSON.stringify(r398Block()); } });
+    assert.deepEqual([...ok.fails('C4-BANNED', f), ...ok.fails('C4-STEM', f), ...ok.fails('C11-FEED-OUT', f)], []);
+  }
+});
+
+test('398 GI C11-FEED-OUT: GENERAL_INFO 체인 쌍의 피드 JSON·generalInfo:true·ws-data data.feed → FAIL, VERIFIED 체인 → 0', async () => {
+  const gf = 'parrot/budgie/feed/item-390.json';
+  const ws = (items, stage) => ({ v: 1, route: { kind: 'TYPE', path: '/parrot/budgie', typeId: 'budgie' }, layer: null, data: { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], feed: { v: 1, stage, items, rail: [] } } });
+  const res = await scan398({
+    seed: r398GiReq,
+    out: (o) => {
+      o[gf] = JSON.stringify(r398Block({ typeId: 'budgie', supplyItemId: 'item-390' }));
+      o['hamster/golden/feed/cage.json'] = JSON.stringify(r398Block({ generalInfo: true }));
+      o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390'], 'full'));
+      o[R398_VAR_NP] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390-other'], 'noprice'));
+    },
+    feedManifest: R398_FM({ full: [R398_VAR], noprice: [R398_VAR_NP] }),
+  });
+  assert.ok(res.ex.pairs.has('budgie|item-390'), 'GI 쌍은 노출(체인 메타)');
+  assert.ok(res.fails('C11-FEED-OUT', gf).some((f) => /GENERAL_INFO/.test(f.message)), JSON.stringify(res.findings));
+  assert.ok(res.fails('C11-FEED-OUT', 'hamster/golden/feed/cage.json').some((f) => /generalInfo/.test(f.message)), JSON.stringify(res.findings));
+  assert.ok(res.fails('C11-FEED-OUT', R398_VAR).some((f) => /GENERAL_INFO/.test(f.message)), JSON.stringify(res.findings));
+  assert.deepEqual(res.fails('C11-FEED-OUT', R398_VAR_NP), [], 'VERIFIED 체인 품목(item-390-other)은 통과');
+});
+
+test('398 C4 C6-IMG-SPECIES-SRC: 실제 시드 사진 id 전부를 잡고, 비슷한 문자열은 잡지 않는다', async () => {
+  const { PHOTO_ID_LITERAL_RE } = await import('../lib/rules-source.mjs');
+  const ids = JSON.parse(readFileSync(resolve(HERE, '..', '..', 'server', 'seed', 'photos.json'), 'utf8')).map((p) => p.id);
+  assert.ok(ids.length > 12);
+  for (const id of ids) {
+    assert.ok(PHOTO_ID_LITERAL_RE.test(id), `시드 id ${id}`);
+    assert.ok(PHOTO_ID_LITERAL_RE.test(`<span data-ws-photo="${id}">`), `속성 안 ${id}`);
+  }
+  for (const s of ['graph-1', 'alpha-beta', 'ph', 'ph-', 'phone-1', 'ws-ph-cage', 'x_ph-01', 'ph-${id}', 'PH-01', 'ph--x', 'ph-01x_']) {
+    assert.ok(!PHOTO_ID_LITERAL_RE.test(s), `오탐 ${s}`);
+  }
+});
+test('398 C4 C6-IMG-SPECIES-SRC: client 소스에 "ph-budgie-habitat" 고정 → FAIL', async () => {
+  const rel = 'client/src/x.ts';
+  const res = await scanSrcPhoto(rel, 'export const P = "ph-budgie-habitat";');
+  expectFail(res, 'C6-IMG-SPECIES-SRC');
+  assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === 1), JSON.stringify(srcPhotoOf(res)));
+});
+
+// ── 399 B-1: HTML 에만 넣은 피드 상품 — HTML → ws-data data.feed 방향 대조 ──
+const R399_RAIL = { supplyItemId: 'cage', title: '케이지', url: j(HTTPS, FCP, '/a/Mk1x'), verdict: 'OK' };
+const r399Page = ({ cards = ['cage'], secItem = 'cage', looseRow = false, feed = { v: 1, stage: 'full', items: ['cage'], rail: [R399_RAIL] } } = {}) => {
+  const row = r2cRow({ title: '케이지' });
+  return j(
+    '<html><body><main>',
+    r2cSection('몰 레일', cards.map((id) => r2cRow({ surface: '몰 레일', title: '케이지' }).replace(' data-ws-item="cage"', id === null ? '' : ` data-ws-item="${id}"`)).join('')),
+    secItem === null ? '' : r2cSection('L4', row).replaceAll('ws-aff-feed-cage', `ws-aff-feed-${secItem}`),
+    looseRow ? `<ul>${row}</ul>` : '',
+    '</main><script id="ws-data" type="application/json">', JSON.stringify({ v: 1, data: { feed } }), '</script></body></html>',
+  );
+};
+const R399_MSG = /ws-data data\.feed|section\[data-ws-part=feed\]/;
+const r399Fails = async (html) => (await r398Aff(html)).filter((f) => f.rule === 'C11-FEED-OUT' && f.severity === 'FAIL' && R399_MSG.test(f.message));
+test('399 B-1 C11-FEED-OUT clean: HTML 카드·L4 블록 품목이 ws-data 와 일치 → 0', async () => {
+  assert.deepEqual(await r399Fails(r399Page()), []);
+});
+for (const [name, over] of [
+  ['레일에 없는 품목 카드를 HTML 에만 추가', { cards: ['cage', 'item-390'] }],
+  ['data-ws-item 없는 몰 카드', { cards: ['cage', null] }],
+  ['items 에 없는 품목의 L4 블록', { secItem: 'item-390' }],
+  ['피드 블록 밖 li.ws-feed-row', { looseRow: true }],
+]) {
+  test(`399 B-1 C11-FEED-OUT: ${name} → FAIL`, async () => {
+    assert.ok((await r399Fails(r399Page(over))).length > 0, name);
+  });
+}
+test('399 B-1 C11-FEED-OUT: 품목 고지 id 없는 피드 블록 → FAIL', async () => {
+  const html = r399Page().replace(' id="ws-aff-feed-cage"', '');
+  assert.ok((await r399Fails(html)).length > 0);
+});
+
+// ── 399 B-2: 피드 JSON 의 표시 제목은 URL 모양이어도 금지어 검사 ──
+for (const [name, title] of [['「/」로 시작', j('/', KO.safe, ' 케이지')], ['URL 로 시작', j(HTTPS, 'x.example/ ', KO.safe, ' 케이지')]]) {
+  test(`399 B-2 C4-BANNED: 피드 JSON 제목이 ${name}해도 금지어 FAIL`, async () => {
+    for (const f of ['hamster/golden/feed/cage.json', 'hamster/golden/feed/cage.noprice.json']) {
+      const bad = await scan398({ out: (o) => { o[f] = JSON.stringify(r398Block({}, { title })); } });
+      assert.equal(bad.fails('C4-BANNED', f).length, 1, JSON.stringify(bad.findings));
+    }
+  });
+}
+
+// ── 399 R-2: L4 블록 행마다 품목·URL(·제목)을 같은 단계 피드 JSON 과 대조 ──
+const R2_URL = j(HTTPS, FCP, '/a/Mk1x');
+const R2_URL_GI = j(HTTPS, FCP, '/a/Zz9q');
+async function r399Rows(htmlRows) {
+  const findings = await r2cScan({ title: '넓은 케이지 & 선반', mutate: () => htmlRows.map(([url, title]) => {
+    const row = r2cRow({ title: title.replaceAll('&amp;', '&'), url: url ?? R2_URL });
+    return url === null ? row.replace(/<a\b[^>]*>[\s\S]*?<\/a>/, '') : row;
+  }).join('') });
+  return findings.filter((f) => f.rule === 'C11-FEED-OUT');
+}
+const R2_OK = [R2_URL, '넓은 케이지 &amp; 선반'];
+test('399 R-2 clean: HTML 행이 피드 JSON 행과 일치 → 0', async () => {
+  assert.deepEqual(await r399Rows([R2_OK]), []);
+});
+for (const [name, extra] of [
+  ['데이터에 없는 URL 행을 HTML 에만 추가', [R2_URL_GI, '넓은 케이지 &amp; 선반']],
+  ['URL 은 같고 제목이 다른 행', [R2_URL, '다른 상품']],
+  ['링크 없는 행', [null, '넓은 케이지 &amp; 선반']],
+]) {
+  test(`399 R-2 C11-FEED-OUT: ${name} → FAIL`, async () => {
+    assert.ok((await r399Rows([R2_OK, extra])).length > 0, name);
+  });
+}
+
+// ── 399 R-3: 화면 글자 키(title)는 URL 모양이어도 금지어 검사 ──
+test('399 R-3 C4-BANNED: ws-data data.feed.rail[].title 이 「/」·http 로 시작해도 금지어 → FAIL', async () => {
+  for (const prefix of ['/', j(HTTPS, 'a.example/ ')]) {
+    const ws = { v: 1, route: { kind: 'TYPE', path: '/parrot/budgie', typeId: 'budgie' }, layer: null, data: { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], feed: { v: 1, stage: 'full', items: [], rail: [{ supplyItemId: 'cage', title: j(prefix, KO.safe, ' 케이지') }] } } };
+    const res = await scan398({ out: (o) => { o[R398_VAR] = r398Page('<p>준비물</p>', ws).replace(KO.safe, [...KO.safe].map((c) => String.fromCharCode(92) + 'u' + c.charCodeAt(0).toString(16).padStart(4, '0')).join('')); }, feedManifest: R398_FM({ full: [R398_VAR], noprice: [] }) });
+    assert.ok(res.fails('C4-BANNED', R398_VAR).length > 0, `${prefix} ${JSON.stringify(res.findings)}`);
+  }
+});
+
+// ── 399 R-2b: 피드 영역의 상품 행·링크는 class 와 무관하게 데이터와 대조(Codex 재검 2) ──
+const R2_ROW = (attrs, url, title = '넓은 케이지 &amp; 선반') => j('<li', attrs, '><p class="ws-t-cta ws-feed-title">', title, '</p><a class="ws-btn ws-feed-go" href="', url, '">몰</a></li>');
+const R2B_MSG = /L4 피드 행|몰 레일 카드|피드 영역/;
+async function r399Surface({ l4Extra = '', mallExtra = '' } = {}) {
+  const findings = [
+    ...await r2cScan({ title: '넓은 케이지 & 선반', mutate: (s) => s + l4Extra }),
+    ...await r2cScan({ surface: '몰 레일', title: '넓은 케이지 & 선반', mutate: (s) => s + mallExtra }),
+  ];
+  return findings.filter((f) => f.rule === 'C11-FEED-OUT' && R2B_MSG.test(f.message));
+}
+test('399 R-2b clean: 몰 카드·L4 행이 데이터와 일치 → 0', async () => {
+  assert.deepEqual(await r399Surface(), []);
+});
+for (const [name, over] of [
+  ['class 없는 L4 상품 행', { l4Extra: R2_ROW('', R2_URL_GI) }],
+  ['다른 class 의 L4 상품 행', { l4Extra: R2_ROW(' class="ws-product-row"', R2_URL_GI) }],
+  ['li 없이 div 로 넣은 L4 링크', { l4Extra: j('<div><a href="', R2_URL_GI, '">몰</a></div>') }],
+  ['li 밖 상품 제목', { l4Extra: '<div><p class="ws-feed-title">다른 상품</p></div>' }],
+  ['class 없는 몰 카드', { mallExtra: R2_ROW(' data-ws-item="cage"', R2_URL_GI) }],
+  ['같은 품목 id·다른 URL 몰 카드', { mallExtra: R2_ROW(' class="ws-feed-card" data-ws-item="cage"', R2_URL_GI) }],
+  ['같은 URL·다른 제목 몰 카드', { mallExtra: R2_ROW(' class="ws-feed-card" data-ws-item="cage"', R2_URL, '다른 상품') }],
+  ['li 없이 div 로 넣은 몰 링크', { mallExtra: j('<div><a href="', R2_URL_GI, '">몰</a></div>') }],
+]) {
+  test(`399 R-2b C11-FEED-OUT: ${name} → FAIL`, async () => {
+    assert.ok((await r399Surface(over)).length > 0, name);
+  });
+}
+
+// 399 R-2c: pages/feed.ts feedRow·feedRailCard·feedBlockL4, common.ts photoTile·railSection 의 실제 마크업.
+// CLI·build 없이 합성 산출물만 검사하며 임시 파일도 작업 폴더 안에서 만들고 지운다.
+const r2cEscape = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+const R2C_TITLE = '햄스터 통면 쳇바퀴 30cm';
+const R2C_PHOTO = '<span class="ws-photo ws-feed-photo" aria-hidden="true"></span>';
+const R2C_LISTED = '<span class="ws-t-label ws-feed-badge ws-feed-badge--listed">표기 규격 통과</span>';
+const R2C_CHECK = '<span class="ws-t-label ws-feed-badge ws-feed-badge--check"><span class="ws-glyph" data-ws-glyph="check" aria-hidden="true">△</span>규격 확인 필요</span>';
+const R2C_AFF = '<span class="ws-t-label ws-muted ws-feed-aff" data-ws-aff="card">제휴 링크</span>';
+function r2cRow({ surface = 'L4', title = R2C_TITLE, url = R2_URL, badge = 'LISTED_PASS', photo = R2C_PHOTO, spec = false, price = false } = {}) {
+  const mall = surface === '몰 레일';
+  const note = mall ? 'ws-aff-feed-home' : 'ws-aff-feed-cage';
+  const go = `<a class="ws-btn ws-btn--outline ws-feed-go${mall ? ' ws-feed-go--compact' : ''}" href="${r2cEscape(url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" aria-describedby="${note}" data-ws-merchant="COUPANG">쿠팡에서 보기<span class="ws-visually-hidden"> (새 창)</span></a>`;
+  const titleHtml = `<p class="ws-t-cta ws-feed-title">${r2cEscape(title)}</p>`;
+  const specHtml = spec ? '<p class="ws-t-meta ws-feed-spec">표기 · 지름 30cm</p>' : '';
+  const badgeHtml = badge === 'LISTED_PASS' ? R2C_LISTED : R2C_CHECK;
+  const amount = '<span class="ws-feed-amount">12,900원</span>';
+  const priceHtml = !price ? '' : mall
+    ? `<p class="ws-t-meta ws-feed-price">${amount}</p><p class="ws-t-meta ws-muted ws-feed-checked">11월 23일 확인</p>`
+    : `<p class="ws-t-meta ws-feed-price">${amount}<span class="ws-muted"> · 11월 23일 확인 · 몰에서 달라질 수 있어요</span></p>`;
+  return mall
+    ? `<li class="ws-feed-card" data-ws-item="cage" data-ws-merchant="COUPANG">${photo}<p class="ws-t-label ws-muted ws-feed-item">케이지</p>${titleHtml}${specHtml}${badgeHtml}${priceHtml}${R2C_AFF}${go}</li>`
+    : `<li class="ws-feed-row" data-ws-merchant="COUPANG">${photo}<div class="ws-feed-body">${titleHtml}${specHtml}<p class="ws-feed-meta">${badgeHtml}${R2C_AFF}</p>${priceHtml}${go}</div></li>`;
+}
+function r2cSection(surface, rows, stage = 'full') {
+  const note = (id) => `<p class="ws-t-meta ws-aff-note" id="${id}" data-ws-aff="note-feed">${AFF_NOTE}</p>`;
+  return surface === 'L4'
+    ? `<section class="ws-supply-part ws-feed" data-ws-part="feed" aria-labelledby="ws-feed-title"><h3 id="ws-feed-title" class="ws-t-label ws-supply-head">몰 검색 결과</h3><p class="ws-t-meta ws-muted ws-feed-sub">쇼핑몰 상품명에 적힌 정보로 골랐어요. 실제 규격은 몰에서 확인해요.</p>${note('ws-aff-feed-cage')}<ul class="ws-feed-rows" role="list">${rows}</ul></section>`
+    : `<section class="ws-rail-section ws-rail-section--product ws-home-sec ws-mall-sec" data-ws-section="mall" aria-labelledby="ws-sec-mall-title"><div class="ws-rail-head"><div class="ws-rail-heading ws-home-sec-head"><h2 id="ws-sec-mall-title" class="ws-t-display ws-home-sec-title">몰에 올라온 상품</h2>${stage === 'full' ? '<p class="ws-t-body ws-muted ws-home-sec-lead">몰 가격은 확인한 날 기준이에요. 몰에서 달라질 수 있어요.</p>' : ''}${note('ws-aff-feed-home')}</div><div class="ws-rail-tools"></div></div><ul class="ws-rail ws-products" role="list" tabindex="0" aria-labelledby="ws-sec-mall-title">${rows}</ul></section>`;
+}
+async function r2cScan({ surface = 'L4', stage = 'full', title = R2C_TITLE, badge = 'LISTED_PASS', mutate = (s) => s, mutatePage = (s) => s, ...opts } = {}) {
+  const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
+  const dir = mkdtempSync(resolve(HERE, '../../_workspace/ws-r399c-'));
+  try {
+    const dist = join(dir, 'dist');
+    const put = (p, s) => { mkdirSync(dirname(join(dist, p)), { recursive: true }); writeFileSync(join(dist, p), s); };
+    const file = `hamster/golden/feed/cage${stage === 'noprice' ? '.noprice' : ''}.json`;
+    const priceData = stage === 'full' && opts.price ? { price: { amount: 12900, currency: 'KRW' } } : {};
+    const checkedData = stage === 'full' && opts.price ? { priceCheckedOn: '2026-11-23' } : {};
+    const row = { provider: 'COUPANG', title, url: R2_URL, imageUrl: null, verdict: badge === 'LISTED_PASS' ? 'OK' : null, specValues: opts.spec ? { diameterCm: 30 } : null, ...priceData };
+    const block = { v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', badge, generalInfo: false, ...checkedData, rows: [row] };
+    const rail = surface === '몰 레일' ? [{ ...row, supplyItemId: 'cage', specValues: row.specValues ?? {} }] : [];
+    put('prerender-manifest.json', JSON.stringify({ mode: 'production' }));
+    put('feed-manifest.json', JSON.stringify({ variants: { full: stage === 'full' ? [file] : [], noprice: stage === 'noprice' ? [file] : [] } }));
+    put(file, JSON.stringify(block));
+    const feed = { v: 1, stage, ...checkedData, items: surface === 'L4' ? ['cage'] : [], rail };
+    const section = r2cSection(surface, mutate(r2cRow({ surface, title, badge, ...opts })), stage);
+    const body = surface === 'L4'
+      ? `<main></main><aside class="ws-layer" id="ws-layer" data-ws-layer="L4" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#req-cage">${section}</aside>`
+      : `<main id="main" class="ws-page ws-home-b" data-ws-route="TYPE" data-ws-type="hamster-golden">${section}</main>`;
+    const ws = JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed } }).replaceAll('<', '\\u003c');
+    put(`hamster/golden/index.feed${stage === 'noprice' ? '-noprice' : ''}.html`, mutatePage(`<html lang="ko"><body><div id="root">${body}<footer class="ws-footer"><p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">${AFF_NOTE}</p><p class="ws-footer-copy">© WithSmall</p></footer></div><script id="ws-data" type="application/json">${ws}</script></body></html>`));
+    const findings = [];
+    scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
+    return findings.filter((f) => f.severity === 'FAIL');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+for (const surface of ['L4', '몰 레일']) for (const stage of ['full', 'noprice']) {
+  test(`399 R-2c 피드 clean: ${surface} ${stage} 렌더러 구조·특수문자 제목 → 전체 FAIL 0`, async () => {
+    for (const title of [R2C_TITLE, '넓은 & <대형> "케이지"', "선반 '큰 것' &amp;", '  케이지\n선반  ']) {
+      assert.deepEqual(await r2cScan({ surface, stage, title }), []);
+    }
+    for (const photo of [R398_LOCAL, R398_LOCAL_AI]) {
+      assert.deepEqual(await r2cScan({ surface, stage, photo, spec: true, price: stage === 'full' }), []);
+    }
+    if (surface === 'L4') assert.deepEqual(await r2cScan({ surface, stage, badge: 'CHECK_NEEDED' }), []);
+  });
+  const titleHtml = `<p class="ws-t-cta ws-feed-title">${R2C_TITLE}</p>`;
+  for (const [name, mutate, mutatePage] of [
+    ['re3 숨긴 정상 제목 뒤 다른 표시 제목', (s) => s.replace(titleHtml, `<p hidden class="ws-t-cta ws-feed-title">${R2C_TITLE}</p><div><p class="ws-t-cta ws-feed-title">햄스터 통면 쳇바퀴 20cm</p></div>`)],
+    ['제목 0개', (s) => s.replace(titleHtml, '')],
+    ['정상 제목 2개', (s) => s.replace(titleHtml, titleHtml + titleHtml)],
+    ['제목 style', (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" style="display:none"')],
+    ['제목 aria-hidden', (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" aria-hidden="true"')],
+    ['제목 모르는 속성', (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" data-other="x"')],
+    ['제목 모르는 클래스', (s) => s.replace('ws-t-cta ws-feed-title', 'ws-t-cta ws-feed-title other')],
+    ['제목 안 모르는 요소', (s) => s.replace(R2C_TITLE, `<em>${R2C_TITLE}</em>`)],
+    ['허용 자리 밖 글자', (s) => s.replace('</li>', '다른 상품</li>')],
+    ['허용 자리 밖 요소', (s) => s.replace('</li>', '<div>다른 상품</div></li>')],
+    ['중첩 상품 행', (s) => s.replace('</li>', `<ul>${r2cRow({ surface })}</ul></li>`) ],
+    ['배지 0개', (s) => s.replace(R2C_LISTED, '')],
+    ['배지 2개', (s) => s.replace(R2C_LISTED, R2C_LISTED + R2C_LISTED)],
+    ['배지 문구 변조', (s) => s.replace('표기 규격 통과', '다른 표식')],
+    ['JSON과 다른 배지', (s) => s.replace(R2C_LISTED, R2C_CHECK)],
+    ['행 hidden', (s) => s.replace('<li ', '<li hidden ')],
+    ['블록 hidden', undefined, (s) => s.replace('<section ', '<section hidden ')],
+    ['목록 aria-hidden', undefined, (s) => s.replace('<ul ', '<ul aria-hidden="true" ')],
+    ['조상 style', undefined, (s) => s.replace('<div id="root"', '<div style="display:none" id="root"')],
+    ['조상 inert', undefined, (s) => s.replace('<body>', '<body inert>')],
+    ['목록 밖 일반 글자', undefined, (s) => s.replace('</ul>', '</ul>다른 상품')],
+  ]) {
+    test(`399 R-2c 피드: ${surface} ${stage} ${name} → C11-FEED-OUT FAIL`, async () => {
+      const fails = await r2cScan({ surface, stage, mutate, mutatePage });
+      assert.ok(fails.some((f) => f.rule === 'C11-FEED-OUT'), `${name}: ${JSON.stringify(fails)}`);
+    });
+  }
+}
+
+test('399 R-2c 피드: 파서가 누락하는 속성·잘못된 선택 조합도 FAIL', async () => {
+  for (const surface of ['L4', '몰 레일']) {
+    const fails = await r2cScan({ surface, mutate: (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" __proto__="x"') });
+    assert.ok(fails.some((f) => f.rule === 'C11-FEED-OUT'), `${surface} __proto__: ${JSON.stringify(fails)}`);
+  }
+  assert.ok((await r2cScan({ badge: 'CHECK_NEEDED', spec: true })).some((f) => f.rule === 'C11-FEED-OUT'), 'CHECK_NEEDED 에 규격 줄');
+  assert.ok((await r2cScan({ surface: '몰 레일', price: true, mutate: (s) => s.replace(/<p class="ws-t-meta ws-feed-price">[\s\S]*?<\/p>/, '') })).some((f) => f.rule === 'C11-FEED-OUT'), '가격 없이 확인일만');
 });

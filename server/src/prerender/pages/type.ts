@@ -20,6 +20,7 @@ import {
   mainOpen,
   meetsBadge,
   navCurrent,
+  photoTile,
   renderFooter,
   renderHead,
   renderHeader,
@@ -35,6 +36,7 @@ import {
   type RenderedPage,
 } from './common.js';
 import { familyName } from './family.js';
+import { feedBlockL4, feedLinksOn, feedRailCard, feedRailLead, type PageFeed } from './feed.js';
 
 const LINK_TEXT = { COUPANG: COPY.supplyLayer.findCoupang, NAVER: COPY.supplyLayer.findNaver } as const;
 
@@ -154,8 +156,8 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
     return [
       `<li class="ws-now-item" data-ws-item="${a(r.item.id)}" data-ws-id="supplyRequirements#${a(r.requirementId)}">`,
       `<a class="ws-now-card" href="${a(itemHref(r))}" data-ws-state="neutral">`,
-      // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용)는 싣지 않는다.
-      '<span class="ws-photo ws-now-photo" aria-hidden="true"></span>',
+      // 사진 자리 — 품목 자리 사진(engine resolvePhoto use=item, 359). 사용 가능 사진이 없으면 지금 그대로 빈 블록.
+      photoTile(r.pub.photo, 'ws-now-photo'),
       `<span class="ws-t-title ws-now-name">${h(r.item.name)}</span>`,
       reason ? `<span class="ws-t-body ws-muted ws-now-reason">${h(reason)}</span>` : '',
       '</a></li>',
@@ -163,7 +165,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
   };
   const lead = [
     '<li class="ws-now-lead">',
-    '<span class="ws-photo ws-now-photo" aria-hidden="true"></span>',
+    photoTile(t.pub.photos?.nowLead, 'ws-now-photo'),
     `<h3 class="ws-t-title ws-now-name">${h(COPY.homeB.nowCardTitle)}</h3>`,
     `<p class="ws-t-body ws-muted ws-now-count">${h(required.length ? COPY.homeB.nowBeforeSetup : COPY.homeB.nowEmpty)}</p>`,
     // React 는 L2 를 여는 button. 정적(무JS)은 첫 필수 항목 문서(L4) — 없으면 타입 홈.
@@ -213,7 +215,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
         }</p>`,
         `<a class="ws-home-link" href="${a(hrefOf(`${base(t)}/check/${spec.r.item.id}`))}">${h(formatCopy(COPY.homeB.specMine, { name: spec.r.item.name }))}${ARROW}</a>`,
         '</div>',
-        '<span class="ws-photo ws-spec-sec-photo" aria-hidden="true"></span>',
+        photoTile(t.pub.photos?.spec, 'ws-spec-sec-photo'),
         '</section>',
       ]
     : [];
@@ -229,7 +231,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
       })
     : '';
   // 기준에 맞는 준비물 — t.products = 요구사항 순서 × orderExposableProducts(규격 → 검수 → 선호, 미달 0 · VERIFIED 만) 그대로. 0 이면 섹션 없음.
-  //   상품 표면 표식 유지(client staticCapture PRODUCT_SURFACE_SELECTOR): section[data-ws-section=products] · ul.ws-products · li.ws-product.
+  //   상품 표면 표식 유지(client staticCapture PRODUCT_SURFACE_SELECTOR): section[data-ws-section=products|mall] · ul.ws-products · li.ws-product.
   const productsSection = t.products.length
     ? railSection({
         id: 'products',
@@ -237,6 +239,21 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
         tone: 'home',
         titleHtml: h(COPY.homeB.productsTitle),
         items: t.products.map((p) => productCard(t, p, itemFor(t, p.supplyItemId))),
+      })
+    : '';
+  // 362 N9(D-2) · 380 S2: 피드 변형이면 상품 레일 바로 아래 「몰에 올라온 상품」 레일(품목당 1장, LISTED_PASS 만 — GENERAL_INFO 종 0장).
+  //   운영자 확인 카드와 섞지 않는다. 피드 카드 0 이면 섹션 없음. lead 안내(full 만)·고지 1회.
+  const feedCards = ctx.feed?.data.rail ?? [];
+  const feedLead = feedRailLead(ctx.feed);
+  const mallSection = feedCards.length
+    ? railSection({
+        id: 'mall',
+        kind: 'product',
+        tone: 'home',
+        titleHtml: h(COPY.homeB.mallTitle),
+        ...(feedLead.lead.length ? { lead: feedLead.lead } : {}),
+        leadHtml: feedLead.leadHtml,
+        items: feedCards.map((c) => feedRailCard(t, c, ctx.feed as PageFeed)),
       })
     : '';
   // 병원 — treats ∋ 타입 노출 병원(SLOT 은 로더가 건너뜀 → 허구 병원 0). 정적 링크는 /vet(하이드레이션 후 client 가 ?treats= — decisions 2026-11-10 M-2).
@@ -270,6 +287,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
     bundlesSection,
     ...specSection,
     productsSection,
+    mallSection,
     vetSection,
     '<section class="ws-home-sec ws-save-sec" data-ws-section="save" aria-labelledby="ws-save-title">',
     `<h2 id="ws-save-title" class="ws-t-display ws-home-sec-title">${h(COPY.homeB.saveTitle)}</h2>`,
@@ -326,10 +344,10 @@ function searchBlock(r: RequirementModel): string {
  *   → 상품 2~3 → 검수 내용(마지막 검수 · 출처) → [규격 확인] + 찾기(상인 링크).
  */
 /**
- * 313(311 S-3): 팁 진입 링크는 L4 안에 넣지 않는다. /supplies/{item}/{type} 의 정적 aside 는 하이드레이션 후 사라지므로(309 D6)
- *   레이어 안 링크는 JS 끔에서만 보여 링크 수·위치가 JS 켬/끔에서 달라졌다 → 본문(main) 「ws-tips-entries」 한 곳만 남긴다(renderSupplyItem).
+ * 313(311 S-3): 팁 진입 링크는 L4 안에 넣지 않는다 → 본문(main) 「ws-tips-entries」 한 곳만(renderSupplyItem).
+ *   383: /supplies/{item}/{type} 도 하이드레이션 뒤 React L4 가 같은 내용을 연다(client app/deepLink) — React L4 에도 팁 링크는 없다.
  */
-export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = base(t)): string {
+export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = base(t), feed?: PageFeed): string {
   const p = r.pub;
   const schema = r.item.specSchema;
   // 스펙22 §4-3: 라벨 없는 enum 값(규칙·when)이 들어간 조건 행은 숨긴다 — 원시 코드 비노출.
@@ -340,6 +358,8 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     });
     return rows.length ? `<h4>${h(title)}</h4>\n<ul>\n${rows.join('\n')}\n</ul>` : '';
   };
+  const minRules = rules(COPY.supplyLayer.min, p.minSpec.rules);
+  const recommendedRules = rules(COPY.supplyLayer.recommended, p.recommendedSpec.rules);
   const alts = p.item.alternativeIds
     .map((id) => t.requirements.find((x) => x.item.id === id))
     .filter((x): x is RequirementModel => x !== undefined);
@@ -351,14 +371,13 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
     affNoteB(r),
     `<p class="ws-supply-eyebrow">${h(t.pub.displayName)} · ${h(r.item.name)}</p>`,
     `<p class="ws-meta">${h(COPY.priority[p.priority])} · ${h(COPY.orderHint[p.orderHint])}</p>`,
-    // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용)는 싣지 않는다.
-    '<span class="ws-photo ws-supply-photo" aria-hidden="true"></span>',
+    // 사진 자리 — 품목 자리 사진(engine resolvePhoto use=item, 359). 사용 가능 사진이 없으면 지금 그대로 빈 블록.
+    photoTile(p.photo, 'ws-supply-photo'),
     p.priority === 'NOT_NOW' ? `<p>${h(COPY.supplyLayer.notNow)}${p.notNowReason ? ` — ${h(p.notNowReason)}` : ''}</p>` : '',
     `<section data-ws-part="why"><h3>${h(COPY.supplyLayer.why)}</h3><p>${h(p.why)}</p></section>`,
-    `<section data-ws-part="conditions"><h3>${h(COPY.supplyLayer.conditions)}</h3>`,
-    rules(COPY.supplyLayer.min, p.minSpec.rules),
-    rules(COPY.supplyLayer.recommended, p.recommendedSpec.rules),
-    '</section>',
+    ...(minRules || recommendedRules
+      ? [`<section data-ws-part="conditions"><h3>${h(COPY.supplyLayer.conditions)}</h3>`, minRules, recommendedRules, '</section>']
+      : []),
     p.caution ? `<section data-ws-part="caution"><h3>${h(COPY.supplyLayer.caution)}</h3><p>${h(p.caution)}</p></section>` : '',
     p.avoid ? `<section data-ws-part="avoid"><h3>${h(COPY.supplyLayer.avoid)}</h3><p>${h(p.avoid)}</p></section>` : '',
     alts.length
@@ -372,6 +391,8 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
           .map((x) => productCard(t, x, r.item))
           .join('\n')}\n</ul></section>`
       : '',
+    // 362 N9 아래층 「많이 찾는 상품」 — 항상 products 뒤(products 0 이어도 같은 자리). 피드 변형이 아니거나 블록·행 0 이면 ''.
+    feedBlockL4(r, feed),
     // 356 K4: 일반 참고 정보 요구사항 — 「검수 내용」·마지막 검수 대신 「출처」 + 「관련 참고 링크」(실제 출처가 있으면 뒤에). 고지 문장은 main 머리 1회.
     p.generalInfo
       ? [
@@ -517,13 +538,20 @@ export function specCheckTestimonials(m: Pick<SiteModel, 'testimonials'>, typeId
 /** ws-data — types 는 노출 타입 전체(R4 A2(a)), 나머지는 이 타입의 것. */
 function typeData(m: SiteModel, t: TypeModel): WsPageData['data'] {
   return {
-    types: allTypes(m),
+    // 359 D-2: 종 자리 사진은 이 타입 것만(다른 타입 pub.photos 는 뺀다).
+    types: allTypes(m, t.id),
     requirements: t.requirements.map((r) => r.pub),
     products: t.products,
     bundles: t.bundles,
     vets: typeVets(m, t.id),
     testimonials: specCheckTestimonials(m, t.id),
   };
+}
+
+/** 362 N9 ws-data data.feed — site.ts 가 만든 단계 값(feed-out fitWsFeed)을 그대로(마크업 레일과 같은 목록). */
+function typeFeedData(feed: PageFeed, t: TypeModel): NonNullable<WsPageData['data']['feed']> {
+  for (const id of feed.data.items) if (!t.requirements.some((r) => r.item.id === id)) throw new Error(`pages: ${t.id} data.feed 품목 ${id} 이 노출 요구사항에 없다`);
+  return feed.data;
 }
 
 /** /{slug} 와 레이어 딥링크(/supplies/{item} L4, /check/{item} L5, /products/{id} L7). */
@@ -540,7 +568,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
   if (layer && (layer.kind === 'L4' || layer.kind === 'L5')) {
     const r = t.requirements.find((x) => x.item.id === layer.itemId);
     if (!r) throw new Error(`pages: ${t.id} 에 노출 요구사항 ${layer.itemId} 없음`);
-    aside = layer.kind === 'L4' ? layerL4(t, r) : layerL5(t, r);
+    aside = layer.kind === 'L4' ? layerL4(t, r, base(t), ctx.feed) : layerL5(t, r);
     if (layer.kind === 'L4') affReq = r;
     const label = layer.kind === 'L4' ? r.item.name : `${COPY.checkLayer.title} · ${r.item.name}`;
     title = `${t.pub.displayName} ${label}${COPY.site.titleSuffix}`;
@@ -555,6 +583,7 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     crumbs.push({ name: p.title, path: ctx.route.path });
   }
   const data = typeData(m, t);
+  if (ctx.feed) data.feed = typeFeedData(ctx.feed, t);
   const itemList = t.requirements
     .filter((r) => r.pub.priority === 'REQUIRED')
     .map((r) => ({ name: r.item.name, path: `${base(t)}/supplies/${r.item.id}` }));
@@ -564,7 +593,11 @@ export function renderTypePage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
       renderHeader(t.pub, navCurrent(ctx.route), data),
       typeMain(ctx, m, t),
       aside ? `${SCRIM}\n${aside}` : '',
-      renderFooter(affReq !== null && affiliateDisclosureOn(affReq.pub.searchLinks), ctx.privacyPage !== false),
+      // 362 N9: 피드 몰 링크가 그려진 변형도 고지 F(D-5). 피드 없는 기본 파일은 이전 판정 그대로.
+      renderFooter(
+        (affReq !== null && affiliateDisclosureOn(affReq.pub.searchLinks)) || feedLinksOn(ctx.feed, layer?.kind === 'L4' ? layer.itemId : undefined),
+        ctx.privacyPage !== false,
+      ),
     ]
       .filter((x) => x !== '')
       .join('\n'),

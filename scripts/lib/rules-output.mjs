@@ -1,6 +1,8 @@
-// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS, C9-GENERAL.
+// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS, C9-GENERAL, C6-IMG-SPECIES.
 //   + 시드 노출 규칙 C3-TAXON(scanSeedExposure, 산출물 유무와 무관).
 //   노출 판단은 seed-exposure.mjs(원시 시드 독립 재구현, D9)만 쓴다.
+//   C9-GENERAL: 고정 6종 중 시드+asOf 로 노출된 타입의 타입·프로필·노출 요구사항·용품에 GENERAL_INFO 가 있으면 고지 1회, 없으면 0회.
+//   고정 6종의 노출 판정 불가는 FAIL, 그 밖 타입은 고지 0회. 산출물 표지는 기대값 근거로 쓰지 않는다.
 //
 // prerender-manifest.json 계약(F3 가 쓴다):
 //   { v: 1, seedDigest: "<sha256 hex — seed-exposure.mjs seedDigest()>", indexable: boolean(사이트 수준, WS_INDEXABLE),
@@ -15,7 +17,16 @@ import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { maskNonMarkup, scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { jsonErrorWhere, safeLabel } from './rules-source.mjs';
-import { GENERAL_INFO_TYPE_IDS, SEED_KEYS, tipReferenceUrlAllowed } from './seed-exposure.mjs';
+import {
+  GENERAL_INFO_TYPE_IDS,
+  HOME_A_SCENE_PHOTOS,
+  ITEM_SCENE_PHOTOS,
+  PHOTO_WS_TYPE_KEYS,
+  SEED_KEYS,
+  TYPE_SCENE_PHOTOS,
+  sceneAllowedForType,
+  tipReferenceUrlAllowed,
+} from './seed-exposure.mjs';
 
 const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'TIPS', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
 const TYPE_KINDS = new Set(['TYPE', 'SETUP', 'TIPS']);
@@ -64,7 +75,8 @@ function jsonStrings(root, key0, visit) {
       const es = Object.entries(v);
       for (let i = es.length - 1; i >= 0; i--) stack.push([es[i][1], es[i][0]]);
     } else if (typeof v === 'string') {
-      if (JSON_TEXT_SKIP.test(key) || /^(https?:\/\/|\/)/i.test(v)) continue;
+      // 399 B-2·R-3: title 은 화면에 그리는 글자(ws-data·피드 JSON) — URL 모양이어도 검사한다.
+      if (JSON_TEXT_SKIP.test(key) || (key !== 'title' && /^(https?:\/\/|\/)/i.test(v))) continue;
       visit(v, key);
     }
   }
@@ -151,6 +163,26 @@ function checkWsWire(d, rel, line, add) {
   for (let i = 0; i < table.length; i++) if (!used.has(i)) bad(`v2 sources[${i}] 미참조 표 항목`);
 }
 
+/** 362 N12 C2-PRICE: 가격류 키(price·amount·currency) 경로 — data.feed 하위는 제외. 반복 탐색. */
+const PRICE_KEY_SET = new Set(['price', 'amount', 'currency']);
+function priceKeysOutsideFeed(root, hit) {
+  const stack = [[root, '']];
+  while (stack.length > 0) {
+    const [v, p] = stack.pop();
+    if (typeof v !== 'object' || v === null) continue;
+    if (p === 'data.feed') continue;
+    if (Array.isArray(v)) {
+      v.forEach((x, i) => stack.push([x, `${p}[${i}]`]));
+      continue;
+    }
+    for (const k of Object.keys(v)) {
+      const q = p ? `${p}.${k}` : k;
+      if (PRICE_KEY_SET.has(k)) hit(q.slice(0, 60));
+      stack.push([v[k], q]);
+    }
+  }
+}
+
 /** ws-data (§6-3 WsPageData) id 검사. */
 function checkWsData(d, rel, line, ex, add) {
   const bad = (what) => add('C3-OUT-ID', 'FAIL', rel, line, `ws-data 비노출 ${what}`);
@@ -162,6 +194,7 @@ function checkWsData(d, rel, line, ex, add) {
     return;
   }
   checkWsWire(d, rel, line, add);
+  priceKeysOutsideFeed(d, (p) => add('C2-PRICE', 'FAIL', rel, line, `ws-data 가격류 키 ${L(p)} — 가격은 data.feed 에만(353 §4)`));
   const r = d.route;
   if (isObj(r) && r.typeId !== undefined && !ex.ids.animalTypes.has(r.typeId)) bad(`route.typeId ${L(r.typeId)}`);
   checkLayer(d.layer, ex, (w) => bad(`layer ${w}`));
@@ -169,6 +202,37 @@ function checkWsData(d, rel, line, ex, add) {
   if (data === undefined) return;
   if (!isObj(data)) return bad('data 형식');
   for (const [k, arr] of Object.entries(data)) {
+    // 362 N12: data.feed(객체) — 품목 id·레일 카드 짝이 노출 집합 안인지만(형식·링크·가격은 서버 isWsFeedData + C11-FEED-OUT).
+    if (k === 'feed') {
+      if (!isObj(arr) || arr.v !== 1 || !Array.isArray(arr.items) || !Array.isArray(arr.rail)) {
+        bad('data.feed 형식');
+        continue;
+      }
+      // 362 N16: FOOD/HEALTH 품목 피드 0(불변식 ⑤ — 엔진 FEED_EXCLUDED_CATEGORIES). ex 에 집합이 없으면 fail-closed.
+      const feedBad = (it) => !(ex.feedExcludedItems instanceof Set) || ex.feedExcludedItems.has(it);
+      const foodHealth = (w) => add('C11-FEED-OUT', 'FAIL', rel, line, `ws-data ${w} — FOOD/HEALTH 품목 피드 0`);
+      for (const it of arr.items) {
+        if (!ex.ids.supplyItems.has(it)) bad(`data.feed.items ${L(it)}`);
+        if (feedBad(it)) foodHealth(`data.feed.items ${L(it)}`);
+      }
+      for (const c of arr.rail) if (isObj(c) && feedBad(c.supplyItemId)) foodHealth(`data.feed.rail ${L(c.supplyItemId)}`);
+      // 398 GI: 라우트 타입 문맥(route.typeId ∪ layer.typeId)의 품목·레일 쌍은 체인 전 행 VERIFIED ∧ 유효(ex.feedStrictPairs)만 — GENERAL_INFO 체인 피드 0.
+      {
+        const tids = [...new Set([isObj(r) ? r.typeId : undefined, isObj(d.layer) ? d.layer.typeId : undefined].filter((x) => typeof x === 'string'))];
+        const strict = ex.feedStrictPairs instanceof Set ? ex.feedStrictPairs : new Set();
+        const giBad = (it, w) => {
+          if (tids.length === 0) add('C11-FEED-OUT', 'FAIL', rel, line, `ws-data ${w} ${L(it)} — 라우트 타입 문맥 없음(GENERAL_INFO 체인 판정 불가)`);
+          else for (const tid of tids) if (!strict.has(`${tid}|${it}`)) add('C11-FEED-OUT', 'FAIL', rel, line, `ws-data ${w} ${pairLabel(tid, it)} — 체인이 전부 VERIFIED 가 아님(GENERAL_INFO 체인 피드 0)`);
+        };
+        for (const it of arr.items) giBad(it, 'data.feed.items');
+        for (const c of arr.rail) giBad(isObj(c) ? c.supplyItemId : undefined, 'data.feed.rail');
+      }
+      for (const c of arr.rail) {
+        const tid = isObj(r) ? r.typeId : undefined; // 레일 카드는 라우트 타입 문맥(카드에 타입 id 없음)
+        if (!isObj(c) || !ex.pairs.has(`${tid}|${c.supplyItemId}`)) bad(`data.feed.rail ${pairLabel(tid, c?.supplyItemId)}`);
+      }
+      continue;
+    }
     if (!Array.isArray(arr)) {
       bad(`data.${L(k)} 형식`);
       continue;
@@ -598,21 +662,291 @@ export function generalInfoNoticeCount(html) {
 /**
  * C9-GENERAL(356 단계 10, Kenny 11/23 예외 2) — 일반 참고 정보 고지.
  *   typeId 가 있는 라우트 페이지(TYPE·SETUP·TIPS·SUPPLY_ITEM_TYPE 및 L4·L5·L7 레이어 경로)의 렌더 HTML 가시 텍스트에서
- *   ① typeId ∈ GENERAL_INFO_TYPE_IDS(코드 고정 6종, seed-exposure 독립 목록) → 고지 원문 정확히 1회
- *   ② 그 밖 타입 → 0회.  typeId 없는 라우트(HOME·FAMILY·SUPPLIES 등)는 이 규칙 밖.
+ *   ① 고정 6종 ∧ seed-exposure(시드+asOf)가 노출 판정 ∧ 타입·프로필·노출 요구사항 체인(요구사항·용품)에 GENERAL_INFO 행 있음 → 정확히 1회
+ *   ② 노출된 6종의 체인에 GENERAL_INFO 없음 또는 6종 밖 타입 → 0회. 비노출 요구사항 체인의 GI 는 세지 않는다.
+ *   ③ 6종 타입의 노출 판정 불가(시드 누락·읽기 실패 포함) → FAIL. typeId 없는 라우트는 이 규칙 밖.
+ *   기대값은 ex.types·ex.pairs 와 원시 시드만 사용하며 렌더러·ws-data·산출물 표지는 참조하지 않는다.
  */
-function checkGeneralInfo({ root, dist, routes, add }) {
+function checkGeneralInfo({ root, dist, routes, ex, seed, add }) {
   const gi = new Set(GENERAL_INFO_TYPE_IDS);
+  const rows = (key) => Array.isArray(seed?.[key]) ? seed[key] : [];
+  const isGi = (row) => row?.reviewStatus === 'GENERAL_INFO';
   for (const r of routes) {
     if (typeof r.typeId !== 'string' || typeof r.file !== 'string') continue;
     const abs = join(dist, r.file);
+    let want = 0;
+    if (gi.has(r.typeId)) {
+      const type = ex.types.get(r.typeId);
+      if (!type) {
+        add('C9-GENERAL', 'FAIL', relPosix(root, abs), null, `${L(r.typeId)} 라우트 ${L(r.path)}: 시드에서 타입 노출 판정 불가`);
+        continue;
+      }
+      const hasGi = isGi(type)
+        || rows('careProfiles').some((p) => p?.id === type.careProfileId && isGi(p))
+        || rows('supplyRequirements').some((req) => req?.careProfileId === type.careProfileId
+          && ex.pairs.has(`${r.typeId}|${req.supplyItemId}`)
+          && (isGi(req) || rows('supplyItems').some((item) => item?.id === req.supplyItemId && isGi(item))));
+      want = hasGi ? 1 : 0;
+    }
     if (!existsSync(abs)) continue; // 파일 없음은 C3-OUT-ROUTE 가 FAIL
     const n = generalInfoNoticeCount(readFileSync(abs, 'utf8'));
-    const want = gi.has(r.typeId) ? 1 : 0;
     if (n !== want) {
       add('C9-GENERAL', 'FAIL', relPosix(root, abs), null, `${L(r.typeId)} 라우트 ${L(r.path)}: 일반 참고 정보 고지 ${n}회(기대 ${want}회)`);
     }
   }
+}
+
+/**
+ * C6-IMG-SPECIES(359 단계 6, D-1 A) — 사진 id 가 라우트 종·프로필·품목 범위와 맞는지(「앵무 라우트 햄스터 사진 id 0」).
+ *   manifest 라우트 HTML 마다
+ *   ① 수집: 마크업 data-ws-photo · img src(시드 행 asset 역매핑) · ws-data types[i].photos/homeScenes · requirements[i].photo · 그 밖 photoId.
+ *   ② 판정(사진 하나 × 문맥 타입 전부):
+ *      시드에 없음·사용 불가(isPhotoUsableRow 아님) → FAIL. 문맥 타입 없음(타입 없는 라우트) → FAIL.
+ *      장면 행(scope 없음) → 타입이 장면 허용 종(sceneAllowedForType — 엔진 SCENE_PHOTO_GROUPS ∧ SCENE_PHOTO_TYPE_IDS 미러)이어야 한다.
+ *      범위 행 → scope.animalTypeId = 타입 · scope.careProfileId = 타입 프로필 · scope.supplyItemId 는 (타입,품목) 노출 쌍.
+ *      자리: 종 자리(photos.habitat|nowLead|spec) 장면은 TYPE_SCENE_PHOTOS[use] 만, 범위 행은 scope.use 일치.
+ *            품목 자리(requirement.photo) 장면은 ITEM_SCENE_PHOTOS[item] 만, 범위 행은 use=item ∧ 같은 supplyItemId.
+ *            homeScenes[key] 는 HOME_A_SCENE_PHOTOS[key] 장면만. ws-data asset·img src 는 행 asset 과 같아야 한다.
+ *   ③ 문맥: 라우트 타입 = typeId ∪ layer.typeId · FAMILY 는 slug 가 family/ 로 시작하는 노출 타입 · HOME·PICK·SAVE 는 대표 타입(시드 순 첫 노출).
+ *      data-ws-id="animalTypes#X" 요소 안의 사진은 X(홈류는 X 만, 그 밖은 X ∪ 라우트 타입). ws-data types[i] 는 같은 식으로 t.id.
+ *   ④ 보조 잠금: HTML 원문 문자열에 사용 불가 id 가 있거나, 라우트 문맥이 장면 비허용인데 장면 id 가 있으면 FAIL(①에서 이미 판정한 id 는 건너뜀).
+ *   소스 쪽 짝(C6-IMG-SPECIES-SRC)은 클라이언트 단계 5 뒤 다음 라운드.
+ */
+function checkPhotoSpecies({ root, dist, routes, ex, add, seed }) {
+  const RULE = 'C6-IMG-SPECIES';
+  const rowsById = new Map();
+  const idsByAsset = new Map();
+  for (const p of Array.isArray(seed?.photos) ? seed.photos : []) {
+    if (!isObj(p) || typeof p.id !== 'string') continue;
+    if (!rowsById.has(p.id)) rowsById.set(p.id, p);
+    if (typeof p.asset === 'string') idsByAsset.set(p.asset, [...(idsByAsset.get(p.asset) ?? []), p.id]);
+  }
+  const usable = ex.ids?.photos instanceof Set ? ex.ids.photos : new Set();
+  const exTypes = ex.types instanceof Map ? ex.types : new Map();
+  const repType = exTypes.keys().next().value;
+  const HOME_LIKE = new Set(['HOME', 'PICK', 'SAVE']);
+  const sceneIds = [...rowsById.values()].filter((p) => !isObj(p.scope)).map((p) => p.id);
+  const allIds = [...rowsById.keys()];
+  const reId = (id) => new RegExp(`(?<![\\w-])${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`);
+
+  function routeTypes(r) {
+    const s = new Set();
+    if (typeof r.typeId === 'string') s.add(r.typeId);
+    if (isObj(r.layer) && typeof r.layer.typeId === 'string') s.add(r.layer.typeId);
+    if (r.kind === 'FAMILY' && typeof r.family === 'string') {
+      for (const [id, t] of exTypes) if (typeof t.slug === 'string' && t.slug.startsWith(`${r.family}/`)) s.add(id);
+    }
+    if (HOME_LIKE.has(r.kind) && typeof repType === 'string') s.add(repType);
+    return [...s];
+  }
+
+  for (const r of routes) {
+    if (typeof r.file !== 'string') continue;
+    const abs = join(dist, r.file);
+    if (!existsSync(abs)) continue; // 파일 없음은 C3-OUT-ROUTE
+    const rel = relPosix(root, abs);
+    const html = readFileSync(abs, 'utf8');
+    const lineOf = lineIndex(html);
+    const homeLike = HOME_LIKE.has(r.kind);
+    const rTypes = routeTypes(r);
+    const judged = new Set();
+    const seen = new Set();
+    const fail = (line, msg) => {
+      const k = `${line}|${msg}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      add(RULE, 'FAIL', rel, line, msg);
+    };
+    const ctxOf = (own) => (own === null ? rTypes : homeLike ? [own] : [...new Set([own, ...rTypes])]);
+
+    /** slot: { kind:'type', use } | { kind:'item', item } | { kind:'home', key } | null */
+    function judge(id, types, slot, asset, line, where) {
+      judged.add(id);
+      const p = rowsById.get(id);
+      if (!p) return fail(line, `${where}: 시드에 없는 사진 id ${L(id)}`);
+      if (!usable.has(id)) return fail(line, `${where}: 사용 불가 사진 ${L(id)}(SLOT·사용권 미충족 — 노출 금지)`);
+      if (asset !== undefined && asset !== p.asset) fail(line, `${where}: 사진 ${L(id)} asset ${L(asset)} ≠ 시드 행 asset ${L(p.asset)}`);
+      if (types.length === 0) return fail(line, `${where}: 타입 문맥 없는 라우트 ${L(r.path)} 에 사진 ${L(id)}`);
+      const scene = !isObj(p.scope);
+      const s = scene ? null : p.scope;
+      for (const tid of types) {
+        const t = exTypes.get(tid);
+        if (!t) {
+          fail(line, `${where}: ${L(tid)}(비노출 타입) 문맥에 사진 ${L(id)}`);
+          continue;
+        }
+        if (scene) {
+          if (!sceneAllowedForType(t)) fail(line, `${where}: ${L(tid)} 는 장면 허용 종이 아닌데 장면 사진 ${L(id)}`);
+          continue;
+        }
+        if (typeof s.animalTypeId === 'string' && s.animalTypeId !== tid) fail(line, `${where}: ${L(tid)} 에 사진 ${L(id)} — 범위 animalTypeId=${L(s.animalTypeId)} 밖`);
+        if (typeof s.careProfileId === 'string' && s.careProfileId !== t.careProfileId) fail(line, `${where}: ${L(tid)} 에 사진 ${L(id)} — 범위 careProfileId=${L(s.careProfileId)} 밖`);
+        if (typeof s.supplyItemId === 'string' && !ex.pairs?.has(`${tid}|${s.supplyItemId}`)) fail(line, `${where}: ${L(tid)} 에 사진 ${L(id)} — 품목 ${L(s.supplyItemId)} 이 그 타입에 노출되지 않는다`);
+      }
+      if (slot === null) return;
+      if (slot.kind === 'type') {
+        const ok = scene ? TYPE_SCENE_PHOTOS[slot.use] === id : s.use === slot.use;
+        if (!ok) fail(line, `${where}: 사진 ${L(id)} 이 종 ${L(slot.use)} 자리와 맞지 않음`);
+      } else if (slot.kind === 'item') {
+        const ok = scene ? ITEM_SCENE_PHOTOS[slot.item] === id : s.use === 'item' && s.supplyItemId === slot.item;
+        if (!ok) fail(line, `${where}: 사진 ${L(id)} 이 품목 ${L(slot.item)} 자리와 맞지 않음`);
+      } else if (slot.kind === 'home') {
+        if (!(scene && HOME_A_SCENE_PHOTOS[slot.key] === id)) fail(line, `${where}: 사진 ${L(id)} 이 홈 장면 ${L(slot.key)} 자리와 맞지 않음`);
+      }
+    }
+
+    // ① 마크업 — animalTypes#X 요소 범위(같은 이름 열고 닫기 짝 세기)
+    const masked = maskNonMarkup(html);
+    const all = tags(html);
+    const typeRanges = [];
+    for (const t of all) {
+      const v = t.attrs['data-ws-id'];
+      if (typeof v !== 'string' || !v.startsWith('animalTypes#')) continue;
+      const re = new RegExp(`<(/?)${t.name}\\b[^>]*>`, 'gi');
+      re.lastIndex = t.index + 1;
+      let depth = 1;
+      let end = masked.length;
+      let mm;
+      while ((mm = re.exec(masked)) !== null) {
+        depth += mm[1] ? -1 : 1;
+        if (depth === 0) {
+          end = mm.index;
+          break;
+        }
+      }
+      typeRanges.push({ start: t.index, end, typeId: v.slice('animalTypes#'.length) });
+    }
+    const ownAt = (i) => {
+      let best = null;
+      for (const g of typeRanges) if (g.start < i && i < g.end && (best === null || g.start > best.start)) best = g;
+      return best ? best.typeId : null;
+    };
+    for (const t of all) {
+      const id = t.attrs['data-ws-photo'];
+      const src = typeof t.attrs.src === 'string' ? t.attrs.src.trim() : undefined;
+      const line = lineOf(t.index);
+      const types = ctxOf(ownAt(t.index));
+      if (typeof id === 'string') {
+        judge(id, types, null, src, line, `<${L(t.name)} data-ws-photo>`);
+        continue;
+      }
+      if (src === undefined) continue;
+      const ids = idsByAsset.get(src);
+      if (ids) for (const x of ids) judge(x, types, null, undefined, line, `<${L(t.name)} src>`);
+      else if (src.startsWith('/assets/photos/')) fail(line, `<${L(t.name)} src>: 시드에 없는 사진 파일 ${L(src)}`);
+    }
+
+    // ① ws-data
+    for (const sc of scripts(html)) {
+      if (sc.attrs.id !== 'ws-data') continue;
+      let d;
+      try {
+        d = JSON.parse(sc.body);
+      } catch {
+        continue; // 파싱 실패는 C8-OUT-SAFE
+      }
+      const line = lineOf(sc.index);
+      const data = isObj(d) && isObj(d.data) ? d.data : {};
+      const done = new Set();
+      const ref = (o, types, slot, where) => {
+        if (!isObj(o)) return;
+        done.add(o);
+        if (typeof o.photoId === 'string') judge(o.photoId, types, slot, o.asset, line, where);
+      };
+      for (const [i, t] of (Array.isArray(data.types) ? data.types : []).entries()) {
+        if (!isObj(t)) continue;
+        const types = ctxOf(typeof t.id === 'string' ? t.id : null);
+        if (isObj(t.photos)) for (const [k, v] of Object.entries(t.photos)) ref(v, types, { kind: 'type', use: PHOTO_WS_TYPE_KEYS[k] ?? k }, `ws-data types[${i}].photos.${L(k)}`);
+        if (isObj(t.homeScenes)) for (const [k, v] of Object.entries(t.homeScenes)) ref(v, types, { kind: 'home', key: k }, `ws-data types[${i}].homeScenes.${L(k)}`);
+      }
+      for (const [i, q] of (Array.isArray(data.requirements) ? data.requirements : []).entries()) {
+        if (!isObj(q) || !isObj(q.photo)) continue;
+        ref(q.photo, ctxOf(typeof q.animalTypeId === 'string' ? q.animalTypeId : null), { kind: 'item', item: q.supplyItemId }, `ws-data requirements[${i}].photo`);
+      }
+      // 그 밖 위치의 photoId(라우트 문맥)
+      const walkJ = (v, depth) => {
+        if (depth > 40) return;
+        if (Array.isArray(v)) for (const x of v) walkJ(x, depth + 1);
+        else if (isObj(v)) {
+          if (!done.has(v) && typeof v.photoId === 'string') judge(v.photoId, rTypes, null, v.asset, line, 'ws-data photoId');
+          for (const x of Object.values(v)) walkJ(x, depth + 1);
+        }
+      };
+      walkJ(d, 0);
+    }
+
+    // ④ 보조 잠금 — 원문 문자열. /credits 는 저작자 표시 목록(data-ws-id="photos#id")이라 제외 — 그 목록은 C6-IMG 가 본다.
+    if (r.kind === 'CREDITS') continue;
+    const sceneOkHere = rTypes.length > 0 && rTypes.every((tid) => exTypes.has(tid) && sceneAllowedForType(exTypes.get(tid)));
+    for (const id of allIds) {
+      if (judged.has(id)) continue;
+      const m = reId(id).exec(html);
+      if (!m) continue;
+      const line = lineOf(m.index);
+      if (!usable.has(id)) fail(line, `원문 문자열: 사용 불가 사진 ${L(id)}(SLOT·사용권 미충족 — 노출 금지)`);
+      else if (sceneIds.includes(id) && !sceneOkHere) fail(line, `원문 문자열: ${L(rTypes.join(',') || r.path)} 는 장면 허용 종이 아닌데 장면 사진 ${L(id)}`);
+    }
+  }
+}
+
+/** 398 C2: 피드 변형 파일 이름(server engine FEED_PAGE_VARIANT 미러) — 기본 파일 …/index.html 옆. */
+const FEED_PAGE_VARIANTS = Object.freeze({ full: 'index.feed.html', noprice: 'index.feed-noprice.html' });
+const FEED_VARIANT_RE = /(?:^|\/)index\.feed(?:-noprice)?\.html$/;
+const feedVariantBase = (rel) => rel.replace(/index\.feed(?:-noprice)?\.html$/, 'index.html');
+
+/**
+ * 398 C2 — 피드 변형 HTML 을 기본 라우트 문맥(typeId·layer·kind)으로 되돌린 라우트 목록(file 만 변형 파일).
+ *   대상 = dist 의 index.feed[-noprice].html 전부 ∪ feed-manifest.json pages.{full,noprice}(산출물 표지에 기대지 않고 디스크도 본다).
+ *   ① 디스크 변형 파일의 기본 파일(…/index.html)이 manifest 라우트가 아니면 FAIL(문맥 없는 변형 = 판정 불가, fail-closed).
+ *   ② pages 항목이 단계 변형 이름이 아니거나·경로 이탈·파일 없음·기본 라우트 없음이면 FAIL.
+ */
+function feedVariantRoutes({ root, dist, routes, all, add }) {
+  const R = 'feed-manifest.json';
+  const byFile = new Map();
+  for (const r of routes) if (typeof r.file === 'string' && !byFile.has(r.file)) byFile.set(r.file, r);
+  const files = new Set();
+  for (const abs of all) {
+    const rel = relPosix(dist, abs);
+    if (FEED_VARIANT_RE.test(rel)) files.add(rel);
+  }
+  const fmPath = join(dist, R);
+  if (existsSync(fmPath)) {
+    let fm = null;
+    try {
+      fm = JSON.parse(stripBom(readFileSync(fmPath, 'utf8')));
+    } catch {
+      // 파싱 실패는 C11-FEED-OUT(rules-affiliate scanAffiliateOutputs)이 FAIL — 디스크 변형 파일은 그대로 본다.
+    }
+    const pages = isObj(fm) ? fm.pages : undefined;
+    if (isObj(fm) && pages !== undefined && !isObj(pages)) add('C3-OUT-ROUTE', 'FAIL', R, null, '피드 변형 pages 형식(객체 아님)');
+    for (const [stage, name] of Object.entries(FEED_PAGE_VARIANTS)) {
+      const list = isObj(pages) ? pages[stage] : undefined;
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) {
+        add('C3-OUT-ROUTE', 'FAIL', R, null, `피드 변형 pages.${stage} 형식(배열 아님)`);
+        continue;
+      }
+      for (const f of list) {
+        const ok = typeof f === 'string' && (f === name || f.endsWith(`/${name}`)) && !f.split(/[\\/]/).includes('..') && !/^([a-z]:|\/)/i.test(f);
+        if (!ok) {
+          add('C3-OUT-ROUTE', 'FAIL', R, null, `피드 변형 pages.${stage} 항목이 ${name} 변형 이름 아님·경로 이탈: ${L(String(f))}`);
+          continue;
+        }
+        if (!existsSync(join(dist, f))) add('C3-OUT-ROUTE', 'FAIL', R, null, `피드 변형 pages.${stage} 파일 없음: ${L(f)}`);
+        else files.add(f);
+      }
+    }
+  }
+  const out = [];
+  for (const f of [...files].sort()) {
+    const base = byFile.get(feedVariantBase(f));
+    if (!base) {
+      add('C3-OUT-ROUTE', 'FAIL', relPosix(root, join(dist, f)), null, `피드 변형 파일의 기본 라우트(${L(feedVariantBase(f))})가 manifest 에 없음 — 문맥 판정 불가`);
+      continue;
+    }
+    out.push({ ...base, file: f });
+  }
+  return out;
 }
 
 export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, seed }) {
@@ -691,7 +1025,10 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   const all = walk(dist);
   checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
   checkTips({ root, dist, routes, all, ex, add, seed });
-  checkGeneralInfo({ root, dist, routes, add });
+  // 398 C2: 피드 변형 HTML(index.feed[-noprice].html)도 실제 제공 파일 — 기본 라우트와 같은 문맥으로 고지·종별 사진을 본다.
+  const pageRoutes = [...routes, ...feedVariantRoutes({ root, dist, routes, all, add })];
+  checkGeneralInfo({ root, dist, routes: pageRoutes, ex, seed, add });
+  checkPhotoSpecies({ root, dist, routes: pageRoutes, ex, add, seed });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
     const html = readFileSync(abs, 'utf8');
@@ -754,7 +1091,9 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
         }
         if (href === '/credits') hasCreditsLink = true;
       }
-      if (t.name !== 'script' && t.name !== 'a' && t.name !== 'link') {
+      // 362 N12: 피드 썸네일(img.ws-feed-thumb, no-referrer) 의 외부 src 는 C11-FEED-OUT(rules-affiliate.mjs)이 피드 블록 안·FEED_IMAGE_HOSTS 정확 일치로 따로 잠근다.
+      const feedThumb = t.name === 'img' && /(?:^|\s)ws-feed-thumb(?:\s|$)/.test(a.class ?? '') && (a.referrerpolicy ?? '').trim().toLowerCase() === 'no-referrer' && a.srcset === undefined;
+      if (t.name !== 'script' && t.name !== 'a' && t.name !== 'link' && !feedThumb) {
         for (const k of ['src', 'srcset', 'poster', 'data']) {
           if (a[k] !== undefined && a[k].split(',').some((u) => isExternal(u.trim().split(/\s+/)[0] ?? ''))) {
             add('C8-OUT-SAFE', 'FAIL', rel, line, `외부 리소스 ${L(t.name)}[${k}]: ${L(a[k])}`);
@@ -781,6 +1120,40 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     }
     for (const h of lintText(nodes.map((n) => n.text).join(''), bw)) {
       if (h.rule === 'L01' && !nodeTerms.has(h.term)) add('C4-BANNED', 'FAIL', rel, null, `태그 경계에 걸친 금지어 "${L(h.term)}"`);
+    }
+  }
+
+  // 362 N16: 피드 JSON({slug}/feed/{item}[.noprice].json) — 경로 품목·본문 supplyItemId 가 FOOD/HEALTH 면 FAIL(피드 0, 불변식 ⑤).
+  for (const abs of all.filter((f) => /\/feed\/[^/]+\.json$/.test(relPosix(dist, f)))) {
+    const rel = relPosix(root, abs);
+    const m = /\/feed\/([^/]+?)(?:\.noprice)?\.json$/.exec(relPosix(dist, abs));
+    const ids = new Set([m?.[1]]);
+    let d;
+    try {
+      d = JSON.parse(stripBom(readFileSync(abs, 'utf8')));
+      if (isObj(d) && d.supplyItemId !== undefined) ids.add(d.supplyItemId);
+    } catch {
+      // 파싱 실패는 C11-FEED-OUT(rules-affiliate checkFeedJsonOut)이 FAIL — 여기선 경로 품목만 본다.
+    }
+    if (d !== undefined) {
+      try {
+        // 398 C3: L4 가 읽는 피드 JSON 의 글자(제목 등) 금지어 — data/ 밖이라 아래 카탈로그 JSON 검사에 안 걸린다.
+        jsonStrings(d, '', (t, k) => bannedIn(t, rel, null, `피드 JSON ${L(k)}`, add, bw));
+        // 398 GI(불변식 ⑦ 예외 2 — GENERAL_INFO 체인에 연결된 상품은 노출하지 않는다): 피드 블록의 (typeId, 품목) 체인 전 행 VERIFIED ∧ 유효만.
+        //   블록 generalInfo 가 false 가 아니면(키 없음 포함) FAIL — 산출물 표지만 믿지 않고 시드 체인으로도 따로 본다.
+        if (isObj(d)) {
+          if (d.generalInfo !== false) add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON generalInfo=${L(String(d.generalInfo))}(false 만) — GENERAL_INFO 체인 피드 0`);
+          const pair = `${d.typeId}|${d.supplyItemId}`;
+          if (!(ex.feedStrictPairs instanceof Set) || !ex.feedStrictPairs.has(pair)) {
+            add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON ${pairLabel(d.typeId, d.supplyItemId)} — 체인이 전부 VERIFIED 가 아님(GENERAL_INFO·비노출 체인 피드 0)`);
+          }
+        }
+      } catch {
+        add('C11-FEED-OUT', 'FAIL', rel, null, '피드 JSON 검사 중 예외(비정상 구조 — 원문 확인)');
+      }
+    }
+    for (const it of ids) {
+      if (!(ex.feedExcludedItems instanceof Set) || ex.feedExcludedItems.has(it)) add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON 품목 ${L(it)} — FOOD/HEALTH 품목 피드 0`);
     }
   }
 

@@ -7,6 +7,7 @@ import { Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import type { WsPageData } from '@ws/engine';
 import { useAnimalSelection } from './animal/selection';
 import { deepLinkFor } from './app/deepLink';
+import { useLivePage } from './app/feedClock';
 import { installLayerLinks } from './app/layerLinks';
 import { LayerPageProvider } from './app/layerPage';
 import { installLayerWarmup, layerRegistry, layerWsId } from './app/layerRegistry';
@@ -16,6 +17,7 @@ import type { CapturedStatic } from './app/staticCapture';
 import HomeA from './home/HomeA';
 import HomeB from './home/HomeB';
 import Footer from './shell/Footer';
+import { feedFooterOn } from './supply/feedBlock';
 import { layerAffiliateOn } from './supply/searchLinks';
 import GlobalHeader from './shell/GlobalHeader';
 import { navCurrentFor, pickShellType } from './shell/shellType';
@@ -37,6 +39,8 @@ export interface AppProps {
 }
 
 export default function App({ page, captured, storedTypeId }: AppProps) {
+  // 377 S1: 피드를 보여 주는 화면(홈 B·푸터·레이어)은 지금 시각 기준 page 를 받는다.
+  const livePage = useLivePage(page);
   const layer = useLayer();
   const open = useOpenLayer();
   const selection = useAnimalSelection(page.data.types);
@@ -51,7 +55,7 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   useLayoutEffect(() => {
     removePrerenderedLayer(document);
     const d = deepLink.current;
-    if (d) layerStore.initDeepLink(d.kind, d.props, d.parent, { documentParent: d.documentParent, wsId: d.wsId });
+    if (d) layerStore.initDeepLink(d.kind, d.props, d.parent, { documentParent: d.documentParent, wsId: d.wsId, parentTitle: d.parentTitle, backToParent: d.backToParent });
     else layerStore.clearStaleState();
   }, []);
 
@@ -74,7 +78,7 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
   if (rv.view === 'homeA') {
     view = <HomeA page={page} continueType={continueType} onPick={openL1} />;
   } else if (rv.view === 'homeB') {
-    view = <HomeB page={page} type={rv.type} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
+    view = <HomeB page={livePage} type={rv.type} onOpenL1={openL1} onOpenL2={openL2} onOpenL8={openL8} />;
   } else if (rv.view === 'vet') {
     const fallback = <StaticMain kind={page.route.kind} html={captured.main} />;
     view = (
@@ -99,8 +103,8 @@ export default function App({ page, captured, storedTypeId }: AppProps) {
         onSpecCheckIntent={() => startIntent('SPEC_CHECK')}
       />
       {view}
-      <Footer affNote={layerAffiliateOn(page, open)} />
-      <LayerPageProvider page={page}>
+      <Footer affNote={layerAffiliateOn(page, open) || feedFooterOn(livePage, open)} />
+      <LayerPageProvider page={livePage}>
         <LayerHost registry={layerRegistry} wsIdFor={(k, p) => layerWsId(page, k, p)} />
       </LayerPageProvider>
     </>

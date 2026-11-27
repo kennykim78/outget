@@ -2,7 +2,7 @@
 //   → 「진료하는 병원만 보여 드려요」. 데이터 = ws-data types[0].homeExplain(서버가 엔진 home-a.ts homeAExplainOf 로 대표 타입 노출 요구사항에서 고른 값)
 //   · 노출 타입 · 노출 병원(엔진 homeAVetRows 집계) — 품목명·숫자·동물은 시드 노출 값 그대로(하드코딩·창작 0, 불변식 ⑥·⑦).
 //   노출 타입이 0이면 아무것도 그리지 않는다(D12 ①). 홈 ws-data 는 요구사항을 싣지 않는다(레이어 직행 판정 불변).
-//   대표 타입(D11 ①) = 노출 타입 시드 순 첫 번째(저장된 선택과 무관 — 프리렌더와 같은 DOM). 사진 = PhotoTile 자리표시(photos.json 전부 SLOT).
+//   대표 타입(D11 ①) = 노출 타입 시드 순 첫 번째(저장된 선택과 무관 — 프리렌더와 같은 DOM). 사진 = ws-data 값(없으면 빈 블록).
 //   병원 = 그룹별 진료 타입 집계만 — 지도 그림 없음(사용권 자산 없음, D14), 네이버 지도 SDK 미로드, 위치 0(불변식 ⑧).
 //   서버 프리렌더 server/src/prerender/pages/misc.ts homeExplain 과 같은 태그·클래스·id·aria(parity 시험 2종).
 import type { HomeAExplain, WsPageData } from '@ws/engine';
@@ -13,10 +13,7 @@ import RailSection from '../ui/RailSection';
 import { typeHomeHref } from '../shell/shellType';
 import { PickBarArrow } from './Hero';
 
-/** photos.json 슬롯(전부 SLOT → 빈 블록): 은신처에서 나오는 햄스터 / 큰 통면 쳇바퀴 / 케이지 세팅 전경. */
-const PHOTO_NEED = 'ph-12';
-const PHOTO_FIGURES = 'ph-02';
-const PHOTO_HABITAT = 'ph-01';
+// 사진(359 단계 5, 감사 356r M2): 설명 장면 = 대표 타입 homeScenes.explainNeed·explainFigures, 함께 살 집 카드 = 종마다 photos.habitat(ws-data 만, 고정 id 0).
 
 function Arrow() {
   return <span aria-hidden="true"> →</span>;
@@ -70,7 +67,7 @@ export default function Explain({ page }: { page: WsPageData }) {
             </a>
           </div>
           <div className="ws-explain-side">
-            <PhotoTile photoId={PHOTO_NEED} className="ws-explain-photo" />
+            <PhotoTile photo={rep.homeScenes?.explainNeed} className="ws-explain-photo" />
             <div className="ws-need-cols">
               <NeedCol col="need" title={COPY.homeA.needCol} rows={split.need} />
               <NeedCol col="not-now" title={COPY.homeA.notNowCol} rows={split.notNow} />
@@ -81,7 +78,7 @@ export default function Explain({ page }: { page: WsPageData }) {
 
       {figures.length > 0 ? (
         <section className="ws-home-sec ws-explain ws-figures" data-ws-section="figures" aria-labelledby="ws-sec-figures-title">
-          <PhotoTile photoId={PHOTO_FIGURES} className="ws-explain-photo" />
+          <PhotoTile photo={rep.homeScenes?.explainFigures} className="ws-explain-photo" />
           <div className="ws-explain-text">
             <ExplainHead id="ws-sec-figures-title" title={COPY.homeA.figuresTitle} lead={COPY.homeA.figuresSub} />
             <p className="ws-t-meta ws-eyebrow ws-explain-eyebrow">{formatCopy(COPY.homeA.figuresEyebrow, { animal: rep.displayName })}</p>
@@ -118,7 +115,7 @@ export default function Explain({ page }: { page: WsPageData }) {
         {types.map((t) => (
           <li key={t.id} className="ws-starter-item">
             <a className="ws-starter ws-habitat" href={typeHomeHref(t)} data-ws-id={`animalTypes#${t.id}`}>
-              <PhotoTile photoId={PHOTO_HABITAT} className="ws-starter-photo" />
+              <PhotoTile photo={t.photos?.habitat} className="ws-starter-photo" />
               <span className="ws-starter-head">
                 <span className="ws-t-cta ws-starter-title">{t.displayName}</span>
                 <span className="ws-starter-go">

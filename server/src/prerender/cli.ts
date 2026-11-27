@@ -15,6 +15,9 @@ import { validateSeed } from '../seed/validate.js';
 import { seedDigest } from './digest.js';
 import { loadMascots } from './mascot.js';
 import { buildSite, type SiteBuild } from './site.js';
+import { FEED_MANIFEST_FILE, type ProductFeedInput } from './feed-out.js';
+import { DEFAULT_PRODUCT_FEED_DIR, feedGeneratedAt, feedRowsOf, feedSortsOf, loadProductFeeds, productFeedGate } from './product-feed.js';
+import { lintText } from '../seed/lint.js';
 import { BODY_MARKER, HEAD_MARKER } from './template.js';
 import { seoulToday } from '../config/dates.js';
 
@@ -29,6 +32,8 @@ export interface PrerenderIo {
   today: () => string;
   /** 마스코트 원본 디렉터리(기본 DEFAULT_MASCOTS). 테스트 주입용. */
   mascotDir?: string;
+  /** 362 N7: 빌드 시각(ms) — 상품 피드 만료 단계(full/noprice/nofeed) 판정에만. 기본 Date.now. 산출물에는 쓰지 않는다. 테스트 주입용. */
+  nowMs?: () => number;
 }
 
 export const WS_DATA_MAX_BYTES = 32 * 1024;
@@ -49,7 +54,7 @@ const DEFAULT_ORIGIN = 'http://localhost:3001';
 export const DEFAULT_AFFILIATE_MAP = resolve(HERE, '..', '..', 'affiliate', 'coupang.json');
 
 const USAGE =
-  'usage: prerender [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now] [--affiliate-map <file>]';
+  'usage: prerender [--seed-dir <dir>] [--out <dir>] [--site-origin <url>] [--public-dir <dir>] [--now YYYY-MM-DD] [--allow-past-now] [--affiliate-map <file>] [--product-feed-dir <dir>]';
 
 interface Args {
   seedDir: string;
@@ -59,12 +64,14 @@ interface Args {
   now: string | null;
   /** 259 제휴 맵 경로(기본 DEFAULT_AFFILIATE_MAP). 게이트 꺼짐이면 읽지 않는다. */
   affiliateMap: string;
+  /** 362 N3 상품 피드 디렉터리(기본 DEFAULT_PRODUCT_FEED_DIR). 게이트 꺼짐이면 읽지 않는다. */
+  productFeedDir: string;
   /** 테스트·재현용: 운영(NODE_ENV=production)에서도 오늘(서울) 아닌 --now 허용(S-R4 L-B). */
   allowPastNow: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args | string {
-  const args: Args = { seedDir: DEFAULT_SEED_DIR, out: DEFAULT_OUT, publicDir: DEFAULT_PUBLIC, origin: null, now: null, allowPastNow: false, affiliateMap: DEFAULT_AFFILIATE_MAP };
+  const args: Args = { seedDir: DEFAULT_SEED_DIR, out: DEFAULT_OUT, publicDir: DEFAULT_PUBLIC, origin: null, now: null, allowPastNow: false, affiliateMap: DEFAULT_AFFILIATE_MAP, productFeedDir: DEFAULT_PRODUCT_FEED_DIR };
   for (let i = 0; i < argv.length; i++) {
     const raw = argv[i];
     if (raw === '--allow-past-now') {
@@ -92,6 +99,9 @@ function parseArgs(argv: readonly string[]): Args | string {
         break;
       case '--affiliate-map':
         args.affiliateMap = resolve(v);
+        break;
+      case '--product-feed-dir':
+        args.productFeedDir = resolve(v);
         break;
       case '--now':
         if (!isIsoDate(v)) return `--now 는 YYYY-MM-DD: ${v}`;
@@ -168,6 +178,29 @@ function cleanPrevious(out: string): void {
       /* 손상된 manifest — 덮어쓴다 */
     }
   }
+  // 362 N7: 이전 빌드의 상품 피드 변형 파일(+압축 사본)과 manifest — 만료·꺼짐으로 바뀐 뒤 옛 피드가 dist 에 남지 않게.
+  const feedMan = join(out, FEED_MANIFEST_FILE);
+  if (existsSync(feedMan)) {
+    try {
+      const m = JSON.parse(readFileSync(feedMan, 'utf8')) as { variants?: Record<string, unknown>; pages?: Record<string, unknown> };
+      for (const list of Object.values(m.variants ?? {})) {
+        for (const rel of Array.isArray(list) ? list : []) {
+          const abs = typeof rel === 'string' && rel.endsWith('.json') ? inside(out, rel) : null;
+          if (abs) for (const f of [abs, `${abs}.br`, `${abs}.gz`]) rmSync(f, { force: true });
+        }
+      }
+      // 362 N9: 피드 HTML 변형(index.feed.html · index.feed-noprice.html)만 — 기본 index.html 은 지우지 않는다.
+      for (const list of Object.values(m.pages ?? {})) {
+        for (const rel of Array.isArray(list) ? list : []) {
+          const abs = typeof rel === 'string' && /(^|\/)index\.feed(-noprice)?\.html$/.test(rel) ? inside(out, rel) : null;
+          if (abs) for (const f of [abs, `${abs}.br`, `${abs}.gz`]) rmSync(f, { force: true });
+        }
+      }
+    } catch {
+      /* 손상된 feed manifest — 아래에서 지운다 */
+    }
+    for (const f of [feedMan, `${feedMan}.br`, `${feedMan}.gz`]) rmSync(f, { force: true });
+  }
   const dataDir = join(out, 'data');
   if (existsSync(dataDir)) {
     for (const f of readdirSync(dataDir)) if (/^catalog\.v1\.[0-9a-f]{8}\.json$/.test(f)) rmSync(join(dataDir, f), { force: true });
@@ -177,7 +210,7 @@ function cleanPrevious(out: string): void {
 /** 산출물이 참조하는 /assets/* 경로(HTML src/href, ws-data·카탈로그의 imageAsset·reviewerImage). */
 export function referencedAssets(b: SiteBuild): string[] {
   const refs = new Set<string>();
-  for (const p of b.pages) {
+  for (const p of [...b.pages, ...b.feedPages]) {
     for (const m of p.html.matchAll(/\b(?:src|href)="(\/assets\/[^"?#]+)/g)) refs.add(m[1]);
     for (const x of p.data.data.products) if (x.imageAsset) refs.add(x.imageAsset);
     for (const t of p.data.data.testimonials) if (t.reviewerImage) refs.add(t.reviewerImage);
@@ -276,11 +309,36 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
     io.stderr(`prerender: 제휴 꺼짐(${gate.reason})`);
   }
 
+  // 362 N3 상품 피드 게이트(기본 꺼짐, D-6): production ∧ WS_PRODUCT_FEED=public ∧ origin ∈ WS_AFFILIATE_ORIGINS.
+  //   꺼짐이면 피드 디렉터리를 읽지 않는다 — 산출물 바이트 불변. 켜짐인데 파일이 없거나 무효면 입력 오류(exit 2). 네트워크 0.
+  const feedGate = productFeedGate(io.env, origin, production);
+  let productFeed: ProductFeedInput | undefined;
+  if (feedGate.on) {
+    try {
+      const buildAtMs = io.nowMs ? io.nowMs() : Date.now();
+      // 373 D3: 빌드 시각 기준 미래 generatedAt·fetchedAt(오차 5분 초과) → throw(exit 2).
+      const feeds = loadProductFeeds((name) => readFileSync(join(args.productFeedDir, name), 'utf8'), buildAtMs);
+      productFeed = {
+        rows: feedRowsOf(feeds),
+        sorts: feedSortsOf(feeds),
+        generatedAt: feedGeneratedAt(feeds),
+        buildAtMs,
+        isTitleBanned: (t) => lintText(t).length > 0,
+      };
+    } catch (e) {
+      const msg = (e as { code?: string }).code === 'ENOENT' ? `상품 피드 게이트 켜짐인데 파일 없음: ${args.productFeedDir}` : (e as Error).message;
+      io.stderr(`prerender: ${msg}`);
+      return 2;
+    }
+  } else if ((io.env.WS_PRODUCT_FEED ?? '').trim() !== '') {
+    io.stderr(`prerender: 상품 피드 꺼짐(${feedGate.reason})`);
+  }
+
   let b: SiteBuild;
   try {
     // G-4: 지도 키는 존재 여부만 넘긴다(값은 프리렌더 산출물에 들어가지 않는다).
     const vetMap = (io.env.VITE_NAVER_MAP_CLIENT_ID ?? '').trim() !== '';
-    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots, vetMap, production, affiliate });
+    b = buildSite(asSeedBundle(raw), { template, origin, indexable, seedDigest: seedDigest(args.seedDir), asOf, mascots, vetMap, production, affiliate, productFeed });
   } catch (e) {
     io.stderr(`prerender: ${(e as Error).message}`);
     return 1;
@@ -288,7 +346,8 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
 
   // 산출물 검사(쓰기 전).
   const fails: string[] = [];
-  for (const p of b.pages) {
+  // 362 N9: 피드 HTML 변형도 같은 32KB 상한(data.feed 는 feed-out 이 1.5KB 안으로 맞춘다).
+  for (const p of [...b.pages, ...b.feedPages]) {
     if (p.wsDataBytes > WS_DATA_MAX_BYTES) fails.push(`${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_MAX_BYTES}B`);
     else if (p.wsDataBytes > WS_DATA_WARN_BYTES) io.stderr(`prerender: 경고 ${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_WARN_BYTES}B(상한 ${WS_DATA_MAX_BYTES}B)`);
   }
@@ -322,6 +381,12 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
     for (const w of affiliateMapWarnings(affFile, keywords, asOf)) io.stderr(`prerender: ${w}`);
     const matched = affFile.entries.filter((e) => keywords.has(e.keyword)).length;
     io.stdout(`prerender — affiliate COUPANG on, map entries ${affFile.entries.length}, matched ${matched}/${keywords.size} keywords`);
+  }
+
+  if (productFeed) {
+    const m = b.files.get(FEED_MANIFEST_FILE);
+    const v = m ? (JSON.parse(m) as { variants: { full: string[]; noprice: string[] } }).variants : { full: [], noprice: [] };
+    io.stdout(`prerender — product feed on, rows ${productFeed.rows.length}, files full ${v.full.length} · noprice ${v.noprice.length}, html variants ${b.feedPages.length}`);
   }
 
   const pages = b.routes.filter((r) => r.kind !== 'NOT_FOUND').length;

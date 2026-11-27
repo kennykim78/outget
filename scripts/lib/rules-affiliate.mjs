@@ -25,7 +25,12 @@ import { createRequire } from 'node:module';
 import { extname, join, posix } from 'node:path';
 import { CODE_EXT, isDir, lexJs, lineIndex, relPosix, stripBom, walk } from './files.mjs';
 import { decodeEntities, dupAttrNames, maskNonMarkup, parseAttrs, scripts } from './html.mjs';
+import { lintText } from './normalize.mjs';
 import { isTestFile, jsonErrorWhere, safeLabel } from './rules-source.mjs';
+import { PHOTO_ASSET_PATH_RE } from './seed-exposure.mjs';
+
+/** 398 C1: 로컬 대체 사진 data-ws-photo 값 모양(시드 사진 id = ph-<kebab>). */
+const PHOTO_ID_RE = /^ph-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const L = safeLabel;
 const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -48,7 +53,31 @@ export const AFF_PATHS = Object.freeze({
   serverEntry: 'server/src/index.ts',
   /** 메일·저장 모듈 디렉터리 */
   saveDir: 'server/src/save',
+  /** 362 N12: 상품 피드 로더(빌드 타임) — 제휴 모듈과 같은 격리, 런타임 폐포가 닿으면 FAIL */
+  productFeedLoader: 'server/src/prerender/product-feed.ts',
+  /** 362 N12: 커밋되는 상품 피드 디렉터리(server/product-feed/<provider 소문자>.json, 시드 아님) */
+  feedDir: 'server/product-feed',
 });
+// ── 362 N12: 피드 상수 — 원본은 server/src/engine/providers.ts FEED_LINK_RE·FEED_IMAGE_HOSTS(시험이 원문 대조).
+export const FEED_LINK_RES = Object.freeze({
+  COUPANG: /^https:\/\/link\.coupang\.com\/a\/[A-Za-z0-9]{4,32}$/,
+  ALIEXPRESS: /^https:\/\/s\.click\.aliexpress\.com\/e\/_[A-Za-z0-9_-]{4,64}$/,
+});
+export const FEED_IMG_HOSTS = Object.freeze({ COUPANG: Object.freeze([]), ALIEXPRESS: Object.freeze(['ae01.alicdn.com']) });
+export const FEED_FILES = Object.freeze({ 'coupang.json': 'COUPANG', 'aliexpress.json': 'ALIEXPRESS' });
+// 380 S3: 「많이 찾는 상품」을 쓸 수 있는 인기순 확인 sort — 원본 server/src/engine/feed-types.ts FEED_POPULAR_SORTS(시험 대조). 지금 비어 있다.
+export const FEED_POPULAR_SORTS = Object.freeze({ COUPANG: Object.freeze([]), ALIEXPRESS: Object.freeze([]) });
+const FEED_POPULAR_TITLE = '많이 찾는 상품';
+const hasPopularSort = (allow) => Object.values(allow).some((v) => v.length > 0);
+// 373 D2: 제목 안 가격·날짜 — 원본 server/src/engine/feed-types.ts FEED_TITLE_PRICE_DATE(source·flags 시험 대조). 산출물에 남으면 FAIL.
+export const FEED_TITLE_PRICE_DATE =
+  /\p{Sc}|\\\s*\d|\d\s*\\|(?<![a-z])(?:krw|usd|eur|jpy|cny|rmb|gbp)(?![a-z])|(?<![a-z])won\s*\d|\d\s*(?:달러|위안|유로|[円元圆])|\d\s*(?:won|엔|불)(?![a-z가-힣])|\d\s*(?:[십백천만억]\s*)+원|\d[\d,.]*\d\s*원|(?<![\d,.])\d\s*원(?!형|목|통|단|색|터치|피스)|(?<![가-힣])[일이삼사오육칠팔구]?(?:[십백천만억][일이삼사오육칠팔구]?)+\s*원(?!형|목|통|단|색|터치|피스)|\d{4}\s*년|\d{2}\s*년\s*[형식]|\d\s*월|(?<![\d.])(?:\d{4}|\d{2})\s*[-./]\s*(?:0?[1-9]|1[0-2])\s*[-./]\s*(?:0?[1-9]|[12]\d|3[01])(?!\d|\.\d|\s*(?:cm|mm|m|kg|g|인치|in)(?![a-z]))|(?<![\d.,/-])\d{1,2}\s*[./-]\s*\d{1,2}(?![\d.,/-])\s*(?:일\s*)?(?:\(\s*[월화수목금토일](?:요일)?\s*\)\s*)?~?\s*(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사|sale)|(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사|sale)\s*[:~]?\s*\d{1,2}\s*[./-]\s*\d{1,2}(?![\d.,/-])|(?<!\d)\d{1,2}\s*일\s*(?:\(\s*[월화수목금토일](?:요일)?\s*\)\s*)?(?:입고|입하|출고|발송|도착|기준|까지|특가|세일|마감|한정|행사)|(?<![a-z])(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?![a-z])\.?\s*\d{1,2}(?!\d)|(?<!\d)\d{1,2}\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?![a-z])/iu;
+const FEED_DI_RE = /\p{Default_Ignorable_Code_Point}/gu;
+/** feed-types.ts feedTitleHasPriceOrDate 와 같은 정규화(기본 무시 문자 제거 → NFKC → 다시 제거 → 공백 하나). */
+export const feedTitleHasPriceOrDate = (t) =>
+  FEED_TITLE_PRICE_DATE.test(String(t).replace(FEED_DI_RE, '').normalize('NFKC').replace(/\p{M}/gu, '').replace(FEED_DI_RE, '').replace(/\s+/g, ' '));
+const isFeedPath = (rel) => lc(rel) === lc(AFF_PATHS.feedDir) || lc(rel).startsWith(`${lc(AFF_PATHS.feedDir)}/`);
+const isFeedModule = (rel) => lc(rel) === lc(AFF_PATHS.productFeedLoader) || isFeedPath(rel);
 /** 엔진 노출·순서·판정 결정 파일(258 단계 7) — 폐포가 제휴 모듈에 닿으면 FAIL. */
 export const ENGINE_DECISION_ROOTS = Object.freeze(
   ['exposure', 'spec-check', 'resolve', 'rules', 'expr', 'catalog', 'domain', 'search-keyword'].map((n) => `server/src/engine/${n}.ts`),
@@ -79,7 +108,8 @@ const lc = (x) => x.toLowerCase();
 const inPaths = (list, rel) => list.some((x) => lc(x) === lc(rel));
 const isAffTarget = (rel) => inPaths(AFF_TARGETS, rel);
 const isMapPath = (rel) => lc(rel) === lc(AFF_PATHS.mapDir) || lc(rel).startsWith(`${lc(AFF_PATHS.mapDir)}/`);
-const isAffOrMap = (rel) => isAffTarget(rel) || isMapPath(rel);
+// 362 N12(353 §4 C10-AFF-IMPORT): 피드 로더·피드 파일도 제휴 모듈 집합.
+const isAffOrMap = (rel) => isAffTarget(rel) || isMapPath(rel) || isFeedModule(rel);
 // 별칭 — client/tsconfig.json paths · client/vite.config.ts resolve.alias 와 같은 표(바뀌면 여기도 — 시험이 자동 대조, 표 밖 별칭은 FAIL).
 export const ALIASES = Object.freeze({
   '@ws/engine': 'server/src/engine/index.ts',
@@ -152,7 +182,7 @@ function affHostCount(norm) {
   return n;
 }
 /** HOST 리터럴 허용: 레지스트리 · 테스트(픽스처 포함) · 맵 JSON · 스캐너 자신. */
-const HOST_ALLOWED = (rel) => rel === AFF_PATHS.providers || isTestFile(rel) || (isMapPath(rel) && rel.endsWith('.json')) || rel === SELF;
+const HOST_ALLOWED = (rel) => rel === AFF_PATHS.providers || isTestFile(rel) || (isMapPath(rel) && rel.endsWith('.json')) || (isFeedPath(rel) && rel.endsWith('.json')) || rel === SELF;
 
 // ── 코드 문자열 접기(lexJs strings 기준 — 상수만) ─────────────────────────────
 const DYN = '\u0000'; // 접을 수 없는 보간 자리(이 자리를 건너 호스트가 이어지지 않게)
@@ -891,6 +921,15 @@ function checkImportIsolation(root, add) {
   for (const r of runtimeRoots) {
     try {
       closure(r, modOf, root, unknownAliases, (from, e, res, parent) => {
+        // 362 N12(353 §4): 피드 로더·피드 파일은 FAIL(런타임이 가격을 읽을 길 차단) — 맵은 종전대로 WARN.
+        if (res.kind === 'file' && isFeedModule(res.rel)) {
+          const key = `${from}|${res.rel}`;
+          if (!reported.has(key)) {
+            reported.add(key);
+            add('C10-AFF-RUNTIME', 'FAIL', from, e.line, `서버 런타임·메일 폐포가 상품 피드 로더·피드 파일에 닿음: ${chain(parent, from, res.rel)} — 피드는 빌드 타임만(353 §4, 가격 런타임 경로 0)`);
+          }
+          return true;
+        }
         if (res.kind === 'file' && (lc(res.rel) === lc(AFF_PATHS.prerenderAffiliate) || isMapPath(res.rel))) {
           const key = `${from}|${res.rel}`;
           if (!reported.has(key)) {
@@ -908,7 +947,7 @@ function checkImportIsolation(root, add) {
 }
 
 // ── 소스 텍스트 규칙(HOST·REDIRECT·FIELD 코드 식별자) ─────────────────────
-const SOURCE_DIRS = ['client/src', 'client/build', 'server/src', 'server/prisma', 'server/seed', 'scripts', 'e2e', AFF_PATHS.mapDir];
+const SOURCE_DIRS = ['client/src', 'client/build', 'server/src', 'server/prisma', 'server/seed', 'scripts', 'e2e', AFF_PATHS.mapDir, AFF_PATHS.feedDir];
 const TEXT_LIKE = new Set([...CODE_EXT, '.json', '.html', '.md', '.yml', '.yaml', '.txt', '.css', '.prisma', '.csv', '.tsv', '.env']);
 
 /** strings(start 오름차순)에서 start ≥ pos 인 첫 인덱스 — 이진 탐색. */
@@ -1162,6 +1201,11 @@ function checkSeedFields(root, add) {
     }
     const seen = new Set();
     walkKeys(doc, '', (k, p) => {
+      // 362 N12(353 §4 C2-PRICE 확장): 가격류 키는 피드 파일 rows[].price·ws-data data.feed 에만 — 시드 = FAIL.
+      if (PRICE_KEYS.has(k) && !seen.has(`price|${k}`)) {
+        seen.add(`price|${k}`);
+        add('C2-PRICE', 'FAIL', rel, null, `시드에 가격류 키 ${L(k)}(${L(p.slice(0, 60))}) — 가격은 상품 피드 파일에만(353 §4)`);
+      }
       if (!SEED_AFF_KEY(k) || seen.has(k)) return;
       seen.add(k);
       add('C10-AFF-FIELD', 'FAIL', rel, null, `시드에 제휴·수수료 키 ${L(k)}(${L(p.slice(0, 60))}) — CuratedProduct 제휴 필드 금지(PRD:43, 불변식 ③④)`);
@@ -1309,12 +1353,84 @@ function checkMapFiles(root, add) {
   }
 }
 
-/** 소스 쪽 C10-AFF 전체. */
-export function scanAffiliateSources(root, add) {
+// ── 362 N12: 상품 피드 파일(C11-FEED·C10-AFF-FIELD) — 서버 로더(product-feed.ts)와 같은 형식을 스캐너가 따로 잠근다 ──────
+const PRICE_KEYS = new Set(['price', 'amount', 'currency']);
+const FEED_TOP_KEYS = ['v', 'provider', 'source', 'api', 'terms', 'generatedAt', 'rows'];
+const FEED_ROW_KEYS = ['animalTypeId', 'supplyItemId', 'keyword', 'rank', 'title', 'url', 'imageUrl', 'price', 'fetchedAt'];
+const FEED_INSTANT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+const exactKeySet = (o, keys) => isObj(o) && Object.keys(o).length === keys.length && keys.every((k) => Object.hasOwn(o, k));
+/** https 이미지 URL 의 호스트가 공급자 허용 목록에 정확히 있는가(사용자 정보·포트·IP·대소문자 우회 0). */
+export function feedImageOk(provider, url) {
+  if (typeof url !== 'string' || !/^https:\/\/[a-z0-9.-]+\/[^\s"'<>\\]*$/.test(url)) return false;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  return u.protocol === 'https:' && u.port === '' && u.username === '' && (FEED_IMG_HOSTS[provider] ?? []).includes(u.hostname);
+}
+
+function checkFeedFiles(root, add, bw) {
+  const dir = join(root, ...AFF_PATHS.feedDir.split('/'));
+  if (!isDir(dir)) return;
+  for (const abs of walk(dir)) {
+    const rel = relPosix(root, abs);
+    const name = rel.slice(AFF_PATHS.feedDir.length + 1);
+    const fail = (line, msg) => add('C11-FEED', 'FAIL', rel, line, msg);
+    if (!Object.hasOwn(FEED_FILES, name)) {
+      fail(null, `피드 디렉터리에는 ${Object.keys(FEED_FILES).join('·')} 만(하위 폴더·다른 파일 0)`);
+      continue;
+    }
+    const provider = FEED_FILES[name];
+    let doc;
+    try {
+      doc = JSON.parse(stripBom(readFileSync(abs, 'utf8')));
+    } catch {
+      fail(null, `피드 JSON 파싱 실패(${jsonErrorWhere(readFileSync(abs, 'utf8'))})`);
+      continue;
+    }
+    // C10-AFF-FIELD — 피드에도 수수료류·제휴 키 0(353 §4)
+    const seen = new Set();
+    walkKeys(doc, '', (k, p) => {
+      if (FORBIDDEN_JSON_KEYS.has(k)) fail(null, `금지 키 ${L(k)}`);
+      if ((feeName(k) || /수수료|affiliate|^sub[_-]?id$/i.test(k)) && !seen.has(k)) {
+        seen.add(k);
+        add('C10-AFF-FIELD', 'FAIL', rel, null, `피드에 제휴·수수료 키 ${L(k)}(${L(p.slice(0, 60))}) — 수수료 데이터는 시스템에 자리 없음(불변식 ③④)`);
+      }
+    });
+    if (!exactKeySet(doc, FEED_TOP_KEYS)) {
+      fail(null, `최상위 키는 ${FEED_TOP_KEYS.join('·')} 만`);
+      continue;
+    }
+    if (doc.v !== 1) fail(null, 'v 는 1');
+    if (doc.provider !== provider) fail(null, `provider 가 파일 이름과 다르다(${L(String(doc.provider))} ≠ ${provider})`);
+    if (doc.generatedAt !== null && !(typeof doc.generatedAt === 'string' && FEED_INSTANT_RE.test(doc.generatedAt))) fail(null, 'generatedAt 은 null 또는 ISO 시각(초·오프셋)');
+    if (!Array.isArray(doc.rows)) {
+      fail(null, 'rows 배열 아님');
+      continue;
+    }
+    if (doc.rows.length > 0 && doc.generatedAt === null) fail(null, 'rows 가 있는데 generatedAt null');
+    doc.rows.forEach((r, i) => {
+      const at = `rows[${i}]`;
+      if (!exactKeySet(r, FEED_ROW_KEYS)) return fail(null, `${at} 키는 ${FEED_ROW_KEYS.join('·')} 만`);
+      if (typeof r.url !== 'string' || !FEED_LINK_RES[provider].test(r.url)) fail(null, `${at}.url 이 ${provider} 상품 링크 형태가 아니다`);
+      if (r.imageUrl !== null && !feedImageOk(provider, r.imageUrl)) fail(null, `${at}.imageUrl 호스트가 FEED_IMAGE_HOSTS.${provider} 밖(핫링크 허용 목록 정확 일치)`);
+      if (!(typeof r.fetchedAt === 'string' && FEED_INSTANT_RE.test(r.fetchedAt))) fail(null, `${at}.fetchedAt 은 ISO 시각(초·오프셋)`);
+      if (r.price !== null && !(exactKeySet(r.price, ['amount', 'currency']) && r.price.currency === 'KRW' && Number.isInteger(r.price.amount) && r.price.amount > 0)) fail(null, `${at}.price 는 null 또는 {amount 양의 정수, currency KRW}`);
+      if (typeof r.title !== 'string') fail(null, `${at}.title 문자열 아님`);
+      else if (bw) for (const h of lintText(r.title, bw)) fail(null, `${at}.title 금지어 ${L(h.term)}`);
+    });
+  }
+}
+
+/** 소스 쪽 C10-AFF 전체(+ 362 N12 C11-FEED). bw(금지어 표)는 피드 제목 린트용 — 없으면 제목 린트만 건너뛴다. */
+export function scanAffiliateSources(root, add, bw = null) {
   checkImportIsolation(root, add);
   checkSourceText(root, add);
   checkSeedFields(root, add);
   checkMapFiles(root, add);
+  checkFeedFiles(root, add, bw);
 }
 
 // ── 산출물(C10-AFF-OUT) ───────────────────────────────────────
@@ -1584,6 +1700,8 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
   const lineOf = lineIndex(html);
   // ws-data
   let pageCodes = null;
+  let wsFeed = null; // 362 N12: ws-data data.feed(있으면)
+  let wsTypeId = null;
   for (const s of scripts(html)) {
     if (s.attrs.id !== 'ws-data') continue;
     let d;
@@ -1593,6 +1711,8 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       continue; // C8-OUT-SAFE 가 FAIL
     }
     pageCodes = checkWsAff(d, rel, lineOf(s.index), dev, add);
+    if (isObj(d) && isObj(d.route) && typeof d.route.typeId === 'string') wsTypeId = d.route.typeId;
+    if (isObj(d) && isObj(d.data) && isObj(d.data.feed)) wsFeed = d.data.feed;
   }
   if (sink) {
     const sre = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
@@ -1628,6 +1748,24 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     shrinkUp[i] = sh.why !== null ? `<${e.name}> ${sh.why}` : p >= 0 ? shrinkUp[p] : null;
     if (e.attrs.id !== undefined && !byId.has(e.attrs.id)) byId.set(e.attrs.id, i);
   }
+  // 362 N12: 피드 컨테이너(section[data-ws-part=feed] · li.ws-feed-card)·가장 가까운 section·li 색인(선형).
+  const isFeedBox = (e) => (e.name === 'section' && e.attrs['data-ws-part'] === 'feed') || (e.name === 'li' && classesOf(e).includes('ws-feed-card'));
+  const feedUp = new Int32Array(n).fill(-1);
+  const upSection = new Int32Array(n).fill(-1);
+  const upLi = new Int32Array(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    const p = els[i].parent;
+    if (isFeedBox(els[i])) feedUp[i] = i;
+    else if (p >= 0) feedUp[i] = feedUp[p];
+    if (p >= 0) {
+      upSection[i] = els[p].name === 'section' ? p : upSection[p];
+      upLi[i] = els[p].name === 'li' ? p : upLi[p];
+    }
+  }
+  const isAncestor = (anc, i) => {
+    for (let p = els[i].parent; p >= 0; p = els[p].parent) if (p === anc) return true;
+    return false;
+  };
   const kids = (i) => children.get(i) ?? [];
   const chainOf = (i) => {
     const out = [];
@@ -1641,9 +1779,17 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     return blocks.get(s);
   };
   const affLinks = [];
+  const feedLinks = []; // 362 N12: 피드 컨테이너 안 쿠팡 상품 링크(FEED_LINK_RES.COUPANG)
   for (let i = 0; i < n; i++) {
     const e = els[i];
     if (e.name !== 'a' || e.attrs.href === undefined) continue;
+    if (feedUp[i] >= 0) {
+      const href = e.attrs.href;
+      if (FEED_LINK_RES.COUPANG.test(href)) feedLinks.push(i);
+      else if (/aliexpress/i.test(normalizeHostText(decodeEntities(href)))) fail(lineOf(e.start), '피드 알리 링크 — 알리 고지 문안 Kenny 결정 전(364 §9 K2), 노출 0');
+      else fail(lineOf(e.start), `피드 블록 안 링크는 쿠팡 상품 링크(${AFF_PREFIX}<code>) 만: ${L(href.slice(0, 60))}`);
+      continue;
+    }
     const k = coupangKind(e.attrs.href);
     if (k === 'bad') fail(lineOf(e.start), `쿠팡 링크는 검색 결과 페이지(${COUPANG_SEARCH_BASE}…) 또는 ${AFF_PREFIX}<code> 만: ${L(e.attrs.href.slice(0, 60))}`);
     if (k === 'aff') affLinks.push(i);
@@ -1656,9 +1802,18 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     }
   }
   // 제휴 호스트 출현 = 유효 제휴 a href 수(그 밖 위치의 출현은 FAIL — 텍스트·속성·스크립트 속 숨은 링크)
+  // 362 N12: ws-data data.feed.rail[].url 은 같은 href 의 피드 카드 a 가 있을 때만 허용 출현(하이드레이션 데이터 = 마크업).
+  const feedHrefs = new Set(feedLinks.map((i) => els[i].attrs.href));
+  let wsFeedUrls = 0;
+  for (const c of wsFeed && Array.isArray(wsFeed.rail) ? wsFeed.rail : []) {
+    if (!isObj(c) || typeof c.url !== 'string') continue;
+    if (feedHrefs.has(c.url)) wsFeedUrls++;
+    else fail(null, 'ws-data data.feed.rail 카드 url 에 같은 href 의 피드 카드 링크가 없다(하이드레이션 데이터 ≠ 마크업)');
+  }
+  const allowed = affLinks.length + feedLinks.length + wsFeedUrls;
   const occurrences = affHostCount(normalizeHostText(decodeEntities(html)));
-  if (occurrences > affLinks.length) fail(null, `제휴 호스트가 <a href="${AFF_PREFIX}<code>"> 밖에 ${occurrences - affLinks.length}회`);
-  if (dev && (affLinks.length > 0 || occurrences > 0)) fail(null, '개발 빌드(manifest.mode=development)에 제휴 링크(게이트 꺼짐이어야 한다)');
+  if (occurrences > allowed) fail(null, `제휴 호스트가 <a href="${AFF_PREFIX}<code>"> 밖에 ${occurrences - allowed}회`);
+  if (dev && (affLinks.length > 0 || feedLinks.length > 0 || occurrences > 0)) fail(null, '개발 빌드(manifest.mode=development)에 제휴 링크(게이트 꺼짐이어야 한다)');
 
   // 클라이언트 쪽 경유 이동(meta refresh) 0 — 제휴는 검색 결과 페이지 링크 직접
   for (const e of els) if (e.name === 'meta' && (e.attrs['http-equiv'] ?? '').trim().toLowerCase() === 'refresh') fail(lineOf(e.start), '<meta http-equiv="refresh"> 금지(경유 이동 0)');
@@ -1749,6 +1904,292 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       }
     }
   }
+  function kidsDeep(i) {
+    const out = [];
+    const st = [...kids(i)];
+    while (st.length) {
+      const x = st.pop();
+      out.push(x);
+      st.push(...kids(x));
+    }
+    return out;
+  }
+  /**
+   * 362 N12 C11-FEED-OUT(353 §4): 피드 컨테이너 안 ○·ws-badge·ws-product 0, 배지는 ws-feed-badge--listed|--check 하나,
+   *   가격 줄은 같은 카드에 「M월 D일 확인」 동반·noprice 변형엔 가격 줄 0, 이미지 = img.ws-feed-thumb·no-referrer·FEED_IMAGE_HOSTS 정확 일치,
+   *   피드 블록은 운영자 상품(products·li.ws-product) 뒤, 피드 마크업은 변형 파일(index.feed[-noprice].html)에만, ws-data 단계 = 파일 단계.
+   */
+  function checkFeedOut() {
+    const out = (i, msg) => add('C11-FEED-OUT', 'FAIL', rel, i === null ? null : lineOf(els[i].start), msg);
+    const variant = /(?:^|\/)index\.feed-noprice\.html$/.test(rel) ? 'noprice' : /(?:^|\/)index\.feed\.html$/.test(rel) ? 'full' : null;
+    let boxes = 0;
+    const popularOk = hasPopularSort(sink?.popularSorts ?? FEED_POPULAR_SORTS);
+    const homeSecOf = (i) => (upSection[i] >= 0 ? els[upSection[i]].attrs['data-ws-section'] : undefined);
+    const isLocalFeedPhoto = (i) => {
+      const e = els[i];
+      const cls = classesOf(e);
+      if (!cls.includes('ws-photo') || cls.includes('ws-feed-thumb') || e.attrs.srcset !== undefined) return false;
+      if (!PHOTO_ID_RE.test(e.attrs['data-ws-photo'] ?? '') || !PHOTO_ASSET_PATH_RE.test(e.attrs.src ?? '')) return false;
+      if (cls.includes('ws-feed-photo')) return true;
+      const p = e.parent >= 0 ? els[e.parent] : null;
+      return p !== null && p.name === 'span' && classesOf(p).includes('ws-photo-frame') && classesOf(p).includes('ws-feed-photo');
+    };
+    // 399 B-1: HTML → ws-data data.feed 방향 대조(HTML 에만 넣은 상품은 ws-data 쪽 품목·GENERAL_INFO 체인 판정을 비켜 간다).
+    const railItems = new Set(wsFeed && Array.isArray(wsFeed.rail) ? wsFeed.rail.map((c) => (isObj(c) ? c.supplyItemId : undefined)) : []);
+    const l4Items = new Set(wsFeed && Array.isArray(wsFeed.items) ? wsFeed.items : []);
+    const isFeedSec = (x) => els[x].name === 'section' && els[x].attrs['data-ws-part'] === 'feed';
+    const notedSecs = new Set(); // 품목 고지 id 를 가진 피드 블록
+    const secItems = new Map(); // 피드 블록 → 고지 id 의 품목
+    const FEED_NOTE_ID_RE = /^ws-aff-feed-/;
+    for (let i = 0; i < n; i++) {
+      const e = els[i];
+      const cls = classesOf(e);
+      if (e.name === 'li' && cls.includes('ws-feed-row') && !(feedUp[i] >= 0 && isFeedSec(feedUp[i]))) out(i, '피드 행(li.ws-feed-row)은 section[data-ws-part=feed] 안에만');
+      if (wsFeed) {
+        if (e.name === 'li' && cls.includes('ws-feed-card') && !railItems.has(e.attrs['data-ws-item'])) out(i, `몰 카드 품목 ${L(String(e.attrs['data-ws-item']))} 이 ws-data data.feed.rail 에 없다`);
+        if (feedUp[i] >= 0 && isFeedSec(feedUp[i]) && FEED_NOTE_ID_RE.test(e.attrs.id ?? '')) {
+          notedSecs.add(feedUp[i]);
+          const item = e.attrs.id.replace(FEED_NOTE_ID_RE, '');
+          secItems.set(feedUp[i], item);
+          if (!l4Items.has(item)) out(i, `피드 블록 품목 ${L(item)} 이 ws-data data.feed.items 에 없다`);
+        }
+      }
+      // 380 S2: 몰 카드는 「몰에 올라온 상품」 레일(data-ws-section=mall)에만, 그 레일은 운영자 확인 레일 뒤·운영자 카드 0.
+      if (e.name === 'li' && cls.includes('ws-feed-card') && homeSecOf(i) !== 'mall') out(i, '피드 카드가 「몰에 올라온 상품」 레일 밖(운영자 확인 준비물과 섞지 않는다)');
+      if (e.name === 'section' && e.attrs['data-ws-section'] === 'mall') {
+        const sib = e.parent >= 0 ? kids(e.parent) : [];
+        if (sib.some((x) => els[x].start > e.start && els[x].attrs['data-ws-section'] === 'products')) out(i, '몰 레일이 운영자 확인 상품 레일보다 앞');
+      }
+      if (cls.includes('ws-product') && homeSecOf(i) === 'mall') out(i, '몰 레일 안 운영자 확인 카드(li.ws-product)');
+      // 380 S3: 인기순 확인 sort 가 없으면 피드 블록·몰 레일 제목에 「많이 찾는 상품」 0.
+      if (!popularOk && /^h[1-6]$/.test(e.name) && (feedUp[i] >= 0 || homeSecOf(i) === 'mall')
+        && decodeEntities(html.slice(e.start, e.end ?? e.start).replace(/<[^>]*>/g, ' ')).includes(FEED_POPULAR_TITLE)) {
+        out(i, `인기순 확인 sort 없이 「${FEED_POPULAR_TITLE}」 제목`);
+      }
+      if (e.name === 'img' && cls.includes('ws-feed-thumb') && feedUp[i] < 0) out(i, '피드 이미지(img.ws-feed-thumb)가 피드 블록 밖');
+      if (feedUp[i] < 0) continue;
+      if (feedUp[i] === i) {
+        boxes++;
+        if (/○/.test(decodeEntities(html.slice(e.start, e.end ?? e.start)))) out(i, '피드 블록에 ○ 글리프(운영자 확인 카드 전용)');
+        // 373 D2: noprice 변형 피드 블록 본문(태그 뺀 글자)에 가격·날짜 표기 0 — 제목에 섞인 가격이 만료 뒤에도 남는 틈.
+        if (variant === 'noprice' && feedTitleHasPriceOrDate(decodeEntities(html.slice(e.start, e.end ?? e.start).replace(/<[^>]*>/g, ' ')))) {
+          out(i, 'noprice 변형 피드 블록에 가격·날짜 표기(제목 포함 — FEED_TITLE_PRICE_DATE)');
+        }
+        const sib = e.parent >= 0 ? kids(e.parent) : [];
+        if (e.name === 'section' && sib.some((x) => els[x].start > e.start && els[x].attrs['data-ws-part'] === 'products')) out(i, '피드 블록이 운영자 확인 상품(products)보다 앞');
+        if (e.name === 'li' && sib.some((x) => els[x].start > e.start && classesOf(els[x]).includes('ws-product'))) out(i, '피드 카드가 운영자 확인 카드(li.ws-product)보다 앞');
+      }
+      if (cls.some((c) => c === 'ws-badge' || c.startsWith('ws-badge--') || c === 'ws-product')) out(i, `피드 블록에 운영자 확인 표식 class(${L(cls.join(' '))})`);
+      if (e.attrs['data-ws-glyph'] === 'ok') out(i, '피드 블록에 ○ 글리프(data-ws-glyph="ok")');
+      if (cls.includes('ws-feed-badge') && cls.filter((c) => c === 'ws-feed-badge--listed' || c === 'ws-feed-badge--check').length !== 1) out(i, '피드 배지는 ws-feed-badge--listed·--check 중 정확히 하나');
+      if (e.name === 'img') {
+        // 398 C1: 행 imageUrl=null 의 로컬 대체 사진(server feed.ts thumb → common.ts photoTile(…, 'ws-feed-photo')) 은 외부 썸네일 규칙 밖.
+        //   모양 고정 — img.ws-photo(ws-feed-thumb 아님)·data-ws-photo id·src = PHOTO_ASSET_PATH_RE(/assets/(photos|items)/<kebab>.webp)·srcset 0,
+        //   자리 = 자기 class ws-feed-photo(실사) 또는 부모 span.ws-photo-frame.ws-feed-photo(생성). 사용권·종 범위는 C6-IMG-SPECIES(rules-output)가 같은 파일에서 본다.
+        if (isLocalFeedPhoto(i)) continue;
+        const li = upLi[i];
+        const merchant = li >= 0 ? els[li].attrs['data-ws-merchant'] : undefined;
+        if (!cls.includes('ws-feed-thumb')) out(i, '피드 블록 img 는 img.ws-feed-thumb 만(로컬 대체 사진은 img.ws-photo.ws-feed-photo · data-ws-photo · /assets/(photos|items)/ 만)');
+        if ((e.attrs.referrerpolicy ?? '').trim().toLowerCase() !== 'no-referrer') out(i, '피드 이미지 referrerpolicy="no-referrer" 아님');
+        if (!feedImageOk(merchant, (e.attrs.src ?? '').trim())) out(i, `피드 이미지 호스트가 FEED_IMAGE_HOSTS.${L(String(merchant))} 밖(https 정확 일치)`);
+      }
+      if (cls.includes('ws-feed-title') && feedTitleHasPriceOrDate(decodeEntities(html.slice(e.start, e.end ?? e.start).replace(/<[^>]*>/g, ' ')))) {
+        out(i, '피드 제목에 가격·날짜 표기(373 D2 — 엔진이 버려야 할 행)');
+      }
+      if (cls.includes('ws-feed-price')) {
+        if (variant === 'noprice') out(i, 'noprice 변형에 가격 줄(만료 지난 가격 노출)');
+        const li = upLi[i];
+        const box = li >= 0 ? els[li] : e;
+        if (!/\d{1,2}월 \d{1,2}일 확인/.test(decodeEntities(html.slice(box.start, box.end ?? box.start)))) out(i, '가격 줄에 확인일(「M월 D일 확인」) 동반 없음');
+      }
+    }
+    // 399 R-2: 피드 영역(L4 블록·홈 몰 레일)의 상품 행·링크는 class 와 무관하게 데이터와 대조한다.
+    //   영역 안 모든 li = 상품 행, 링크·상품 제목·썸네일은 li 안에만. L4 행(타입·품목·URL·제목)은 scanAffiliateOutputs 가 같은 단계 피드 JSON 과,
+    //   몰 카드(품목·URL·제목·LISTED_PASS 판정)는 이 파일의 ws-data data.feed.rail 과 대조한다.
+    const isMallSec = (x) => els[x].name === 'section' && els[x].attrs['data-ws-section'] === 'mall';
+    const textOf = (x) => decodeEntities(html.slice(els[x].openEnd, els[x].end)).trim();
+    const railRows = wsFeed && Array.isArray(wsFeed.rail) ? wsFeed.rail.filter(isObj) : [];
+    // 399 R-2c: pages/feed.ts + common.ts(photoTile·glyphSpan·railSection)의 닫힌 문법.
+    // 알려진 태그를 찾는 방식이 아니라 모든 자식·속성·텍스트 자리를 소비한다. 새 렌더러 구조는 여기에도 명시해야 한다.
+    const node = (name, cls, content = [], attrs = {}, before = '', after = '') => ({ name, attrs: { class: cls, ...attrs }, content, before, after });
+    const optional = (schema) => ({ optional: schema });
+    const either = (...schemas) => ({ either: schemas });
+    const valueMatches = (value, expected) => typeof value === 'string' && (expected instanceof RegExp ? expected.test(value) : value === expected);
+    const attrsAllowed = (e, allowed) => {
+      // parseAttrs의 일반 객체가 삼키는 __proto__ 등도 원문 속성명으로 검사한다.
+      const raw = html.slice(e.start + 1 + e.name.length, e.openEnd - 1);
+      const attr = /\s+([^\s=/>"']+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"'=<>`]+))?/gy;
+      let end = 0;
+      let m;
+      while ((m = attr.exec(raw)) !== null) {
+        const key = m[1].toLowerCase();
+        if (!Object.hasOwn(allowed, key) || !valueMatches(e.attrs[key], allowed[key])) return false;
+        end = attr.lastIndex;
+      }
+      return e.dupAttrs.length === 0 && (VOID.has(e.name) ? /^\s*\/?\s*$/ : /^\s*$/).test(raw.slice(end));
+    };
+    function matches(i, schema) {
+      if (i === undefined) return false;
+      if (schema.either) return schema.either.some((s) => matches(i, s));
+      const e = els[i];
+      if (e.name !== schema.name || !attrsAllowed(e, schema.attrs) || Object.keys(e.attrs).length !== Object.keys(schema.attrs).length
+        || !Object.entries(schema.attrs).every(([key, v]) => valueMatches(e.attrs[key], v))) return false;
+      // 브라우저가 고쳐 읽는 닫힘 누락·교차 태그도 거부. void 요소는 자식·닫는 태그가 없다.
+      if (!VOID.has(e.name) && !new RegExp(`^</${e.name}\\s*>`, 'i').test(html.slice(e.end))) return false;
+      if (VOID.has(e.name)) return kids(i).length === 0;
+      const childrenHere = kids(i);
+      if (!Array.isArray(schema.content)) {
+        const raw = html.slice(e.openEnd, e.end);
+        return childrenHere.length === 0 && !raw.includes('<') && valueMatches(decodeEntities(raw), schema.content);
+      }
+      let at = 0;
+      for (const part of schema.content) {
+        if (part.optionalGroup) {
+          if (matches(childrenHere[at], part.optionalGroup[0])) {
+            for (const member of part.optionalGroup) if (!matches(childrenHere[at++], member)) return false;
+          }
+        } else if (part.optional) {
+          if (matches(childrenHere[at], part.optional)) at++;
+        } else if (part.repeat) {
+          const start = at;
+          while (matches(childrenHere[at], part.repeat)) at++;
+          if (at === start) return false;
+        } else if (!matches(childrenHere[at++], part)) return false;
+      }
+      if (at !== childrenHere.length) return false;
+      let pos = e.openEnd;
+      for (let k = 0; k < childrenHere.length; k++) {
+        const child = els[childrenHere[k]];
+        const gap = html.slice(pos, child.start);
+        if (gap.includes('<') || (k === 0 && schema.before ? decodeEntities(gap) !== schema.before : gap.trim() !== '')) return false;
+        const close = VOID.has(child.name) ? '' : /^<\/[^>]+>/.exec(html.slice(child.end))?.[0];
+        if (close === undefined) return false;
+        pos = child.end + close.length;
+      }
+      const tail = html.slice(pos, e.end);
+      return !tail.includes('<') && (schema.after ? decodeEntities(tail) === schema.after : tail.trim() === '');
+    }
+    const localImg = (cls) => node('img', cls, [], { src: PHOTO_ASSET_PATH_RE, alt: '', loading: 'lazy', decoding: 'async', 'data-ws-photo': PHOTO_ID_RE });
+    const photo = either(
+      node('span', 'ws-photo ws-feed-photo', '', { 'aria-hidden': 'true' }),
+      localImg('ws-photo ws-feed-photo'),
+      node('span', 'ws-photo-frame ws-feed-photo', [localImg('ws-photo'), node('span', 'ws-photo-notice ws-t-meta', '생성 이미지 · 임시', { 'aria-hidden': 'true' })]),
+      node('img', 'ws-feed-thumb', [], { src: /^https:\/\/.+$/, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }),
+    );
+    const listed = node('span', 'ws-t-label ws-feed-badge ws-feed-badge--listed', '표기 규격 통과');
+    const check = node('span', 'ws-t-label ws-feed-badge ws-feed-badge--check', [node('span', 'ws-glyph', '△', { 'data-ws-glyph': 'check', 'aria-hidden': 'true' })], {}, '', '규격 확인 필요');
+    const aff = node('span', 'ws-t-label ws-muted ws-feed-aff', '제휴 링크', { 'data-ws-aff': 'card' });
+    const titleNode = node('p', 'ws-t-cta ws-feed-title', /^[\s\S]*\S[\s\S]*$/);
+    const spec = optional(node('p', 'ws-t-meta ws-feed-spec', /^표기 · .+$/));
+    const amount = node('span', 'ws-feed-amount', /^\d[\d,]*원$/);
+    const checked = /^(?:[1-9]|1[0-2])월 (?:[1-9]|[12]\d|3[01])일 확인$/;
+    const button = (mall, item) => node('a', `ws-btn ws-btn--outline ws-feed-go${mall ? ' ws-feed-go--compact' : ''}`,
+      [node('span', 'ws-visually-hidden', ' (새 창)')], {
+        href: FEED_LINK_RES.COUPANG, target: '_blank', rel: 'sponsored nofollow noopener noreferrer',
+        'aria-describedby': mall ? 'ws-aff-feed-home' : `ws-aff-feed-${item}`, 'data-ws-merchant': 'COUPANG',
+      }, '쿠팡에서 보기');
+    const l4Body = (item, badge) => node('div', 'ws-feed-body', [titleNode, ...(badge === listed ? [spec] : []), node('p', 'ws-feed-meta', [badge, aff]),
+      ...(variant === 'full' ? [optional(node('p', 'ws-t-meta ws-feed-price', [amount, node('span', 'ws-muted', /^ · (?:[1-9]|1[0-2])월 (?:[1-9]|[12]\d|3[01])일 확인 · 몰에서 달라질 수 있어요$/)]))] : []), button(false, item)]);
+    const rowSchema = (mall, item) => mall
+      ? node('li', 'ws-feed-card', [photo, node('p', 'ws-t-label ws-muted ws-feed-item', /^\S[\s\S]*$/), titleNode, spec, listed,
+        ...(variant === 'full' ? [{ optionalGroup: [node('p', 'ws-t-meta ws-feed-price', [amount]), node('p', 'ws-t-meta ws-muted ws-feed-checked', checked)] }] : []), aff, button(true, item)],
+      { 'data-ws-item': /^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'data-ws-merchant': 'COUPANG' })
+      : node('li', 'ws-feed-row', [photo, either(l4Body(item, listed), l4Body(item, check))], { 'data-ws-merchant': 'COUPANG' });
+    const note = (id) => node('p', 'ws-t-meta ws-aff-note', COUPANG_DISCLOSURE, { id, 'data-ws-aff': 'note-feed' });
+    const surfaceSchema = (mall, item) => mall
+      ? node('section', 'ws-rail-section ws-rail-section--product ws-home-sec ws-mall-sec', [
+        node('div', 'ws-rail-head', [node('div', 'ws-rail-heading ws-home-sec-head', [
+          node('h2', 'ws-t-display ws-home-sec-title', '몰에 올라온 상품', { id: 'ws-sec-mall-title' }),
+          ...(variant === 'full' ? [node('p', 'ws-t-body ws-muted ws-home-sec-lead', '몰 가격은 확인한 날 기준이에요. 몰에서 달라질 수 있어요.')] : []), note('ws-aff-feed-home'),
+        ]), node('div', 'ws-rail-tools')]),
+        node('ul', 'ws-rail ws-products', [{ repeat: rowSchema(true, item) }], { role: 'list', tabindex: '0', 'aria-labelledby': 'ws-sec-mall-title' }),
+      ], { 'data-ws-section': 'mall', 'aria-labelledby': 'ws-sec-mall-title' })
+      : node('section', 'ws-supply-part ws-feed', [
+        node('h3', 'ws-t-label ws-supply-head', popularOk ? /^(?:몰 검색 결과|많이 찾는 상품)$/ : '몰 검색 결과', { id: 'ws-feed-title' }),
+        node('p', 'ws-t-meta ws-muted ws-feed-sub', '쇼핑몰 상품명에 적힌 정보로 골랐어요. 실제 규격은 몰에서 확인해요.'), note(`ws-aff-feed-${item}`),
+        node('ul', 'ws-feed-rows', [{ repeat: rowSchema(false, item) }], { role: 'list' }),
+      ], { 'data-ws-part': 'feed', 'aria-labelledby': 'ws-feed-title' });
+    // 블록 밖 조상도 렌더러의 속성만 허용한다. 숨김을 유발하는 style/hidden/inert/aria-hidden 등은 허용표에 없다.
+    const ancestorAttrs = {
+      html: { lang: 'ko' }, body: {}, div: { id: 'root', 'data-ws-prerendered': '1', 'data-ws-privacy': 'off' },
+      main: { id: 'main', class: /^(?:ws-page|ws-page ws-home-b)$/, 'data-ws-route': /^[A-Z_]+$/, 'data-ws-type': /^[a-z0-9-]+$/ },
+      aside: { class: 'ws-layer', id: 'ws-layer', 'data-ws-layer': 'L4', role: 'dialog', 'aria-labelledby': 'ws-layer-title', 'data-ws-id': /^supplyRequirements#[a-z0-9-]+$/ },
+    };
+    const checkedAncestors = new Set();
+    for (let i = 0; i < n; i++) if (isFeedSec(i) || isMallSec(i)) {
+      if (!matches(i, surfaceSchema(isMallSec(i), secItems.get(i)))) out(i, '피드 영역이 렌더러 허용 구조와 다르다(요소·클래스·속성·텍스트 자리·개수·순서)');
+      for (let p = els[i].parent; p >= 0 && !checkedAncestors.has(p); p = els[p].parent) {
+        checkedAncestors.add(p);
+        const e = els[p];
+        if (!Object.hasOwn(ancestorAttrs, e.name) || !attrsAllowed(e, ancestorAttrs[e.name]) || hiddenEl(e)
+          || (e.name === 'div' && e.attrs.id !== 'root')) out(p, '피드 영역 조상이 렌더러 허용 밖 요소·속성 또는 숨김 상태');
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      let surface = -1;
+      let inLi = false;
+      for (let x = els[i].parent; x >= 0 && surface < 0; x = els[x].parent) {
+        if (isFeedSec(x) || isMallSec(x)) surface = x;
+        else if (els[x].name === 'li') inLi = true;
+      }
+      if (surface < 0) continue;
+      if (els[i].name !== 'li') {
+        const cls = classesOf(els[i]);
+        const product = (els[i].name === 'a' && els[i].attrs.href !== undefined) || cls.includes('ws-feed-title') || cls.includes('ws-feed-thumb');
+        if (product && !inLi) out(i, '피드 영역의 링크·상품 제목·썸네일은 상품 행(li) 안에만');
+        continue;
+      }
+      const links = [];
+      let title = null;
+      let badge = null;
+      if (!matches(i, rowSchema(isMallSec(surface), secItems.get(surface)))) out(i, '피드 영역 상품 행이 렌더러 허용 구조와 다르다(제목·배지 각 1개, 허용 속성·텍스트 자리만)');
+      for (let j = i + 1; j < n; j++) {
+        if (!isAncestor(i, j)) continue;
+        if (els[j].name === 'a' && els[j].attrs.href !== undefined) links.push(els[j].attrs.href);
+        if (title === null && classesOf(els[j]).includes('ws-feed-title')) title = textOf(j);
+        if (matches(j, listed)) badge = 'LISTED_PASS';
+        else if (matches(j, check)) badge = 'CHECK_NEEDED';
+      }
+      if (isMallSec(surface)) {
+        const item = els[i].attrs['data-ws-item'];
+        const hit = badge === 'LISTED_PASS' && links.length === 1 && railRows.some((c) => c.supplyItemId === item && c.url === links[0] && typeof c.title === 'string' && c.title.trim() === title
+          && ['OK', 'BELOW_RECOMMENDED'].includes(c.verdict));
+        if (!classesOf(els[i]).includes('ws-feed-card') || !hit) out(i, `몰 레일 카드(${L(String(item))})가 ws-data data.feed.rail 의 품목·URL·제목과 일치하지 않는다(li.ws-feed-card·링크 1개)`);
+      } else if (sink && variant !== null) {
+        sink.feedRows.push({ rel, line: lineOf(els[i].start), typeId: wsTypeId, supplyItemId: secItems.get(surface) ?? null, stage: variant, links, title, badge });
+      }
+    }
+    if (wsFeed) for (let i = 0; i < n; i++) if (isFeedSec(i) && !notedSecs.has(i)) out(i, '피드 블록 section[data-ws-part=feed] 에 품목 고지 id(ws-aff-feed-{품목}) 없음');
+    if (boxes > 0 && variant === null) out(null, '피드 마크업이 기본 파일에 — 변형 파일(index.feed[-noprice].html)에만(피드 꺼짐 바이트 동일)');
+    if (variant !== null) {
+      if (!wsFeed) out(null, `피드 변형(${variant})인데 ws-data data.feed 없음`);
+      else {
+        if (wsFeed.stage !== variant) out(null, `피드 변형 파일 단계(${variant}) ≠ ws-data data.feed.stage(${L(String(wsFeed.stage))})`);
+        if (variant === 'noprice' && /"(?:price|priceCheckedOn)"/.test(JSON.stringify(wsFeed))) out(null, 'noprice 변형 ws-data data.feed 에 가격 키');
+      }
+    } else if (wsFeed) out(null, 'ws-data data.feed 가 기본 파일에 — 변형 파일에만');
+  }
+  // 362 N12(353 §4 C10-AFF-OUT 피드): rel∋sponsored·noopener, target=_blank, 숨김 0, L4 밖 레이어 0,
+  //   aria-describedby → 이 a 앞·같은 가장 가까운 section 안의 p[data-ws-aff=note-feed](원문·숨김 0), 같은 li 안 카드 표식(data-ws-aff=card).
+  for (const i of feedLinks) {
+    const a = els[i];
+    const line = lineOf(a.start);
+    const rels = relTokens(a.attrs.rel);
+    if (!rels.includes('sponsored') || !rels.includes('noopener')) fail(line, '피드 링크 rel 에 sponsored·noopener 가 없다');
+    if (a.attrs.target !== '_blank') fail(line, '피드 링크 target="_blank" 아님');
+    if (hiddenUp[i]) fail(line, '피드 링크가 숨김·접힘 요소 안');
+    if (upAside[i] >= 0 && els[upAside[i]].attrs['data-ws-layer'] !== 'L4') fail(line, '피드 링크는 레이어 L4·페이지 본문 레일에만');
+    const sec = upSection[i];
+    const ids = (a.attrs['aria-describedby'] ?? '').split(/\s+/).filter(Boolean);
+    const ni = ids.map((id) => byId.get(id)).find((x) => x !== undefined && els[x].attrs['data-ws-aff'] === 'note-feed');
+    if (ni === undefined || sec < 0 || !isAncestor(sec, ni) || els[ni].start > a.start) fail(line, '피드 링크 aria-describedby 가 같은 section 안·앞의 피드 고지(data-ws-aff="note-feed")를 가리키지 않는다');
+    else if (!usedNotes.has(ni)) noteCheck(ni, 'FEED');
+    const li = upLi[i];
+    const mark = li < 0 ? -1 : kidsDeep(li).find((x) => els[x].attrs['data-ws-aff'] === 'card');
+    if (mark === undefined || mark < 0) fail(line, '피드 카드에 제휴 표식(data-ws-aff="card")이 없다');
+    else usedNotes.add(mark);
+  }
+  checkFeedOut();
   /**
    * 감사 M-1(281): 고지 F 위치 — 실제 마크업(server renderFooter · client shell/Footer.tsx):
    *   <div id="root"> 직속 [header, main, (scrim, aside 레이어), footer.ws-footer] — footer 안 [brand, links, note, note-f, p.ws-footer-copy].
@@ -1792,7 +2233,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     }
   };
   // 고지 F(R4-3, R4 시안 affiliate_candidates) — 제휴 a 가 1개 이상인 문서는 페이지 하단 footer.ws-footer 직속에 정확히 1개, 원문·숨김 0.
-  if (affLinks.length > 0) {
+  if (affLinks.length > 0 || feedLinks.length > 0) {
     const footers = [];
     for (let i = 0; i < n; i++) if (els[i].name === 'footer' && classesOf(els[i]).includes('ws-footer')) footers.push(i);
     const notesF = footers.flatMap((f) => kids(f).filter((x) => els[x].attrs['data-ws-aff'] === 'note-f'));
@@ -1807,7 +2248,8 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
   for (let i = 0; i < n; i++) {
     const v = els[i].attrs['data-ws-aff'];
     if (v === undefined) continue;
-    if (v !== 'note-a' && v !== 'note-b' && v !== 'note-f') fail(lineOf(els[i].start), `data-ws-aff=${L(v)} — note-a·note-b·note-f 만`);
+    if (!['note-a', 'note-b', 'note-f', 'note-feed', 'card'].includes(v)) fail(lineOf(els[i].start), `data-ws-aff=${L(v)} — note-a·note-b·note-f·note-feed·card 만`);
+    else if (v === 'card' && feedUp[i] < 0) fail(lineOf(els[i].start), '제휴 표식(data-ws-aff="card")이 피드 카드 밖');
     else if (!usedNotes.has(i)) fail(lineOf(els[i].start), `짝 없는 고지 ${v}(제휴 링크 0 인 블록·레이어에 고지 — 꺼짐은 HEAD 와 바이트 동일)`);
   }
 }
@@ -2067,7 +2509,42 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
  * 산출물 쪽 C10-AFF-OUT. manifest 없으면 아무것도 하지 않는다(C0-OUTPUT·NOT RUN 은 scanOutputs 가).
  *   mode 누락은 production 취급(rules-output 과 같은 규약). HTML 을 먼저 훑어 고지·버튼 사슬을 모은 뒤 CSS(파일·인라인 <style>)를 본다.
  */
-export function scanAffiliateOutputs({ root, dist, add }) {
+/** 362 N12: 산출 피드 JSON — 제휴 호스트는 url 키의 쿠팡 상품 링크 값에만, 수수료류 키 0, noprice 는 가격 키 0. */
+function checkFeedJsonOut(text, rel, noprice, add, popularSorts = FEED_POPULAR_SORTS, rowKeys = null) {
+  const fail = (msg) => add('C11-FEED-OUT', 'FAIL', rel, null, msg);
+  let doc;
+  try {
+    doc = JSON.parse(stripBom(text));
+  } catch {
+    return fail('피드 JSON 파싱 실패');
+  }
+  if (isObj(doc) && 'popular' in doc && (doc.popular !== true || !hasPopularSort(popularSorts))) fail('인기순 확인 sort 없이 피드 JSON popular');
+  let urls = 0;
+  const walkV = (v, k) => {
+    if (typeof v === 'string') {
+      if (k === 'title' && feedTitleHasPriceOrDate(v)) fail('피드 JSON title 에 가격·날짜 표기(373 D2 — FEED_TITLE_PRICE_DATE)');
+      if (k === 'url' && FEED_LINK_RES.COUPANG.test(v)) urls++;
+      else if (/aliexpress/i.test(v)) fail('피드 JSON 에 알리 값 — 알리 고지 문안 Kenny 결정 전(K2)');
+      return;
+    }
+    if (Array.isArray(v)) for (const x of v) walkV(x, k);
+    else if (isObj(v)) for (const [kk, x] of Object.entries(v)) {
+      if (FORBIDDEN_JSON_KEYS.has(kk) || kk === 'aff' || SEED_AFF_KEY(kk)) fail(`피드 JSON 허용 밖 키 ${L(kk)}`);
+      if (noprice && PRICE_KEYS.has(kk)) fail(`noprice 피드 JSON 에 가격 키 ${L(kk)}`);
+      walkV(x, kk);
+    }
+  };
+  walkV(doc, '');
+  if (rowKeys && isObj(doc) && Array.isArray(doc.rows)) {
+    for (const row of doc.rows) if (isObj(row)) rowKeys.add(feedRowKey(noprice ? 'noprice' : 'full', doc.typeId, doc.supplyItemId, row.url, row.title, doc.badge));
+  }
+  const occ = affHostCount(normalizeHostText(text));
+  if (occ > urls) fail(`피드 JSON 에 url 키 상품 링크 밖 제휴 호스트 ${occ - urls}회`);
+}
+
+const feedRowKey = (stage, typeId, itemId, url, title, badge) => JSON.stringify([stage, typeId, itemId, url, typeof title === 'string' ? title.trim() : title, badge]);
+
+export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPULAR_SORTS }) {
   const manPath = join(dist, 'prerender-manifest.json');
   if (!existsSync(manPath)) return;
   let m;
@@ -2077,7 +2554,18 @@ export function scanAffiliateOutputs({ root, dist, add }) {
     return; // C3-OUT-ROUTE 가 FAIL
   }
   const dev = isObj(m) && m.mode === 'development';
-  const sink = { notes: new Map(), pairs: new Map(), styles: [] };
+  const sink = { notes: new Map(), pairs: new Map(), styles: [], popularSorts, feedRows: [] };
+  const rowKeys = new Set(); // 399 R-2: 피드 JSON 행
+  const feedJson = new Set();
+  const fmPath = join(dist, 'feed-manifest.json');
+  if (existsSync(fmPath)) {
+    try {
+      const fm = JSON.parse(stripBom(readFileSync(fmPath, 'utf8')));
+      for (const s of ['full', 'noprice']) for (const f of Array.isArray(fm?.variants?.[s]) ? fm.variants[s] : []) if (typeof f === 'string') feedJson.add(f);
+    } catch {
+      add('C11-FEED-OUT', 'FAIL', relPosix(root, fmPath), null, 'feed-manifest.json 파싱 실패');
+    }
+  }
   const files = walk(dist);
   const cssFiles = [];
   for (const abs of files) {
@@ -2098,6 +2586,12 @@ export function scanAffiliateOutputs({ root, dist, add }) {
     // 번들(js·css·map)은 레지스트리 PROVIDERS 접두를 품을 수 있다 — 그 밖 텍스트 산출물(카탈로그·sitemap·robots·manifest 등)은 제휴 0.
     if (!['.json', '.xml', '.txt', '.webmanifest', '.svg'].includes(ext)) continue;
     const text = readFileSync(abs, 'utf8');
+    // 362 N12: feed-manifest 가 나열한 피드 JSON 만 제휴 호스트 허용 — 값이 url 키의 쿠팡 상품 링크와 정확히 같을 때만, noprice 는 가격 키 0.
+    const drel = relPosix(dist, abs);
+    if (feedJson.has(drel)) {
+      checkFeedJsonOut(text, rel, drel.endsWith('.noprice.json'), add, popularSorts, rowKeys);
+      continue;
+    }
     if (affHostCount(normalizeHostText(text)) > 0) {
       const ls = text.split('\n');
       const li = ls.findIndex((l) => affHostCount(normalizeHostText(l)) > 0);
@@ -2117,6 +2611,12 @@ export function scanAffiliateOutputs({ root, dist, add }) {
           add('C10-AFF-OUT', 'FAIL', rel, null, `비HTML 산출물에 제휴·수수료 키 ${L(k)}(${L(p.slice(0, 60))}) — 카탈로그 aff 0`);
         }
       });
+    }
+  }
+  // 399 R-2c: HTML L4 행 → 같은 단계 피드 JSON 행(타입·품목·URL·제목·배지). 데이터에 없는 행은 품목 판정(GENERAL_INFO 등)을 비켜 간다.
+  for (const row of sink.feedRows) {
+    if (row.links.length !== 1 || !rowKeys.has(feedRowKey(row.stage, row.typeId, row.supplyItemId, row.links[0], row.title, row.badge))) {
+      add('C11-FEED-OUT', 'FAIL', row.rel, row.line, `L4 피드 행이 ${row.stage} 피드 JSON(${L(String(row.typeId))}·${L(String(row.supplyItemId))})의 품목·URL·제목·배지와 일치하지 않는다(링크 ${row.links.length}개)`);
     }
   }
   // CSS — 고지(.ws-aff-note 직접·일반 선택자·조상) 숨김·축소 0, 제휴 a 차등 선택자 0(111 §0 · D-37)

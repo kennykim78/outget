@@ -57,6 +57,11 @@ describe('engine purity', () => {
         'domain.ts',
         'exposure.ts',
         'expr.ts',
+        // 362 N3·N4: 상품 피드 타입·상수·순수 시각 함수 / 몰 제목 → 규격 값(fail-closed).
+        'feed-types.ts',
+        // 362 N9: ws-data data.feed 형식 판정(서버 인코드·클라 isData 공용, 순수).
+        'feed-wire.ts',
+        'title-spec.ts',
         // 356 M1~M10: GENERAL_INFO 등급 판정(6종 코드 고정 체인, 순수).
         'general-info.ts',
         // 286 U3c~e: 홈 A 설명 섹션 데이터 선택(프리렌더·클라 공용 단일 규칙, 순수 함수).

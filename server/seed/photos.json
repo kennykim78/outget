@@ -360,9 +360,9 @@
     }
   },
   {
-    "id": "ph-item-bird-cage",
-    "scene": "새장 물건 사진(동물 없음)",
-    "slot": "item-bird-cage",
+    "id": "ph-parrot-small-bird-cage",
+    "scene": "소형 앵무용 새장 물건 사진(동물 없음)",
+    "slot": "parrot-small-bird-cage",
     "query": "bird cage product",
     "source": null,
     "license": null,
@@ -373,6 +373,25 @@
     "status": "SLOT",
     "scope": {
       "use": "item",
+      "careProfileId": "cp-parrot-small",
+      "supplyItemId": "bird-cage"
+    }
+  },
+  {
+    "id": "ph-parrot-medium-bird-cage",
+    "scene": "중형 앵무용 새장 물건 사진(동물 없음)",
+    "slot": "parrot-medium-bird-cage",
+    "query": "bird cage product",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-parrot-medium",
       "supplyItemId": "bird-cage"
     }
   },
@@ -656,6 +675,1488 @@
       "use": "item",
       "careProfileId": "cp-parrot-medium",
       "supplyItemId": "scale"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-habitat",
+    "scene": "드워프햄스터 케이지 생활 모습",
+    "slot": "hamster-dwarf-habitat",
+    "query": "dwarf hamster in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "hamster-dwarf"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-now-lead",
+    "scene": "드워프햄스터 정면 모습",
+    "slot": "hamster-dwarf-now-lead",
+    "query": "dwarf hamster portrait",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "hamster-dwarf"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-spec",
+    "scene": "드워프햄스터 케이지 크기 비교",
+    "slot": "hamster-dwarf-spec",
+    "query": "dwarf hamster cage size comparison",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "hamster-dwarf"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-habitat",
+    "scene": "몽골리안저빌 케이지 생활 모습",
+    "slot": "gerbil-mongolian-habitat",
+    "query": "mongolian gerbil in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "gerbil-mongolian"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-now-lead",
+    "scene": "몽골리안저빌 정면 모습",
+    "slot": "gerbil-mongolian-now-lead",
+    "query": "mongolian gerbil portrait",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "gerbil-mongolian"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-spec",
+    "scene": "몽골리안저빌 케이지 크기 비교",
+    "slot": "gerbil-mongolian-spec",
+    "query": "mongolian gerbil cage size comparison",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "gerbil-mongolian"
+    }
+  },
+  {
+    "id": "ph-guinea-pig-habitat",
+    "scene": "기니피그 케이지 생활 모습",
+    "slot": "guinea-pig-habitat",
+    "query": "guinea pig in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "guinea-pig"
+    }
+  },
+  {
+    "id": "ph-guinea-pig-now-lead",
+    "scene": "기니피그 정면 모습",
+    "slot": "guinea-pig-now-lead",
+    "query": "guinea pig portrait",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "guinea-pig"
+    }
+  },
+  {
+    "id": "ph-guinea-pig-spec",
+    "scene": "기니피그 케이지 크기 비교",
+    "slot": "guinea-pig-spec",
+    "query": "guinea pig cage size comparison",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "guinea-pig"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-habitat",
+    "scene": "로보로브스키햄스터 케이지 생활 모습",
+    "slot": "hamster-robo-habitat",
+    "query": "roborovski hamster in cage habitat",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "habitat",
+      "animalTypeId": "hamster-robo"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-now-lead",
+    "scene": "로보로브스키햄스터 정면 모습",
+    "slot": "hamster-robo-now-lead",
+    "query": "roborovski hamster portrait",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "now-lead",
+      "animalTypeId": "hamster-robo"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-spec",
+    "scene": "로보로브스키햄스터 케이지 크기 비교",
+    "slot": "hamster-robo-spec",
+    "query": "roborovski hamster cage size comparison",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "spec",
+      "animalTypeId": "hamster-robo"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-wheel",
+    "scene": "골든햄스터용 쳇바퀴",
+    "slot": "hamster-syrian-wheel",
+    "query": "syrian hamster exercise wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "wheel"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-water",
+    "scene": "골든햄스터용 급수기",
+    "slot": "hamster-syrian-water",
+    "query": "syrian hamster water bottle",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-food-bowl",
+    "scene": "골든햄스터용 사료 그릇",
+    "slot": "hamster-syrian-food-bowl",
+    "query": "syrian hamster food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-hideout",
+    "scene": "골든햄스터용 은신처",
+    "slot": "hamster-syrian-hideout",
+    "query": "syrian hamster hideout",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "hideout"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-sand-bath",
+    "scene": "골든햄스터용 목욕 모래",
+    "slot": "hamster-syrian-sand-bath",
+    "query": "syrian hamster bathing sand",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "sand-bath"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-chew",
+    "scene": "골든햄스터용 갉기용 나무",
+    "slot": "hamster-syrian-chew",
+    "query": "syrian hamster wooden chew",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "chew"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-carrier",
+    "scene": "골든햄스터용 이동장",
+    "slot": "hamster-syrian-carrier",
+    "query": "syrian hamster small pet carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-thermo",
+    "scene": "골든햄스터용 온습도계",
+    "slot": "hamster-syrian-thermo",
+    "query": "syrian hamster thermo hygrometer",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-scale",
+    "scene": "골든햄스터용 저울",
+    "slot": "hamster-syrian-scale",
+    "query": "syrian hamster kitchen scale",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "scale"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-tubes",
+    "scene": "골든햄스터용 터널·놀이기구",
+    "slot": "hamster-syrian-tubes",
+    "query": "syrian hamster tunnel toy",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "tubes"
+    }
+  },
+  {
+    "id": "ph-hamster-syrian-saucer",
+    "scene": "골든햄스터용 플라잉 소서",
+    "slot": "hamster-syrian-saucer",
+    "query": "syrian hamster flying saucer wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-syrian",
+      "supplyItemId": "saucer"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-cage",
+    "scene": "드워프햄스터용 케이지",
+    "slot": "hamster-dwarf-cage",
+    "query": "dwarf hamster cage",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "cage"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-wheel",
+    "scene": "드워프햄스터용 쳇바퀴",
+    "slot": "hamster-dwarf-wheel",
+    "query": "dwarf hamster exercise wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "wheel"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-saucer",
+    "scene": "드워프햄스터용 플라잉 소서",
+    "slot": "hamster-dwarf-saucer",
+    "query": "dwarf hamster flying saucer wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "saucer"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-bedding",
+    "scene": "드워프햄스터용 베딩",
+    "slot": "hamster-dwarf-bedding",
+    "query": "dwarf hamster paper bedding",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "bedding"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-water",
+    "scene": "드워프햄스터용 급수기",
+    "slot": "hamster-dwarf-water",
+    "query": "dwarf hamster water bottle",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-food-bowl",
+    "scene": "드워프햄스터용 사료 그릇",
+    "slot": "hamster-dwarf-food-bowl",
+    "query": "dwarf hamster food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-food",
+    "scene": "드워프햄스터용 사료",
+    "slot": "hamster-dwarf-food",
+    "query": "dwarf hamster food mix",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "food"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-hideout",
+    "scene": "드워프햄스터용 은신처",
+    "slot": "hamster-dwarf-hideout",
+    "query": "dwarf hamster hideout",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "hideout"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-sand-bath",
+    "scene": "드워프햄스터용 목욕 모래",
+    "slot": "hamster-dwarf-sand-bath",
+    "query": "dwarf hamster bathing sand",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "sand-bath"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-sand-bath-box",
+    "scene": "드워프햄스터용 모래 목욕통",
+    "slot": "hamster-dwarf-sand-bath-box",
+    "query": "dwarf hamster sand bath box",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "sand-bath-box"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-chew",
+    "scene": "드워프햄스터용 갉기용 나무",
+    "slot": "hamster-dwarf-chew",
+    "query": "dwarf hamster wooden chew",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "chew"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-carrier",
+    "scene": "드워프햄스터용 이동장",
+    "slot": "hamster-dwarf-carrier",
+    "query": "dwarf hamster small pet carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-thermo",
+    "scene": "드워프햄스터용 온습도계",
+    "slot": "hamster-dwarf-thermo",
+    "query": "dwarf hamster thermo hygrometer",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-scale",
+    "scene": "드워프햄스터용 저울",
+    "slot": "hamster-dwarf-scale",
+    "query": "dwarf hamster kitchen scale",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "scale"
+    }
+  },
+  {
+    "id": "ph-hamster-dwarf-tubes",
+    "scene": "드워프햄스터용 터널·놀이기구",
+    "slot": "hamster-dwarf-tubes",
+    "query": "dwarf hamster tunnel toy",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-dwarf",
+      "supplyItemId": "tubes"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-cage",
+    "scene": "몽골리안저빌용 케이지",
+    "slot": "gerbil-mongolian-cage",
+    "query": "mongolian gerbil cage",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "cage"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-bedding",
+    "scene": "몽골리안저빌용 베딩",
+    "slot": "gerbil-mongolian-bedding",
+    "query": "mongolian gerbil paper bedding",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "bedding"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-water",
+    "scene": "몽골리안저빌용 급수기",
+    "slot": "gerbil-mongolian-water",
+    "query": "mongolian gerbil water bottle",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-food",
+    "scene": "몽골리안저빌용 사료",
+    "slot": "gerbil-mongolian-food",
+    "query": "mongolian gerbil food mix",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "food"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-food-bowl",
+    "scene": "몽골리안저빌용 사료 그릇",
+    "slot": "gerbil-mongolian-food-bowl",
+    "query": "mongolian gerbil food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-hideout",
+    "scene": "몽골리안저빌용 은신처",
+    "slot": "gerbil-mongolian-hideout",
+    "query": "mongolian gerbil hideout",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "hideout"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-sand-bath",
+    "scene": "몽골리안저빌용 목욕 모래",
+    "slot": "gerbil-mongolian-sand-bath",
+    "query": "mongolian gerbil bathing sand",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "sand-bath"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-sand-bath-box",
+    "scene": "몽골리안저빌용 모래 목욕통",
+    "slot": "gerbil-mongolian-sand-bath-box",
+    "query": "mongolian gerbil sand bath box",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "sand-bath-box"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-wheel",
+    "scene": "몽골리안저빌용 쳇바퀴",
+    "slot": "gerbil-mongolian-wheel",
+    "query": "mongolian gerbil exercise wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "wheel"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-tubes",
+    "scene": "몽골리안저빌용 터널·놀이기구",
+    "slot": "gerbil-mongolian-tubes",
+    "query": "mongolian gerbil tunnel toy",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "tubes"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-chew",
+    "scene": "몽골리안저빌용 갉기용 나무",
+    "slot": "gerbil-mongolian-chew",
+    "query": "mongolian gerbil wooden chew",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "chew"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-hay",
+    "scene": "몽골리안저빌용 건초",
+    "slot": "gerbil-mongolian-hay",
+    "query": "mongolian gerbil hay",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "hay"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-carrier",
+    "scene": "몽골리안저빌용 이동장",
+    "slot": "gerbil-mongolian-carrier",
+    "query": "mongolian gerbil small pet carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-gerbil-mongolian-thermo",
+    "scene": "몽골리안저빌용 온습도계",
+    "slot": "gerbil-mongolian-thermo",
+    "query": "mongolian gerbil thermo hygrometer",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-gerbil-mongolian",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-guineapig-cage",
+    "scene": "기니피그용 케이지",
+    "slot": "guineapig-cage",
+    "query": "guinea pig cage",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "cage"
+    }
+  },
+  {
+    "id": "ph-guineapig-playpen",
+    "scene": "기니피그용 운동 공간(울타리)",
+    "slot": "guineapig-playpen",
+    "query": "guinea pig playpen",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "playpen"
+    }
+  },
+  {
+    "id": "ph-guineapig-hay",
+    "scene": "기니피그용 건초",
+    "slot": "guineapig-hay",
+    "query": "guinea pig hay",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "hay"
+    }
+  },
+  {
+    "id": "ph-guineapig-hay-rack",
+    "scene": "기니피그용 건초 거치대",
+    "slot": "guineapig-hay-rack",
+    "query": "guinea pig hay rack",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "hay-rack"
+    }
+  },
+  {
+    "id": "ph-guineapig-food",
+    "scene": "기니피그용 사료",
+    "slot": "guineapig-food",
+    "query": "guinea pig food mix",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "food"
+    }
+  },
+  {
+    "id": "ph-guineapig-water",
+    "scene": "기니피그용 급수기",
+    "slot": "guineapig-water",
+    "query": "guinea pig water bottle",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-guineapig-food-bowl",
+    "scene": "기니피그용 사료 그릇",
+    "slot": "guineapig-food-bowl",
+    "query": "guinea pig food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-guineapig-bedding",
+    "scene": "기니피그용 베딩",
+    "slot": "guineapig-bedding",
+    "query": "guinea pig paper bedding",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "bedding"
+    }
+  },
+  {
+    "id": "ph-guineapig-hideout",
+    "scene": "기니피그용 은신처",
+    "slot": "guineapig-hideout",
+    "query": "guinea pig hideout",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "hideout"
+    }
+  },
+  {
+    "id": "ph-guineapig-tubes",
+    "scene": "기니피그용 터널·놀이기구",
+    "slot": "guineapig-tubes",
+    "query": "guinea pig tunnel toy",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "tubes"
+    }
+  },
+  {
+    "id": "ph-guineapig-chew",
+    "scene": "기니피그용 갉기용 나무",
+    "slot": "guineapig-chew",
+    "query": "guinea pig wooden chew",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "chew"
+    }
+  },
+  {
+    "id": "ph-guineapig-nail-clipper",
+    "scene": "기니피그용 발톱깎이",
+    "slot": "guineapig-nail-clipper",
+    "query": "guinea pig small pet nail clipper",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "nail-clipper"
+    }
+  },
+  {
+    "id": "ph-guineapig-brush",
+    "scene": "기니피그용 빗",
+    "slot": "guineapig-brush",
+    "query": "guinea pig grooming brush",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "brush"
+    }
+  },
+  {
+    "id": "ph-guineapig-carrier",
+    "scene": "기니피그용 이동장",
+    "slot": "guineapig-carrier",
+    "query": "guinea pig small pet carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-guineapig-thermo",
+    "scene": "기니피그용 온습도계",
+    "slot": "guineapig-thermo",
+    "query": "guinea pig thermo hygrometer",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-guineapig-scale",
+    "scene": "기니피그용 저울",
+    "slot": "guineapig-scale",
+    "query": "guinea pig kitchen scale",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-guineapig",
+      "supplyItemId": "scale"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-cage",
+    "scene": "로보로브스키햄스터용 케이지",
+    "slot": "hamster-robo-cage",
+    "query": "roborovski hamster cage",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "cage"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-wheel",
+    "scene": "로보로브스키햄스터용 쳇바퀴",
+    "slot": "hamster-robo-wheel",
+    "query": "roborovski hamster exercise wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "wheel"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-saucer",
+    "scene": "로보로브스키햄스터용 플라잉 소서",
+    "slot": "hamster-robo-saucer",
+    "query": "roborovski hamster flying saucer wheel",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "saucer"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-bedding",
+    "scene": "로보로브스키햄스터용 베딩",
+    "slot": "hamster-robo-bedding",
+    "query": "roborovski hamster paper bedding",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "bedding"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-water",
+    "scene": "로보로브스키햄스터용 급수기",
+    "slot": "hamster-robo-water",
+    "query": "roborovski hamster water bottle",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "water"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-food-bowl",
+    "scene": "로보로브스키햄스터용 사료 그릇",
+    "slot": "hamster-robo-food-bowl",
+    "query": "roborovski hamster food bowl",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "food-bowl"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-food",
+    "scene": "로보로브스키햄스터용 사료",
+    "slot": "hamster-robo-food",
+    "query": "roborovski hamster food mix",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "food"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-hideout",
+    "scene": "로보로브스키햄스터용 은신처",
+    "slot": "hamster-robo-hideout",
+    "query": "roborovski hamster hideout",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "hideout"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-sand-bath",
+    "scene": "로보로브스키햄스터용 목욕 모래",
+    "slot": "hamster-robo-sand-bath",
+    "query": "roborovski hamster bathing sand",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "sand-bath"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-sand-bath-box",
+    "scene": "로보로브스키햄스터용 모래 목욕통",
+    "slot": "hamster-robo-sand-bath-box",
+    "query": "roborovski hamster sand bath box",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "sand-bath-box"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-chew",
+    "scene": "로보로브스키햄스터용 갉기용 나무",
+    "slot": "hamster-robo-chew",
+    "query": "roborovski hamster wooden chew",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "chew"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-carrier",
+    "scene": "로보로브스키햄스터용 이동장",
+    "slot": "hamster-robo-carrier",
+    "query": "roborovski hamster small pet carrier",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "carrier"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-thermo",
+    "scene": "로보로브스키햄스터용 온습도계",
+    "slot": "hamster-robo-thermo",
+    "query": "roborovski hamster thermo hygrometer",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "thermo"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-scale",
+    "scene": "로보로브스키햄스터용 저울",
+    "slot": "hamster-robo-scale",
+    "query": "roborovski hamster kitchen scale",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "scale"
+    }
+  },
+  {
+    "id": "ph-hamster-robo-tubes",
+    "scene": "로보로브스키햄스터용 터널·놀이기구",
+    "slot": "hamster-robo-tubes",
+    "query": "roborovski hamster tunnel toy",
+    "source": null,
+    "license": null,
+    "author": null,
+    "sourceUrl": null,
+    "downloadedAt": null,
+    "modified": false,
+    "status": "SLOT",
+    "scope": {
+      "use": "item",
+      "careProfileId": "cp-hamster-robo",
+      "supplyItemId": "tubes"
     }
   }
 ]

@@ -1,4 +1,4 @@
-// 사람·장소·사진 규칙 T01~T03·VC01·VC02·I01~I03 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
+// 사람·장소·사진 규칙 T01~T03·VC01·VC02·I01~I08 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
 import {
   PHOTO_AI_LICENSE,
   PHOTO_ASSET_RE,
@@ -237,11 +237,14 @@ function checkPhotoCoverage(ctx: Ctx): void {
     total++;
     const r = resolvePlacement(photos, pl);
     const where = pl.kind === 'scene' ? `홈 A 장면 ${pl.photoId}` : `${pl.query.animalTypeId} ${pl.query.use}${pl.query.supplyItemId ? ` ${pl.query.supplyItemId}` : ''}`;
-    if (r === null && pl.kind === 'query' && !sceneFallbackAllowed(pl.query.group)) {
-      // 356 ⑦ 충돌 H: 장면 행(햄스터 사진)은 SCENE_PHOTO_GROUPS 종에만 붙는다 — 그 밖의 그룹은 종·케어프로필 단위 행이 있어야 한다.
-      out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 그룹 ${pl.query.group ?? '(모름)'} 은 장면 행(햄스터 사진) 대체 밖 — 종·케어프로필 단위 사진 행(scope)이 필요하다`);
+    const scene = pl.kind === 'scene'
+      ? pl.photoId
+      : sceneFallbackAllowed(pl.query.group, pl.query.animalTypeId) ? scenePhotoIdFor(pl.query.use, pl.query.supplyItemId) : null;
+    if (r === null && pl.kind === 'query' && scene === null) {
+      // 356 ⑦ 충돌 H · 359 D-1 A: 장면 행(골든햄스터 사진)은 SCENE_PHOTO_TYPE_IDS 종의 종 자리·장면 표 품목에만 붙는다 —
+      //   그 밖의 종·품목은 종·케어프로필 단위 행이 있어야 한다.
+      out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 그룹 ${pl.query.group ?? '(모름)'} 종 ${pl.query.animalTypeId} 은 장면 행(햄스터 사진) 대체 밖 — 종·케어프로필 단위 사진 행(scope)이 필요하다`);
     } else if (r === null) {
-      const scene = pl.kind === 'scene' ? pl.photoId : scenePhotoIdFor(pl.query.use, pl.query.supplyItemId);
       out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 종·품목 사진도 장면 행(${scene}, scope 없음)도 없다 — 빈 칸`);
     } else if (!r.usable) {
       empty++;
@@ -250,10 +253,76 @@ function checkPhotoCoverage(ctx: Ctx): void {
   if (empty > 0) out.warn('I07', 'photos', null, '', `빈 사진 칸 ${empty}/${total} — 사용 가능한 사진(READY·사용권 기록)이 아직 없다`);
 }
 
+/**
+ * I08(359 H4) — 품목 단위(ITEM: 종·프로필 없이 supplyItemId 만) 사진 행은 그 품목을 요구하는 모든 종 화면에 같은 사진을 붙인다.
+ *   요구 프로필이 두 그룹 이상(예: water — SMALL_MAMMAL·PARROT)에 걸치는 품목이면 다른 동물의 용품 사진이 섞이므로 ERROR —
+ *   케어프로필 단위 행(careProfileId + supplyItemId)으로 나눈다. 프로필의 그룹은 그 프로필을 쓰는 AnimalType.group 으로 본다.
+ *   363: 한 그룹이어도 요구 프로필 2개 이상의 minSpec 규칙이 다르면(예: bird-cage — 소형·중형 앵무 새장 규격) 같은 ERROR.
+ */
+function checkPhotoItemGroups(ctx: Ctx): void {
+  const groupsOfProfile = new Map<string, Set<string>>();
+  for (const { rec } of ctx.rows.animalTypes) {
+    if (!isNonEmptyStr(rec.careProfileId) || !isAnimalGroup(rec.group)) continue;
+    const g = groupsOfProfile.get(rec.careProfileId) ?? new Set<string>();
+    g.add(rec.group);
+    groupsOfProfile.set(rec.careProfileId, g);
+  }
+  const groupsOfItem = (item: string): string[] => {
+    const out = new Set<string>();
+    for (const { rec } of ctx.rows.supplyRequirements) {
+      if (rec.supplyItemId !== item || !isNonEmptyStr(rec.careProfileId)) continue;
+      for (const g of groupsOfProfile.get(rec.careProfileId) ?? []) out.add(g);
+    }
+    return [...out].sort();
+  };
+  // 363(감사 361 신규 MED): 요구 프로필 2개 이상이 minSpec 규칙을 달리하면(그룹이 하나여도) 다른 규격 용품 사진이 섞인다.
+  //   비교는 규칙의 key·op·value·when 만(reason 문구 제외), 규칙 순서 무관.
+  const profilesByRules = (item: string): Map<string, string[]> => {
+    const byRules = new Map<string, string[]>();
+    for (const { rec } of ctx.rows.supplyRequirements) {
+      if (rec.supplyItemId !== item || !isNonEmptyStr(rec.careProfileId)) continue;
+      const key = minSpecRulesKey(rec.minSpec);
+      byRules.set(key, [...(byRules.get(key) ?? []), rec.careProfileId]);
+    }
+    return byRules;
+  };
+  for (const { rec, id } of ctx.rows.photos) {
+    const s = asRec(rec.scope);
+    if (!s || s.use !== 'item' || !isNonEmptyStr(s.supplyItemId)) continue;
+    if (s.animalTypeId !== undefined || s.careProfileId !== undefined) continue;
+    const groups = groupsOfItem(s.supplyItemId);
+    if (groups.length >= 2) {
+      ctx.out.error('I08', 'photos', id, 'scope', `품목 "${s.supplyItemId}" 는 여러 그룹(${groups.join('·')})이 요구한다 — 품목 단위 행 대신 케어프로필 단위 행(careProfileId)으로 나눈다(다른 동물 용품 사진 혼입 금지)`);
+      continue;
+    }
+    const byRules = profilesByRules(s.supplyItemId);
+    if (byRules.size >= 2) {
+      const profiles = [...byRules.values()].flat().sort();
+      ctx.out.error('I08', 'photos', id, 'scope', `품목 "${s.supplyItemId}" 는 요구 프로필(${profiles.join('·')})마다 minSpec 규칙이 다르다 — 품목 단위 행 대신 케어프로필 단위 행(careProfileId)으로 나눈다(다른 규격 용품 사진 혼입 금지)`);
+    }
+  }
+}
+
+/** minSpec.rules 의 비교 키 — 규칙마다 reason 을 뺀 key·op·value·when 을 키 정렬 JSON 으로, 규칙 순서 무관. */
+function minSpecRulesKey(minSpec: unknown): string {
+  const canon = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(canon);
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(o).filter((k) => k !== 'reason').sort().map((k) => [k, canon(o[k])]));
+    }
+    return v;
+  };
+  const rules = asRec(minSpec)?.rules;
+  const list = Array.isArray(rules) ? rules.map((r) => JSON.stringify(canon(r))).sort() : [];
+  return JSON.stringify(list);
+}
+
 export function checkPeople(ctx: Ctx): void {
   checkTestimonials(ctx);
   checkVets(ctx);
   checkPhotos(ctx);
   checkPhotoScopes(ctx);
   checkPhotoCoverage(ctx);
+  checkPhotoItemGroups(ctx);
 }

@@ -52,6 +52,24 @@ export const PROVIDERS: Readonly<Record<ProviderId, ProviderEntry>> = Object.fre
 /** 링크 렌더 순서 고정(COUPANG → NAVER). 제휴 여부로 바뀌지 않는다. */
 export const SEARCH_PROVIDER_ORDER: readonly SearchProvider[] = Object.freeze(['COUPANG', 'NAVER'] as const);
 
+/**
+ * 362 N3 — 상품 피드(공식 API 응답) 행의 상품 링크 형태(공급자별, 정확 패턴만). 잠정값: 첫 실호출(N15)로 확정.
+ *   피드 로더(prerender/product-feed.ts)만 쓴다 — 노출 판정(exposure.ts)은 이 파일을 import 하지 않는다(C10-AFF-IMPORT).
+ */
+export const FEED_LINK_RE: Readonly<Record<'COUPANG' | 'ALIEXPRESS', RegExp>> = Object.freeze({
+  COUPANG: /^https:\/\/link\.coupang\.com\/a\/[A-Za-z0-9]{4,32}$/,
+  ALIEXPRESS: /^https:\/\/s\.click\.aliexpress\.com\/e\/_[A-Za-z0-9_-]{4,64}$/,
+});
+
+/**
+ * 362 N3 — 피드 이미지 허용 호스트(정확 일치, 핫링크만 — 내려받기·재호스팅 0). 잠정값: 첫 실호출(N15)로 확정.
+ *   쿠팡은 키 발급 전이라 비어 있다(쿠팡 행의 imageUrl 은 null 만 통과). CSP img-src 도 이 상수만 경유(N11).
+ */
+export const FEED_IMAGE_HOSTS: Readonly<Record<'COUPANG' | 'ALIEXPRESS', readonly string[]>> = Object.freeze({
+  COUPANG: Object.freeze([] as string[]),
+  ALIEXPRESS: Object.freeze(['ae01.alicdn.com']),
+});
+
 /** 제휴 코드가 이 공급자의 형식인가(자체 문자열·codeRe 통과). 제휴 없는 공급자는 false. */
 export function isAffiliateCode(provider: ProviderId, code: unknown): code is string {
   const aff = Object.prototype.hasOwnProperty.call(PROVIDERS, provider) ? PROVIDERS[provider].affiliate : null;

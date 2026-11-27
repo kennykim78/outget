@@ -18,11 +18,13 @@ function regexErrorReason(e) {
   return /^[A-Za-z][A-Za-z ,'()-]{0,79}$/.test(r) ? r : '사유 미상';
 }
 
-const INVISIBLE = /[­​-‏⁠﻿]/g;
+// 373 D5: 기본 무시 문자(Default_Ignorable_Code_Point) 전부 — NFKC 앞뒤 두 번(server/src/seed/lint.ts 와 같은 순서).
+const INVISIBLE = /\p{Default_Ignorable_Code_Point}/gu;
 
 /** @param {string} s @param {'spaced'|'stripped'} mode */
 export function normalizeLintText(s, mode) {
-  const spaced = String(s).normalize('NFKC').replace(INVISIBLE, '').replace(/\s+/g, ' ');
+  // 374 N3: NFKC 뒤 결합 부호(\p{M}) 제거 — lint.ts 와 같은 순서.
+  const spaced = String(s).replace(INVISIBLE, '').normalize('NFKC').replace(/\p{M}/gu, '').replace(INVISIBLE, '').replace(/\s+/g, ' ');
   return mode === 'spaced' ? spaced : spaced.replace(/ /g, '');
 }
 
@@ -33,7 +35,7 @@ function compileList(list, name) {
       throw new ConfigError(`banned-words.json: ${name}[${i}] 에 term·pattern 문자열이 없다`);
     }
     try {
-      return { term: w.term, re: new RegExp(w.pattern, 'u') };
+      return { term: w.term, re: new RegExp(w.pattern, 'u'), ci: new RegExp(w.pattern, 'giu') };
     } catch (e) {
       throw new ConfigError(`banned-words.json: ${name}[${i}] 정규식 오류(${regexErrorReason(e)})`);
     }
@@ -65,6 +67,19 @@ export function loadBannedWords(path) {
   return compileBannedWords(data);
 }
 
+// 373 D5: 영문 대소문자 변형(Best·bEsT) 우회 차단 — 원래 'u' 일치 ∨ 'giu' 일치 중 영문 소문자만이 아닌 조각.
+//   전부 소문자 ASCII(`best` 코드 식별자, 353 §N2)만 예외. server/src/seed/lint.ts termHit·termStrip 과 같은 규칙.
+const qualifies = (m) => /[^a-z]/.test(m);
+const ciOf = (b) => b.ci ?? new RegExp(b.re.source, 'giu');
+function termHit(b, text) {
+  if (b.re.test(text)) return true;
+  for (const m of text.matchAll(ciOf(b))) if (qualifies(m[0])) return true;
+  return false;
+}
+function termStrip(b, text) {
+  return text.replace(new RegExp(b.re.source, 'gu'), ' ').replace(ciOf(b), (m) => (qualifies(m) ? ' ' : m));
+}
+
 /** lint.ts lintText 와 같은 판정. @returns {{rule:'L01'|'L02'|'L06', term:string}[]} */
 export function lintText(text, bw) {
   const hits = [];
@@ -72,16 +87,16 @@ export function lintText(text, bw) {
   const stripped = normalizeLintText(text, 'stripped');
   let rest = spaced;
   for (const b of bw.banned) {
-    if (b.re.test(spaced)) {
+    if (termHit(b, spaced)) {
       hits.push({ rule: 'L01', term: b.term });
-      rest = rest.replace(new RegExp(b.re.source, 'gu'), ' ');
-    } else if (b.re.test(stripped)) {
+      rest = termStrip(b, rest);
+    } else if (termHit(b, stripped)) {
       const len = b.term.replace(/[\sN]/g, '').length;
       hits.push({ rule: len >= 3 ? 'L01' : 'L06', term: b.term });
     }
   }
   for (const s of bw.stems) {
-    if (s.re.test(rest)) hits.push({ rule: 'L02', term: s.term });
+    if (termHit(s, rest)) hits.push({ rule: 'L02', term: s.term });
   }
   return hits;
 }

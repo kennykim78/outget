@@ -12,7 +12,23 @@ import { checkAnimalMinSpec } from './spec-check.js';
 import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
 import { PHOTO_AI_LICENSE, PHOTO_ASSET_RE, isAiPhotoRecordOk } from './photo-ai.js';
 import { generalInfoOkAt, isGeneralInfoTypeId } from './general-info.js';
+import {
+  COMBINING_MARK_RE,
+  DEFAULT_IGNORABLE_RE,
+  FEED_AVOID_WORDS,
+  FEED_CLOCK_SKEW_MS,
+  FEED_TITLE_DENY,
+  compareFeedRows,
+  feedFreshAt,
+  feedStage,
+  feedTitleHasPriceOrDate,
+  parseFeedInstant,
+  type FeedBadge, type FeedPrice, type FeedProvider, type FeedRowIn } from './feed-types.js';
+import { parseTitleSpec, titleEnumPattern } from './title-spec.js';
+import { evaluateRuleSet, readSpecValue, referencedSpecKeys } from './rules.js';
+import { buildSearchKeyword } from './search-keyword.js';
 import type {
+  SpecValue,
   BudgetTipRec,
   CompatibilityRuleRec,
   ContentMeta,
@@ -200,6 +216,153 @@ function compareDateDesc(a: string | null | undefined, b: string | null | undefi
   const y = typeof b === 'string' ? b : '';
   if (x === y) return 0;
   return x < y ? 1 : -1;
+}
+
+// ── 상품 피드(362 N5, 353 §3.1) ─────────────────────────────────
+/** 피드 제외 범주(D-3/C5, 불변식 5·7): 사료·건강 품목은 피드 블록 자체가 없다. */
+export const FEED_EXCLUDED_CATEGORIES: readonly string[] = Object.freeze(['FOOD', 'HEALTH']);
+
+export interface SelectedFeedRow {
+  provider: FeedProvider;
+  rank: number;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  /** showPrice=false 면 null(가격 줄 제거 — 72h 초과). */
+  price: FeedPrice | null;
+  fetchedAt: string;
+  /** LISTED_PASS 블록의 제품 단계 판정. CHECK_NEEDED 블록은 null. */
+  verdict: 'OK' | 'BELOW_RECOMMENDED' | null;
+  /** 제목에서 읽은 규격 값(규격 한 줄용). CHECK_NEEDED 블록은 null. */
+  specValues: Record<string, SpecValue> | null;
+}
+
+export interface FeedSelection {
+  badge: FeedBadge;
+  /** 398(불변식 7): GENERAL_INFO 체인은 블록 자체가 없다(selectFeedRows null) — 항상 false. 공개 JSON 키 호환용. */
+  generalInfo: false;
+  showPrice: boolean;
+  rows: SelectedFeedRow[];
+}
+
+export interface FeedSelectOptions {
+  asOf: string;
+  /** 빌드 시각(ms). 엔진은 시계를 읽지 않는다. */
+  buildAtMs: number;
+  generatedAt: string | null;
+  /** 콘텐츠 린트 금지어(seed/lint.ts lintText 적중 ≥1 → true). 엔진이 seed 를 import 하지 않도록 주입. */
+  isTitleBanned: (title: string) => boolean;
+}
+
+const feedNorm = (s: string): { spaced: string; stripped: string } => {
+  // 373 D5: \uAE30\uBCF8 \uBB34\uC2DC \uBB38\uC790 \uC804\uBD80(NFKC \uC55E\uB4A4 \u2014 NFKC \uAC00 \uB9CC\uB4DC\uB294 \uCC44\uC6C0 \uBB38\uC790\uAE4C\uC9C0) \uC81C\uAC70 \u2014 seed/lint.ts normalizeLintText \uC640 \uAC19\uC740 \uBC94\uC704.
+  const spaced = s
+    .replace(DEFAULT_IGNORABLE_RE, '')
+    .normalize('NFKC')
+    .replace(COMBINING_MARK_RE, '') // 374 N3
+    .replace(DEFAULT_IGNORABLE_RE, '')
+    .replace(/\s+/g, ' ');
+  return { spaced, stripped: spaced.replace(/ /g, '') };
+};
+
+/** avoid 문장에 있는 사전어가 제목에 있으면 true — 바로 앞이 「무」(무도색 등 부정)인 자리는 세지 않는다. */
+function hitsAvoidWord(avoid: string | null, stripped: string): boolean {
+  if (typeof avoid !== 'string' || avoid.trim() === '') return false;
+  const avoidStripped = feedNorm(avoid).stripped;
+  for (const w of FEED_AVOID_WORDS) {
+    const word = w.replace(/\s+/g, '');
+    if (!avoidStripped.includes(word)) continue;
+    for (let i = stripped.indexOf(word); i !== -1; i = stripped.indexOf(word, i + 1)) {
+      if (i === 0 || stripped[i - 1] !== '무') return true;
+    }
+  }
+  return false;
+}
+
+/** minSpec·recommendedSpec 의 not_in 값에 대응하는 긍정어가 제목에 있으면 true(「소나무 베딩」). */
+function hitsNotInWord(r: ResolvedRequirement, title: string): boolean {
+  for (const rs of [r.minSpec, r.recommendedSpec]) {
+    for (const rule of Array.isArray(rs?.rules) ? rs.rules : []) {
+      if (rule?.op !== 'not_in' || !Array.isArray(rule.value)) continue;
+      for (const v of rule.value) {
+        const re = titleEnumPattern(r.supplyItemId, rule.key, v);
+        if (re && re.test(title)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * 「많이 찾는 상품」 피드 노출 결정 — 피드는 여기 한 곳에서만 고른다(불변식 3·5·7, D-1~D-7). 순수·결정론, 입력 불변.
+ *   null(블록 없음): 타입·요구사항 비노출 ∨ GENERAL_INFO 체인 ∨ 품목 FOOD·HEALTH ∨ generatedAt 없음·168h 초과.
+ *   행 버림(개작 0): 타입·품목 불일치 ∨ keyword ≠ buildSearchKeyword ∨ 금지어(주입) ∨ 제목 가격·날짜(373 D2) ∨ 형식 밖·미래 fetchedAt(D3)
+ *     ∨ 의료 효능어 ∨ avoid·not_in 사전어. 단계 기준 시각 = feedFreshAt(generatedAt, rows)(D4 — 가장 오래된 fetchedAt 쪽).
+ *   minSpec 규칙 0 → CHECK_NEEDED(모든 행). 규칙 ≥1 → 제목에서 minSpec 이 참조하는 키 전부(규칙·when)를 범위 안 값으로
+ *     읽어야 하고 MIN 판정 OK 여야 남는다(못 읽으면 버림, D-1). 권장 판정으로 verdict(OK/BELOW_RECOMMENDED).
+ *   398(불변식 7 — 362 D-7 「△만」 폐기): 체인 메타 중 하나라도 GENERAL_INFO(strictChainOk 거짓) → null(블록·JSON·L4·홈 레일 0).
+ *   정렬 compareFeedRows(verdict → 공급자 고정순 → rank) — 가격은 정렬 입력이 아니다. 72h 초과면 price null.
+ */
+export function selectFeedRows(
+  cat: EngineCatalog,
+  animalTypeId: string,
+  supplyItemId: string,
+  rows: readonly FeedRowIn[],
+  opts: FeedSelectOptions,
+): FeedSelection | null {
+  const day = asOfDay(opts.asOf);
+  if (!animalTypeOk(cat, animalTypeId, day)) return null;
+  const at = cat.animalTypes.get(animalTypeId);
+  const r = resolveRequirement(cat, animalTypeId, supplyItemId);
+  if (!at || !r || !requirementOk(cat, r, day)) return null;
+  if (!strictChainOk(r, day)) return null; // 398: GENERAL_INFO 체인에 연결된 상품은 노출하지 않는다(불변식 7)
+  if (FEED_EXCLUDED_CATEGORIES.includes(r.item.category)) return null;
+  // 373 D4: 단계 기준 = generatedAt·행 fetchedAt 중 가장 오래된 값(feedFreshAt — buildFeedOutputs manifest 와 같은 값). D3: 미래 → nofeed.
+  const stage = feedStage(opts.buildAtMs, feedFreshAt(opts.generatedAt, rows));
+  if (stage === 'nofeed') return null;
+  const showPrice = stage === 'full';
+  const minRules = Array.isArray(r.minSpec?.rules) ? r.minSpec.rules : [];
+  const ruled = minRules.length > 0;
+  const badge: FeedBadge = ruled ? 'LISTED_PASS' : 'CHECK_NEEDED';
+  const needKeys = [...referencedSpecKeys(r.minSpec)];
+  const keyword = buildSearchKeyword(at, r);
+
+  const out: SelectedFeedRow[] = [];
+  for (const row of rows) {
+    if (!row || row.animalTypeId !== animalTypeId || row.supplyItemId !== supplyItemId || row.keyword !== keyword) continue;
+    if (typeof row.title !== 'string') continue;
+    const { spaced, stripped } = feedNorm(row.title);
+    if (opts.isTitleBanned(row.title)) continue;
+    if (feedTitleHasPriceOrDate(row.title)) continue; // 373 D2: 제목 안 가격·날짜(noprice 변형에도 남는다) → 싣지 않음
+    const fAt = parseFeedInstant(row.fetchedAt);
+    if (fAt === null || fAt > opts.buildAtMs + FEED_CLOCK_SKEW_MS) continue; // 373 D3: 형식 밖·미래 fetchedAt 행 버림
+    if (FEED_TITLE_DENY.test(spaced) || FEED_TITLE_DENY.test(stripped)) continue;
+    if (hitsAvoidWord(r.avoid, stripped) || hitsNotInWord(r, row.title)) continue;
+    let verdict: SelectedFeedRow['verdict'] = null;
+    let specValues: Record<string, SpecValue> | null = null;
+    if (ruled) {
+      const parsed = parseTitleSpec(supplyItemId, row.title);
+      if (parsed === null) continue;
+      if (!needKeys.every((k) => readSpecValue(r.item.specSchema, parsed, k).ok)) continue;
+      if (evaluateRuleSet(r.item.specSchema, r.minSpec, parsed, 'MIN').verdict !== 'OK') continue;
+      const rec = evaluateRuleSet(r.item.specSchema, r.recommendedSpec, parsed, 'RECOMMENDED').verdict;
+      verdict = rec === 'OK' ? 'OK' : 'BELOW_RECOMMENDED';
+      specValues = { ...parsed };
+    }
+    out.push({
+      provider: row.provider,
+      rank: row.rank,
+      title: row.title,
+      url: row.url,
+      imageUrl: row.imageUrl,
+      price: showPrice && row.price ? { amount: row.price.amount, currency: 'KRW' } : null,
+      fetchedAt: row.fetchedAt,
+      verdict,
+      specValues,
+    });
+  }
+  out.sort(compareFeedRows);
+  return { badge, generalInfo: false, showPrice, rows: out };
 }
 
 /** 후기 레코드 자체: APPROVED ∧ verifiedUsage(불변식 7). 공개 노출 판정은 isTestimonialPublic(동물 타입까지). */

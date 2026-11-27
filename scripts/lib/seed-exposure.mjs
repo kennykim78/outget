@@ -72,6 +72,8 @@ export const STALE_DAYS = 180;
 /** 356: 일반 참고 정보 등급 허용 6종 — server/src/engine/general-info.ts 와 같아야 한다(패리티 engine.general-info.parity). */
 export const GENERAL_INFO_TYPE_IDS = Object.freeze(['hamster-robo', 'gerbil-mongolian', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure']);
 export const GENERAL_INFO_MAX_AGE_DAYS = STALE_DAYS;
+/** 엔진 server/src/engine/exposure.ts FEED_EXCLUDED_CATEGORIES 미러(피드 0 품목 분류). */
+export const FEED_EXCLUDED_CATEGORY_SET = new Set(['FOOD', 'HEALTH']);
 const GI_KINDS = new Set(['SPEC', 'CARE', 'FOOD', 'HEALTH']);
 const GI_CROSS_KINDS = new Set(['FOOD', 'HEALTH']);
 
@@ -236,6 +238,24 @@ export function isPhotoUsableRow(p) {
   if (!photoSourceUrlAllowed(p.source, p.sourceUrl)) return false;
   if (!ccBySaPlacementOk(p)) return false;
   return p.license === 'CC0' || nonEmpty(p.author);
+}
+
+// ── 359 C6-IMG-SPECIES: 사진 자리 종 범위(독립 구현 — server/src/engine/photo-resolve.ts 와 패리티 시험, compliance-scan.test T23) ──
+//   장면 행(scope 없는 ph-xx)은 골든햄스터를 찍은 사진이라 그 종에만 붙는다(359 D-1 A). 엔진을 import 하지 않는다 — 시험이 원문 상수를 대조한다.
+export const SCENE_PHOTO_GROUPS = Object.freeze(['SMALL_MAMMAL']);
+export const SCENE_PHOTO_TYPE_IDS = Object.freeze(['hamster-golden']);
+/** 종 자리(use) → 장면 행 id. ws-data 키는 habitat·nowLead·spec(PHOTO_WS_TYPE_KEYS). */
+export const TYPE_SCENE_PHOTOS = Object.freeze({ habitat: 'ph-01', 'now-lead': 'ph-03', spec: 'ph-08' });
+/** 품목 자리 장면 대체 — 이 표에 없는 품목은 장면 대체 없음(범용 ph-03 폐지, 359). */
+export const ITEM_SCENE_PHOTOS = Object.freeze({ cage: 'ph-08', bedding: 'ph-09', food: 'ph-10' });
+/** 홈 A 공용 장면(ws-data types[대표].homeScenes 키 → 장면 행 id). */
+export const HOME_A_SCENE_PHOTOS = Object.freeze({ startChecklist: 'ph-03', startSpecCheck: 'ph-08', startSetup: 'ph-01', explainNeed: 'ph-12', explainFigures: 'ph-02' });
+/** ws-data types[i].photos 키 → 종 자리 use. */
+export const PHOTO_WS_TYPE_KEYS = Object.freeze({ habitat: 'habitat', nowLead: 'now-lead', spec: 'spec' });
+
+/** 이 종(노출 타입 행)의 자리에 장면 행을 붙일 수 있는가 — 그룹 ∧ 종 둘 다(모름 → false, fail-closed). */
+export function sceneAllowedForType(t) {
+  return isObj(t) && SCENE_PHOTO_GROUPS.includes(t.group) && SCENE_PHOTO_TYPE_IDS.includes(t.id);
 }
 
 // ── 저렴 대체 팁 참조 규칙(독립 구현 — engine/tips.ts 와 패리티 테스트 tips.parity) ─────────────
@@ -563,6 +583,14 @@ export function computeExposure(seed, asOf) {
   const productStrictChain = (t, req, itemId) =>
     ok(t) && allOk(profiles.get(t.careProfileId)) && allOk(reqIdGroups.get(req.id)) && allOk(items.get(itemId));
 
+  // 398 GI: 피드(몰 상품) 쌍 — 상품과 같은 엄격 체인(엔진 selectFeedRows strictChainOk 미러). GENERAL_INFO 체인 쌍은 피드 0.
+  const feedStrictPairs = new Set();
+  for (const [key, req] of pairReq) {
+    const [tid, itemId] = key.split('|');
+    const t = types.get(tid);
+    if (t && productStrictChain(t, req, itemId)) feedStrictPairs.add(key);
+  }
+
   const productTypes = new Set();
   const productIds = idsWhere(rows('curatedProducts'), (p) => {
     if (!(p.status === 'ACTIVE' && ok(p) && p.meetsMinSpec === true && Array.isArray(p.careProfileIds))) return false;
@@ -653,5 +681,7 @@ export function computeExposure(seed, asOf) {
   }
   const licenseUrls = new Map();
   for (const p of rows('photos')) if (isObj(p) && ccByPhotos.includes(p.id)) licenseUrls.set(p.id, p.licenseUrl);
-  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes };
+  // 362 N16(365/367 틈): 피드 금지 품목 — SupplyItem 행 중 하나라도 FOOD/HEALTH 면(엔진 FEED_EXCLUDED_CATEGORIES 미러, 같은 id 여러 행도 fail-closed).
+  const feedExcludedItems = new Set([...items].filter(([, rs]) => rs.some((r) => FEED_EXCLUDED_CATEGORY_SET.has(r?.category))).map(([id]) => id));
+  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes, feedExcludedItems, feedStrictPairs };
 }

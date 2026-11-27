@@ -137,6 +137,8 @@ export const COPY = deepFreeze({
     bundlesTitle: '처음 준비한다면',
     /** 홈 B 상품 레일 제목(R4-2b — PRD US-003 ④ 복원). 노출 상품 0 이면 섹션 없음. */
     productsTitle: '기준에 맞는 준비물',
+    /** 380 S2: 상품 피드(몰) 카드 전용 레일 — 상품 레일 바로 아래. 피드 카드 0 이면 섹션 없음. */
+    mallTitle: '몰에 올라온 상품',
     specTitle: '{name} 규격 확인',
     specBasis: '{animal} 기준',
     specMine: '내 {name} 확인하기',
@@ -403,6 +405,30 @@ export const COPY = deepFreeze({
    */
   affiliate: {
     coupang: '이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
+  },
+  /**
+   * 362 N9 「많이 찾는 상품」 아래층(364 스펙 §5). 몰 상품명은 개작하지 않는다(selectFeedRows 가 금지어 행을 버림).
+   *   알리 고지 문안은 Kenny 결정 전 — 알리 행은 마크업에서 빌드 오류(prerender/pages/feed.ts).
+   */
+  feed: {
+    /** 380 S3: title 은 블록 popular(인기순 확인 sort — engine FEED_POPULAR_SORTS)일 때만, 그 밖은 titleFallback. */
+    title: '많이 찾는 상품',
+    titleFallback: '몰 검색 결과',
+    sub: sent('쇼핑몰 상품명에 적힌 정보로 골랐어요. 실제 규격은 몰에서 확인해요.'),
+    homeLead: sent('몰 가격은 확인한 날 기준이에요. 몰에서 달라질 수 있어요.'),
+    badgeListed: '표기 규격 통과',
+    badgeCheck: '규격 확인 필요',
+    specPrefix: '표기',
+    priceChecked: '{M}월 {D}일 확인',
+    priceMayDiffer: sent('몰에서 달라질 수 있어요'),
+    goCoupang: '쿠팡에서 보기',
+    goAli: '알리에서 보기',
+    goAliName: '알리익스프레스에서 보기',
+    affLabel: '제휴 링크',
+    loadingTitle: sent('상품 목록을 불러오고 있어요'),
+    errorTitle: sent('상품 목록을 불러오지 못했어요'),
+    errorBody: sent('아래 「이 조건으로 찾기」로 몰에서 바로 찾아볼 수 있어요.'),
+    retry: '다시 시도하기',
   },
   /** UX §4 L8 — /save 는 SPA 셸. PRD US-025 고정 문구 3개 + R5 상태 문구(스펙33 §7). */
   save: {
@@ -799,4 +825,10 @@ export function comitativeParticle(word: string): string {
   const last = w.charCodeAt(w.length - 1);
   if (last >= 0xac00 && last <= 0xd7a3) return `${w}${(last - 0xac00) % 28 === 0 ? '와' : '과'}`;
   return `${w}와(과)`;
+}
+
+/** 362 N9 가격 확인일 「{M}월 {D}일 확인」 — 프리렌더·클라 공용(formatCopy 토큰 밖 전용 자리 {M}·{D}). */
+export function feedCheckedText(month: number, day: number): string {
+  if (!Number.isInteger(month) || !Number.isInteger(day)) throw new Error('copy: feedCheckedText 정수만');
+  return COPY.feed.priceChecked.replace('{M}', String(month)).replace('{D}', String(day));
 }

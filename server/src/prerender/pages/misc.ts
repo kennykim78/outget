@@ -27,6 +27,7 @@ import {
   mainOpen,
   mascotAvatar,
   navCurrent,
+  photoTile,
   railSection,
   renderFooter,
   renderHead,
@@ -41,6 +42,7 @@ import {
 import { PRIVACY_POLICY, assertInternalHref, fillTokens, linkMailto, type PrivacyBlock, type PrivacyCell, type PrivacyPolicy } from '../privacy-content.js';
 import { familyName } from './family.js';
 import { generalInfoNote, layerL4, specCheckTestimonials, tipsHrefOf } from './type.js';
+import { feedLinksOn } from './feed.js';
 
 const HOME: Crumb = { name: COPY.site.name, path: '/' };
 
@@ -65,7 +67,7 @@ function page(
   return {
     head: renderHead(ctx, { title: o.title, description: o.description, crumbs: o.crumbs }),
     body: [
-      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), o.data),
+      renderHeader(o.header ? o.header.pub : null, navCurrent(ctx.route), o.data, ctx.route),
       mainOpen(ctx, o.typeId, o.mainAttrs, o.mainClass),
       ...o.main,
       '</main>',
@@ -111,6 +113,8 @@ function homeTypes(m: SiteModel): WsPageData['data']['types'] {
       ...(r ? { specCheckItemId: r.item.id } : {}),
       ...(t.bundles.length > 0 ? { setupAvailable: true as const } : {}),
       ...(explain ? { homeExplain: explain } : {}),
+      // 359 D-3: 대표 타입에만, 그 타입이 장면 허용 종일 때만(project.ts — engine publicHomeScenes). 없으면 키 없음.
+      ...(i === 0 && t.homeScenes ? { homeScenes: t.homeScenes } : {}),
     };
   });
 }
@@ -136,15 +140,24 @@ export function starterActions(types: WsPageData['data']['types']): StarterActio
  *   카드 = li > a.ws-starter(사진 자리 + 제목·화살표 + 한 줄). 정적 href = /pick(무JS: L1 → 타입 홈), 하이드레이션 후 의도 보존(intent.ts).
  *   카드 안 카드·상태 칩·수치 없음. 카드 0개면 섹션 자체가 없다.
  */
+/** 시작 카드 → 홈 A 장면 키(engine HOME_A_SCENE_PHOTOS) — 359 D-3. */
+const STARTER_SCENE: Readonly<Record<StarterAction, 'startChecklist' | 'startSpecCheck' | 'startSetup'>> = {
+  CHECKLIST: 'startChecklist',
+  SPEC_CHECK: 'startSpecCheck',
+  SETUP: 'startSetup',
+};
+
 function homeStarters(types: WsPageData['data']['types']): string[] {
   const acts = starterActions(types);
   if (acts.length === 0) return [];
+  // 359 D-3: 장면 사진은 대표 타입(types[0])의 homeScenes 에서만 — 장면 허용 종이 아니면 키가 없어 빈 자리.
+  const scenes = types[0]?.homeScenes;
   const items = acts.map((x) => {
     const c = COPY.homeA.starters[x];
     return [
       `<li class="ws-starter-item"><a class="ws-starter" data-ws-action="start-card" data-ws-intent="${x}" href="${PICK_PATH}">`,
-      // 사진 자리(빈 블록 — photos.json 전부 SLOT, 생성 이미지 금지 ①). client PhotoTile 의 data-ws-photo(추적용 슬롯 id)는 싣지 않는다.
-      '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+      // 사진 자리 — 사용 가능 사진이 없으면 지금 그대로 빈 블록(photoTile, 359 단계 4).
+      photoTile(scenes?.[STARTER_SCENE[x]], 'ws-starter-photo'),
       `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(c.title)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
       `<span class="ws-t-meta ws-muted ws-starter-sub">${h(c.sub)}</span>`,
       '</a></li>',
@@ -186,7 +199,7 @@ function homeExplain(data: WsPageData['data']): string[] {
         `<a class="ws-home-link" href="${a(hrefOf(`/${rep.slug}`))}">${h(COPY.homeA.needLink)}${HOME_ARROW}</a>`,
         '</div>',
         '<div class="ws-explain-side">',
-        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        photoTile(rep.homeScenes?.explainNeed, 'ws-explain-photo'),
         `<div class="ws-need-cols">${col('need', COPY.homeA.needCol, ex.need)}${col('not-now', COPY.homeA.notNowCol, ex.notNow)}</div>`,
         '</div>',
         '</section>',
@@ -198,7 +211,7 @@ function homeExplain(data: WsPageData['data']): string[] {
     out.push(
       [
         '<section class="ws-home-sec ws-explain ws-figures" data-ws-section="figures" aria-labelledby="ws-sec-figures-title">',
-        '<span class="ws-photo ws-explain-photo" aria-hidden="true"></span>',
+        photoTile(rep.homeScenes?.explainFigures, 'ws-explain-photo'),
         '<div class="ws-explain-text">',
         explainHead('ws-sec-figures-title', COPY.homeA.figuresTitle, COPY.homeA.figuresSub),
         `<p class="ws-t-meta ws-eyebrow ws-explain-eyebrow">${h(formatCopy(COPY.homeA.figuresEyebrow, { animal: rep.displayName }))}</p>`,
@@ -230,7 +243,8 @@ function homeExplain(data: WsPageData['data']): string[] {
       items: data.types.map((t) =>
         [
           `<li class="ws-starter-item"><a class="ws-starter ws-habitat" href="${a(hrefOf(`/${t.slug}`))}" data-ws-id="animalTypes#${a(t.id)}">`,
-          '<span class="ws-photo ws-starter-photo" aria-hidden="true"></span>',
+          // 359: 종별 종 자리 사진(engine resolvePhoto habitat) — 다른 종 장면 대체 없음(D-1 A).
+          photoTile(t.photos?.habitat, 'ws-starter-photo'),
           `<span class="ws-starter-head"><span class="ws-t-cta ws-starter-title">${h(t.displayName)}</span><span class="ws-starter-go">${PICK_BAR_ARROW}</span></span>`,
           t.oneLiner ? `<span class="ws-t-meta ws-muted ws-starter-sub">${h(t.oneLiner)}</span>` : '',
           '</a></li>',
@@ -435,6 +449,39 @@ export function renderSupplies(m: SiteModel, ctx: PageContext): RenderedPage {
 }
 
 /** /supplies/{item} — "어떤 친구의 기준을 볼까요?" + 이 항목을 노출하는 타입. /supplies/{item}/{type} 은 같은 부모 + L4. */
+/** 엔진 ownedItems 키 = 케이지 SupplyItem id(client context/cageStore CAGE_ITEM_ID 와 같은 값). */
+const CAGE_ITEM_ID = 'cage';
+
+/**
+ * 387(384 D1·D2): /supplies/{item}/{type} ws-data 요구사항·상품 — 이 문서에서 여는 L4·L5·L6 이 대조 타입 문서(/{slug}/supplies/{item})와
+ *   같은 판정을 내도록 같은 종의 필요한 것만 싣는다. 노출 경로는 타입 문서와 같다: t.requirements(노출 요구사항, 엔진 순서) · t.products
+ *   (규격 → 검수 → 선호, 미달 0 · VERIFIED 만). 그 안에서 고르기만 한다(재정렬·추가 노출 0).
+ *     ① 이 품목 ② 대안 품목(대안의 대안까지 — 이 문서에서 push 로 여는 대안 L4 가 같은 대안 목록을 그리게)
+ *     ③ 케이지(L4 호환 서브카드·L5 케이지 줄·L6 자체 최소 규격) ④ 케이지와 호환 규칙이 있는 품목(L6 용품 간 호환 — 공개 카탈로그 규칙, 이 종 프로필 범위)
+ *   ③④도 L5에서 L4로 열 수 있으므로 모두 재귀 대안과 상품까지 싣는다(L4 「기준에 맞는 준비물」·L7).
+ */
+function supplyItemTypeData(m: SiteModel, t: TypeModel, r: TypeModel['requirements'][number]): Pick<WsPageData['data'], 'requirements' | 'products'> {
+  const byItem = new Map(t.requirements.map((x) => [x.item.id, x]));
+  const layered = new Set<string>();
+  const queue = [r.item.id, CAGE_ITEM_ID];
+  for (const c of m.catalog.compatibilityRules) {
+    if (c.careProfileId && c.careProfileId !== t.pub.careProfileId) continue;
+    const other = c.a === CAGE_ITEM_ID ? c.b : c.b === CAGE_ITEM_ID ? c.a : null;
+    if (other !== null) queue.push(other);
+  }
+  while (queue.length > 0) {
+    const id = queue.shift() as string;
+    const x = byItem.get(id);
+    if (!x || layered.has(id)) continue;
+    layered.add(id);
+    queue.push(...x.pub.item.alternativeIds);
+  }
+  return {
+    requirements: t.requirements.filter((x) => layered.has(x.item.id)).map((x) => x.pub),
+    products: t.products.filter((p) => layered.has(p.supplyItemId)),
+  };
+}
+
 export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
   const it = m.items.find((i) => i.id === ctx.route.itemId);
   if (!it) throw new Error(`pages: 노출 항목 ${ctx.route.itemId} 없음`);
@@ -449,14 +496,17 @@ export function renderSupplyItem(m: SiteModel, ctx: PageContext): RenderedPage {
     const t = ts.find((x) => x.id === ctx.route.typeId);
     const r = t?.requirements.find((x) => x.item.id === it.id);
     if (!t || !r) throw new Error(`pages: ${ctx.route.typeId} × ${it.id} 노출 요구사항 없음`);
-    aside = layerL4(t, r, `/supplies/${it.id}`);
-    footerAff = affiliateDisclosureOn(r.pub.searchLinks);
+    aside = layerL4(t, r, `/supplies/${it.id}`, ctx.feed);
+    footerAff = affiliateDisclosureOn(r.pub.searchLinks) || feedLinksOn(ctx.feed, it.id);
     typeId = t.id;
     header = t;
     crumbs.push({ name: t.pub.displayName, path: ctx.route.path });
-    data.requirements = [r.pub];
-    data.products = r.products;
+    const sit = supplyItemTypeData(m, t, r);
+    data.requirements = sit.requirements;
+    data.products = sit.products;
     data.testimonials = specCheckTestimonials(m, t.id); // D6-B: 여기서 연 L4 → L5 결과 아래 후기(타입 페이지와 같은 1건)
+    // 387: 피드 변형은 이 문서 요구사항 중 블록 있는 품목 모두. 정적 L4·고지는 위에서 원래 품목만 판정, 레일은 0.
+    if (ctx.feed) data.feed = ctx.feed.data;
   }
   // 301: 이 항목 팁이 있는 타입만 — /{slug}/tips#ws-tips-{cat}. 없으면 0줄.
   const tipLinks = ts.flatMap((t) => {

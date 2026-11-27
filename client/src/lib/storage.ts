@@ -150,3 +150,11 @@ export function createStorage(backend: () => Storage): WsStorage {
 
 /** 앱 전역 저장소(브라우저 localStorage). */
 export const wsStorage: WsStorage = createStorage(() => window.localStorage);
+
+/**
+ * 탭 수명 저장소(sessionStorage) — 같은 키·값 규칙. 레이어 닫기의 부모 항목 기록(388 D1).
+ * 부를 때마다 새로 만든다: 다음 문서가 읽을 기록이라 메모리 대체를 이어 갈 이유가 없고, 한 번의 쓰기 실패가 뒤 판정을 가리면 안 된다.
+ */
+export function wsSessionStorage(): WsStorage {
+  return createStorage(() => window.sessionStorage);
+}

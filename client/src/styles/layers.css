@@ -287,3 +287,48 @@
 .ws-cond-cell dd .ws-t-meta {
   color: var(--ws-ink-muted);
 }
+
+/* ── 362 N10 L4 아래층 행(364 §2.1) — 세로 행(≤6), 썸네일 96 = calc(space-12 * 2)(D-L4, 리터럴 0). */
+.ws-feed-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 385(382 F2): 정적 L4(하이드레이션 전·JS 끔)는 구획 사이 간격이 없어 블록 제목이 앞 「대안」 링크에 붙는다 — 레이어(React)는 .ws-supply gap. */
+aside.ws-layer .ws-feed {
+  margin-top: var(--ws-space-6);
+}
+
+.ws-feed-row {
+  display: grid;
+  grid-template-columns: calc(var(--ws-space-12) * 2) 1fr;
+  gap: var(--ws-space-3);
+  padding: var(--ws-space-4) 0;
+  border-top: 1px solid var(--ws-line);
+}
+
+.ws-feed-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  min-width: 0;
+}
+
+.ws-feed-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-2);
+}
+
+.ws-feed-go {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .ws-feed-row .ws-feed-go {
+    align-self: flex-start;
+    width: auto;
+    padding: 0 var(--ws-space-6);
+  }
+}

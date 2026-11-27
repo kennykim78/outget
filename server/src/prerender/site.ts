@@ -1,7 +1,24 @@
 // 사이트 빌드(메모리) — 시드 묶음 + client/dist/index.html 템플릿 → 파일 목록. 디스크 쓰기는 F3 cli.ts.
 //   결정론: 같은 입력이면 같은 바이트(빌드 시각·난수 없음, D19). seedDigest 는 호출부가 계산해 넘긴다(lane E 계약).
 import { createHash } from 'node:crypto';
-import { encodeWsPage, toWsPageV1, type AffiliateCodes, type PublicCatalog, type RouteKind, type SeedBundle, type WsLayer, type WsPageData } from '../engine/index.js';
+import {
+  encodeWsPage,
+  feedVariantFile,
+  isWsFeedData,
+  toWsPageV1,
+  type AffiliateCodes,
+  type FeedLiveStage,
+  type PublicCatalog,
+  type PublicFeedBlock,
+  type PublicFeedRailCard,
+  type RouteKind,
+  type SeedBundle,
+  type WsFeedData,
+  type WsLayer,
+  type WsPageData,
+} from '../engine/index.js';
+import { FEED_MANIFEST_FILE, buildFeedOutputs, type FeedOutput, type ProductFeedInput } from './feed-out.js';
+import type { PageFeed } from './pages/feed.js';
 import { jsonForScript } from './html.js';
 import { projectSite, type SiteModel } from './project.js';
 import { planRoutes, type RoutePlan } from './routes.js';
@@ -48,6 +65,11 @@ export interface BuildSiteOptions {
   production?: boolean;
   /** 처리방침 데이터(테스트 주입용 — 기본 privacy-content.ts PRIVACY_POLICY). 294: 운영 빌드에서 자리표시가 남았으면 /privacy 를 내보내지 않는다. */
   privacyPolicy?: PrivacyPolicy;
+  /**
+   * 362 N6·N7 상품 피드(cli.ts 는 productFeedGate 가 켜졌을 때만 넘긴다). 없으면 피드 산출물 0 — 나머지 파일 바이트 불변.
+   *   피드는 ws-data 에 싣지 않는다(C1) — 정적 JSON {slug}/feed/{item}(.noprice).json + feed-manifest.json(feed-out.ts).
+   */
+  productFeed?: ProductFeedInput;
 }
 
 /** 294: /privacy 비노출 빌드의 #root 표식 — 클라이언트(client/src/app/privacyPage.ts)가 푸터·L8 처리방침 링크를 숨긴다. */
@@ -97,6 +119,54 @@ export interface SiteBuild {
   files: Map<string, string>;
   /** 294: /privacy 를 내보냈는가(privacy-content.ts privacyPagePublished). */
   privacyPage: boolean;
+  /** 362 N6 홈 B 레일 피드 카드(타입 id → 품목당 1장, D-2). 피드 꺼짐이면 빈 Map. 마크업·ws-data 는 feedPages(1.5KB 예산 뒤 목록). */
+  feedRail: Map<string, PublicFeedRailCard[]>;
+  /**
+   * 362 N9 피드 HTML 변형(dist {dir}/index.feed.html · index.feed-noprice.html). 기본 파일(pages)은 피드 없음 그대로.
+   *   대상: 피드 블록이 1개 이상인 타입의 TYPE 라우트 전부(홈 B 레일·L4/L5/L7 — 같은 main) + 문서 요구사항 중 블록이 있는 /supplies/{item}/{type}. 그 밖 라우트는 변형 0.
+   */
+  feedPages: BuiltFeedPage[];
+}
+
+export interface BuiltFeedPage extends BuiltPage {
+  stage: FeedLiveStage;
+  /** 변형 파일(dist 상대). 기본 파일은 route.file. */
+  file: string;
+}
+
+/** 이 라우트의 피드 변형 입력(없으면 null — 변형 파일 0). */
+function pageFeedFor(page: BuiltPage, feed: FeedOutput, stage: FeedLiveStage): PageFeed | null {
+  const { route } = page;
+  if (route.typeId === undefined) return null;
+  const tf = feed.types.get(route.typeId);
+  const data = tf?.data[stage];
+  if (!tf || !data) return null;
+  const blockOf = (id: string) => tf.blocks.get(id)?.[stage];
+  if (route.kind === 'TYPE') {
+    const blocks = new Map<string, PublicFeedBlock>();
+    for (const id of data.items) {
+      const b = blockOf(id);
+      if (b) blocks.set(id, b);
+    }
+    return { blocks, data };
+  }
+  if (route.kind === 'SUPPLY_ITEM_TYPE' && route.itemId !== undefined) {
+    // 387: supplyItemTypeData 가 기본 문서에 실은 결과를 그대로 사용한다(대안·케이지·호환 대상 중복 계산 0).
+    const included = new Set(page.data.data.requirements.map((r) => r.supplyItemId));
+    const blocks = new Map<string, PublicFeedBlock>();
+    for (const id of data.items) {
+      const b = blockOf(id);
+      if (included.has(id) && b) blocks.set(id, b);
+    }
+    if (blocks.size === 0) return null;
+    const items = [...blocks.keys()];
+    const sit: WsFeedData =
+      stage === 'full' && data.priceCheckedOn !== undefined
+        ? { v: 1, stage, freshMs: data.freshMs, priceCheckedOn: data.priceCheckedOn, items, rail: [] }
+        : { v: 1, stage, freshMs: data.freshMs, items, rail: [] };
+    return { blocks, data: sit };
+  }
+  return null;
 }
 
 function render(m: SiteModel, ctx: PageContext, policy: PrivacyPolicy): RenderedPage {
@@ -167,8 +237,10 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   const templateHasColorScheme = /<meta\s+name="color-scheme"/i.test(opts.template);
 
   const files = new Map<string, string>();
-  const pages: BuiltPage[] = routes.map((route) => {
-    const p = render(model, { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true, privacyPage }, policy);
+  const renderOne = (route: RoutePlan, feed?: PageFeed): BuiltPage => {
+    const ctx: PageContext = { origin, route, catalogUrl, mascots, vetMap: opts.vetMap === true, privacyPage };
+    if (feed) ctx.feed = feed;
+    const p = render(model, ctx, policy);
     const json = jsonForScript(opts.wsDataWire === 1 ? toWsPageV1(p.data) : encodeWsPage(p.data));
     const html = injectTemplate(opts.template, {
       head: templateHasColorScheme ? p.head.replace(`${COLOR_SCHEME_META}\n`, '') : p.head,
@@ -176,8 +248,12 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
       rootAttrs: privacyPage ? { 'data-ws-prerendered': '1' } : { 'data-ws-prerendered': '1', [PRIVACY_OFF_ATTR]: PRIVACY_OFF_VALUE },
       afterRoot: `<script id="ws-data" type="application/json">${json}</script>`,
     });
-    files.set(route.file, html);
     return { route, html, data: p.data, wsDataBytes: Buffer.byteLength(json, 'utf8') };
+  };
+  const pages: BuiltPage[] = routes.map((route) => {
+    const b = renderOne(route);
+    files.set(route.file, b.html);
+    return b;
   });
 
   const manifest: PrerenderManifest = {
@@ -198,5 +274,35 @@ export function buildSite(seed: SeedBundle, opts: BuildSiteOptions): SiteBuild {
   files.set('robots.txt', buildRobots({ indexable: siteIndexable, origin }));
   files.set('prerender-manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
   files.set(catalogFile, catalogJson);
-  return { model, routes, pages, manifest, catalog, catalogFile, files, privacyPage };
+  let feedRail = new Map<string, PublicFeedRailCard[]>();
+  const feedPages: BuiltFeedPage[] = [];
+  if (opts.productFeed) {
+    const feed = buildFeedOutputs(seed, model, opts.asOf, opts.productFeed);
+    const put = (k: string, v: string): void => {
+      if (files.has(k)) throw new Error(`site: 피드 산출물 경로 충돌 ${k}`);
+      files.set(k, v);
+    };
+    for (const [k, v] of feed.files) put(k, v);
+    feedRail = feed.rail;
+    if (feed.manifest) {
+      for (const stage of feed.stages) {
+        for (const base of pages) {
+          const { route } = base;
+          const pf = pageFeedFor(base, feed, stage);
+          if (!pf) continue;
+          const file = feedVariantFile(route.file, stage);
+          if (file === null) throw new Error(`site: 피드 변형 파일 이름을 만들 수 없다 ${route.file}`);
+          const b = renderOne(route, pf);
+          const wire = b.data.data.feed;
+          if (!isWsFeedData(wire)) throw new Error(`site: 피드 변형 ${file} data.feed 형식 위반`);
+          put(file, b.html);
+          feedPages.push({ ...b, stage, file });
+          feed.manifest.pages[stage].push(file);
+        }
+        feed.manifest.pages[stage].sort();
+      }
+      put(FEED_MANIFEST_FILE, `${JSON.stringify(feed.manifest, null, 2)}\n`);
+    }
+  }
+  return { model, routes, pages, manifest, catalog, catalogFile, files, privacyPage, feedRail, feedPages };
 }
