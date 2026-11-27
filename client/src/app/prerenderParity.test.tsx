@@ -761,7 +761,8 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
         fetchedAt: GEN,
       };
     };
-    const rows = [row('wheel', '햄스터 쳇바퀴 30cm 통면 1호'), row('wheel', '햄스터 쳇바퀴 30cm 통면 2호')];
+    // 399 R-1b: 단위 없는 숫자(「1호」) 제목은 규격 판정이 없어 피드에서 빠진다 → 서버 feed-markup 시험과 같은 모델명 표기.
+    const rows = [row('wheel', '햄스터 쳇바퀴 30cm 통면 HW-1'), row('wheel', '햄스터 쳇바퀴 30cm 통면 HW-2')];
     const base = { template: TEMPLATE, origin: 'http://localhost:3001', seedDigest: 'a'.repeat(64), asOf: fx.FIXTURE_AS_OF, mascots: mascotMod.loadMascots(repoPath('docs/design/mascots')) };
     // 제목 금지어 판정은 서버 lintText 몫 — 합성 제목은 금지어 0 이라 여기선 항상 통과로 둔다.
     const productFeed = (buildAtMs: number) => ({ rows, generatedAt: GEN, buildAtMs, isTitleBanned: () => false });
@@ -979,7 +980,7 @@ describe('362 N10 피드 변형 — 프리렌더 ↔ 하이드레이션', () => 
             supplyItemId: 'wheel',
             keyword: eng.buildSearchKeyword(at, r),
             rank: 1,
-            title: '햄스터 쳇바퀴 30cm 통면 1호',
+            title: '햄스터 쳇바퀴 30cm 통면 HW-1',
             url: 'https://link.coupang.com/a/Mk1x',
             imageUrl: null,
             price: { amount: 12900, currency: 'KRW' },
