@@ -180,3 +180,32 @@ describe('parseTitleSpec — 399 Codex 지적', () => {
     expect(parseTitleSpec('cage', '100x50cm 리빙박스')).toEqual({ floorWcm: 100, floorDcm: 50, type: 'LIVING_BOX' });
   });
 });
+
+// 399 R-1 — 허용 목록: 치수가 이 제품의 것이라고 확인되는 제목 형태(제목의 모든 낱말이 아는 낱말)만 숫자를 낸다.
+describe('parseTitleSpec — 399 R-1 허용 목록', () => {
+  it.each([
+    // Codex 재검토 R-1 재현
+    '27cm 소형 케이지 안에 설치하는 통면 쳇바퀴', 'L20-30.5cm 통면 쳇바퀴',
+    // 같은 부류의 새 변형 — 예외 문구를 몰라도 막혀야 한다
+    '케이지 27cm 통면 쳇바퀴', '27cm 선반에 올리는 통면 쳇바퀴', '쳇바퀴 받침대 28cm', '통면 쳇바퀴 28cm 받침대',
+    '통면 쳇바퀴 28cm 케이지 포함', '27cm cage 통면 쳇바퀴', 'v1.30cm 통면 쳇바퀴', '통면 28cm',
+  ])('wheel %s → null', (title) => {
+    expect(parseTitleSpec('wheel', title)).toBeNull();
+  });
+
+  it.each([
+    ['통면 쳇바퀴 지름 30cm 케이지 미포함', { diameterCm: 30, surface: 'SOLID' }],
+    ['통면 쳇바퀴 지름 30cm (케이지 별매)', { diameterCm: 30, surface: 'SOLID' }],
+    ['TRIXIE 쳇바퀴 28cm', { diameterCm: 28 }],
+    ['햄스터쳇바퀴 지름:28cm', { diameterCm: 28 }],
+  ])('정상 제목 %s 통과', (title, want) => {
+    expect(parseTitleSpec('wheel', title)).toEqual(want);
+  });
+
+  it('다른 품목도 같은 형태만', () => {
+    expect(parseTitleSpec('cage', '리빙 박스 100x50cm')).toEqual({ type: 'LIVING_BOX', floorWcm: 100, floorDcm: 50 });
+    expect(parseTitleSpec('cage', '리빙박스 선반 100x50cm')).toBeNull();
+    expect(parseTitleSpec('bedding', '베딩 보관함 10L')).toBeNull();
+    expect(parseTitleSpec('perch', '새장 안 횃대 지름 15mm')).toBeNull();
+  });
+});

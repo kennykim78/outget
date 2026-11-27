@@ -84,9 +84,9 @@ describe('selectFeedRows — 규칙 있는 품목(LISTED_PASS)', () => {
     ['다른 타입 행', '햄스터 쳇바퀴 30cm 통면', { animalTypeId: 'hamster-dwarf' }],
   ];
   it.each(drops)('버림: %s', (_n, title, over) => {
-    const keep = row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 기본');
+    const keep = row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 대형');
     const s = selectFeedRows(cat, G, 'wheel', [keep, row(G, 'wheel', title, over ?? {})], opts());
-    expect(titlesOf(s)).toEqual(['햄스터 쳇바퀴 30cm 통면 기본']);
+    expect(titlesOf(s)).toEqual(['햄스터 쳇바퀴 30cm 통면 대형']);
   });
 
   it('베딩: not_in 사전어(소나무)·avoid(솜)·향 첨가 버림, 종이 무향 통과', () => {

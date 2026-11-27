@@ -306,7 +306,8 @@ describe('374 R1·R2 — 요일 괄호 맥락 날짜·숫자 바로 뒤 원+단�
         row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 12,900원단독'),
         row(G, 'wheel', '햄스터 쳇바퀴 31cm 통면 9,900원색상랜덤'),
         row(G, 'wheel', '햄스터 쳇바퀴 32cm 통면 11/20(금) 출고'),
-        row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 3원통'),
+        // 399: 숫자 없는 품목의 대조 행(숫자 제목은 허용 목록 밖 낱말이 있으면 버림).
+        row(G, 'hideout', '햄스터 원목 은신처 3원통'),
       ]),
     );
     for (const [k, v] of b.files) {
@@ -314,7 +315,7 @@ describe('374 R1·R2 — 요일 괄호 맥락 날짜·숫자 바로 뒤 원+단�
       expect(v.includes('9,900원색상랜덤'), k).toBe(false);
       expect(v.includes('11/20(금) 출고'), k).toBe(false);
     }
-    expect(b.files.get('hamster/golden/feed/wheel.noprice.json')).toContain('햄스터 쳇바퀴 30cm 통면 3원통');
+    expect(b.files.get('hamster/golden/feed/hideout.noprice.json')).toContain('햄스터 원목 은신처 3원통');
   });
 });
 
