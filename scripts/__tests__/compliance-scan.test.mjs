@@ -4903,3 +4903,12 @@ for (const [name, extra] of [
     assert.ok((await r399Rows([R2_OK, extra])).length > 0, name);
   });
 }
+
+// ── 399 R-3: 화면 글자 키(title)는 URL 모양이어도 금지어 검사 ──
+test('399 R-3 C4-BANNED: ws-data data.feed.rail[].title 이 「/」·http 로 시작해도 금지어 → FAIL', async () => {
+  for (const prefix of ['/', j(HTTPS, 'a.example/ ')]) {
+    const ws = { v: 1, route: { kind: 'TYPE', path: '/parrot/budgie', typeId: 'budgie' }, layer: null, data: { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], feed: { v: 1, stage: 'full', items: [], rail: [{ supplyItemId: 'cage', title: j(prefix, KO.safe, ' 케이지') }] } } };
+    const res = await scan398({ out: (o) => { o[R398_VAR] = r398Page('<p>준비물</p>', ws).replace(KO.safe, [...KO.safe].map((c) => String.fromCharCode(92) + 'u' + c.charCodeAt(0).toString(16).padStart(4, '0')).join('')); }, feedManifest: R398_FM({ full: [R398_VAR], noprice: [] }) });
+    assert.ok(res.fails('C4-BANNED', R398_VAR).length > 0, `${prefix} ${JSON.stringify(res.findings)}`);
+  }
+});
