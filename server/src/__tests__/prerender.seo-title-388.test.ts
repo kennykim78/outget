@@ -40,7 +40,7 @@ describe('388 D2: 공개 타입 seoTitle 투영', () => {
     expect(raw.seoTitle).toBe(seoTitle);
   });
 
-  it('현재 시드: 모든 페이지 ws-data에 seoTitle 키가 없다(바이트 불변은 T-③b-v1 기준선이 본다)', () => {
+  it('현재 시드: 공개 페이지 모델에 seoTitle 키 없음(v1 바이트는 T-③b-v1)', () => {
     const seed = realSeed();
     expect(seed.animalTypes.length).toBeGreaterThan(0);
     expect(seed.animalTypes.every((t) => t.seoTitle == null || t.seoTitle.trim() === '')).toBe(true);

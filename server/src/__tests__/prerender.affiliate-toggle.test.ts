@@ -1,4 +1,4 @@
-// 259 단계 3(258) — 불변식 ③ 증명: 제휴 여부가 노출·순서에 영향 0, 꺼짐 빌드 = 제휴 코드 이전 바이트.
+// 259 단계 3(258) — 불변식 ③ 증명: 제휴 여부가 노출·순서에 영향 0, 꺼짐 빌드 = 보존 기준선 바이트.
 //   T-③a: 같은 시드로 off / on 빌드 — on 은 맵 변형 5개(전체·홀수 번째·짝수 번째·마지막 1개·빈 맵, 273 QA D1: 일부 맵이어야
 //         "제휴 있는 요구사항을 앞으로" 같은 재정렬이 드러난다).
 //         (1) 상인 a 비교(273 Codex): 파일마다 쿠팡·네이버 a 의 개수·순서·라벨·속성이 off 와 같다. 쿠팡 a 는 href·rel·aria-describedby 만 다를 수 있고
@@ -6,7 +6,8 @@
 //         (2) 정규화 후 모든 파일 바이트 동일: 고지 요소 제거, 쿠팡 a 는 지우지 않고 제자리에서 href·rel·aria-describedby 만 자리표시로 바꾼다
 //             (위치·개수·라벨·class·target·그 밖 속성이 바이트 비교에 남는다), ws-data 는 parse → aff 삭제·v3→v2 → 재직렬화.
 //         (3) 라우트 동일 + 페이지별 requirements·products·types·bundles id 순서 동일. 빈 맵은 정규화 없이 바이트 동일.
-//   T-③b: off 빌드 파일별 sha256 = fixtures/affiliate/off-baseline.sha256.json(제휴 코드 이전 코드로 만든 기준선).
+//   T-③b: off 빌드 파일별 sha256 = fixtures/affiliate/off-baseline.sha256.json. 최초 기준선은 제휴 이전 코드로 생성했다.
+//         388 D3에서 42파일은 25cafa6+overlay(제휴 코드 포함 리비전)로 갱신했고, 갱신 전과의 연속성은 prerender.baseline-continuity-388.test.ts가 본다.
 //   T-③b-v1(273 Codex·QA D8): wsDataWire:1 off 빌드 ws-data JSON sha256 = off-baseline-v1.sha256.json(HEAD c03f3d2 코드로 생성) + ws-data 밖 HTML = v2 빌드.
 //   + 고지 위치·문구 원문·rel, 고지 없는 화면, ws-data 크기.
 //
@@ -249,7 +250,7 @@ function checkBaseline(file: string, name: string, now: Record<string, string>):
   expect(now).toEqual(baseline.cases[name]);
 }
 
-describe('T-③b 꺼짐 빌드 = 기준선 sha256(off-baseline.sha256.json — 제휴 코드 이전 코드로 생성)', () => {
+describe('T-③b 꺼짐 빌드 = 기준선 sha256(최초 제휴 이전 코드; 388 D3 42파일은 25cafa6+overlay·제휴 코드 포함 리비전으로 갱신, 연속성은 prerender.baseline-continuity-388.test.ts)', () => {
   it.each(BASELINE_CASES.map((c) => [c.name] as const))('%s', (name) => {
     checkBaseline(BASELINE_FILE, name, hashFiles(OFF.get(name) as SiteBuild));
   });
