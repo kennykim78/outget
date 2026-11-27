@@ -1,6 +1,6 @@
 // 362 N4 — 몰 원제목 → 규격 값(parseTitleSpec). 순수·결정론(시계·난수·I/O 0). 피드 노출(exposure.ts selectFeedRows)만 쓴다.
 //   fail-closed: 옵션 나열(「21/27/30cm」·「S/M/L」·「사이즈 선택」)·후보 2개 이상·단위 혼재·인치 → null(판단 불가 — 행 버림).
-//   399: 숫자는 허용 목록(dimensionConfirmed)을 통과한 제목에서만 낸다.
+//   399: 규격 값(숫자·enum)은 허용 목록(titleConfirmed)을 통과한 제목에서만 낸다.
 //   398: 비교(미만·이하·이상·이내·까지·최대·약 등)·범위(20-30cm·대시 변형)·호환(케이지용·호환·맞는·장착) 표현도 null.
 //   숫자는 단위가 붙은 값만, 품목별 고정 매핑표로만 넣는다(옵션 치수 임의 대응 금지). enum·boolean 은 긍정 사전으로만 채운다.
 //   C4(362): mm 는 매핑표가 mm 필드를 둔 곳(cage·bird-cage barGapMm = 「간격」 표지, perch diameterMm)만, cm 와 한 제목에 섞이면 null.
@@ -123,11 +123,11 @@ const COMPAT_RE = /호환|맞는|맞춤|대응|적합|장착|부착|끼우는|�
 const USE_RE = /([가-힣A-Za-z0-9]*?)\s*(?:전용|겸용|용)(?![가-힣])/g;
 /** 한글 범위: 「20에서 30cm」「20부터 30」「20 내지 30」. */
 const WORD_RANGE_RE = new RegExp(String.raw`\d\s*${UNIT_ANY}?\s*(?:에서|부터|내지)\s*\d`, 'i');
-// 399 R-1 — 허용 목록: 숫자를 내는 제목은 모든 낱말이 아는 낱말이어야 한다(치수가 이 제품의 것이라고 확인되는 형태).
-//   모르는 낱말(다른 물건·설치 문맥·새 표현)이 하나라도 있으면 숫자를 판정하지 않는다. 막을 문구를 더하지 않는다.
+// 399 R-1 — 허용 목록: 규격 값(숫자·enum)을 내는 제목은 모든 낱말이 아는 낱말이어야 한다(값이 이 제품의 것이라고 확인되는 형태).
+//   모르는 낱말(다른 물건·설치 문맥·「미포함·별도」·새 표현)이 하나라도 있으면 판정하지 않는다. 막을 문구도 예외 문구도 더하지 않는다.
 /** 품목 → 제품 명사(하나 이상 있어야 한다). */
 const PRODUCT_NOUN: Readonly<Record<string, string>> = Object.freeze({
-  cage: '케이지|리빙박스|사육장',
+  cage: '케이지|리빙박스|사육장|수조',
   playpen: '울타리|펜스|놀이장',
   'bird-cage': '새장|케이지',
   wheel: '쳇바퀴|휠',
@@ -135,6 +135,9 @@ const PRODUCT_NOUN: Readonly<Record<string, string>> = Object.freeze({
   'bird-bath': '목욕통|목욕조|욕조',
   perch: '횃대',
   bedding: '베딩|깔짚',
+  chew: '갉기|이갈이|장난감|블록',
+  hideout: '은신처|은신집|하우스',
+  'sand-bath': '모래욕|목욕통|목욕|모래',
 });
 const ANIMAL_USE: readonly string[] = [
   '햄스터', '골햄', '드워프', '로보', '로보로브스키', '정글리안', '저빌', '기니피그', '친칠라', '데구', '토끼', '고슴도치',
@@ -142,9 +145,6 @@ const ANIMAL_USE: readonly string[] = [
 ];
 /** 제품 크기·특징만 말하는 낱말. */
 const MODIFIER = '대형|중형|소형|특대형|특대|미니|무소음|저소음|골든';
-const HOST = String.raw`(?:케이지|리빙\s*박스|사육장|새장|수조|어항)`;
-/** 「케이지 미포함」 — 케이지류가 아닌 품목에서 다른 물건이 빠진다는 표시. */
-const HOST_EXCLUDED_RE = new RegExp(String.raw`${HOST}\s*(?:미포함|별도\s*구매|별도|별매|제외)`, 'g');
 const MEASURE_RE = new RegExp(
   String.raw`(?<=^|\s)(?:${LABELS}\s*:?\s*)?${NUM}(?:${SEP}${NUM}){0,2}\s*(?:cm|mm|㎝|㎜|L|리터)(?=\s|$)`,
   'gi',
@@ -153,11 +153,10 @@ const MODEL_TOKEN_RE = /^[A-Za-z]+-?\d+(?:-\d+)*$/;
 /** 맨 앞의 영문 상표(TRIXIE 등). */
 const BRAND_TOKEN_RE = /^(?!(?:cage|for|fit)$)[A-Za-z][A-Za-z-]*$/i;
 
-function dimensionConfirmed(itemId: string, title: string): boolean {
+function titleConfirmed(itemId: string, title: string): boolean {
   const noun = PRODUCT_NOUN[itemId];
   if (noun === undefined) return false;
   let t = title.replace(/[()[\]{}（）［］【】〔〕,·!]/g, ' ').replace(/리빙\s+박스/g, '리빙박스');
-  if (!CAGE_ITEMS.has(itemId)) t = t.replace(HOST_EXCLUDED_RE, ' ');
   t = t.replace(MEASURE_RE, ' ');
   // enum 긍정 사전 구절(띄어쓰기 허용)은 통째로 지운다.
   for (const entries of Object.values(ENUM_DICT[itemId] ?? {})) {
@@ -172,7 +171,6 @@ function dimensionConfirmed(itemId: string, title: string): boolean {
 
 /** 단위 없는 숫자로 끝나는 모델명(HW28-01·WS-2030) — 범위 검사 전에만 지운다. 소수점·단위·범위 기호가 이어지면 남긴다. */
 const MODEL_RE = /[A-Za-z]+-?\d+(?:-\d+)*(?![\dA-Za-z.]|\s*(?:[-‐‑‒–—―−~∼～〜]|cm|mm|㎝|㎜|L(?![A-Za-z])|리터))/g;
-const CAGE_ITEMS: ReadonlySet<string> = new Set(['cage', 'playpen', 'bird-cage']);
 
 function hasQualifier(title: string): boolean {
   // 괄호는 지워서 「27cm(미만)」「(최대) 30cm」도 같은 규칙으로 본다.
@@ -311,10 +309,11 @@ export function parseTitleSpec(supplyItemId: string, title: string): TitleSpec |
   if (OPTION_RE.test(t) || SIZE_LIST_RE.test(t) || INCH_RE.test(t) || hasQualifier(t)) return null;
   const nums = mapNumbers(supplyItemId, scanNumbers(t));
   if (nums === null) return null;
-  if (Object.keys(nums).length > 0 && !dimensionConfirmed(supplyItemId, t)) return null;
   const enums = mapEnums(supplyItemId, t);
   if (enums === null) return null;
-  return { ...enums, ...nums };
+  const out: TitleSpec = { ...enums, ...nums };
+  if (Object.keys(out).length > 0 && !titleConfirmed(supplyItemId, t)) return null;
+  return out;
 }
 
 /** not_in·avoid 사전어(selectFeedRows): 이 품목·필드·값에 대응하는 긍정어 패턴(없으면 null). */

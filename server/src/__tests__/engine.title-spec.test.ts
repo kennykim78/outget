@@ -19,7 +19,7 @@ describe('parseTitleSpec — 숫자', () => {
   });
 
   it('단위 없는 숫자는 쓰지 않는다', () => {
-    expect(parseTitleSpec('wheel', '햄스터 쳇바퀴 30 통면')).toEqual({ surface: 'SOLID' });
+    expect(parseTitleSpec('wheel', '햄스터 쳇바퀴 30 통면')).toBeNull();
   });
 
   it('cm·mm 혼재 → null, 인치 → null', () => {
@@ -46,8 +46,8 @@ describe('parseTitleSpec — 숫자', () => {
     expect(parseTitleSpec('bird-cage', '아크릴 새장 60x40x70cm')).toEqual({ type: 'ACRYLIC', widthCm: 60, depthCm: 40, heightCm: 70 });
     // 치수 외 cm 숫자가 더 있으면 null(어느 값인지 모른다)
     expect(parseTitleSpec('cage', '리빙박스 100x50cm 높이 40cm')).toBeNull();
-    // 단위 없는 치수는 쓰지 않는다
-    expect(parseTitleSpec('cage', '리빙박스 100x50')).toEqual({ type: 'LIVING_BOX' });
+    // 단위 없는 치수는 쓰지 않는다(399 R-1b: 모르는 낱말이라 enum 도 판정 안 함)
+    expect(parseTitleSpec('cage', '리빙박스 100x50')).toBeNull();
   });
 
   it('튜브는 내경 표지가 있을 때만', () => {
@@ -194,8 +194,6 @@ describe('parseTitleSpec — 399 R-1 허용 목록', () => {
   });
 
   it.each([
-    ['통면 쳇바퀴 지름 30cm 케이지 미포함', { diameterCm: 30, surface: 'SOLID' }],
-    ['통면 쳇바퀴 지름 30cm (케이지 별매)', { diameterCm: 30, surface: 'SOLID' }],
     ['TRIXIE 쳇바퀴 28cm', { diameterCm: 28 }],
     ['햄스터쳇바퀴 지름:28cm', { diameterCm: 28 }],
   ])('정상 제목 %s 통과', (title, want) => {
@@ -207,5 +205,38 @@ describe('parseTitleSpec — 399 R-1 허용 목록', () => {
     expect(parseTitleSpec('cage', '리빙박스 선반 100x50cm')).toBeNull();
     expect(parseTitleSpec('bedding', '베딩 보관함 10L')).toBeNull();
     expect(parseTitleSpec('perch', '새장 안 횃대 지름 15mm')).toBeNull();
+  });
+});
+
+// 399 R-1b — Codex 재검 2: 「케이지 별도」 예외와 숫자 없는 enum 도 같은 허용 목록(규격 값이 하나라도 나오면 적용).
+describe('parseTitleSpec — 399 R-1b enum·다른 물건 제외 표현', () => {
+  it.each([
+    ['wheel', '27cm 케이지 미포함 통면 쳇바퀴'],
+    ['wheel', '30cm 케이지 별도 통면 쳇바퀴'],
+    ['wheel', '30cm 케이지 별도 구매 통면 쳇바퀴'],
+    ['wheel', '통면 쳇바퀴 지름 30cm 케이지 미포함'],
+    ['wheel', '케이지에 설치하는 통면 쳇바퀴'],
+    ['bedding', '무향 종이 베딩 케이지에 거는 플라스틱 보관함'],
+    ['bedding', '종이 베딩 무향 케이지에 설치하는 받침대'],
+    ['bedding', '종이 베딩 무향 삽'],
+    ['hideout', '원목 은신처 청소 솔'],
+    ['hideout', '원목 청소 솔'],
+    ['sand-bath', '친칠라 샌드 담는 통'],
+    ['chew', '무처리 나무 갉기 장난감 보관함'],
+    ['cage', '철망 케이지 덮개'],
+    ['perch', '원목 횃대 거치대'],
+    ['bird-cage', '철망 새장 청소 솔'],
+  ])('%s %s → null', (item, title) => {
+    expect(parseTitleSpec(item, title)).toBeNull();
+  });
+
+  it.each([
+    ['bedding', '햄스터 무향 종이 베딩', { material: 'PAPER', scented: false }],
+    ['hideout', '햄스터 원목 은신처', { material: 'WOOD' }],
+    ['sand-bath', '친칠라 샌드 목욕 모래', { sandType: 'CHINCHILLA_SAND' }],
+    ['chew', '무처리 나무 갉기 장난감', { material: 'UNTREATED_WOOD' }],
+    ['cage', '리빙박스', { type: 'LIVING_BOX' }],
+  ])('정상 제목 %s %s 통과', (item, title, want) => {
+    expect(parseTitleSpec(item, title)).toEqual(want);
   });
 });

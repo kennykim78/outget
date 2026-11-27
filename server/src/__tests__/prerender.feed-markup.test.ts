@@ -46,7 +46,7 @@ function row(t: string, i: string, title: string, over: Partial<FeedRowIn> = {})
 }
 
 const ROWS: FeedRowIn[] = [
-  ...Array.from({ length: 8 }, (_, n) => row(G, 'wheel', `햄스터 쳇바퀴 30cm 통면 ${n + 1}호`)),
+  ...Array.from({ length: 8 }, (_, n) => row(G, 'wheel', `햄스터 쳇바퀴 30cm 통면 HW-${n + 1}`)),
   row(G, 'hideout', '햄스터 나무 은신처'),
   row(J, 'wheel', '쳇바퀴 30cm 통면'),
 ];
@@ -348,42 +348,32 @@ describe('N9 홈 B 레일', () => {
     expect(off.files.get('hamster/golden/index.html')).not.toContain('data-ws-section="mall"');
   });
 
-  it('GENERAL_INFO(로보): 블록은 △만, 홈 피드 카드 0·고지 0·data.feed.rail 0', () => {
+  // 398(불변식 7 — 362 D-7 「△만」 폐기): GENERAL_INFO 체인은 피드 블록 자체가 없다.
+  it('GENERAL_INFO(로보): 피드 행이 입력돼도 변형 문서 0·홈 피드 카드 0', () => {
     expect(gi.model.types.some((t) => t.id === J)).toBe(true);
-    const robo = gi.feedPages.filter((p) => p.route.typeId === J);
-    expect(robo.length).toBeGreaterThan(0);
-    for (const p of robo) {
-      expect(p.data.data.feed?.rail).toEqual([]);
-      expect(p.html).not.toContain('ws-feed-card');
-      expect(p.html).not.toContain('ws-aff-feed-home');
-      expect(p.html).not.toContain('ws-feed-badge--listed');
-      expect(p.html).not.toContain('ws-feed-spec');
-    }
-    expect(robo.some((p) => feedSection(p.html).includes('ws-feed-badge--check'))).toBe(true);
+    expect(gi.feedPages.filter((p) => p.route.typeId === J)).toEqual([]);
+    expect([...gi.files.keys()].filter((k) => /^hamster\/robo\/.*feed/.test(k))).toEqual([]);
+    expect(gi.feedPages.some((p) => p.route.typeId === G)).toBe(true); // 같은 빌드의 VERIFIED 종은 피드 있음
     expect(gi.feedRail.has(J)).toBe(false);
   });
 });
 
 describe('N9 푸터 고지 F(D-5) — 피드 몰 링크가 그려진 문서만', () => {
   const noteF = (html: string) => count(html, 'data-ws-aff="note-f"');
-  it('골든 TYPE(레일 있음) 1, SIT·로보는 그려진 피드 링크가 있을 때만 1, 기본 파일은 off 그대로', () => {
+  it('골든 TYPE(레일 있음) 1, SIT 는 그려진 피드 링크가 있을 때만 1, 기본 파일은 off 그대로', () => {
     for (const p of on.feedPages.filter((x) => x.route.typeId === G)) {
       // 387: items에 다른 품목만 있는 SIT 변형은 정적 링크 0·고지 0. TYPE의 레일 계약은 그대로.
       const expected = p.route.kind === 'TYPE' || p.data.data.feed!.items.includes(p.route.itemId!) ? 1 : 0;
       expect(noteF(p.html), p.file).toBe(expected);
       expect(count(p.html, 'class="ws-btn ws-btn--outline ws-feed-go') > 0, p.file).toBe(expected === 1);
     }
-    for (const p of gi.feedPages.filter((x) => x.route.typeId === J)) {
-      const links = count(p.html, 'class="ws-btn ws-btn--outline ws-feed-go');
-      expect(noteF(p.html), p.file).toBe(links > 0 ? 1 : 0);
-    }
-    expect(gi.feedPages.some((p) => p.route.typeId === J && noteF(p.html) === 0)).toBe(true);
+    expect(gi.feedPages.some((p) => p.route.typeId === J)).toBe(false); // 398: GENERAL_INFO 종은 변형 문서 0
   });
 });
 
 describe('N9 알리 행(고지 문안 Kenny 결정 전)', () => {
   it('ALIEXPRESS 행이 선택되면 빌드가 멈춘다', () => {
-    const ali = row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 알리', { provider: 'ALIEXPRESS', url: 'https://s.click.aliexpress.com/e/_Abcd1234' });
+    const ali = row(G, 'wheel', '햄스터 쳇바퀴 30cm 통면 AL-1', { provider: 'ALIEXPRESS', url: 'https://s.click.aliexpress.com/e/_Abcd1234' });
     expect(() => buildSite(seed, opts(GEN_MS + H, [ali]))).toThrow(/알리 고지/);
   });
 });
