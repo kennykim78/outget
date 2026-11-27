@@ -1701,6 +1701,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
   // ws-data
   let pageCodes = null;
   let wsFeed = null; // 362 N12: ws-data data.feed(있으면)
+  let wsTypeId = null;
   for (const s of scripts(html)) {
     if (s.attrs.id !== 'ws-data') continue;
     let d;
@@ -1710,6 +1711,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       continue; // C8-OUT-SAFE 가 FAIL
     }
     pageCodes = checkWsAff(d, rel, lineOf(s.index), dev, add);
+    if (isObj(d) && isObj(d.route) && typeof d.route.typeId === 'string') wsTypeId = d.route.typeId;
     if (isObj(d) && isObj(d.data) && isObj(d.data.feed)) wsFeed = d.data.feed;
   }
   if (sink) {
@@ -1937,6 +1939,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     const l4Items = new Set(wsFeed && Array.isArray(wsFeed.items) ? wsFeed.items : []);
     const isFeedSec = (x) => els[x].name === 'section' && els[x].attrs['data-ws-part'] === 'feed';
     const notedSecs = new Set(); // 품목 고지 id 를 가진 피드 블록
+    const secItems = new Map(); // 피드 블록 → 고지 id 의 품목
     const FEED_NOTE_ID_RE = /^ws-aff-feed-/;
     for (let i = 0; i < n; i++) {
       const e = els[i];
@@ -1947,6 +1950,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
         if (feedUp[i] >= 0 && isFeedSec(feedUp[i]) && FEED_NOTE_ID_RE.test(e.attrs.id ?? '')) {
           notedSecs.add(feedUp[i]);
           const item = e.attrs.id.replace(FEED_NOTE_ID_RE, '');
+          secItems.set(feedUp[i], item);
           if (!l4Items.has(item)) out(i, `피드 블록 품목 ${L(item)} 이 ws-data data.feed.items 에 없다`);
         }
       }
@@ -1997,6 +2001,21 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
         const li = upLi[i];
         const box = li >= 0 ? els[li] : e;
         if (!/\d{1,2}월 \d{1,2}일 확인/.test(decodeEntities(html.slice(box.start, box.end ?? box.start)))) out(i, '가격 줄에 확인일(「M월 D일 확인」) 동반 없음');
+      }
+    }
+    // 399 R-2: L4 블록 행마다 (타입·품목·URL·제목)을 모은다 — 같은 단계 피드 JSON 과의 대조는 scanAffiliateOutputs.
+    if (sink && variant !== null) {
+      for (let i = 0; i < n; i++) {
+        if (!(els[i].name === 'li' && classesOf(els[i]).includes('ws-feed-row') && feedUp[i] >= 0 && isFeedSec(feedUp[i]))) continue;
+        const text = (x) => decodeEntities(html.slice(els[x].start, els[x].end ?? els[x].start).replace(/<[^>]*>/g, '')).trim();
+        const links = [];
+        let title = null;
+        for (let j = i + 1; j < n; j++) {
+          if (!isAncestor(i, j)) continue;
+          if (els[j].name === 'a' && els[j].attrs.href !== undefined) links.push(decodeEntities(els[j].attrs.href));
+          if (title === null && classesOf(els[j]).includes('ws-feed-title')) title = text(j);
+        }
+        sink.feedRows.push({ rel, line: lineOf(els[i].start), typeId: wsTypeId, supplyItemId: secItems.get(feedUp[i]) ?? null, stage: variant, links, title });
       }
     }
     if (wsFeed) for (let i = 0; i < n; i++) if (isFeedSec(i) && !notedSecs.has(i)) out(i, '피드 블록 section[data-ws-part=feed] 에 품목 고지 id(ws-aff-feed-{품목}) 없음');
@@ -2350,7 +2369,7 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
  *   mode 누락은 production 취급(rules-output 과 같은 규약). HTML 을 먼저 훑어 고지·버튼 사슬을 모은 뒤 CSS(파일·인라인 <style>)를 본다.
  */
 /** 362 N12: 산출 피드 JSON — 제휴 호스트는 url 키의 쿠팡 상품 링크 값에만, 수수료류 키 0, noprice 는 가격 키 0. */
-function checkFeedJsonOut(text, rel, noprice, add, popularSorts = FEED_POPULAR_SORTS) {
+function checkFeedJsonOut(text, rel, noprice, add, popularSorts = FEED_POPULAR_SORTS, rowKeys = null) {
   const fail = (msg) => add('C11-FEED-OUT', 'FAIL', rel, null, msg);
   let doc;
   try {
@@ -2375,9 +2394,14 @@ function checkFeedJsonOut(text, rel, noprice, add, popularSorts = FEED_POPULAR_S
     }
   };
   walkV(doc, '');
+  if (rowKeys && isObj(doc) && Array.isArray(doc.rows)) {
+    for (const row of doc.rows) if (isObj(row)) rowKeys.add(feedRowKey(noprice ? 'noprice' : 'full', doc.typeId, doc.supplyItemId, row.url, row.title));
+  }
   const occ = affHostCount(normalizeHostText(text));
   if (occ > urls) fail(`피드 JSON 에 url 키 상품 링크 밖 제휴 호스트 ${occ - urls}회`);
 }
+
+const feedRowKey = (stage, typeId, itemId, url, title) => JSON.stringify([stage, typeId, itemId, url, typeof title === 'string' ? title.trim() : title]);
 
 export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPULAR_SORTS }) {
   const manPath = join(dist, 'prerender-manifest.json');
@@ -2389,7 +2413,8 @@ export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPU
     return; // C3-OUT-ROUTE 가 FAIL
   }
   const dev = isObj(m) && m.mode === 'development';
-  const sink = { notes: new Map(), pairs: new Map(), styles: [], popularSorts };
+  const sink = { notes: new Map(), pairs: new Map(), styles: [], popularSorts, feedRows: [] };
+  const rowKeys = new Set(); // 399 R-2: 피드 JSON 행
   const feedJson = new Set();
   const fmPath = join(dist, 'feed-manifest.json');
   if (existsSync(fmPath)) {
@@ -2423,7 +2448,7 @@ export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPU
     // 362 N12: feed-manifest 가 나열한 피드 JSON 만 제휴 호스트 허용 — 값이 url 키의 쿠팡 상품 링크와 정확히 같을 때만, noprice 는 가격 키 0.
     const drel = relPosix(dist, abs);
     if (feedJson.has(drel)) {
-      checkFeedJsonOut(text, rel, drel.endsWith('.noprice.json'), add, popularSorts);
+      checkFeedJsonOut(text, rel, drel.endsWith('.noprice.json'), add, popularSorts, rowKeys);
       continue;
     }
     if (affHostCount(normalizeHostText(text)) > 0) {
@@ -2445,6 +2470,12 @@ export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPU
           add('C10-AFF-OUT', 'FAIL', rel, null, `비HTML 산출물에 제휴·수수료 키 ${L(k)}(${L(p.slice(0, 60))}) — 카탈로그 aff 0`);
         }
       });
+    }
+  }
+  // 399 R-2: HTML L4 행 → 같은 단계 피드 JSON 행(타입·품목·URL·제목). 데이터에 없는 행은 품목 판정(GENERAL_INFO 등)을 비켜 간다.
+  for (const row of sink.feedRows) {
+    if (row.links.length !== 1 || !rowKeys.has(feedRowKey(row.stage, row.typeId, row.supplyItemId, row.links[0], row.title))) {
+      add('C11-FEED-OUT', 'FAIL', row.rel, row.line, `L4 피드 행이 ${row.stage} 피드 JSON(${L(String(row.typeId))}·${L(String(row.supplyItemId))})의 품목·URL·제목과 일치하지 않는다(링크 ${row.links.length}개)`);
     }
   }
   // CSS — 고지(.ws-aff-note 직접·일반 선택자·조상) 숨김·축소 0, 제휴 a 차등 선택자 0(111 §0 · D-37)

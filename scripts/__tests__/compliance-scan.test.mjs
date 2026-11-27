@@ -4862,3 +4862,44 @@ for (const [name, title] of [['「/」로 시작', j('/', KO.safe, ' 케이지')
     }
   });
 }
+
+// ── 399 R-2: L4 블록 행마다 품목·URL(·제목)을 같은 단계 피드 JSON 과 대조 ──
+const R2_URL = j(HTTPS, FCP, '/a/Mk1x');
+const R2_URL_GI = j(HTTPS, FCP, '/a/Zz9q');
+async function r399Rows(htmlRows) {
+  const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'ws-r399-'));
+  try {
+    const dist = join(dir, 'dist');
+    const put = (p, s) => { mkdirSync(dirname(join(dist, p)), { recursive: true }); writeFileSync(join(dist, p), s); };
+    const row = ([url, title]) => j('<li class="ws-feed-row" data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">', title, '</p>', url === null ? '' : `<a class="ws-btn ws-feed-go" href="${url}">몰</a>`, '</li>');
+    put('prerender-manifest.json', JSON.stringify({ mode: 'production' }));
+    put('feed-manifest.json', JSON.stringify({ variants: { full: ['hamster/golden/feed/cage.json'], noprice: [] } }));
+    put('hamster/golden/feed/cage.json', JSON.stringify({ v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', rows: [{ title: '넓은 케이지 & 선반', url: R2_URL }] }));
+    put('hamster/golden/supplies/cage/index.feed.html', j(
+      '<html><body><main><section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-cage" data-ws-aff="note-feed">고지</p><ul>',
+      htmlRows.map(row).join(''),
+      '</ul></section></main><script id="ws-data" type="application/json">',
+      JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed: { v: 1, stage: 'full', items: ['cage'], rail: [] } } }),
+      '</script></body></html>',
+    ));
+    const findings = [];
+    scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
+    return findings.filter((f) => f.rule === 'C11-FEED-OUT' && /L4 피드 행/.test(f.message));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+const R2_OK = [R2_URL, '넓은 케이지 &amp; 선반'];
+test('399 R-2 clean: HTML 행이 피드 JSON 행과 일치 → 0', async () => {
+  assert.deepEqual(await r399Rows([R2_OK]), []);
+});
+for (const [name, extra] of [
+  ['데이터에 없는 URL 행을 HTML 에만 추가', [R2_URL_GI, '넓은 케이지 &amp; 선반']],
+  ['URL 은 같고 제목이 다른 행', [R2_URL, '다른 상품']],
+  ['링크 없는 행', [null, '넓은 케이지 &amp; 선반']],
+]) {
+  test(`399 R-2 C11-FEED-OUT: ${name} → FAIL`, async () => {
+    assert.ok((await r399Rows([R2_OK, extra])).length > 0, name);
+  });
+}
