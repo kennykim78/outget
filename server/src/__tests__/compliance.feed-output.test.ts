@@ -102,11 +102,18 @@ describe('N12 스캐너 상수 = providers.ts', () => {
 
 describe('N12 피드 산출물(C11-FEED-OUT·C2-PRICE·C8)', () => {
   it('full·noprice 실제 빌드 — 산출물 FAIL 0', () => {
-    let has = false;
-    expect(scanBuilt(GEN_MS + H, (f) => (has = f.has(T_FULL) && f.has('feed-manifest.json')))).toEqual([]);
-    expect(has).toBe(true);
-    expect(scanBuilt(GEN_MS + 80 * H, (f) => (has = f.has(T_NP)))).toEqual([]);
-    expect(has).toBe(true);
+    // 399 R-4: FAIL 0 이 빈 산출물이 아니라 실제 홈 몰 카드·L4 피드 행을 두 스캐너에 함께 통과시킨 결과인지 확인.
+    const seen: boolean[] = [];
+    const probe = (home: string, l4: string) => (f: Map<string, string>) => {
+      seen.push(
+        [...f].some(([k, v]) => k.endsWith(home) && v.includes('<li class="ws-feed-card"')),
+        f.get(l4)?.includes('<li class="ws-feed-row') === true,
+        f.has('feed-manifest.json'),
+      );
+    };
+    expect(scanBuilt(GEN_MS + H, probe(HOME_FULL, T_FULL))).toEqual([]);
+    expect(scanBuilt(GEN_MS + 80 * H, probe('index.feed-noprice.html', T_NP))).toEqual([]);
+    expect(seen).toEqual([true, true, true, true, true, true]);
   });
 
   it.each([
