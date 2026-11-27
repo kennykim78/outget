@@ -7,7 +7,7 @@ import { tipTextProblems } from '../seed/validate-tips.js';
 import { textFieldsOf } from '../seed/lint.js';
 import { SEED_DIR } from './fixtures/prerender-seed.js';
 
-const NOW = '2026-11-23'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지.
+const NOW = '2026-11-25'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지. // 368: 2026-11-25 = 8행 출처 접근일(S07 미래 날짜 방지, 옛 값 2026-11-23).
 const REF = { title: '수납함으로 집 꾸민 기록', url: 'https://namu.wiki/w/test-1', siteName: '예시 블로그', checkedAt: '2026-11-20' };
 
 function tip(p: Record<string, unknown> = {}): Record<string, unknown> {

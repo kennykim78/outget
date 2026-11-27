@@ -393,7 +393,7 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
       : '',
     // 362 N9 아래층 「많이 찾는 상품」 — 항상 products 뒤(products 0 이어도 같은 자리). 피드 변형이 아니거나 블록·행 0 이면 ''.
     feedBlockL4(r, feed),
-    // 356 K4: 일반 참고 정보 요구사항 — 「검수 내용」·마지막 검수 대신 「출처」 + 「일반 사육 자료 종합」(실제 출처가 있으면 뒤에). 고지 문장은 main 머리 1회.
+    // 356 K4: 일반 참고 정보 요구사항 — 「검수 내용」·마지막 검수 대신 「출처」 + 「관련 참고 링크」(실제 출처가 있으면 뒤에). 고지 문장은 main 머리 1회.
     p.generalInfo
       ? [
           `<section data-ws-part="verified"><h3>${h(COPY.supplyLayer.source)}</h3>`,

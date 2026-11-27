@@ -35,7 +35,7 @@ const GI = (extra: Meta = {}): Meta => ({
   verifiedBy: null,
   verifiedAt: null,
   contentKind: 'CARE',
-  source: [],
+  source: [{ url: 'https://example.org/placeholder', title: '자리표시', accessedAt: DRAFTED }],
   draftedAt: DRAFTED,
   ...extra,
 });
@@ -250,5 +250,18 @@ describe('M5 — 상품·구성안·호환·Taxon·후기는 자기 메타 VERIF
     expect(isTestimonialPublic(cat, { status: 'APPROVED', verifiedUsage: true, animalTypeId: 'budgie' }, AS_OF)).toBe(true);
     expect(isTestimonialPublic(cat, { status: 'APPROVED', verifiedUsage: false, animalTypeId: 'budgie' }, AS_OF)).toBe(false);
     expect(isTestimonialPublic(cat, { status: 'SUBMITTED', verifiedUsage: true, animalTypeId: 'budgie' }, AS_OF)).toBe(false);
+  });
+});
+
+describe('FOOD·HEALTH 출처 1곳 이상(Kenny 2026-11-25) — 노출 쪽도 fail-closed', () => {
+  it.each(['FOOD', 'HEALTH'] as const)('%s: https 출처 없으면 false', (contentKind) => {
+    for (const source of [[], undefined, [{ title: 'x' }], [{ url: 'http://example.org/a', title: 'x' }], [{ url: '' }], 'https://example.org']) {
+      expect(isGeneralInfoMeta(GI({ contentKind, crossCheck: CC, source: source as never }), AS_OF), JSON.stringify(source)).toBe(false);
+    }
+    expect(isGeneralInfoMeta(GI({ contentKind, crossCheck: CC }), AS_OF)).toBe(true);
+  });
+  it('SPEC·CARE 는 출처 0곳이어도 그대로', () => {
+    expect(isGeneralInfoMeta(GI({ source: [] }), AS_OF)).toBe(true);
+    expect(isGeneralInfoMeta(GI({ contentKind: 'SPEC', source: [] }), AS_OF)).toBe(true);
   });
 });

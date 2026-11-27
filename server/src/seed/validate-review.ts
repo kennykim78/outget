@@ -11,6 +11,7 @@ import {
   GENERAL_INFO_MAX_AGE_DAYS,
   GENERAL_INFO_STATUS,
   GENERAL_INFO_TYPE_IDS,
+  hasHttpsSource,
   isCrossCheckShape,
   isGeneralInfoTypeId,
 } from '../engine/general-info.js';
@@ -111,6 +112,7 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
  *   - 검수자 필드 없음: verifiedBy·verifiedAt null(reviewBasis 는 V09 가 본다).
  *   - draftedAt(YYYY-MM-DD) 필수 · contentKind ∈ SPEC·CARE·FOOD·HEALTH(LEGAL 불가).
  *   - FOOD·HEALTH 는 crossCheck{tool,checkedAt,result} 필수, draftedAt ≤ checkedAt(미래는 S07).
+ *   - FOOD·HEALTH 는 https 출처 1곳 이상(Kenny 2026-11-25, 356r M3). 형식(url·title·accessedAt)은 S04, 노출 쪽도 같은 조건.
  *   - draftedAt·crossCheck 값은 GENERAL_INFO 행에만(다른 상태 행에 남아 있으면 ERROR — VERIFIED 로 올릴 때 지운다).
  *   - draftedAt 이 GENERAL_INFO_MAX_AGE_DAYS 초과 → W-GENERAL-STALE(노출 판정에서 빠진다 — engine isGeneralInfoMeta).
  */
@@ -143,6 +145,7 @@ function checkGeneralInfo(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
     out.warn('W-GENERAL-STALE', key, id, 'draftedAt', `초안 ${daysBetween(drafted, ctx.now)}일 경과(>${GENERAL_INFO_MAX_AGE_DAYS}) — 다시 정리 필요, 노출 판정에서 빠진다`);
   }
   if ((CROSS_CHECK_CONTENT_KINDS as readonly string[]).includes(kind)) {
+    if (!hasHttpsSource(r.source)) out.error('V12', key, id, 'source', `GENERAL_INFO ${kind} 는 https 출처 1곳 이상 필수`);
     if (!isCrossCheckShape(r.crossCheck)) {
       out.error('V12', key, id, 'crossCheck', `GENERAL_INFO ${kind} 는 교차 확인 기록 crossCheck{tool,checkedAt,result} 필수`);
     } else if (drafted !== null && (asRec(r.crossCheck)?.checkedAt as string) < drafted) {

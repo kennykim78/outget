@@ -593,6 +593,27 @@ describe('L5 화면 규칙', () => {
     expect(d.textContent).not.toContain(COPY.generalInfo.notice);
   });
 
+  it('356 일반 참고 정보 + 출처 있음: 카드에는 링크가 없으므로 「관련 참고 자료」(「관련 참고 링크」 0)', async () => {
+    const giPage = pageOf(
+      'TYPE',
+      { ...PAGE.data, requirements: PAGE.data.requirements.map((x) => (x.supplyItemId === 'wheel' ? { ...x, lastVerifiedAt: '', generalInfo: true as const } : x)) },
+      { typeId: golden.id, path: '/hamster/golden' },
+    );
+    expect(giPage.data.requirements.find((x) => x.supplyItemId === 'wheel')?.source.length).toBeGreaterThan(0);
+    render(
+      <LayerPageProvider page={giPage}>
+        <LayerHost registry={layerRegistry} />
+      </LayerPageProvider>,
+    );
+    act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'wheel' }, { url: '/hamster/golden/check/wheel' }));
+    const d = await screen.findByRole('dialog');
+    await waitFor(() => expect(d.querySelector('.ws-spec-ask')).not.toBeNull(), { timeout: 15000 });
+    await ready(d);
+    const r = await checkWheel(d, '27');
+    expect(within(r).getByText(`${golden.displayName} ${COPY.verdict.basisSuffix} · ${COPY.supplyLayer.source} 관련 참고 자료`)).toBeInTheDocument();
+    expect(r.textContent).not.toContain('관련 참고 링크');
+  });
+
   it('검색: buildSearchKeyword 검색어 + 쿠팡·네이버 링크(새 탭·nofollow), external_product_clicked', async () => {
     const d = await openL5('wheel');
     await ready(d);

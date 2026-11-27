@@ -38,6 +38,8 @@ WithSmall의 답: **정보 → 왜 필요한가 → 어떤 규격 → 어디서 
 | 7 | **콘텐츠는 출처·검수자 유형·검수일·상태를 갖는다.** 콘텐츠 종류별 최소 검수 등급(§7.3) 미달이면 노출 불가. AI 초안과 좋아요는 검수를 대체하지 않는다 | 먹이·규격 오류는 동물 사망으로 이어짐 |
 | 8 | **실시간 위치 저장 안 함.** 시군구 텍스트 + 게시글 옵션 핀 | Outget 승계 |
 
+**불변식 7 예외 2(Kenny 11/23·11/25, GENERAL_INFO 「일반 참고 정보」):** 코드에 고정한 6종(`hamster-robo`·`gerbil-mongolian`·`budgie`·`cockatiel`·`lovebird-peach`·`sun-conure`)의 체인 메타 네 가지(AnimalType·SupplyRequirement·SupplyItem·CareProfile)에 한해 `reviewStatus=GENERAL_INFO` 행을 검수 완료 없이 노출한다. contentKind 는 SPEC/CARE/FOOD/HEALTH 만(LEGAL 제외), FOOD/HEALTH 는 교차 확인 기록(`crossCheck`)과 출처 1곳 이상(https, Kenny 11/25: 영문 수의 기관 출처 인정 — 기관 선정은 사람이 확인)이 있어야 하고, 초안 작성일(`draftedAt`)부터 180일까지만 노출한다. 일반 참고 정보 행이 보이는 종의 종 페이지에는 「일반 참고 정보」 고지를 둔다. 상품·구성안·호환 규칙·Taxon·후기의 자체 메타는 이 등급이 될 수 없고, GENERAL_INFO 체인에 연결된 상품은 노출하지 않는다. 검수자·검수일은 비워 두며 VERIFIED 승격이 아니다. `AI_DRAFT`→VERIFIED 금지는 그대로다.
+
 ---
 
 ## 3. 제품 구조

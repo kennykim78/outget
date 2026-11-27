@@ -20,6 +20,7 @@ const mjs = (await import(pathToFileURL(join(ROOT, 'scripts', 'lib', 'seed-expos
 const AS_OF = FIXTURE_AS_OF; // 2026-11-23(356)
 const DRAFTED = '2026-11-20';
 const CC = { tool: 'CODEX_DISCUSS', checkedAt: '2026-11-21', result: 'AGREE' };
+const SRC = [{ url: 'https://example.org/placeholder', title: '자리표시', accessedAt: DRAFTED }];
 const GI = (extra: Row = {}): Row => ({
   reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null, reviewBasis: null, draftedAt: DRAFTED, ...extra,
 });
@@ -62,7 +63,7 @@ describe('상수 패리티', () => {
 });
 
 describe('행 판정 패리티 — engine isGeneralInfoMeta ↔ mjs generalInfoRowOk', () => {
-  const base: Row = { reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', contentKind: 'CARE', draftedAt: DRAFTED };
+  const base: Row = { reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', contentKind: 'CARE', draftedAt: DRAFTED, source: SRC };
   const variants: Row[] = [
     {},
     { contentKind: 'SPEC' }, { contentKind: 'LEGAL' }, { contentKind: 'OTHER' }, { contentKind: undefined },
@@ -77,6 +78,10 @@ describe('행 판정 패리티 — engine isGeneralInfoMeta ↔ mjs generalInfoR
     { contentKind: 'FOOD', crossCheck: { tool: CC.tool, result: CC.result } }, { contentKind: 'FOOD', crossCheck: { ...CC, checkedAt: '2026-11-19' } },
     { contentKind: 'FOOD', crossCheck: { ...CC, checkedAt: '2026-11-23' } }, { contentKind: 'FOOD', crossCheck: { ...CC, checkedAt: '2026-11-31' } },
     { contentKind: 'FOOD', crossCheck: [CC] }, { contentKind: 'CARE', crossCheck: { ...CC, tool: 'X' } },
+    { contentKind: 'FOOD', crossCheck: CC, source: SRC }, { contentKind: 'HEALTH', crossCheck: CC, source: SRC },
+    { contentKind: 'FOOD', crossCheck: CC, source: [] }, { contentKind: 'FOOD', crossCheck: CC, source: [{ url: 'http://example.org/a' }] },
+    { contentKind: 'HEALTH', crossCheck: CC, source: [null] }, { contentKind: 'HEALTH', crossCheck: CC, source: 'https://example.org' },
+    { contentKind: 'FOOD', crossCheck: CC, source: undefined },
   ];
   const day = isoDayNumber(AS_OF) as number;
   it.each(variants.map((v) => [JSON.stringify(v), v] as const))('%s', (_n, v) => {
@@ -103,6 +108,18 @@ function budgieActive(): SeedBundle {
   if (t?.status !== 'ACTIVE' || t.reviewStatus !== 'GENERAL_INFO') throw new Error('fixture: 디스크 budgie ACTIVE·GENERAL_INFO 아님');
   return s;
 }
+
+describe('FOOD·HEALTH 출처 0곳 — 양쪽 모두 비노출', () => {
+  const day = isoDayNumber(AS_OF) as number;
+  it.each(['FOOD', 'HEALTH'])('%s', (contentKind) => {
+    const row = GI({ contentKind, crossCheck: CC, source: [] });
+    expect(mjs.generalInfoRowOk(row, day)).toBe(false);
+    expect(isGeneralInfoMeta(row as never, AS_OF)).toBe(false);
+    const ok = GI({ contentKind, crossCheck: CC, source: SRC });
+    expect(mjs.generalInfoRowOk(ok, day)).toBe(true);
+    expect(isGeneralInfoMeta(ok as never, AS_OF)).toBe(true);
+  });
+});
 
 describe('체인 노출 패리티(실시드 메모리 주입)', () => {
   it('디스크 그대로: 양쪽 같음', () => {
