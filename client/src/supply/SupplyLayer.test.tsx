@@ -131,9 +131,16 @@ describe('L4 SupplyLayer', () => {
     expect(dds).toHaveLength(2);
     for (const dd of dds) expect(dd).not.toHaveClass('ws-t-spec-lg');
     expect(dds.map((dd) => dd.querySelector('.ws-t-spec-lg')?.textContent)).toEqual(['28cm', '30cm']);
-    expect(dds.map((dd) => dd.querySelector('.ws-t-meta')?.textContent)).toEqual([COPY.spec.gte, COPY.spec.gte]);
+    // 356f S1: 값 1개면 필드 이름(지름)이 앞에 meta 로 — dd 텍스트 = 엔진 chipSpecText 그대로.
+    expect(dds.map((dd) => Array.from(dd.querySelectorAll('.ws-t-meta')).map((x) => x.textContent))).toEqual([
+      ['지름', COPY.spec.gte],
+      ['지름', COPY.spec.gte],
+    ]);
+    expect(dds.map((dd) => dd.textContent)).toEqual(['지름 28cm 이상', '지름 30cm 이상']);
     expect(splitChipText('60×40cm 이상')).toEqual({ value: '60×40cm', suffix: '이상' });
     expect(splitChipText('28cm')).toEqual({ value: '28cm', suffix: null });
+    expect(splitChipText('높이 50cm 이상')).toEqual({ label: '높이', value: '50cm', suffix: '이상' });
+    expect(splitChipText('바닥 가로 60cm 이상')).toEqual({ label: '바닥 가로', value: '60cm', suffix: '이상' });
   });
 
   it('NOT_NOW: 글리프 없이 "지금은 필요 없어요 — 이유"가 왜보다 앞(R4-1 — ○ 는 기준 충족 전용)', () => {

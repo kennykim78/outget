@@ -52,8 +52,13 @@ describe('specLine', () => {
 });
 
 describe('chipSpecText(G-1)', () => {
-  it('단일 → "28cm 이상"', () => {
-    expect(chipSpecText(wheel, rs([{ key: 'diameterCm', op: 'gte', value: 28, reason: 'r' }, { key: 'surface', op: 'eq', value: 'SOLID', reason: 'r' }]))).toBe('28cm 이상');
+  it('단일 → 필드 이름 + 값 "지름 28cm 이상"(356f S1)', () => {
+    expect(chipSpecText(wheel, rs([{ key: 'diameterCm', op: 'gte', value: 28, reason: 'r' }, { key: 'surface', op: 'eq', value: 'SOLID', reason: 'r' }]))).toBe('지름 28cm 이상');
+    expect(chipSpecText(cage, rs([{ key: 'heightCm', op: 'gte', value: 50, reason: 'r' }]))).toBe('높이 50cm 이상');
+    expect(chipSpecText(cage, rs([{ key: 'floorWcm', op: 'gte', value: 60, reason: 'r' }]))).toBe('바닥 가로 60cm 이상');
+  });
+  it('단일인데 필드 이름이 비면 숫자만', () => {
+    expect(chipSpecText({ fields: [{ key: 'x', label: '(cm)', type: 'number', min: 1, max: 9 }] }, rs([{ key: 'x', op: 'gte', value: 5, reason: 'r' }]))).toBe('5cm 이상');
   });
   it('같은 단위 → 스키마 필드 순서로 "×" 연결(규칙 순서 무관), "↑" 0', () => {
     const t = chipSpecText(cage, rs([
@@ -75,7 +80,7 @@ describe('chipSpecText(G-1)', () => {
     expect(chipSpecText(cage, rs([
       { key: 'barGapMm', op: 'gte', value: 4, reason: 'r' },
       { key: 'heightCm', op: 'gte', value: 30, reason: 'r' },
-    ]))).toBe('30cm 이상');
+    ]))).toBe('높이 30cm 이상');
   });
   it('when 있는 규칙·lte·비숫자·스키마 밖 키 제외 → 없으면 null', () => {
     expect(chipSpecText(cage, rs([

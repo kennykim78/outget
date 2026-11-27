@@ -252,6 +252,19 @@ export const COPY = deepFreeze({
     /** R4-4(R4 시안 l4_supply): 검수 행(마지막 검수 · 출처 · 👍⚠) 섹션 머리 — 시안 원문. */
     reviewTitle: '검수 내용',
   },
+  /**
+   * 356(Kenny 2026-11-23 · 불변식 7 「예외 2」 K4): 일반 참고 정보(GENERAL_INFO, 코드 고정 6종) 표지.
+   *   notice = 종 페이지 컨텍스트 헤더 아래 1회(홈 B·레이어 딥링크 공통 main). sourceLabel = L4 「검수 내용」 출처 라벨, refLabel = 링크가 없는 L5 검수 meta 자리의 출처 라벨
+   *   (출처를 지어내지 않는다 — 출처가 있으면 링크, 비면 sourceLabelNone). VERIFIED 체인 타입에는 둘 다 그리지 않는다.
+   */
+  generalInfo: {
+    notice: sent('일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요'),
+    sourceLabel: '관련 참고 링크',
+    /** L5 판정 카드는 링크를 그리지 않으므로 「링크」라고 부르지 않는다(총괄 11/25). */
+    refLabel: '관련 참고 자료',
+    /** 356r M3: 출처 배열이 빈 행(근거 자료 없음)에는 근거가 있는 것처럼 읽히지 않게 이 라벨. */
+    sourceLabelNone: '출처 미기재 일반 정보',
+  },
   /** R5 C1 — L5 VerdictCard 판정 표시(스펙33 §3). 판정어는 정보일 뿐 추천 아님. 헤드라인 숫자는 표시 함수가 "최소 {v}{u} · 입력 {a}{u}"로 조립. */
   verdict: {
     productLine: '제품 규격',
@@ -650,7 +663,18 @@ export const COPY = deepFreeze({
       OWN: '직접 촬영',
       SELLER: '제조사 제공',
       AFFILIATE: '제휴 이미지',
+      // 354(Kenny 2026-11-23): 생성 도구 — /credits 는 지금 CC BY 계열만 싣지만 표시명 누락은 막는다.
+      CODEX: 'Codex 생성 이미지',
+      AGY: 'Antigravity 생성 이미지',
     },
+  },
+  /**
+   * 354(Kenny 2026-11-23 「빈 이미지 칸 0」, 351 K1 권장 유지) — 생성 이미지 자리의 작은 표기, 상품 대체 타일의 품목 그림 표기.
+   *   표기 위치·크기는 design-liaison 스펙, 연결은 프리렌더 마크업(351 단계 6)·클라(단계 7)에서.
+   */
+  photoNotice: {
+    aiGenerated: '생성 이미지 · 임시',
+    exampleIllustration: '예시 그림',
   },
   /**
    * PRD US-001 그룹, US-008 카테고리 그리드(SupplyCategory 순서).

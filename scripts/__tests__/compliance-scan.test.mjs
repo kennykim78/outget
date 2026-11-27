@@ -2883,6 +2883,92 @@ test('C3-OUT-REVIEWMETA clean: 기본 산출물 통과', async () => {
   expectClean(scan(await makeRoot({ output: noop })));
 });
 
+// ── 356 단계 10: 카탈로그 GENERAL_INFO 행 = generalInfo:true 표기(reviewerType 키 없음), 데이터 산출물 AI_DRAFT 0 ─────────────
+const CAT = 'data/catalog.v1.abcd1234.json';
+const withCatalogItem = (row) => (o) => {
+  const c = JSON.parse(o[CAT]);
+  c.supplyItems = [{ id: 'cage', name: '케이지', ...row }];
+  o[CAT] = JSON.stringify(c);
+};
+const GI_ROW = { reviewStatus: 'GENERAL_INFO', generalInfo: true, verifiedBy: null, verifiedAt: null, contentKind: 'SPEC', source: [] };
+test('C3-OUT-REVIEWMETA clean: 카탈로그 GENERAL_INFO 행 generalInfo:true(reviewerType 키 없음) · VERIFIED 행 reviewerType 유지', async () => {
+  expectClean(scan(await makeRoot({ output: withCatalogItem(GI_ROW) })));
+  expectClean(scan(await makeRoot({ output: withCatalogItem({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', verifiedBy: null }) })));
+});
+for (const [name, out, msg] of [
+  ['GENERAL_INFO 행에 reviewerType AI_DRAFT', withCatalogItem({ ...GI_ROW, reviewerType: j('AI_', 'DRAFT') }), 'reviewerType 키'],
+  ['GENERAL_INFO 행에 generalInfo 없음', withCatalogItem({ ...GI_ROW, generalInfo: undefined }), 'generalInfo:true 없음'],
+  ['GENERAL_INFO 행 generalInfo 가 true 아님', withCatalogItem({ ...GI_ROW, generalInfo: 'yes' }), 'generalInfo:true 없음'],
+  ['VERIFIED 행에 generalInfo 키', withCatalogItem({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', generalInfo: true }), 'generalInfo 키'],
+  ['어떤 행이든 reviewerType AI_DRAFT', withCatalogItem({ reviewStatus: 'DRAFT', reviewerType: j('AI_', 'DRAFT') }), 'AI_DRAFT 가 산출물에'],
+  ['HTML 에 AI_DRAFT 문자열', (o) => { o['index.html'] = o['index.html'].replace('</main>', j('<p>', 'AI_', 'DRAFT</p></main>')); }, '데이터 산출물'],
+  ['sitemap 에 AI_DRAFT 문자열', (o) => { o['sitemap.xml'] = o['sitemap.xml'].replace('</urlset>', j('<!-- AI_', 'DRAFT --></urlset>')); }, '데이터 산출물'],
+]) {
+  test(`C3-OUT-REVIEWMETA 356: ${name} → FAIL`, async () => {
+    const res = scan(await makeRoot({ output: out }));
+    expectFail(res, 'C3-OUT-REVIEWMETA');
+    assert.ok(res.json.findings.some((f) => f.rule === 'C3-OUT-REVIEWMETA' && f.message.includes(msg)), JSON.stringify(res.json.findings));
+  });
+}
+test('C3-OUT-REVIEWMETA 356: JS 번들의 AI_DRAFT 상수(엔진 열거형)는 데이터 산출물이 아니라 통과', async () => {
+  expectClean(scan(await makeRoot({ output: (o) => { o['assets/index-abc.js'] = j('export const R = ["AI_', 'DRAFT","VET"];\n'); } })));
+});
+
+// ── 356 단계 10: C9-GENERAL — 코드 고정 6종 라우트 HTML 에 고지 원문 정확히 1회, 그 밖 타입 라우트 0(합성 HTML 픽스처) ─────────────
+const GI_NOTICE = '일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요';
+const BUDGIE_HTML = 'parrot/budgie/index.html';
+/** 합성 노출 타입 budgie(코드 고정 6종 id — VERIFIED 자리표시라 체인 관대함 없이 노출. 실제 종 사실 아님). */
+const withBudgieSeed = (d) => {
+  d['animal-types.json'].push({
+    id: 'budgie', slug: 'parrot/budgie', group: 'PARROT', displayName: '픽스처 앵무', status: 'ACTIVE',
+    aliases: [], taxonId: 'tx-fixture', careProfileId: 'cp-syrian', careOverrides: {}, oneLiner: null, ...meta({ contentKind: 'CARE' }),
+  });
+};
+const budgieOut = (body, goldenExtra = '') => (o) => {
+  o[BUDGIE_HTML] = page(`<main class="ws-page" data-ws-route="TYPE" data-ws-type="budgie"><h1>픽스처 앵무</h1>${body}</main>`);
+  if (goldenExtra) o['hamster/golden/index.html'] = o['hamster/golden/index.html'].replace('</main>', `${goldenExtra}</main>`);
+};
+const budgieManifest = (digest) => {
+  const m = manifestFor(digest);
+  m.routes.push({ path: '/parrot/budgie', file: BUDGIE_HTML, kind: 'TYPE', typeId: 'budgie', indexable: true });
+  return m;
+};
+const c9GeneralOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-GENERAL');
+async function scanGeneral(body, goldenExtra) {
+  return scan(await makeRoot({ seed: withBudgieSeed, output: budgieOut(body, goldenExtra), manifest: budgieManifest }));
+}
+
+test('C9-GENERAL 고지 원문 = rules-output GENERAL_INFO_NOTICE', async () => {
+  const { GENERAL_INFO_NOTICE } = await import('../lib/rules-output.mjs');
+  assert.equal(GENERAL_INFO_NOTICE, GI_NOTICE);
+});
+test('C9-GENERAL clean: 6종 라우트 고지 1회 · 그 밖 타입(골든) 0회 → exit 0', async () => {
+  expectClean(await scanGeneral(`<p class="ws-general-info">${GI_NOTICE}</p>`));
+});
+test('C9-GENERAL clean: 고지가 태그로 쪼개져도(가시 텍스트 기준) 1회로 센다', async () => {
+  expectClean(await scanGeneral('<p><span>일반 참고 정보예요</span> · <span>개체·환경에 따라 다를 수 있어요</span></p>'));
+});
+for (const [name, body, goldenExtra, want] of [
+  ['6종 라우트에 고지 없음', '<p>준비물</p>', '', /budgie.*0회\(기대 1회\)/],
+  ['6종 라우트에 고지 2회', `<p>${GI_NOTICE}</p><aside>${GI_NOTICE}</aside>`, '', /budgie.*2회\(기대 1회\)/],
+  ['6종 밖 타입 라우트에 고지', `<p>${GI_NOTICE}</p>`, `<p>${GI_NOTICE}</p>`, /hamster-golden.*1회\(기대 0회\)/],
+  ['문구가 다름(원문 고정)', '<p>일반 참고 정보예요 · 개체에 따라 다를 수 있어요</p>', '', /budgie.*0회/],
+]) {
+  test(`C9-GENERAL: ${name} → FAIL`, async () => {
+    const res = await scanGeneral(body, goldenExtra);
+    expectFail(res, 'C9-GENERAL');
+    assert.ok(c9GeneralOf(res).some((f) => want.test(f.message)), JSON.stringify(c9GeneralOf(res)));
+  });
+}
+test('C9-GENERAL: ws-data·스크립트 안 고지 문자열은 세지 않는다(가시 텍스트만)', async () => {
+  const res = await scanGeneral(`<script type="application/json" id="x">"${GI_NOTICE}"</script>`);
+  expectFail(res, 'C9-GENERAL');
+});
+test('C9-GENERAL: typeId 없는 라우트(HOME)는 규칙 밖', async () => {
+  const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${GI_NOTICE}</p></main>`); } }));
+  expectClean(res);
+});
+
 // ── 계획 86 P11: C9-PRIVACY — /privacy 존재·모든 라우트 링크·자리표시(빌드는 항상 WARN — 차단은 운영 기동 검사)·기간 숫자 = policy.ts ─────────────
 const c9Of = (res, severity) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-PRIVACY' && (!severity || f.severity === severity));
 const withPrivacy = (opts) => (o) => { o['privacy/index.html'] = page(privacyMain(opts)); };
@@ -4047,4 +4133,63 @@ test('274 ⑨ 감시 목록(QA D5)·별칭 표(QA D6): 265 신규 파일 도달 
   expectAff(await affScan({ [d]: "import { x } from '~aff/links';\nexport const y = x;\n" }), 'C10-AFF-IMPORT', d, '~ 지정자');
   expectAff(await affScan({ [d]: "import { x } from '#aff';\nexport const y = x;\n" }), 'C10-AFF-IMPORT', d, '# 지정자(package imports)');
   expectNoAff(await affScan({ [TS]: tsRaw, [VITE]: viteRaw }), 'C10-AFF-IMPORT', '실제 tsconfig·vite 복사본');
+});
+
+// ── 354(Kenny 2026-11-23): 생성 이미지 사진 기록 C6-IMG AI 분기 · 상품 칸 생성 이미지 금지 C6-IMG-AI-PRODUCT ─────────────
+const aiPhoto = (over = {}) => ({
+  id: 'ph-02', scene: 'x', slot: 'intro-2', query: 'q', source: 'CODEX', license: 'AI_GENERATED', author: null, sourceUrl: null, licenseUrl: null,
+  downloadedAt: null, modified: false, status: 'READY', generatedAt: '2026-09-20', promptPath: 'docs/assets/prompts/intro-2.md',
+  asset: '/assets/photos/intro-2.webp', speciesCheck: { checkedBy: 'op', checkedAt: '2026-09-21' }, ...over,
+});
+const aiFiles = (s) => {
+  s['docs/assets/prompts/intro-2.md'] = '# intro-2 prompt\n';
+  s['client/public/assets/photos/intro-2.webp'] = 'RIFF';
+};
+
+test('C6-IMG(354): 완전한 AI_GENERATED 사진 + 프롬프트·배포 파일 실재 → C6 없음', async () => {
+  const res = scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto()); } }));
+  assert.ok(!rulesOf(res, 'FAIL').includes('C6-IMG'), JSON.stringify(res.json?.findings));
+});
+
+test('C6-IMG(354): AI_GENERATED 기록 누락·기계 서명·원본 URL·파일 없음 → 실패', async () => {
+  const bad = [
+    { source: 'WIKIMEDIA' },
+    { generatedAt: null },
+    { promptPath: 'prompts/intro-2.md' },
+    { asset: '/assets/products/intro-2.webp' },
+    { speciesCheck: null },
+    { speciesCheck: { checkedBy: 'AI_DRAFT', checkedAt: '2026-09-21' } },
+    { speciesCheck: { checkedBy: 'Codex', checkedAt: '2026-09-21' } },
+    { speciesCheck: { checkedBy: 'op', checkedAt: '2026-09-19' } },
+    { sourceUrl: j(HTTPS, 'commons.wikimedia.org/wiki/File:p.jpg') },
+  ];
+  for (const over of bad) {
+    expectFail(scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto(over)); } })), 'C6-IMG');
+  }
+  // 파일이 저장소에 없으면 실패(프롬프트·배포 파일 각각).
+  expectFail(scan(await makeRoot({ seed: (d) => { d['photos.json'].push(aiPhoto()); } })), 'C6-IMG');
+  const noPrompt = (s) => { s['client/public/assets/photos/intro-2.webp'] = 'RIFF'; };
+  expectFail(scan(await makeRoot({ source: noPrompt, seed: (d) => { d['photos.json'].push(aiPhoto()); } })), 'C6-IMG');
+});
+
+test('C6-IMG-AI-PRODUCT(354): 상품 행에 생성 사용권·생성 도구·생성 기록 키·사진 경로 → 실패, 정상 상품은 없음', async () => {
+  const ok = scan(await makeRoot({}));
+  assert.ok(!rulesOf(ok).includes('C6-IMG-AI-PRODUCT'), JSON.stringify(ok.json?.findings));
+  const bad = [
+    { imageLicense: 'AI_GENERATED' },
+    { imageLicense: 'ai-generated' },
+    { imageLicense: 'CODEX' },
+    { imageLicense: 'agy' },
+    { imageAsset: '/assets/items/cage.webp' },
+    { imageAsset: '/assets/photos/intro-1.webp' },
+    { promptPath: 'docs/assets/prompts/cage.md' },
+    { generatedAt: '2026-09-20' },
+    { speciesCheck: { checkedBy: 'op', checkedAt: '2026-09-21' } },
+  ];
+  for (const over of bad) {
+    expectFail(scan(await makeRoot({ seed: (d) => { Object.assign(d['curated-products.json'][0], over); } })), 'C6-IMG-AI-PRODUCT');
+  }
+  // 상품 행이 아닌 사진 행의 AI_GENERATED 는 이 규칙 대상이 아니다.
+  const ph = scan(await makeRoot({ source: aiFiles, seed: (d) => { d['photos.json'].push(aiPhoto()); } }));
+  assert.ok(!rulesOf(ph).includes('C6-IMG-AI-PRODUCT'), JSON.stringify(ph.json?.findings));
 });

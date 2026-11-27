@@ -124,8 +124,13 @@ describe('isBudgetTipExposable — REFERENCE 경로', () => {
   });
 
   it('PLANNED 동물(저빌)·다른 프로필·animalTypeIds 밖이면 비노출', () => {
-    const c = cat();
-    // 2026-11-23 활성화: 드워프는 ACTIVE(대조군 — 자기 프로필 팁은 노출), PLANNED 대표는 저빌.
+    // 356: 디스크엔 PLANNED 타입이 없다(9종 ACTIVE) — 저빌을 메모리에서만 PLANNED 로 되돌려 판정을 본다.
+    const s = realSeed();
+    const g = s.animalTypes.find((t) => t.id === 'gerbil-mongolian');
+    if (!g) throw new Error('fixture: gerbil-mongolian 없음');
+    g.status = 'PLANNED';
+    const c = createCatalog(s);
+    // 드워프는 ACTIVE(대조군 — 자기 프로필 팁은 노출), PLANNED 대표는 저빌(메모리).
     expect(isBudgetTipExposable(c, 'hamster-dwarf', tipFixture({ careProfileId: 'cp-hamster-dwarf' }), AS_OF)).toBe(true);
     expect(isBudgetTipExposable(c, 'gerbil-mongolian', tipFixture({ careProfileId: 'cp-gerbil-mongolian' }), AS_OF)).toBe(false);
     expect(isBudgetTipExposable(c, 'hamster-golden', tipFixture({ careProfileId: 'cp-hamster-dwarf' }), AS_OF)).toBe(false);

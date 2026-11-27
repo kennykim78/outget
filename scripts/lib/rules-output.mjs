@@ -1,4 +1,4 @@
-// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS.
+// 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS, C9-GENERAL.
 //   + 시드 노출 규칙 C3-TAXON(scanSeedExposure, 산출물 유무와 무관).
 //   노출 판단은 seed-exposure.mjs(원시 시드 독립 재구현, D9)만 쓴다.
 //
@@ -12,10 +12,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { lineIndex, relPosix, stripBom, walk } from './files.mjs';
-import { scripts, tags, textNodes } from './html.mjs';
+import { maskNonMarkup, scripts, tags, textNodes } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { jsonErrorWhere, safeLabel } from './rules-source.mjs';
-import { SEED_KEYS, tipReferenceUrlAllowed } from './seed-exposure.mjs';
+import { GENERAL_INFO_TYPE_IDS, SEED_KEYS, tipReferenceUrlAllowed } from './seed-exposure.mjs';
 
 const ROUTE_KINDS = new Set(['HOME', 'FAMILY', 'TYPE', 'SETUP', 'TIPS', 'SUPPLIES', 'SUPPLY_ITEM', 'SUPPLY_ITEM_TYPE', 'VET', 'VET_REGION', 'CREDITS', 'PRIVACY', 'SAVE', 'PICK', 'NOT_FOUND']);
 const TYPE_KINDS = new Set(['TYPE', 'SETUP', 'TIPS']);
@@ -202,6 +202,22 @@ function checkLayer(layer, ex, bad) {
 }
 
 /** 공개 카탈로그(dist/data/*.json) id 검사. */
+/**
+ * C3-OUT-REVIEWMETA(356 단계 10, 총괄 결정) — 공개 카탈로그 행 메타 형태(server/src/engine/public.ts PublicCatalogMeta):
+ *   ① 어떤 행도 reviewerType "AI_DRAFT" 를 싣지 않는다(VERIFIED 는 AI_DRAFT 불가 — 불변식 7, GENERAL_INFO 는 키 자체 없음)
+ *   ② reviewStatus GENERAL_INFO 행 = reviewerType 키 없음 ∧ generalInfo === true
+ *   ③ generalInfo 키는 GENERAL_INFO 행에만.
+ */
+function checkCatalogMeta(x, at, rel, add) {
+  if (x.reviewerType === 'AI_DRAFT') add('C3-OUT-REVIEWMETA', 'FAIL', rel, null, `카탈로그 ${at}: reviewerType AI_DRAFT 가 산출물에`);
+  if (x.reviewStatus === 'GENERAL_INFO') {
+    if ('reviewerType' in x) add('C3-OUT-REVIEWMETA', 'FAIL', rel, null, `카탈로그 ${at}: GENERAL_INFO 행에 reviewerType 키(generalInfo:true 표기만)`);
+    if (x.generalInfo !== true) add('C3-OUT-REVIEWMETA', 'FAIL', rel, null, `카탈로그 ${at}: GENERAL_INFO 행에 generalInfo:true 없음`);
+  } else if ('generalInfo' in x) {
+    add('C3-OUT-REVIEWMETA', 'FAIL', rel, null, `카탈로그 ${at}: GENERAL_INFO 가 아닌 행(${L(x.reviewStatus)})에 generalInfo 키`);
+  }
+}
+
 function checkCatalog(c, rel, ex, digest, add) {
   if (!isObj(c)) return add('C3-OUT-ID', 'FAIL', rel, null, '카탈로그 형식');
   if (c.seedDigest !== undefined && c.seedDigest !== digest) add('C3-OUT-ROUTE', 'FAIL', rel, null, `카탈로그 seedDigest 불일치 (${L(c.seedDigest)})`);
@@ -212,6 +228,7 @@ function checkCatalog(c, rel, ex, digest, add) {
       continue;
     }
     for (const x of arr) if (!isObj(x) || !ex.ids[k].has(x.id)) add('C3-OUT-ID', 'FAIL', rel, null, `카탈로그 비노출 ${k}#${L(x?.id)}`);
+    for (const x of arr) if (isObj(x)) checkCatalogMeta(x, `${k}#${L(x.id)}`, rel, add);
     // Taxon 참조는 검수 완료 Taxon 만(불변식 7) — 타입은 Taxon 미검수여도 노출(Kenny 2026-10-24 K-4 되돌림).
     const taxonRefs = (x) => (k === 'animalTypes' ? [x.taxonId] : k === 'careProfiles' && Array.isArray(x.taxonIds) ? x.taxonIds : []);
     for (const x of arr) {
@@ -273,6 +290,9 @@ function checkRoutes(m, dist, ex, add) {
 const OUT_TEXT_EXT = /\.(?:html?|m?js|cjs|json|xml|txt|css|webmanifest|svg|map)$/i;
 /** C3-OUT-REVIEWMETA 바늘 — 시드 공통 필드 reviewBasis 와 그 값, 서명 매니페스트 키·파일명. */
 export const REVIEW_META_NEEDLES = Object.freeze(['reviewBasis', 'ROW_CHECKED', 'AI_RESEARCH_BULK', 'factHash', 'review-signatures']);
+/** C3-OUT-REVIEWMETA 데이터 산출물 바늘(356 단계 10) — 검수자 유형 AI_DRAFT(카탈로그 GENERAL_INFO 행 누출 점검). 코드 번들 제외. */
+export const AI_DRAFT_NEEDLES = Object.freeze(['AI_DRAFT']);
+const AI_DRAFT_DATA_EXT = /\.(?:html?|json|xml|txt|webmanifest)$/i;
 const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const BS = String.fromCharCode(0x5c); // 역슬래시 — server/src/prerender/html.ts jsonForScript JSON_ESC 와 같은 표기
 const JSON_SCRIPT_ESC = { '<': `${BS}u003c`, '>': `${BS}u003e`, '&': `${BS}u0026` };
@@ -558,6 +578,43 @@ function checkTips({ root, dist, routes, all, ex, add, seed }) {
   }
 }
 
+/** 356 종 페이지 고지 원문(총괄 고정 — server/src/prerender/copy.ts·client copy COPY.generalInfo.notice 와 같아야 한다). */
+export const GENERAL_INFO_NOTICE = '일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요';
+
+/**
+ * 가시 텍스트(태그 경계 무시, 공백 정규화)에서 고지 원문이 나온 횟수.
+ *   textNodes 는 script·style 본문 위치의 원문도 돌려주므로(C4 는 ws-data 문자열까지 보려고 그대로 쓴다) 여기선 먼저 가린 HTML 을 넘긴다 —
+ *   ws-data JSON·주석 속 문자열은 화면 고지가 아니다.
+ */
+export function generalInfoNoticeCount(html) {
+  const norm = (s) => s.replace(/\s+/g, ' ');
+  const text = norm(textNodes(maskNonMarkup(html)).map((n) => n.text).join(''));
+  const needle = norm(GENERAL_INFO_NOTICE);
+  let n = 0;
+  for (let at = text.indexOf(needle); at >= 0; at = text.indexOf(needle, at + needle.length)) n += 1;
+  return n;
+}
+
+/**
+ * C9-GENERAL(356 단계 10, Kenny 11/23 예외 2) — 일반 참고 정보 고지.
+ *   typeId 가 있는 라우트 페이지(TYPE·SETUP·TIPS·SUPPLY_ITEM_TYPE 및 L4·L5·L7 레이어 경로)의 렌더 HTML 가시 텍스트에서
+ *   ① typeId ∈ GENERAL_INFO_TYPE_IDS(코드 고정 6종, seed-exposure 독립 목록) → 고지 원문 정확히 1회
+ *   ② 그 밖 타입 → 0회.  typeId 없는 라우트(HOME·FAMILY·SUPPLIES 등)는 이 규칙 밖.
+ */
+function checkGeneralInfo({ root, dist, routes, add }) {
+  const gi = new Set(GENERAL_INFO_TYPE_IDS);
+  for (const r of routes) {
+    if (typeof r.typeId !== 'string' || typeof r.file !== 'string') continue;
+    const abs = join(dist, r.file);
+    if (!existsSync(abs)) continue; // 파일 없음은 C3-OUT-ROUTE 가 FAIL
+    const n = generalInfoNoticeCount(readFileSync(abs, 'utf8'));
+    const want = gi.has(r.typeId) ? 1 : 0;
+    if (n !== want) {
+      add('C9-GENERAL', 'FAIL', relPosix(root, abs), null, `${L(r.typeId)} 라우트 ${L(r.path)}: 일반 참고 정보 고지 ${n}회(기대 ${want}회)`);
+    }
+  }
+}
+
 export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, seed }) {
   const manPath = join(dist, 'prerender-manifest.json');
   if (!existsSync(manPath)) {
@@ -634,6 +691,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   const all = walk(dist);
   checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
   checkTips({ root, dist, routes, all, ex, add, seed });
+  checkGeneralInfo({ root, dist, routes, add });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
     const html = readFileSync(abs, 'utf8');
@@ -779,6 +837,15 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     for (const n of REVIEW_META_NEEDLES) {
       if (!text.includes(n)) continue;
       add('C3-OUT-REVIEWMETA', 'FAIL', relPosix(root, abs), lineIndex(text)(text.indexOf(n)), `검수 방식·서명 메타 "${n}" 가 산출물에(시드 전용)`);
+    }
+    // 356 단계 10: 검수자 유형 AI_DRAFT 는 데이터 산출물(HTML·ws-data·카탈로그·sitemap 등)에 0 — 카탈로그 GENERAL_INFO 행 누출 포함.
+    //   코드 번들(.js·.map·.css)은 제외: 엔진 열거형(domain.ts REVIEWER_TYPES)이 문자열 상수로 들어 있다(데이터 아님).
+    if (AI_DRAFT_DATA_EXT.test(abs)) {
+      for (const n of AI_DRAFT_NEEDLES) {
+        if (!text.includes(n)) continue;
+        add('C3-OUT-REVIEWMETA', 'FAIL', relPosix(root, abs), lineIndex(text)(text.indexOf(n)), `검수자 유형 "${n}" 가 데이터 산출물에(GENERAL_INFO 는 generalInfo:true 표기만)`);
+        break;
+      }
     }
   }
 

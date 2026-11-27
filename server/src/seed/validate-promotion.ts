@@ -1,4 +1,4 @@
-// 승격 무결성 규칙 V06·V07 (R7 A3, 계획 _workspace/58_architect_r7_dwarf_plan.md) — VERIFIED 로 올라간 Taxon·CareProfile 이
+// 승격 무결성 규칙 V06·V07(356: V07 은 GENERAL_INFO CareProfile 포함) (R7 A3, 계획 _workspace/58_architect_r7_dwarf_plan.md) — VERIFIED 로 올라간 Taxon·CareProfile 이
 //   "빈 껍데기"로 노출되지 않게 한다. 기준은 raw reviewStatus === 'VERIFIED'(V02 와 동일 — AI_DRAFT 결합은 V01 이 따로 막는다).
 //   노출 판정은 하지 않는다(engine/exposure.ts 단일). 사실 값의 옳고 그름도 보지 않는다 — 형태(존재·타입)만.
 import { asRec, isNonEmptyStr, type Rec } from './common.js';
@@ -43,16 +43,17 @@ function checkCareProfile(ctx: Ctx, id: string, r: Rec): void {
   for (const k of CARE_FACT_KEYS) {
     const v = facts?.[k];
     if (v === undefined || v === null) {
-      ctx.out.error('V07', 'careProfiles', id, `facts.${k}`, `VERIFIED CareProfile 은 facts.${k} 필요(키 기준: ${CARE_FACT_KEYS_SOURCE})`);
+      ctx.out.error('V07', 'careProfiles', id, `facts.${k}`, `${String(r.reviewStatus)} CareProfile 은 facts.${k} 필요(키 기준: ${CARE_FACT_KEYS_SOURCE})`);
     }
   }
   const notes = Array.isArray(r.careNotes) ? r.careNotes.filter(isNonEmptyStr) : [];
   if (notes.length < 1) {
-    ctx.out.error('V07', 'careProfiles', id, 'careNotes', 'VERIFIED CareProfile 은 비어 있지 않은 careNotes 1개 이상 필요');
+    ctx.out.error('V07', 'careProfiles', id, 'careNotes', `${String(r.reviewStatus)} CareProfile 은 비어 있지 않은 careNotes 1개 이상 필요`);
   }
 }
 
 export function checkPromotion(ctx: Ctx): void {
   for (const { rec, id } of ctx.rows.taxa) if (isVerifiedRow(rec)) checkTaxon(ctx, id, rec);
-  for (const { rec, id } of ctx.rows.careProfiles) if (isVerifiedRow(rec)) checkCareProfile(ctx, id, rec);
+  // 356 M8: GENERAL_INFO CareProfile 도 빈 껍데기로 노출되지 않게 같은 형태 규칙(facts 5키·careNotes ≥1).
+  for (const { rec, id } of ctx.rows.careProfiles) if (isVerifiedRow(rec) || rec.reviewStatus === 'GENERAL_INFO') checkCareProfile(ctx, id, rec);
 }

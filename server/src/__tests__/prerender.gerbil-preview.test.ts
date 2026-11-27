@@ -1,5 +1,5 @@
 // 저빌 126 S7 — 프리뷰 크기·fail-closed.
-//   (1) 실시드(gerbil-mongolian PLANNED, 전부 DRAFT): 산출물에 저빌 타입 페이지 0, 'meriones'·Taxon 법 문장 0, /gerbil 링크 0.
+//   (1) 서명 전 기준 실시드(unsignedRealSeed — 356 이후 디스크 저빌은 ACTIVE 라 preActivation 으로 PLANNED): 산출물에 저빌 타입 페이지 0, 'meriones'·Taxon 법 문장 0, /gerbil 링크 0.
 //   (2) 강제 ACTIVE 미리보기(메모리 전용 — 타입·사육 프로필·요구사항 14·용품만 V 표기, Taxon 은 DRAFT 그대로):
 //       타입 페이지 ws-data ≤ 28KB(경고선, 상한 32KB 불변), 구성안 0 → /gerbil/setup 링크·경로 0(QA118 D1),
 //       Taxon 미검수라 학명·법 문장 0(C3-OUT-TAXON 과 같은 조건), L5 사료 '저빌용' 선택지 라벨이 실린다(라벨 누락이면 필드가 숨는다 — 126 R3).
@@ -47,10 +47,12 @@ function gerbilPreview(): SeedBundle {
   return s;
 }
 
-describe('실시드 — 저빌 PLANNED 라 산출물 0(fail-closed)', () => {
-  const b = build(realSeed());
+describe('서명 전 기준 실시드 — 저빌 PLANNED 라 산출물 0(fail-closed)', () => {
+  // 356: 디스크 저빌은 ACTIVE(2026-11-23) — 서명 전 기준(unsignedRealSeed, preActivation)으로 PLANNED 상태를 본다. 디스크 노출은 prerender.site (a2).
+  const b = build(unsignedRealSeed());
   it('저빌 타입 페이지·경로 0, /gerbil 링크 0', () => {
-    expect(realSeed().animalTypes.find((t) => t.id === G)?.status).toBe('PLANNED');
+    expect(unsignedRealSeed().animalTypes.find((t) => t.id === G)?.status).toBe('PLANNED');
+    expect(realSeed().animalTypes.find((t) => t.id === G)?.status).toBe('ACTIVE');
     expect(b.model.types.some((t) => t.id === G)).toBe(false);
     expect(b.pages.filter((p) => p.route.typeId === G || p.route.path.startsWith('/gerbil'))).toEqual([]);
     for (const p of b.pages) expect([p.route.path, p.html.includes('href="/gerbil')]).toEqual([p.route.path, false]);

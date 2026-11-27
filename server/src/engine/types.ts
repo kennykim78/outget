@@ -121,6 +121,20 @@ export interface ContentMeta {
   reviewBasis?: 'ROW_CHECKED' | 'AI_RESEARCH_BULK' | null;
   contentKind: ContentKind;
   source: SourceRef[];
+  /**
+   * 356 GENERAL_INFO 전용(engine/general-info.ts isGeneralInfoMeta): 초안 작성일 YYYY-MM-DD — 노출은 0~180일.
+   *   GENERAL_INFO 가 아닌 행은 생략·null(validate V12).
+   */
+  draftedAt?: string | null;
+  /** 356 GENERAL_INFO ∧ FOOD·HEALTH 필수: 위험 수치 교차 확인 기록(그 밖은 생략·null). */
+  crossCheck?: CrossCheck | null;
+}
+
+/** 356: 교차 확인 기록 — 키 3개 정확히. */
+export interface CrossCheck {
+  tool: 'CODEX_DISCUSS';
+  checkedAt: string;
+  result: 'AGREE' | 'REVISED';
 }
 
 // ── careOverrides(A-11) ───────────────────────────────────────
@@ -320,6 +334,36 @@ export interface PhotoRec {
   downloadedAt: string | null;
   modified: boolean;
   status: string;
+  /**
+   * 354(Kenny 2026-11-23 「빈 이미지 칸 0」) — 배포 파일 경로 `/assets/(photos|items)/<kebab>[--<kebab>].webp`.
+   *   AI_GENERATED 는 필수, 그 밖은 선택(있으면 같은 형식).
+   */
+  asset?: string | null;
+  /** AI_GENERATED 필수 — 프롬프트 파일 `docs/assets/prompts/<kebab>[--<kebab>].md`(저장소 상대). */
+  promptPath?: string | null;
+  /** AI_GENERATED 필수 — 생성일 YYYY-MM-DD. */
+  generatedAt?: string | null;
+  /** AI_GENERATED 필수 — 종·용품 정확성 확인 서명(사람, AI_DRAFT·생성 도구 이름 불가 — 불변식 7). */
+  speciesCheck?: PhotoSpeciesCheck | null;
+  /** 종·품목 단위 사진(resolvePhoto). 없으면 장면 행(photo id 로 고른다). */
+  scope?: PhotoScope | null;
+}
+
+export interface PhotoSpeciesCheck {
+  checkedBy: string;
+  checkedAt: string;
+}
+
+/**
+ * 사진 범위(resolvePhoto 대체 순서의 키). use = 화면 자리 종류(engine/photo-resolve.ts PHOTO_USES).
+ *   item 자리: (animalTypeId, supplyItemId) | (careProfileId, supplyItemId) | (supplyItemId).
+ *   종 자리(habitat·now-lead·spec): (animalTypeId) | (careProfileId).
+ */
+export interface PhotoScope {
+  use: string;
+  animalTypeId?: string;
+  careProfileId?: string;
+  supplyItemId?: string;
 }
 
 export interface SeedBundle {

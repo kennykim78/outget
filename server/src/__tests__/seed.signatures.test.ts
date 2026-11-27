@@ -117,7 +117,7 @@ describe('해시 단일 정의 — TS(signatures.ts) ↔ mjs(review-signature.mj
         }
       }
     }
-    expect(n).toBe(2 * 154); // 콘텐츠 9파일 154행 × 2 (308: budget-tips 5행 +5 · 283 앵무 크기 묶음: Taxon +2 · CP 합침 2→3 +1 · AnimalType +2) (271: 1차 종 골격 Taxon +3 · CP +2 · SupplyItem +7 · AnimalType +1, BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
+    expect(n).toBe(2 * 194); // 콘텐츠 9파일 194행 × 2 (388: 356 6종 활성화 시드 병합 — CP cp-hamster-robo +1 · 요구사항 로보 15 + 앵무 small 12 + medium 12 = +39) (308: budget-tips 5행 +5 · 283 앵무 크기 묶음: Taxon +2 · CP 합침 2→3 +1 · AnimalType +2) (271: 1차 종 골격 Taxon +3 · CP +2 · SupplyItem +7 · AnimalType +1, BE92: 호환 규칙 5 → 3, 기니피그 S7 Taxon·CP +2 · S8 SupplyItem +5 · S9 요구사항 +16, 저빌 126 Taxon·CP +2 · 요구사항 +14 · 호환 규칙 +1)
   });
   it('해시는 키 순서·optionLabels·검수 메타와 무관, 사실 1글자 변경에는 반응', () => {
     const r = clone(rowOf(realSeed(), 'supplyRequirements', 'req-dwarf-cage'));
@@ -163,7 +163,7 @@ describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매�
       expect(r.code).toBe(0);
     }
   });
-  it('검수 표기: VERIFIED 107(AI_DRAFT 0) — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1(저빌 Taxon), 나머지 42행 DRAFT·AI_DRAFT·reviewBasis null', () => {
+  it('검수 표기: VERIFIED 107(AI_DRAFT 0) — EXPERIENCED_KEEPER 102 · VET_PUBLISHED_SOURCE 4(FOOD) · OFFICIAL_SOURCE 1(저빌 Taxon), 나머지 87행 = GENERAL_INFO 55(356 6종 체인) + DRAFT 32, 모두 AI_DRAFT·reviewBasis null·서명 대상 밖', () => {
     const { raw } = readSeedDirRaw(SEED_DIR);
     const rows = CONTENT_KEYS.flatMap((k) => (raw[k] as Row[]).map((r) => ({ k, r })));
     for (const { r } of rows) expect([r.id, Object.prototype.hasOwnProperty.call(r, 'reviewBasis')]).toEqual([r.id, true]);
@@ -179,9 +179,33 @@ describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매�
     // FOOD/HEALTH VERIFIED 는 출처 2개 이상(불변식 7) — 패킷 밖 저울(HEALTH)·저빌 사료는 DRAFT.
     for (const r of v.filter((x) => x.contentKind === 'FOOD' || x.contentKind === 'HEALTH')) expect([r.id, (r.source as unknown[]).length >= 2]).toEqual([r.id, true]);
     const rest = rows.filter(({ r }) => r.reviewStatus !== 'VERIFIED').map(({ r }) => r);
-    expect(rest).toHaveLength(154 - 107); // 308: budget-tips 5행(REFERENCE·AI_DRAFT·DRAFT) +5
-    for (const r of rest) expect([r.id, r.reviewStatus, r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([r.id, 'DRAFT', 'AI_DRAFT', null, null, null]);
-    for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale', 'req-gerbil-food']) expect(rest.map((r) => r.id)).toContain(id);
+    expect(rest).toHaveLength(194 - 107); // 388: 356 6종 +40 · 308: budget-tips 5행(REFERENCE·AI_DRAFT·DRAFT) +5
+    // 비 VERIFIED 행은 DRAFT 또는 GENERAL_INFO 뿐, 전부 AI_DRAFT·검수자·검수일·basis null(AI_DRAFT 는 VERIFIED 불가 — 불변식 7).
+    for (const r of rest) expect([r.id, ['DRAFT', 'GENERAL_INFO'].includes(String(r.reviewStatus)), r.reviewerType, r.verifiedBy, r.verifiedAt, r.reviewBasis]).toEqual([r.id, true, 'AI_DRAFT', null, null, null]);
+    const gi = rows.filter(({ r }) => r.reviewStatus === 'GENERAL_INFO').map(({ k, r }) => `${k}#${String(r.id)}`).sort();
+    expect(rest.filter((r) => r.reviewStatus === 'DRAFT')).toHaveLength(32);
+    // GENERAL_INFO 55행 = 356 6종 체인(코드 고정)만: 타입 5(저빌은 VERIFIED) · CP 3 · 앵무 전용 용품 7 · 요구사항 로보 15·앵무 24 + req-gerbil-food(crossCheck).
+    const giReqPrefix = (id: string): boolean => /^supplyRequirements#req-(robo|parrot-small|parrot-medium)-/.test(id);
+    expect(gi.filter((x) => !giReqPrefix(x))).toEqual(
+      [
+        'animalTypes#budgie', 'animalTypes#cockatiel', 'animalTypes#hamster-robo', 'animalTypes#lovebird-peach', 'animalTypes#sun-conure',
+        'careProfiles#cp-hamster-robo', 'careProfiles#cp-parrot-medium', 'careProfiles#cp-parrot-small',
+        'supplyItems#bird-bath', 'supplyItems#bird-cage', 'supplyItems#bird-food', 'supplyItems#cage-cover', 'supplyItems#foraging-toy', 'supplyItems#mineral', 'supplyItems#perch',
+        'supplyRequirements#req-gerbil-food',
+      ].sort(),
+    );
+    expect(gi.filter(giReqPrefix)).toHaveLength(39);
+    expect(gi).toHaveLength(55);
+    // 패킷 밖 행 승격 0: GENERAL_INFO 행은 어느 서명 패킷 대상에도 없고 매니페스트에도 없다.
+    const targets = realSignedTargets();
+    const fileOfKey = (k: string): string => SEED_FILES[k as keyof typeof SEED_FILES];
+    for (const x of gi) {
+      const [k, id] = x.split('#');
+      expect([x, targets.has(`${fileOfKey(k)}#${id}`)]).toEqual([x, false]);
+    }
+    for (const id of ['req-syrian-scale', 'req-dwarf-scale', 'req-guineapig-scale']) expect([id, rowOf(raw, 'supplyRequirements', id).reviewStatus]).toEqual([id, 'DRAFT']);
+    // 저빌 사료: 패킷 밖(국내 출처 0) — 356 에서 GENERAL_INFO(교차 확인)로 바뀌었지만 VERIFIED 아님·서명 없음.
+    expect(rowOf(raw, 'supplyRequirements', 'req-gerbil-food')).toMatchObject({ reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', verifiedBy: null, reviewBasis: null });
   });
   it('재현: 서명 전 기준 사본 + 실서명 결과 4개(--stage review 4회 → --stage final 4회) = 디스크 바이트 동일, review 단계는 NEEDS_REVIEW 107·매니페스트 []·validate 0', async () => {
     // 2026-11-23 활성화(status 만)는 apply 스크립트가 건드리지 않는 키라 서명과 순서 무관 — 디스크 바이트 재현은 활성화 상태 그대로 둔다.
@@ -200,9 +224,24 @@ describe('실시드(2026-11-16 확인표 5종 서명 후) — VERIFIED 107·매�
     expect(rvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW')).toHaveLength(107);
     expect(rvRows.filter((r) => r.reviewStatus === 'VERIFIED')).toEqual([]);
     expect(rvRows.filter((r) => r.reviewStatus === 'NEEDS_REVIEW' && r.reviewerType === 'AI_DRAFT')).toEqual([]);
+    // 356(2026-11-23): 활성화 상태 그대로(keepActivation)의 review 단계는 공개 게이트가 막는다 — 앵무 4종(GENERAL_INFO·ACTIVE)의
+    //   필수 항목 물(water)은 서명 패킷 소유 공유 용품이라 NEEDS_REVIEW 동안 노출 불가 → X01(fail-closed). 그 밖 오류 0.
+    //   (로보는 공유 용품 체인 전부가 NEEDS_REVIEW 라 타입 자체가 비노출 — X01 대상 아님.)
     const vr = await validateCli(seed);
-    expect(vr.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
-    expect(vr.code).toBe(0);
+    const vrErr = vr.out.filter((l) => l.startsWith('ERROR'));
+    expect(vrErr.map((l) => /^ERROR \[(\w+)\] animal-types\.json#([a-z-]+) requirements\.water: .*req-parrot-(small|medium)-water/.exec(l)?.slice(1, 3) ?? l).sort()).toEqual(
+      [['X01', 'budgie'], ['X01', 'cockatiel'], ['X01', 'lovebird-peach'], ['X01', 'sun-conure']],
+    );
+    expect(vr.code).toBe(1);
+    // 서명 당시 상태(활성화 전 — preActivation)의 review 단계는 errors 0.
+    const rvPre = unsignedCopy(SEED_DIR);
+    for (const n of REAL_PACKETS) {
+      const r = applyCli(['--packet', realPacketPath(n), '--result', signedResult(n), '--seed', rvPre, '--no-draft', '--stage', 'review', '--now', REAL_SIGNED_AT]);
+      expect([n, r.code]).toEqual([n, 0]);
+    }
+    const vrPre = await validateCli(rvPre);
+    expect(vrPre.out.filter((l) => l.startsWith('ERROR'))).toEqual([]);
+    expect(vrPre.code).toBe(0);
     expect(bytesOf(draft)).toEqual(bytesOf(seed));
     apply('final');
     expect(bytesOf(seed)).toEqual(bytesOf(SEED_DIR));
@@ -442,11 +481,18 @@ describe('V10 whyShort 재서술 — 원문 발췌가 아니면 ROW_CHECKED(K1 �
         }
       }
     }
-    expect(n).toBe(2 * 154); // 308: budget-tips 5행 +5
-    expect(withKey).toBe(2 * 17); // 2026-11-15 whyShort 17건(채택 14 + 드워프 hideout + 드워프 saucer·저빌 thermo)(요구사항 행만, override 0)
-    // 새 정책이 일괄 승인을 막는 행 = 최소 규격 없는 재서술 whyShort 행(시드 2벌 × 5행 — 드워프 saucer·hideout·모래 목욕 2 + 기니피그 놀이 울타리). 저빌 thermo 는 원문 발췌라 빠짐.
-    expect([...new Set(added)].sort()).toEqual([...DWARF_K1_ROWS, ...GP_K1_ROWS].sort());
-    expect(added).toHaveLength(2 * 5);
+    expect(n).toBe(2 * 194); // 388: 356 6종 +40 · 308: budget-tips 5행 +5
+    expect(withKey).toBe(2 * 48); // 356: 로보·앵무 요구사항 whyShort +31 · 2026-11-15 whyShort 17건(채택 14 + 드워프 hideout + 드워프 saucer·저빌 thermo)(요구사항 행만, override 0)
+    // 새 정책이 일괄 승인을 막는 행 = 최소 규격 없는 재서술 whyShort 행.
+    //   서명 대상(비 GENERAL_INFO): 시드 2벌 × 5행 — 드워프 saucer·hideout·모래 목욕 2 + 기니피그 놀이 울타리(변화 없음). 저빌 thermo 는 원문 발췌라 빠짐.
+    //   356 GENERAL_INFO 21행(로보 9 · 앵무 12): 서명·VERIFIED 대상이 아니지만 같은 정책을 받는다(나중에 승격하려면 행별 확인).
+    const statusOf = new Map<string, unknown>(realSeed().supplyRequirements.map((r) => [r.id, (r as unknown as Row).reviewStatus]));
+    const signedAdded = [...new Set(added)].filter((id) => statusOf.get(id) !== 'GENERAL_INFO').sort();
+    const giAdded = [...new Set(added)].filter((id) => statusOf.get(id) === 'GENERAL_INFO').sort();
+    expect(signedAdded).toEqual([...DWARF_K1_ROWS, ...GP_K1_ROWS].sort());
+    expect(giAdded).toHaveLength(21);
+    for (const id of giAdded) expect([id, /^req-(robo|parrot-small|parrot-medium)-/.test(id)]).toEqual([id, true]);
+    expect(added).toHaveLength(2 * 26);
   });
   it('서명 검증: 재서술 whyShort 를 재서명(해시 갱신)해도 BULK 면 V10, ROW_CHECKED 서명이면 errors 0, 이후 whyShort 수정 → G05', () => {
     const { seed, manifest: m0 } = dwarfSignedWith();
@@ -1056,9 +1102,12 @@ describe('저빌 패킷 — 확인표 A(법 정보 OFFICIAL_SOURCE + 최소 규�
     expect(rowOf(seed, 'supplyRequirements', 'req-gerbil-cage')).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: 'EXPERIENCED_KEEPER', reviewBasis: 'ROW_CHECKED' });
     const res = run(rawOf(seed), manifest);
     expect(res.errors).toEqual([]);
-    for (const [key, id] of [['supplyRequirements', 'req-gerbil-food'], ['supplyItems', 'cage'], ['supplyItems', 'food'], ['supplyItems', 'sand-bath']] as const) {
+    for (const [key, id] of [['supplyItems', 'cage'], ['supplyItems', 'food'], ['supplyItems', 'sand-bath']] as const) {
       expect([id, rowOf(seed, key, id).reviewStatus]).toEqual([id, 'DRAFT']);
     }
+    // 사료는 패킷 밖 — 356 에서 GENERAL_INFO(교차 확인)가 됐지만 서명으로 VERIFIED 가 되지 않고 매니페스트에도 없다.
+    expect(rowOf(seed, 'supplyRequirements', 'req-gerbil-food')).toMatchObject({ reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', verifiedBy: null, reviewBasis: null });
+    expect(manifest.some((e) => e.id === 'req-gerbil-food')).toBe(false);
     expect(rowOf(seed, 'animalTypes', 'gerbil-mongolian')).toMatchObject({ reviewStatus: 'VERIFIED', reviewBasis: 'AI_RESEARCH_BULK', status: 'PLANNED' });
   });
 
@@ -1118,10 +1167,18 @@ describe('K1 실패킷 ↔ 확인표 W 절 — 재서술 whyShort 행별 확인 
   type DocPacket = DwarfPacket & { doc: string };
   const load = (f: string): DocPacket => JSON.parse(readFileSync(join(PACKETS_DIR, f), 'utf8')) as DocPacket;
 
-  it('패킷 4종, 재서술 whyShort 요구사항 행은 전부 어느 패킷의 W 항목에 있다(패킷 밖 0)', () => {
+  it('패킷 4종, 재서술 whyShort 요구사항 행은 (GENERAL_INFO 제외) 전부 어느 패킷의 W 항목에 있다(패킷 밖 0) · GENERAL_INFO 재서술 행은 비 VERIFIED·패킷 밖', () => {
     expect(packetFiles).toEqual(['gerbil-mongolian-core.json', 'guinea-pig-core.json', 'hamster-dwarf-core.json', 'hamster-golden-core.json']);
-    const rephrased = realSeed().supplyRequirements.filter((r) => whyShortIsRephrased(r as unknown as Row)).map((r) => r.id).sort();
+    const all = realSeed().supplyRequirements.filter((r) => whyShortIsRephrased(r as unknown as Row)) as unknown as Row[];
+    expect(all).toHaveLength(42); // 11 + 356 로보·앵무 31
+    // 356 GENERAL_INFO 재서술 31행: 서명 대상이 아니므로 W 항목도 없다 — 대신 비 VERIFIED(AI_DRAFT·basis null)임을 단언.
+    const gi = all.filter((r) => r.reviewStatus === 'GENERAL_INFO');
+    expect(gi).toHaveLength(31);
+    for (const r of gi) expect([r.id, /^req-(robo|parrot-small|parrot-medium)-/.test(String(r.id)), r.reviewerType, r.verifiedBy, r.reviewBasis]).toEqual([r.id, true, 'AI_DRAFT', null, null]);
+    const rephrased = all.filter((r) => r.reviewStatus !== 'GENERAL_INFO').map((r) => String(r.id)).sort();
     expect(rephrased).toHaveLength(11);
+    const allPacketIds = new Set(packetFiles.flatMap((f) => [...load(f).rowChecked, ...load(f).bulk.rows].map((r) => r.id)));
+    for (const r of gi) expect([r.id, allPacketIds.has(String(r.id))]).toEqual([r.id, false]);
     const ws = packetFiles.flatMap((f) => load(f).rowChecked.flatMap((r) => r.items.filter((x) => x.startsWith('WS-'))));
     expect(ws.sort()).toEqual(rephrased.map(k1ItemOf).sort());
   });

@@ -3,7 +3,7 @@
 //   URL 세그먼트 규칙은 seed/validate-slug.ts 단일 소스. 위반 값은 조용히 건너뛰지 않고 throw(검증 우회 방지).
 import { PICK_PATH, type RouteKind, type WsLayer } from '../engine/index.js';
 import { RESERVED_FIRST_SEGMENTS, RESERVED_SECOND_SEGMENTS, SLUG_RE, VET_REGION_RE } from '../seed/validate-slug.js';
-import { maxDate, type SiteModel } from './project.js';
+import { lastmodOf, maxDate, type SiteModel } from './project.js';
 
 export interface RoutePlan {
   /** 디코드된 경로(한글 그대로). 파일·sitemap 인코딩은 쓰는 쪽에서. */
@@ -14,7 +14,7 @@ export interface RoutePlan {
   indexable: boolean;
   /** canonical 경로(D11: /supplies/{item}/{type} → /{slug}/supplies/{item}). */
   canonicalPath: string;
-  /** sitemap lastmod(기여 레코드 verifiedAt 최댓값, D19). */
+  /** sitemap lastmod(기여 레코드 verifiedAt 최댓값, D19 — 356 M12: verifiedAt 없는 GENERAL_INFO 행은 draftedAt). */
   lastmod: string | null;
   typeId?: string;
   family?: string;
@@ -63,7 +63,7 @@ export function planRoutes(m: SiteModel, opts: PlanRoutesOptions = {}): RoutePla
     out.push({ ...r, file: r.file ?? fileOf(r.path), canonicalPath: r.canonicalPath ?? r.path });
   };
 
-  add({ path: '/', kind: 'HOME', indexable: true, lastmod: maxDate(m.types.map((t) => t.pub.review.verifiedAt || null)), layer: null });
+  add({ path: '/', kind: 'HOME', indexable: true, lastmod: maxDate(m.types.map((t) => lastmodOf(t.rec))), layer: null });
 
   // /{family} — 2 세그먼트 slug 의 공통 첫 세그먼트(D3).
   const families = new Map<string, string[]>();
@@ -72,7 +72,7 @@ export function planRoutes(m: SiteModel, opts: PlanRoutesOptions = {}): RoutePla
     if (t.family) families.set(t.family, [...(families.get(t.family) ?? []), t.id]);
   }
   for (const [family, ids] of families) {
-    const lm = maxDate(m.types.filter((t) => ids.includes(t.id)).map((t) => t.pub.review.verifiedAt || null));
+    const lm = maxDate(m.types.filter((t) => ids.includes(t.id)).map((t) => lastmodOf(t.rec)));
     add({ path: `/${family}`, kind: 'FAMILY', indexable: true, lastmod: lm, family, layer: null });
   }
 

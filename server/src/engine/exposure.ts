@@ -4,10 +4,14 @@
 //   contentKind 별 최소 등급(MIN_GRADE)은 validator 에만 있다(D15).
 //   M-1(R4 D5): 검수 나이 — 모든 노출 함수는 필수 asOf(YYYY-MM-DD)를 받고, 체인의 모든 ContentMeta 에
 //   isVerified ∧ isFresh(verifiedAt + STALE_DAYS ≥ asOf)를 요구한다. 시계를 읽지 않는다(호출자가 기준일을 넣는다).
+//   356 예외 2(Kenny 2026-11-23): 코드 고정 6종(general-info.ts)의 체인 메타 네 개(type·requirement·item·careProfile)는
+//   isGeneralInfoMeta 로도 통과(okChainMeta). 상품·구성안·호환·Taxon·후기 자기 메타는 VERIFIED 만(okMeta 그대로).
 import { STALE_DAYS, TIP_HEALTH_HAZARDS, isTipHazard, isoDayNumber, reviewerRank, type VetStatus } from './domain.js';
 import { listResolvedRequirements, resolveRequirement } from './resolve.js';
 import { checkAnimalMinSpec } from './spec-check.js';
 import { isTipSectionCategory, tipHazardSourcesOk, tipReferencesOk, tipReviewRecordsOk } from './tips.js';
+import { PHOTO_AI_LICENSE, PHOTO_ASSET_RE, isAiPhotoRecordOk } from './photo-ai.js';
+import { generalInfoOkAt, isGeneralInfoTypeId } from './general-info.js';
 import type {
   BudgetTipRec,
   CompatibilityRuleRec,
@@ -55,9 +59,17 @@ export function isFresh(m: Pick<ContentMeta, 'verifiedAt'>, asOf: string): boole
   return freshAt(m, asOfDay(asOf));
 }
 
-/** 노출 가능한 검수 기록: isVerified ∧ isFresh. */
+/** 노출 가능한 검수 기록: isVerified ∧ isFresh. 상품·구성안·호환·Taxon 은 이것만(356 M5 — GENERAL_INFO 불가). */
 function okMeta(m: Pick<ContentMeta, 'reviewStatus' | 'reviewerType' | 'verifiedAt'>, day: number): boolean {
   return isVerified(m) && freshAt(m, day);
+}
+
+/**
+ * 356 M3~M4: 체인 메타(AnimalType·SupplyRequirement·SupplyItem·CareProfile) 노출 판정 — okMeta ∨
+ *   (체인의 animalTypeId 가 코드 고정 6종 ∧ isGeneralInfoMeta). 6종 밖 타입의 체인에 GENERAL_INFO 행(공유 용품 등)이 끼면 그 체인은 비노출.
+ */
+function okChainMeta(m: ContentMeta, animalTypeId: string, day: number): boolean {
+  return okMeta(m, day) || (isGeneralInfoTypeId(animalTypeId) && generalInfoOkAt(m, day));
 }
 
 /**
@@ -80,10 +92,10 @@ function requirementOk(cat: EngineCatalog, r: ResolvedRequirement, day: number):
   const at = cat.animalTypes.get(r.animalTypeId);
   if (!at || at.status !== 'ACTIVE') return false;
   return (
-    okMeta(r.review.animalType, day) &&
-    okMeta(r.review.requirement, day) &&
-    okMeta(r.review.item, day) &&
-    okMeta(r.review.careProfile, day)
+    okChainMeta(r.review.animalType, at.id, day) &&
+    okChainMeta(r.review.requirement, at.id, day) &&
+    okChainMeta(r.review.item, at.id, day) &&
+    okChainMeta(r.review.careProfile, at.id, day)
   );
 }
 
@@ -94,9 +106,9 @@ export function isRequirementExposable(cat: EngineCatalog, r: ResolvedRequiremen
 
 function animalTypeOk(cat: EngineCatalog, animalTypeId: string, day: number): boolean {
   const at = cat.animalTypes.get(animalTypeId);
-  if (!at || at.status !== 'ACTIVE' || !okMeta(at, day) || !at.careProfileId) return false;
+  if (!at || at.status !== 'ACTIVE' || !okChainMeta(at, at.id, day) || !at.careProfileId) return false;
   const profile = cat.careProfiles.get(at.careProfileId);
-  if (!profile || !okMeta(profile, day)) return false;
+  if (!profile || !okChainMeta(profile, at.id, day)) return false;
   return listResolvedRequirements(cat, at.id).some((r) => requirementOk(cat, r, day));
 }
 
@@ -124,6 +136,20 @@ export interface ExposableProduct<P> {
   reasons: Reason[];
 }
 
+/**
+ * 356r M1(불변식 3·7): 상품 판정용 체인 — 체인 메타 네 개 모두 okMeta(VERIFIED ∧ 유효). GENERAL_INFO(AI 초안 minSpec)
+ *   체인에 연결된 상품은 meetsMinSpec 이 AI 초안 규격으로 판정된 것이라 추천 영역에 내지 않는다. validate V13 이 같은 연결을 ERROR 로 막는다.
+ *   scripts/lib/seed-exposure.mjs computeExposure 의 productStrictChain 과 같은 조건(패리티 시험).
+ */
+function strictChainOk(r: ResolvedRequirement, day: number): boolean {
+  return (
+    okMeta(r.review.animalType, day) &&
+    okMeta(r.review.requirement, day) &&
+    okMeta(r.review.item, day) &&
+    okMeta(r.review.careProfile, day)
+  );
+}
+
 /** 노출 가능하면 동물별 판정, 아니면 null. isProductExposable·orderExposableProducts 의 단일 판정. */
 function exposedVerdict(
   cat: EngineCatalog,
@@ -136,7 +162,7 @@ function exposedVerdict(
   if (!at || !at.careProfileId) return null;
   if (!Array.isArray(p.careProfileIds) || !p.careProfileIds.includes(at.careProfileId)) return null;
   const r = resolveRequirement(cat, animalTypeId, p.supplyItemId);
-  if (!r || !requirementOk(cat, r, day)) return null;
+  if (!r || !requirementOk(cat, r, day) || !strictChainOk(r, day)) return null;
   const spec = checkAnimalMinSpec(cat, animalTypeId, p.supplyItemId, p.specValues);
   if (!spec.meets || (spec.verdict !== 'OK' && spec.verdict !== 'BELOW_RECOMMENDED')) return null;
   return { verdict: spec.verdict, reasons: spec.reasons };
@@ -348,13 +374,18 @@ export function isCcBySaPlacementOk(p: { license?: unknown; slot?: unknown; modi
  *   ·내려받은 날짜(달력상 YYYY-MM-DD) 기록 ∧ CC0 외엔 저작자
  *   ∧ CC_BY·CC_BY_SA 는 같은 종류의 creativecommons.org 증서 licenseUrl(M-3 — 없으면 표기 불가 → 사용 불가)
  *   ∧ 출처 코드별 원본 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 는 원본 그대로·카드 슬롯(L8).
+ *   354(Kenny 2026-11-23): license === AI_GENERATED 는 별도 분기 — 원본 URL·호스트·저작자 대신 생성 기록 전부
+ *   (source CODEX|AGY · generatedAt · promptPath · asset · 사람 speciesCheck, photo-ai.ts isAiPhotoRecordOk). 하나라도 빠지면 사용 불가.
  *   scripts/lib/seed-exposure.mjs isPhotoUsableRow 와 정확히 같은 판정(패리티 테스트).
  */
 export function isPhotoUsable(
   p: Pick<PhotoRec, 'status' | 'license' | 'source' | 'sourceUrl' | 'downloadedAt' | 'author' | 'licenseUrl'> &
-    Partial<Pick<PhotoRec, 'slot' | 'modified'>>,
+    Partial<Pick<PhotoRec, 'slot' | 'modified' | 'asset' | 'promptPath' | 'generatedAt' | 'speciesCheck' | 'scope'>>,
 ): boolean {
   if (!(PHOTO_USABLE_STATUSES as readonly unknown[]).includes(p.status)) return false;
+  if (p.license === PHOTO_AI_LICENSE) return isAiPhotoRecordOk(p as unknown as Record<string, unknown>);
+  // 실사(비 AI) 행의 asset 은 선택이지만, 있으면 같은 경로 형식(빈 칸·외부 경로 금지).
+  if (p.asset !== undefined && p.asset !== null && (typeof p.asset !== 'string' || !PHOTO_ASSET_RE.test(p.asset))) return false;
   if ((p.license === 'CC_BY' || p.license === 'CC_BY_SA') && parseCcLicenseUrl(p.licenseUrl)?.license !== p.license) return false;
   if (typeof p.license !== 'string' || !PHOTO_LICENSES.includes(p.license)) return false;
   if (!nonEmpty(p.source)) return false;

@@ -157,6 +157,46 @@
     ]
   },
   {
+    "id": "cp-hamster-robo",
+    "name": "로보로프스키햄스터 기본",
+    "taxonIds": [
+      "phodopus-roborovskii"
+    ],
+    "facts": {
+      "social": "SOLITARY",
+      "activity": "NOCTURNAL",
+      "adultLengthCm": [
+        4,
+        6
+      ],
+      "tempC": [
+        18,
+        24
+      ],
+      "humidityPct": [
+        40,
+        60
+      ],
+      "lifespanYears": [
+        2,
+        3
+      ]
+    },
+    "careNotes": [
+      "1마리 단독 사육을 기본으로 해요. 함께 자란 개체끼리도 다툴 수 있어, 함께 지내는 경우 따로 지낼 케이지를 준비해요.",
+      "주로 밤에 활동하고 몸이 작고 움직임이 빨라요. 억지로 잡기보다 스스로 다가오도록 기다리고, 이동할 때는 작은 용기에 들어오게 해요.",
+      "굴을 팔 수 있도록 베딩을 넉넉히 깔고 은신처를 마련해요. 몸을 비비고 구를 수 있는 모래 목욕 공간에는 향이 없고 먼지가 적은 모래를 사용해요."
+    ],
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
     "id": "cp-guineapig",
     "name": "기니피그 기본",
     "taxonIds": [
@@ -376,16 +416,36 @@
     "name": "소형 앵무 기본",
     "taxonIds": [
       "melopsittacus-undulatus",
-      "nymphicus-hollandicus",
       "agapornis-roseicollis"
     ],
-    "facts": {},
-    "careNotes": [],
-    "reviewStatus": "DRAFT",
+    "facts": {
+      "social": "GROUP",
+      "activity": "DIURNAL",
+      "adultLengthCm": [
+        15,
+        20
+      ],
+      "tempC": [
+        18,
+        27
+      ],
+      "lifespanYears": [
+        7,
+        20
+      ]
+    },
+    "careNotes": [
+      "무리 생활을 하는 새라 매일 교감하고 놀 시간을 마련해요. 함께 지내게 할 때는 서로의 반응을 살피고, 사랑앵무와 모란앵무는 종별로 새장을 따로 준비해요.",
+      "날개를 펼치고 이동할 공간과 굵기가 다양한 횃대를 마련해요. 매일 새장 밖에서 움직일 기회를 주고, 나오기 전에 창문을 닫고 선풍기를 꺼요.",
+      "낮에 활동하고 밤에 쉬어요. 밤에는 약 10~12시간 조용하고 어두운 환경에서 쉬게 해요.",
+      "온도 변화가 적고 외풍이 직접 닿지 않는 실내에서 지내게 해요. 조리 연기와 담배 연기, 향초, 분무형 제품을 피하고 주방과 떨어진 곳에 새장을 둬요."
+    ],
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "CARE",
     "source": []
   },
@@ -393,15 +453,37 @@
     "id": "cp-parrot-medium",
     "name": "중형 앵무 기본",
     "taxonIds": [
+      "nymphicus-hollandicus",
       "aratinga-solstitialis"
     ],
-    "facts": {},
-    "careNotes": [],
-    "reviewStatus": "DRAFT",
+    "facts": {
+      "social": "GROUP",
+      "activity": "DIURNAL",
+      "adultLengthCm": [
+        30,
+        35
+      ],
+      "tempC": [
+        18,
+        27
+      ],
+      "lifespanYears": [
+        15,
+        30
+      ]
+    },
+    "careNotes": [
+      "무리 생활을 하는 새라 매일 교감하고 놀 시간을 마련해요. 코카틸과 썬코뉴어는 종별로 새장을 따로 준비하고, 함께 나와 있을 때도 서로의 반응을 살펴요.",
+      "날개를 펼쳐도 벽이나 용품에 부딪히지 않고 긴 꼬리가 바닥에 끌리지 않게 새장과 횃대를 배치해요. 매일 새장 밖에서 움직일 기회를 주고, 창문을 닫고 선풍기를 꺼요.",
+      "밤에는 약 10~12시간 조용하고 어두운 환경에서 쉬게 해요. 코카틸이 밤중에 자주 놀라면 갑작스러운 소음과 그림자를 줄이고 약한 보조등을 고려해요.",
+      "썬코뉴어는 울음소리가 크고 코카틸은 깃털 가루가 많은 편이라 생활 공간을 정할 때 고려해요. 환기와 청소를 자주 하고, 외풍과 조리 연기·담배 연기·향초·분무형 제품을 피해요."
+    ],
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "CARE",
     "source": []
   },

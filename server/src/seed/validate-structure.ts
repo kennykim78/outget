@@ -39,6 +39,7 @@ import {
 import type { Ctx } from './context.js';
 import { isForbiddenKey } from '../shared/forbidden-keys.js';
 import { isReviewBasis, REVIEW_BASES } from './signatures.js';
+import { CROSS_CHECK_KEYS, CROSS_CHECK_RESULTS, CROSS_CHECK_TOOLS, isCrossCheckShape } from '../engine/general-info.js';
 
 // ── 필드 타입 표(S03 타입 + S09 알려진 키의 단일 출처) ─────────
 // 'string' | 'string|null' | 'boolean' | 'boolean|null' | 'number|null' | 'array' | 'object' | 'any', 끝 '?' = 생략 가능.
@@ -54,6 +55,16 @@ export const META_FIELDS: Record<string, FieldSpec> = {
   contentKind: 'any',
   source: 'any',
 };
+
+/**
+ * 356 M9: 일반 참고 정보(GENERAL_INFO) 메타 — 체인 네 파일에서만 알려진 키. 상품·팁 S08 허용목록(META_FIELDS 기반)에는 넣지 않는다
+ *   (그 파일에 오면 S08 ERROR). 의미 규칙(GENERAL_INFO 행에만·필수·순서)은 validate-review.ts V12.
+ */
+export const GENERAL_INFO_META_FIELDS: Record<string, FieldSpec> = {
+  draftedAt: 'string|null?',
+  crossCheck: 'any',
+};
+export const GENERAL_INFO_FILES: readonly SeedKey[] = ['animalTypes', 'careProfiles', 'supplyItems', 'supplyRequirements'];
 
 const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
   animalTypes: {
@@ -97,6 +108,8 @@ const FIELDS: Record<SeedKey, Record<string, FieldSpec>> = {
     id: 'string', scene: 'string', slot: 'string', query: 'string', source: 'string|null', license: 'string|null',
     author: 'string|null', sourceUrl: 'string|null', licenseUrl: 'string|null?', downloadedAt: 'string|null', modified: 'boolean',
     status: 'string',
+    // 354(Kenny 2026-11-23 생성 이미지 허용) — 형식·필수 여부는 validate-people I04·I05(engine photo-ai.ts 와 같은 규칙).
+    asset: 'string|null?', promptPath: 'string|null?', generatedAt: 'string|null?', speciesCheck: 'object|null?', scope: 'object|null?',
   },
   // 저렴 대체 팁(REFERENCE, Kenny 2026-11-22) — 본문은 구조화 배열(개요 5~10문장 분량, 길이 상한은 V-TIP-5).
   budgetTips: {
@@ -112,8 +125,9 @@ const VERIFICATION_FIELDS: Record<string, FieldSpec> = {
   status: 'string', method: 'string', verifiedAt: 'string|null', note: 'string|null',
 };
 
-export const PHOTO_SOURCES = ['WIKIMEDIA', 'UNSPLASH', 'PEXELS', 'PIXABAY', 'OWN', 'SELLER', 'AFFILIATE'] as const;
-export const PHOTO_LICENSES = ['CC0', 'CC_BY', 'CC_BY_SA', 'SITE_LICENSE', 'PERMISSION'] as const;
+// 354: CODEX·AGY(생성 도구) / AI_GENERATED — 사진(photos.json)만. 상품 imageLicense(domain.ts IMAGE_LICENSES)에는 넣지 않는다(총괄 예외).
+export const PHOTO_SOURCES = ['WIKIMEDIA', 'UNSPLASH', 'PEXELS', 'PIXABAY', 'OWN', 'SELLER', 'AFFILIATE', 'CODEX', 'AGY'] as const;
+export const PHOTO_LICENSES = ['CC0', 'CC_BY', 'CC_BY_SA', 'SITE_LICENSE', 'PERMISSION', 'AI_GENERATED'] as const;
 
 const SLOT = 'SLOT';
 const ENUMS: Record<SeedKey, Record<string, readonly string[]>> = {
@@ -356,6 +370,19 @@ function checkMeta(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   }
   if (has(r, 'verifiedBy') && r.verifiedBy !== null && typeof r.verifiedBy !== 'string') ctx.out.error('S04', key, id, 'verifiedBy', 'string|null');
   if (has(r, 'verifiedAt') && r.verifiedAt !== null && typeof r.verifiedAt !== 'string') ctx.out.error('S04', key, id, 'verifiedAt', 'string|null');
+  // 356 M9: draftedAt·crossCheck 형식(체인 네 파일만 — 다른 파일은 S08/S09·V12 가 본다).
+  if (GENERAL_INFO_FILES.includes(key)) {
+    if (has(r, 'draftedAt') && r.draftedAt !== null && typeof r.draftedAt !== 'string') ctx.out.error('S03', key, id, 'draftedAt', '타입 오류: string|null 이어야 한다');
+    if (has(r, 'crossCheck') && r.crossCheck !== null && !isCrossCheckShape(r.crossCheck)) {
+      ctx.out.error(
+        'S03',
+        key,
+        id,
+        'crossCheck',
+        `crossCheck 는 키 ${CROSS_CHECK_KEYS.join('·')} 정확히 — tool ${CROSS_CHECK_TOOLS.join('/')} · result ${CROSS_CHECK_RESULTS.join('/')} · checkedAt YYYY-MM-DD`,
+      );
+    }
+  }
   if (!has(r, 'source')) return;
   if (!Array.isArray(r.source)) {
     ctx.out.error('S04', key, id, 'source', 'source 는 {url,title,accessedAt} 배열');
@@ -379,10 +406,20 @@ function dateFields(key: SeedKey, r: Rec): Array<[string, unknown]> {
     out.push(['verifiedAt', r.verifiedAt]);
     if (Array.isArray(r.source)) r.source.forEach((s, i) => out.push([`source[${i}].accessedAt`, asRec(s)?.accessedAt]));
   }
+  if (GENERAL_INFO_FILES.includes(key)) {
+    // 356 M9: 형식 오류(문자열인데 달력 날짜 아님)·미래 → S07. 비문자열 draftedAt 은 S03(checkMeta).
+    if (typeof r.draftedAt === 'string') out.push(['draftedAt', r.draftedAt]);
+    const cc = asRec(r.crossCheck);
+    if (cc && typeof cc.checkedAt === 'string') out.push(['crossCheck.checkedAt', cc.checkedAt]);
+  }
   if (key === 'curatedProducts') out.push(['specVerifiedAt', r.specVerifiedAt]);
   if (key === 'testimonials') out.push(['consentAt', r.consentAt]);
   if (key === 'vetClinics') out.push(['verification.verifiedAt', asRec(r.verification)?.verifiedAt]);
-  if (key === 'photos') out.push(['downloadedAt', r.downloadedAt]);
+  if (key === 'photos') {
+    out.push(['downloadedAt', r.downloadedAt]);
+    out.push(['generatedAt', r.generatedAt]);
+    out.push(['speciesCheck.checkedAt', asRec(r.speciesCheck)?.checkedAt]);
+  }
   if (key === 'budgetTips' && Array.isArray(r.references)) r.references.forEach((x, i) => out.push([`references[${i}].checkedAt`, asRec(x)?.checkedAt]));
   return out;
 }
@@ -477,7 +514,9 @@ export function checkStructure(ctx: Ctx): void {
 
       // S09
       if (!slot) {
-        const known = CONTENT_KEYS.includes(key) ? { ...FIELDS[key], ...META_FIELDS } : FIELDS[key];
+        const known = CONTENT_KEYS.includes(key)
+          ? { ...FIELDS[key], ...META_FIELDS, ...(GENERAL_INFO_FILES.includes(key) ? GENERAL_INFO_META_FIELDS : {}) }
+          : FIELDS[key];
         for (const k of Object.keys(rec)) {
           if (!has(known, k) && !forbidden.includes(k)) ctx.out.warn('S09', key, id, k, '알 수 없는 키');
         }

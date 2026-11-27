@@ -18,7 +18,7 @@ import { REAL_AS_OF, baseOptions } from './fixtures/affiliate/baseline.js';
 import { DWARF_PREVIEW_AS_OF, REAL_SIGNED_AT, dwarfSignedWith, realSeed, realSignedTargets, unsignRaw, unsignedRealSeed } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const NOW = '2026-11-22'; // 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지
+const NOW = '2026-11-25'; // 356: 6종 GENERAL_INFO draftedAt(2026-11-23) 이상 — S07 미래 날짜 방지. // 팁 references checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지 // 368: 2026-11-25 = 8행 출처 접근일(S07 미래 날짜 방지, 옛 값 2026-11-23).
 const DISK_READ = readSeedDirRaw(join(here, '..', '..', 'seed'));
 /** 디스크 시드 그대로(2026-11-16 확인표 5종 서명 후). */
 const BASE = DISK_READ.raw;
@@ -69,7 +69,9 @@ describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 �
   it('server/seed · seed-draft: whyShort 17건(같은 값), W01~W04 0, errors 0', () => {
     const shorts = (raw: RawSeed): Array<[unknown, unknown]> =>
       (raw.supplyRequirements as Rec[]).filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => [r.id, r.whyShort]);
-    expect(shorts(BASE).map(([id]) => id)).toEqual(ADOPTED);
+    // 356: 6종 GENERAL_INFO 요구사항 행(로보 13·앵무 소형 9·중형 9)도 whyShort 를 갖는다 — 서명 채택 17건은 GENERAL_INFO 밖 행으로 본다.
+    const GI_IDS = new Set((BASE.supplyRequirements as Rec[]).filter((r) => r.reviewStatus === 'GENERAL_INFO').map((r) => r.id));
+    expect(shorts(BASE).map(([id]) => id).filter((id) => !GI_IDS.has(id))).toEqual(ADOPTED);
     expect(shorts(DRAFT_BASE)).toEqual(shorts(BASE));
     for (const [raw, signatures] of [[BASE, DISK_READ.signatures], [DRAFT_BASE, DRAFT_READ.signatures]] as const) {
       for (const a of raw.animalTypes as Rec[]) expect(JSON.stringify(a.careOverrides ?? null).includes('whyShort'), String(a.id)).toBe(false);
@@ -78,7 +80,7 @@ describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 �
       for (const rule of W_RULES) expect([...of(res, rule), ...of(res, rule, 'warnings')]).toEqual([]);
     }
   });
-  it('17행 전부 2026-11-16 서명(VERIFIED·kenny·패킷 basis, 재서술은 ROW_CHECKED) — 공개 산출물엔 노출 타입(골든·드워프·기니피그, 2026-11-23 활성화) 12행 값만, PLANNED 종(저빌) 행 값 0(원문 발췌가 공개 용품 설명과 같은 행 제외)', () => {
+  it('17행 전부 2026-11-16 서명(VERIFIED·kenny·패킷 basis, 재서술은 ROW_CHECKED) — 공개 산출물엔 노출 타입(골든·드워프·기니피그·저빌, 2026-11-23 활성화) 17행 값 전부', () => {
     const targets = realSignedTargets();
     for (const id of ADOPTED) {
       const t = targets.get(`supply-requirements.json#${id}`);
@@ -86,20 +88,23 @@ describe('실시드 — whyShort 17건(Kenny 2026-11-15 채택 14 + 「곳」 �
       expect(row(BASE, 'supplyRequirements', id)).toMatchObject({ reviewStatus: 'VERIFIED', reviewerType: t?.reviewerType, verifiedBy: 'kenny', verifiedAt: REAL_SIGNED_AT, reviewBasis: t?.basis });
     }
     const b = buildSite(realSeed(), baseOptions(REAL_AS_OF));
-    const EXPOSED_PROFILES = ['cp-hamster-syrian', 'cp-hamster-dwarf', 'cp-guineapig'];
+    // 356: 저빌 ACTIVE → 저빌 5행도 노출 타입 행(17행 전부 공개).
+    const EXPOSED_PROFILES = ['cp-hamster-syrian', 'cp-hamster-dwarf', 'cp-guineapig', 'cp-gerbil-mongolian'];
     const shown = ADOPTED.filter((id) => EXPOSED_PROFILES.includes(String(row(BASE, 'supplyRequirements', id).careProfileId)));
-    expect(shown).toHaveLength(12); // 골든 2 · 드워프 9 · 기니피그 1
+    expect(shown).toHaveLength(17); // 골든 2 · 드워프 9 · 기니피그 1 · 저빌 5
     const all = [...b.files.values()].join('\n');
     for (const id of shown) expect([id, all.includes(row(BASE, 'supplyRequirements', id).whyShort as string)]).toEqual([id, true]);
     // 공개 카탈로그: whyShort 를 가진 요구사항 = 노출 타입 12행뿐, 요구사항은 노출 타입 프로필만.
     const catReqs = b.catalog.supplyRequirements as unknown as Rec[];
-    expect(catReqs.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id).sort()).toEqual([...shown].sort());
-    expect(catReqs.every((r) => EXPOSED_PROFILES.includes(String(r.careProfileId)))).toBe(true);
+    // 356: GENERAL_INFO 6종 요구사항(로보·앵무)은 따로 본다(서명 아님 — 카탈로그 메타 generalInfo:true).
+    const catSigned = catReqs.filter((r) => row(BASE, 'supplyRequirements', String(r.id)).reviewStatus !== 'GENERAL_INFO');
+    expect(catSigned.filter((r) => Object.prototype.hasOwnProperty.call(r, 'whyShort')).map((r) => r.id).sort()).toEqual([...shown].sort());
+    expect(catSigned.every((r) => EXPOSED_PROFILES.includes(String(r.careProfileId)))).toBe(true);
     // 나머지(저빌 5행) 값: 원문 발췌라 같은 문장이 동물 무관 SupplyItem 설명(노출로 공개)에 들어 있는 행만 산출물에 문자열로 보인다 —
     //   그 행은 출처가 정확히 공개된 용품 설명임을 단언하고, 그 밖의 행 값은 어떤 산출물에도 없어야 한다.
     const itemDescs = (b.catalog.supplyItems as unknown as Rec[]).map((i) => String(i.description ?? ''));
     const hidden = ADOPTED.filter((id) => !shown.includes(id));
-    expect(hidden).toHaveLength(5);
+    expect(hidden).toHaveLength(0); // 356: 저빌 활성화로 숨은 채택 행 없음
     const viaItem = hidden.filter((id) => itemDescs.some((d) => d.includes(row(BASE, 'supplyRequirements', id).whyShort as string)));
     expect(viaItem).toEqual([]); // 저빌 5행 중 공개 용품 설명과 같은 원문 발췌 없음(옛 드워프 carrier·thermo 2행은 이제 노출 타입 행)
     for (const id of viaItem) expect([id, row(BASE, 'supplyRequirements', id).reviewBasis]).toEqual([id, 'AI_RESEARCH_BULK']); // 원문 발췌(일괄 허용)

@@ -7,6 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isPhotoUsable, type PhotoRec } from '../engine/index.js';
 import { formatIssue, isIsoDate } from '../seed/common.js';
 import { asSeedBundle, readSeedDirRaw } from '../seed/read.js';
 import { affiliateGate, affiliateMapWarnings, parseAffiliateMapText, toAffiliateLinkMap, type AffiliateLinkMap, type AffiliateMapFile } from './affiliate.js';
@@ -32,7 +33,7 @@ export interface PrerenderIo {
 
 export const WS_DATA_MAX_BYTES = 32 * 1024;
 /** 경고 문턱(실패 아님) — 와이어(v2) 기준 여유 4KB 이하로 줄면 stderr 에 알린다(73 계획 선택안, 오케스트레이터 채택). */
-export const WS_DATA_WARN_BYTES = 28 * 1024;
+export const WS_DATA_WARN_BYTES = 30 * 1024; // 11/25: 노출 9종(최대 29398B) — 경고선만 상향, 상한 32KB 불변
 /** 원본 템플릿 보존본 — index.html 이 홈 프리렌더로 덮이므로 재실행·/save 셸이 이것을 쓴다. */
 export const SHELL_FILE = 'shell.html';
 
@@ -184,6 +185,16 @@ export function referencedAssets(b: SiteBuild): string[] {
   return [...refs].sort();
 }
 
+/** 사용 가능 사진(engine isPhotoUsable)의 asset 경로 — 프리렌더가 실재를 확인한다(354). */
+export function usablePhotoAssets(photos: unknown): string[] {
+  if (!Array.isArray(photos)) return [];
+  const out: string[] = [];
+  for (const p of photos as PhotoRec[]) {
+    if (p && typeof p === 'object' && typeof p.asset === 'string' && isPhotoUsable(p)) out.push(p.asset);
+  }
+  return out;
+}
+
 export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo): Promise<number> {
   const args = parseArgs(argv);
   if (typeof args === 'string') {
@@ -281,7 +292,9 @@ export async function runPrerenderCli(argv: readonly string[], io: PrerenderIo):
     if (p.wsDataBytes > WS_DATA_MAX_BYTES) fails.push(`${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_MAX_BYTES}B`);
     else if (p.wsDataBytes > WS_DATA_WARN_BYTES) io.stderr(`prerender: 경고 ${p.route.path}: ws-data ${p.wsDataBytes}B > ${WS_DATA_WARN_BYTES}B(상한 ${WS_DATA_MAX_BYTES}B)`);
   }
-  for (const ref of referencedAssets(b)) {
+  // 354: 사용 가능(READY·기록 완전) 사진의 배포 파일도 실재해야 한다 — 화면 연결 전이라도 「기록만 있고 파일 없는 사진」을 막는다.
+  const refs = new Set([...referencedAssets(b), ...usablePhotoAssets(raw.photos)]);
+  for (const ref of [...refs].sort()) {
     const rel = ref.slice(1);
     const inOut = inside(args.out, rel);
     const inPublic = inside(args.publicDir, rel);

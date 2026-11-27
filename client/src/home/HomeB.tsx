@@ -211,6 +211,11 @@ export default function HomeB({ page, type, onOpenL1, onOpenL2, onOpenL8 }: Home
           <h1 id="ws-context-title" className="ws-t-display">
             {type.displayName}
           </h1>
+          {type.generalInfo ? (
+            <p className="ws-t-meta ws-muted ws-context-note" data-ws-notice="general-info">
+              {COPY.generalInfo.notice}
+            </p>
+          ) : null}
         </div>
         <a className="ws-context-change" data-ws-action="change-animal" href={PICK_PATH} aria-label={COPY.nav.changeFriend} onClick={pickLinkClick(onOpenL1)}>
           {COPY.homeB.change}

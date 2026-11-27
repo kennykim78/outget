@@ -55,16 +55,29 @@ function Part({ part, title, children }: { part: string; title: string; children
   );
 }
 
-/** chipSpecText 결과 "28cm 이상" → 숫자(spec-lg) + " 이상"(meta ink-muted) 분리(스펙33 §5.1 · DR m-1). 접미사가 없으면 전체를 숫자 스타일로. */
-export function splitChipText(text: string): { value: string; suffix: string | null } {
+/**
+ * chipSpecText 결과 "28cm 이상" → 숫자(spec-lg) + " 이상"(meta ink-muted) 분리(스펙33 §5.1 · DR m-1). 접미사가 없으면 전체를 숫자 스타일로.
+ *   값이 1개라 필드 이름이 앞에 붙은 "높이 50cm 이상"(356f S1)은 이름을 label 로 떼어 meta 로 — 숫자가 문장에서 가장 크게(브리프).
+ *   문구 자체는 엔진 chipSpecText 그대로(재조립 없음, 텍스트 내용 = 엔진 출력).
+ */
+export function splitChipText(text: string): { label?: string; value: string; suffix: string | null } {
   const tail = ` ${SPEC_WORDS.gte}`;
-  return text.endsWith(tail) ? { value: text.slice(0, -tail.length), suffix: SPEC_WORDS.gte } : { value: text, suffix: null };
+  const hasTail = text.endsWith(tail);
+  const body = hasTail ? text.slice(0, -tail.length) : text;
+  const m = /^(\D*?\S)\s+(\d.*)$/.exec(body);
+  const head = m ? { label: m[1], value: m[2] } : { value: body };
+  return { ...head, suffix: hasTail ? SPEC_WORDS.gte : null };
 }
 
 function ChipValue({ text }: { text: string }) {
-  const { value, suffix } = splitChipText(text);
+  const { label, value, suffix } = splitChipText(text);
   return (
     <dd>
+      {label ? (
+        <>
+          <span className="ws-t-meta">{label}</span>{' '}
+        </>
+      ) : null}
       <span className="ws-t-spec-lg">{value}</span>
       {suffix ? (
         <>
@@ -295,13 +308,14 @@ export default function SupplyLayer({ props, close }: LayerContentProps) {
           ) : null}
 
           <section className="ws-supply-part ws-supply-verified" data-ws-part="verified">
-            <h3 className="ws-t-label ws-supply-head">{COPY.supplyLayer.reviewTitle}</h3>
-            <p className="ws-t-meta">
-              {lm ? `${COPY.supplyLayer.lastVerified} ${lm}` : null}
+            {/* 356 K4: 일반 참고 정보면 「검수 내용」·마지막 검수 대신 출처 라벨(고지 문장은 종 페이지 헤더 1회 — 여기 중복 0). */}
+            <h3 className="ws-t-label ws-supply-head">{r.generalInfo ? COPY.supplyLayer.source : COPY.supplyLayer.reviewTitle}</h3>
+            <p className="ws-t-meta" data-ws-source={r.generalInfo ? 'general-info' : undefined}>
+              {r.generalInfo ? (r.source.length ? COPY.generalInfo.sourceLabel : COPY.generalInfo.sourceLabelNone) : lm ? `${COPY.supplyLayer.lastVerified} ${lm}` : null}
               {r.source.length ? (
                 <>
-                  {lm ? ' · ' : null}
-                  {`${COPY.supplyLayer.source} `}
+                  {r.generalInfo || lm ? ' · ' : null}
+                  {r.generalInfo ? null : `${COPY.supplyLayer.source} `}
                   {r.source.map((s, i) => (
                     <span key={s.url}>
                       {i > 0 ? ' · ' : null}

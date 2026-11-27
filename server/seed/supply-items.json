@@ -772,7 +772,7 @@
           "key": "resolutionG",
           "label": "눈금(g)",
           "type": "number",
-          "min": 0.1,
+          "min": 0.01,
           "max": 10,
           "optional": true
         }
@@ -1168,11 +1168,12 @@
     },
     "compatibleAlternativeIds": [],
     "description": "앵무새가 지내는 새장이에요.",
-    "reviewStatus": "DRAFT",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   },
@@ -1214,11 +1215,12 @@
     },
     "compatibleAlternativeIds": [],
     "description": "새가 발로 붙잡고 올라앉는 막대예요.",
-    "reviewStatus": "DRAFT",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   },
@@ -1263,16 +1265,24 @@
             "LARGE": "대형 앵무용",
             "MULTI": "여러 새용"
           }
+        },
+        {
+          "key": "coversThisAnimal",
+          "label": "포장 대상에 이 동물 표기",
+          "type": "boolean",
+          "optional": true,
+          "ruleScoped": true
         }
       ]
     },
     "compatibleAlternativeIds": [],
-    "description": "새에게 주는 모이·펠릿이에요.",
-    "reviewStatus": "DRAFT",
+    "description": "새에게 주는 모이·펠릿이에요. 크기 분류와 함께 포장에 표시된 대상 새를 확인해요.",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   },
@@ -1303,11 +1313,12 @@
     },
     "compatibleAlternativeIds": [],
     "description": "새장에 걸어 두는 미네랄 블록·갑오징어뼈 같은 용품이에요.",
-    "reviewStatus": "DRAFT",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   },
@@ -1318,15 +1329,35 @@
     "glyph": "🛁",
     "lifecycle": "DURABLE",
     "specSchema": {
-      "fields": []
+      "fields": [
+        {
+          "key": "shortSideCm",
+          "label": "안쪽 바닥의 짧은 변·원형 지름(cm)",
+          "type": "number",
+          "min": 1,
+          "max": 100,
+          "optional": true,
+          "ruleScoped": true
+        },
+        {
+          "key": "depthCm",
+          "label": "통 안쪽 깊이(cm)",
+          "type": "number",
+          "min": 1,
+          "max": 50,
+          "optional": true,
+          "ruleScoped": true
+        }
+      ]
     },
     "compatibleAlternativeIds": [],
-    "description": "새가 물에 몸을 적시는 목욕 그릇이에요.",
-    "reviewStatus": "DRAFT",
+    "description": "새가 물에 몸을 적시는 목욕 그릇이에요. 몸을 움직일 공간이 있는지 살펴보고, 통 깊이와 별개로 물은 얕게 담아 사용해요.",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   },
@@ -1359,11 +1390,12 @@
     },
     "compatibleAlternativeIds": [],
     "description": "부리로 뜯거나 숨은 모이를 찾게 만든 놀잇감이에요.",
-    "reviewStatus": "DRAFT",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   },
@@ -1384,11 +1416,12 @@
     },
     "compatibleAlternativeIds": [],
     "description": "새장 위에 덮어 빛을 가리는 천이에요.",
-    "reviewStatus": "DRAFT",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-11-23",
     "contentKind": "SPEC",
     "source": []
   }

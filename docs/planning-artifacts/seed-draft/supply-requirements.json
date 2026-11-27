@@ -2879,11 +2879,12 @@
     },
     "notNowReason": null,
     "searchKeyword": "{animal} 전용 사료",
-    "reviewStatus": "DRAFT",
+    "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
     "verifiedAt": null,
     "reviewBasis": null,
+    "draftedAt": "2026-10-27",
     "contentKind": "FOOD",
     "source": [
       {
@@ -2916,7 +2917,12 @@
         "title": "Gerbil care guide – Woodgreen Pets Charity (PDF 2026-07)",
         "accessedAt": "2026-10-27"
       }
-    ]
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
   },
   {
     "id": "req-gerbil-food-bowl",
@@ -3516,5 +3522,1541 @@
         "accessedAt": "2026-10-27"
       }
     ]
+  },
+  {
+    "id": "req-robo-cage",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "cage",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "반려 햄스터 중에서도 몸이 매우 작고 움직임이 빨라요. 달리고 탐색할 수 있는 넓고 이어진 바닥을 마련해요.",
+    "whyShort": "작은 몸에도 넓은 바닥과 촘촘한 틈이 필요해요.",
+    "caution": "베딩은 20cm 이상 쌓을 수 있게 준비하고, 철망 간격은 6mm 이하인지 확인해요. 문과 뚜껑의 틈도 살펴봐요.",
+    "avoid": "바닥 100×50cm 미만 · 철망 바닥 · 좁은 튜브 위주 구조 · 간격 6mm 초과 철망",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "floorWcm",
+          "op": "gte",
+          "value": 100,
+          "reason": "활동할 바닥을 확보하도록 가로 100cm 이상을 기준으로 해요"
+        },
+        {
+          "key": "floorDcm",
+          "op": "gte",
+          "value": 50,
+          "reason": "이어진 바닥을 확보하도록 세로 50cm 이상을 기준으로 해요"
+        },
+        {
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 6,
+          "reason": "몸이 매우 작아 철망 간격은 6mm 이하로 확인해요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 50,
+          "reason": "베딩과 쳇바퀴를 배치하기 편하도록 높이 50cm 이상을 권해요"
+        },
+        {
+          "key": "type",
+          "op": "not_in",
+          "value": [
+            "WIRE"
+          ],
+          "reason": "깊은 베딩을 담기 쉬운 막힌 벽면을 권하고 뚜껑의 통풍도 확인해요"
+        },
+        {
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 6,
+          "reason": "철망을 고르면 간격 6mm 이하인지 문틈과 함께 살펴봐요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 리빙박스 대형 케이지 100x50",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-wheel",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "wheel",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "활발하게 달리는 로보가 등을 펴고 달릴 수 있는 세워진 쳇바퀴를 마련해요. 몸이 작아도 지나치게 작은 제품은 피해요.",
+    "whyShort": "등을 펴고 달리며 스스로 돌릴 수 있어야 해요.",
+    "caution": "작은 몸으로도 잘 돌릴 수 있는지 살펴봐요. 달리는 면이 막혀 있고 흔들리지 않게 설치해요.",
+    "avoid": "지름 20cm 미만 · 봉형·망형 바닥면 · 뻑뻑하거나 크게 흔들리는 쳇바퀴",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "diameterCm",
+          "op": "gte",
+          "value": 20,
+          "reason": "작은 로보도 등을 펴고 달리도록 지름 20cm 이상을 기준으로 해요"
+        },
+        {
+          "key": "surface",
+          "op": "eq",
+          "value": "SOLID",
+          "reason": "작은 발이 틈에 빠지지 않도록 달리는 면이 막힌 것을 골라요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "diameterCm",
+          "op": "gte",
+          "value": 25,
+          "reason": "등을 펴고 달릴 여유를 위해 지름 25cm 이상을 권하고 스스로 잘 돌리는지도 확인해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 쳇바퀴 25cm 무소음",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-saucer",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "saucer",
+    "priority": "NOT_NOW",
+    "orderHint": "AS_NEEDED",
+    "why": "로보의 달리기 공간은 세워진 쳇바퀴부터 마련해요. 원반형은 필수 준비물로 두지 않아요.",
+    "whyShort": "세워진 쳇바퀴를 먼저 준비해요.",
+    "caution": "빠르게 달리다 가장자리로 벗어날 수 있어 주변 배치를 살펴봐요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": "세워진 쳇바퀴를 갖춘 뒤 공간과 달리는 모습을 보고 추가 여부를 정해요.",
+    "searchKeyword": null,
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-bedding",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "bedding",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "로보도 베딩을 파고 몸을 숨기며 둥지를 만들어요. 굴을 만들 수 있도록 20cm 이상 깊이로 깔아 주는 것을 권해요.",
+    "whyShort": "몸을 숨기고 굴을 팔 수 있게 깊이 깔아 줘요.",
+    "caution": "먼지가 적고 굴 모양이 유지되는 베딩을 골라요. 무거운 용품은 베딩 아래로 꺼지지 않도록 받침에 올려요.",
+    "avoid": "향이 강한 삼나무·소나무 대팻밥 · 향 첨가 베딩 · 솜·실처럼 풀리는 둥지재 · 먼지 많은 톱밥",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "not_in",
+          "value": [
+            "CEDAR_PINE"
+          ],
+          "reason": "향이 강한 삼나무·소나무 베딩은 피해요"
+        },
+        {
+          "key": "scented",
+          "op": "eq",
+          "value": false,
+          "reason": "향을 첨가하지 않은 베딩을 골라요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "PAPER",
+          "reason": "굴과 둥지를 만들기 쉬운 먼지 적은 종이 베딩을 권해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 종이 베딩 무향 대용량",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-robo-water",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "water",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "작은 로보도 깨끗한 물을 언제든 마실 수 있어야 해요. 물은 매일 갈아 주고 용기를 씻어요.",
+    "whyShort": "몸높이에 맞춰 물을 마실 수 있게 해요.",
+    "caution": "물병 입구는 쉽게 닿는 높이에 두고 물이 나오는지 매일 확인해요. 그릇은 얕고 잘 넘어지지 않는 것으로 골라 단단한 받침에 둬요.",
+    "avoid": "깊은 물그릇 · 베딩에 묻히거나 쉽게 뒤집히는 물그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 급수기 스탠드형",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-food-bowl",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "food-bowl",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "로보가 먹기 편한 낮은 그릇을 마련하면 먹이 상태를 살펴보기 쉬워요. 마른 주식 일부를 흩어 주어 찾게 할 수도 있어요.",
+    "whyShort": "작은 몸으로 접근하기 쉬운 낮은 그릇을 권해요.",
+    "caution": "그릇은 베딩에 묻히지 않는 받침에 두고 남은 먹이와 오염을 확인해요.",
+    "avoid": "쉽게 뒤집히는 그릇 · 가장자리가 날카롭거나 갉혀 조각이 떨어지는 그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "CERAMIC",
+          "reason": "잘 넘어지지 않고 씻기 쉬운 도자기 그릇을 권해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 도자기 사료 그릇",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-food",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "food",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "펠릿을 기본으로 해요. 씨앗 한 종류만 주지 않아요.",
+    "caution": "씨앗이나 간식이 주식을 대신하지 않게 해요. 먹는 양이나 체중에 뚜렷한 변화가 있으면 병원에 문의해요.",
+    "avoid": "씨앗 한 종류만 주는 식단 · 간식 위주 식단",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 사료 주식",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/feeding-rodents",
+        "title": "Feeding Rodents – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/providing-a-home-for-a-hamster",
+        "title": "Providing a Home for a Hamster – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/routine-health-care-of-hamsters",
+        "title": "Routine Health Care of Hamsters – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-robo-hideout",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "hideout",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "빠르게 숨을 수 있는 은신처를 마련해 로보가 쉬고 먹이를 모아 둘 수 있게 해요. 여러 칸이 있거나 숨을 곳을 나누어 두면 공간을 골라 쓸 수 있어요.",
+    "whyShort": "쉬거나 놀랐을 때 몸을 숨길 곳을 마련해요.",
+    "caution": "입구와 통로는 폭 5cm 이상을 권해요. 볼주머니가 찬 상태로도 드나드는지 확인하고 무거운 은신처는 받침에 둬요.",
+    "avoid": "날카로운 모서리 · 가시 · 드러난 접착제 · 갉혀 조각이 떨어지는 플라스틱",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "multiChamber",
+          "op": "eq",
+          "value": true,
+          "reason": "잠자리와 먹이 보관 자리를 나누어 쓸 수 있게 여러 칸을 권해요"
+        },
+        {
+          "key": "material",
+          "op": "not_in",
+          "value": [
+            "PLASTIC"
+          ],
+          "reason": "갉을 수 있는 은신처는 플라스틱 이외의 재질을 우선 살펴봐요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 다중 은신처 나무",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-sand-bath",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "sand-bath",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "로보는 모래를 파거나 뒹굴며 털을 손질해요. 몸을 굴릴 수 있는 공간에 목욕용 모래를 준비해요.",
+    "whyShort": "모래를 파고 뒹굴며 털을 손질해요.",
+    "caution": "가루형 더스트와 구분해 먼지가 적고 향이나 첨가물이 없는 모래를 골라요. 젖거나 오염된 부분은 걷어 내요.",
+    "avoid": "가루형 더스트 · 향 첨가 모래 · 칼슘 첨가 모래 · 건축용 모래",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "sandType",
+          "op": "eq",
+          "value": "CHINCHILLA_SAND",
+          "reason": "친칠라 샌드를 고를 때도 가루형 더스트가 아닌 먼지 적은 무첨가 모래인지 확인해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 목욕 모래 친칠라 샌드",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-robo-sand-bath-box",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "sand-bath-box",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "로보가 모래를 파고 몸을 굴릴 수 있게 넉넉한 목욕통을 마련해요. 작은 몸집만 보고 통을 지나치게 줄이지 않아요.",
+    "whyShort": "모래에서 몸을 굴릴 공간을 넉넉히 마련해요.",
+    "caution": "쉽게 드나들 수 있는 입구를 고르고, 무거운 통은 베딩 아래로 가라앉지 않게 받침에 둬요.",
+    "avoid": "발이 걸리는 틈 · 날카로운 가장자리",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "shortSideCm",
+          "op": "gte",
+          "value": 20,
+          "reason": "몸을 굴리고 모래를 팔 여유를 위해 짧은 변 20cm 이상을 권해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": null,
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-robo-chew",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "chew",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "로보가 갉고 탐색할 수 있는 나무 용품을 마련해요. 작은 몸으로 접근하고 다루기 쉬운 것을 골라요.",
+    "whyShort": "갉고 탐색할 거리를 더해 줘요.",
+    "caution": "재료가 확인되는 무처리 나무를 고르고 가시나 날카로운 부분을 살펴봐요.",
+    "avoid": "칠하거나 약품 처리한 나무 · 접착제가 드러난 용품 · 갉기용으로 주는 소금 블록",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "UNTREATED_WOOD",
+          "reason": "갉을 거리는 재료가 확인되는 무처리 나무를 권해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 갉기 나무 무처리",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-carrier",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "carrier",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "작고 빠른 로보를 이동하거나 잠시 옮길 때는 뚜껑이 잘 잠기는 이동장이 유용해요.",
+    "whyShort": "작은 틈으로 빠져나가지 않는 이동장을 준비해요.",
+    "caution": "통풍구와 문틈을 살펴보고 쓰던 베딩을 조금 넣어요. 이동 중에는 무거운 용품이 움직이지 않게 해요.",
+    "avoid": "틈이 큰 이동장 · 갉아 뚫기 쉬운 종이 상자 · 잠금이 헐거운 뚜껑",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "ventilated",
+          "op": "eq",
+          "value": true,
+          "reason": "뚜껑을 닫아도 공기가 드나드는 구조를 권해요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 이동장 소형",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-thermo",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "thermo",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "로보가 지내는 자리의 온도를 살펴보는 데 도움이 돼요. 실내는 약 18~24℃를 참고하며 급격한 온도 변화를 줄여요.",
+    "whyShort": "케이지 주변의 온도 변화를 확인해요.",
+    "caution": "직사광선과 외풍, 난방기 바람이 직접 닿는 자리를 피해요. 센서와 전선은 갉지 못하게 배치해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 디지털 온습도계",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-robo-scale",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "scale",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "로보의 체중 감소를 살펴요.",
+    "caution": "체중이 뚜렷하게 달라지면 병원에 문의해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 주방 저울",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "HEALTH",
+    "source": [
+      {
+        "url": "https://www.msdvetmanual.com/all-other-pets/hamsters/routine-health-care-of-hamsters",
+        "title": "Routine Health Care of Hamsters – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-robo-tubes",
+    "careProfileId": "cp-hamster-robo",
+    "supplyItemId": "tubes",
+    "priority": "OPTIONAL",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "로보가 숨거나 탐색할 수 있도록 낮은 통로를 더해 줘요. 넓은 생활공간 안에 놓는 보조 용품으로 활용해요.",
+    "whyShort": "낮은 통로를 더해 숨고 탐색하게 해요.",
+    "caution": "안쪽 폭은 5cm 이상으로 고르고 볼주머니가 찬 상태로도 지나가는지 살펴봐요. 굴러가거나 무너지지 않게 고정해요.",
+    "avoid": "급경사 통로 · 막힌 끝을 확인하기 어려운 긴 통로 · 좁은 튜브 위주 케이지",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "innerDiameterCm",
+          "op": "gte",
+          "value": 5,
+          "reason": "볼주머니가 찬 상태로도 지나갈 여유를 두도록 안쪽 폭 5cm 이상을 기준으로 해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 코르크 터널",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-bird-cage",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "bird-cage",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "새 한 마리 기준으로 날개를 펼치고 짧게 날아 이동할 가로 공간을 준비해요. 횃대와 그릇을 넣은 뒤에도 날개가 닿지 않는지 확인해요.",
+    "whyShort": "날개를 펼치고 이동할 가로 공간이 필요해요.",
+    "caution": "창살 간격은 머리가 빠져나가지 않게 몸집에 맞춰 작게 골라요. 테프론 코팅 조리기구가 과열될 때 나는 연기에 노출되지 않는 곳에 둬요.",
+    "avoid": "날개가 벽이나 용품에 닿는 좁은 새장 · 조리 연기가 닿는 자리",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "widthCm",
+          "op": "gte",
+          "value": 60,
+          "reason": "한 마리가 날개를 펼치고 짧게 이동할 기본 가로 공간으로 60cm 이상을 잡아요."
+        },
+        {
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 12,
+          "reason": "작은 새가 머리를 내밀거나 빠져나가지 않도록 창살 간격을 작게 골라요.",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "widthCm",
+          "op": "gte",
+          "value": 80,
+          "reason": "횃대와 용품을 넣고도 가로로 이동할 여유를 더 확보해요."
+        },
+        {
+          "key": "depthCm",
+          "op": "gte",
+          "value": 45,
+          "reason": "몸을 돌리고 날개를 펼칠 앞뒤 여유를 확보해요."
+        },
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 50,
+          "reason": "횃대를 배치하고 꼬리가 바닥에 닿지 않을 여유를 확보해요."
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 가로형 새장 창살 간격 12mm 이하",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-perch",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "perch",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "발로 붙잡고 쉬거나 이동할 횃대가 필요해요. 굵기가 조금씩 다른 횃대를 배치해 발이 닿는 위치를 바꿀 수 있게 해요.",
+    "whyShort": "굵기가 다른 횃대로 발을 편하게 쉬게 해요.",
+    "caution": "발가락이 자연스럽게 감기는 굵기를 고르고, 날아가는 길을 막지 않게 배치해요.",
+    "avoid": "사포를 감싼 횃대 · 실밥이 풀린 로프 횃대",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "NATURAL_BRANCH",
+          "reason": "굵기와 표면이 다양한 조류용 자연목 횃대를 권해요."
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 소형 앵무 자연목 횃대",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-bird-food",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "bird-food",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "소형 앵무에게 맞는 주식을 준비해요. 씨앗만으로 식단을 채우지 않고 펠릿을 활용해요.",
+    "caution": "새 모이는 천천히 익숙해지게 해요. 먹지 않거나 기운이 없으면 병원에 문의해요.",
+    "avoid": "아보카도 · 초콜릿 · 카페인 · 양파 · 알코올",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "form",
+          "op": "eq",
+          "value": "PELLET",
+          "reason": "조류용 펠릿을 권해요."
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 소형 앵무 주식 펠릿",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/lovebirds-feeding",
+        "title": "Lovebirds – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/routine-care-and-safety-of-birds/illness-in-pet-birds",
+        "title": "Illness in Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-parrot-small-water",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "water",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "깨끗한 물을 늘 마실 수 있게 준비해요. 물은 매일 갈고 모이나 배설물이 들어가면 바로 교체해요.",
+    "whyShort": "깨끗한 물을 늘 마실 수 있게 해요.",
+    "caution": "익숙한 방식으로 물을 제공해요. 물병을 쓰면 입구가 막히지 않는지와 실제로 마시는지 확인해요.",
+    "avoid": "횃대 바로 아래에 두어 배설물이 떨어지는 물그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 새장 급수기 물그릇",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-food-bowl",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "food-bowl",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "모이를 담고 남은 양을 살피기 쉬운 그릇을 준비해요. 새장에 포함된 그릇이 잘 고정되고 씻기 편하면 그대로 활용해요.",
+    "whyShort": "잘 고정되고 씻기 편한 모이그릇을 골라요.",
+    "caution": "배설물이 떨어지는 횃대 아래를 피해 설치하고, 씨앗 껍질만 남았는데 모이가 있는 것으로 보지 않도록 살펴요.",
+    "avoid": "깨진 그릇 · 가장자리가 날카롭거나 녹슨 그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 새장 고정 모이그릇",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-mineral",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "mineral",
+    "priority": "OPTIONAL",
+    "orderHint": "AS_NEEDED",
+    "why": "모든 새에게 별도로 필요한 것은 아니에요.",
+    "caution": "보충제는 병원과 상의해요.",
+    "avoid": "소화를 돕는다는 이유로 모래나 자갈을 모이에 섞는 방식",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 갑오징어뼈 미네랄 블록",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/lovebirds-feeding",
+        "title": "Lovebirds – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/disorders-and-diseases-of-birds/nutritional-disorders-of-pet-birds",
+        "title": "Nutritional Disorders of Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-psittacines",
+        "title": "Nutrition in Psittacines – Merck Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-parrot-small-bird-bath",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "bird-bath",
+    "priority": "RECOMMENDED",
+    "orderHint": "AFTER_ADAPTATION",
+    "why": "스스로 물에 몸을 적시며 깃털을 손질할 기회를 줘요. 전용 목욕통 외에도 얕고 흔들리지 않는 그릇을 활용해요.",
+    "whyShort": "스스로 목욕할 수 있는 얕은 그릇을 준비해요.",
+    "caution": "깨끗한 맹물을 얕게 담고 반응을 살펴요. 목욕 뒤에는 찬바람이 직접 닿지 않게 해요.",
+    "avoid": "몸을 억지로 물에 담그기 · 비누나 세정제를 넣은 목욕물",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 얕은 새 목욕통",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-foraging-toy",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "foraging-toy",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "부리로 뜯고 숨은 모이를 찾는 활동으로 시간을 보낼 수 있게 해요. 쉽게 찾는 놀이부터 시작해 반응을 보며 바꿔 줘요.",
+    "whyShort": "뜯고 찾는 놀이로 활동할 거리를 마련해요.",
+    "caution": "몸집에 맞는 크기를 고르고, 처음에는 사용하는 모습을 살펴요. 날아다닐 공간을 남겨 두고 배치해요.",
+    "avoid": "발이나 목이 끼는 고리 · 길게 풀린 실밥",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 소형 앵무 포aging 포리징 장난감",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-cage-cover",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "cage-cover",
+    "priority": "OPTIONAL",
+    "orderHint": "AS_NEEDED",
+    "why": "밤에도 실내 조명이 밝다면 빛을 줄이는 데 활용해요. 이미 어둡고 조용한 잠자리를 마련했다면 덮개가 꼭 필요하지는 않아요.",
+    "whyShort": "밤에 들어오는 빛을 줄일 때 선택해요.",
+    "caution": "공기가 통할 틈을 남기고 새가 천을 끌어당기지 못하게 해요. 덮었을 때 놀라는지 반응을 살펴요.",
+    "avoid": "통풍을 막는 밀폐 덮개 · 새가 뜯어 삼킬 수 있는 풀린 실밥",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "breathable",
+          "op": "eq",
+          "value": true,
+          "reason": "빛을 가려도 공기가 드나들도록 통기 원단을 사용해요."
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 통기성 새장 덮개",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-carrier",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "carrier",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "집으로 데려오거나 병원에 갈 때 사용할 이동 공간을 마련해요. 문이 단단히 잠기고 몸을 돌릴 여유가 있는 소형 조류용을 골라요.",
+    "whyShort": "이동할 때 사용할 조류용 이동장을 마련해요.",
+    "caution": "통풍구로 머리가 빠져나가지 않는지 확인하고, 이동 중 흔들리거나 넘어지지 않게 고정해요.",
+    "avoid": "밀폐 용기 · 문이 쉽게 열리는 이동장",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "ventilated",
+          "op": "eq",
+          "value": true,
+          "reason": "이동하는 동안에도 공기가 드나들어야 해요."
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 소형 조류 이동장",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-thermo",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "thermo",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "새장 주변의 온도 변화를 확인하는 데 활용해요. 실내에 이미 온도계가 있다면 새장 가까운 위치의 값을 확인해요.",
+    "whyShort": "새장 주변의 온도 변화를 살펴요.",
+    "caution": "직사광선이나 냉난방 바람이 직접 닿는 자리를 피하고, 기기와 전선은 부리가 닿지 않게 둬요.",
+    "avoid": "새가 뜯을 수 있는 전선이나 배터리 노출",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 실내 온습도계",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-small-scale",
+    "careProfileId": "cp-parrot-small",
+    "supplyItemId": "scale",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "몸무게 변화를 살펴요.",
+    "caution": "몸무게가 줄거나 먹는 양이 줄면 병원에 문의해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 조류 전자저울",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "HEALTH",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/pet-birds/management-of-pet-birds",
+        "title": "Management of Pet Birds – MSD Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/routine-care-and-safety-of-birds/illness-in-pet-birds",
+        "title": "Illness in Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-parrot-medium-bird-cage",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "bird-cage",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "날개를 펴고 횃대 사이를 이동할 공간이 필요해요. 한 마리 기준으로 고르고, 매일 보호자가 지켜보는 가운데 새장 밖에서도 활동하게 해요.",
+    "whyShort": "날개를 펴고 이동할 공간이 필요해요.",
+    "caution": "용품을 넣은 뒤에도 날개와 꼬리가 창살에 닿지 않는지 확인해요. 코카틸은 분진이 많아 환기와 물걸레 청소를 자주 해요. 주방과 떨어진 곳에 두고 테프론 코팅 제품을 과열할 때 생기는 연기에 노출되지 않게 해요.",
+    "avoid": "날개를 펼 수 없는 좁은 새장 · 벗겨지는 도장 · 녹슨 철망 · 조리 연기",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "widthCm",
+          "op": "gte",
+          "value": 60,
+          "reason": "한 마리가 지내는 새장은 가로 60cm를 하한으로 잡고 날개를 펼 공간을 확인해요"
+        },
+        {
+          "key": "depthCm",
+          "op": "gte",
+          "value": 60,
+          "reason": "몸을 돌리고 날개를 펼 수 있도록 세로 60cm를 하한으로 잡아요"
+        },
+        {
+          "key": "heightCm",
+          "op": "gte",
+          "value": 75,
+          "reason": "횃대에 앉았을 때 꼬리가 바닥에 닿지 않을 공간을 포함해 높이 75cm를 하한으로 잡아요"
+        },
+        {
+          "key": "barGapMm",
+          "op": "lte",
+          "value": 16,
+          "reason": "머리가 창살 사이로 빠져나오지 않도록 간격 16mm 이하인지 확인해요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "widthCm",
+          "op": "gte",
+          "value": 80,
+          "reason": "횃대와 놀잇감을 배치한 뒤에도 옆으로 움직일 공간을 더 확보해요"
+        },
+        {
+          "key": "barOrientation",
+          "op": "in",
+          "value": [
+            "HORIZONTAL",
+            "MIXED"
+          ],
+          "reason": "가로 창살이 있으면 발과 부리로 잡고 오르기 편해요",
+          "when": [
+            {
+              "key": "type",
+              "op": "eq",
+              "value": "WIRE"
+            }
+          ]
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 중형 앵무 새장",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-perch",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "perch",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "발로 붙잡고 쉬거나 이동할 횃대가 필요해요. 굵기와 표면이 조금씩 다른 횃대를 함께 두면 발이 닿는 부위를 바꿀 수 있어요.",
+    "whyShort": "굵기가 다른 횃대에서 발의 자세를 바꿔요.",
+    "caution": "발가락으로 자연스럽게 감쌀 수 있는 굵기를 골라요. 먹이와 물그릇 바로 위는 피하고 날개를 펼 공간을 남겨요. 갉는 습성이 강한 새는 나무를 잘 갉으므로 갈라짐과 고정 부위를 자주 확인해요.",
+    "avoid": "사포로 감싼 횃대 · 가시가 튀어나온 나무 · 풀린 실이 있는 로프",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "eq",
+          "value": "NATURAL_BRANCH",
+          "reason": "새용으로 적합한 수종의 자연목은 굵기와 표면이 달라 발의 자세를 바꾸기 좋아요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 자연목 횃대",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-bird-food",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "bird-food",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "앵무용 주식을 중심으로 제공해요. 씨앗만 주는 식단은 피해요.",
+    "caution": "새 먹이는 천천히 익숙하게 해요. 먹는 양이나 체중이 달라지면 병원에 문의해요.",
+    "avoid": "씨앗만 주는 식단 · 아보카도 · 초콜릿 · 카페인 · 양파 · 알코올",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "form",
+          "op": "eq",
+          "value": "PELLET",
+          "reason": "조류용 주식 펠릿을 권해요."
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 앵무 주식 펠릿",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/cockatiels-feeding",
+        "title": "Cockatiels – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/conures-feeding",
+        "title": "Feeding Conures – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-psittacines",
+        "title": "Nutrition in Psittacines – Merck Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-parrot-medium-water",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "water",
+    "priority": "REQUIRED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "깨끗한 물을 언제든 마실 수 있어야 해요. 물은 매일 갈고 먹이나 배설물이 들어가면 바로 바꿔요.",
+    "whyShort": "깨끗한 물을 늘 마실 수 있게 해요.",
+    "caution": "횃대 바로 아래를 피하고 부리로 쉽게 닿는 곳에 고정해요. 물병을 쓴다면 마시는 방법을 아는지와 물이 나오는지를 확인해요.",
+    "avoid": "배설물이 떨어지는 위치 · 흔들리거나 쉽게 빠지는 물그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 새장 급수 그릇",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-food-bowl",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "food-bowl",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "먹이를 담고 남은 양을 살피기 편해요. 주식과 수분이 많은 채소를 나누어 담으면 그릇을 관리하기 좋아요.",
+    "whyShort": "먹이를 나누어 담고 남은 양을 살펴요.",
+    "caution": "새장에 단단히 고정하거나 넘어지지 않는 그릇을 써요. 매일 씻고 신선한 먹이가 오래 남아 있지 않게 해요. 기본 구성에 쓸 만한 그릇이 있으면 그대로 활용해요.",
+    "avoid": "녹슨 금속 그릇 · 깨진 도자기 · 깊은 흠집이 난 그릇",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 스테인리스 모이 그릇",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-mineral",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "mineral",
+    "priority": "OPTIONAL",
+    "orderHint": "AS_NEEDED",
+    "why": "모든 새에게 별도로 필요한 것은 아니에요.",
+    "caution": "알을 낳는다는 이유만으로 임의로 추가하지 않아요. 알을 자주 낳거나 보충이 필요한지 궁금하면 병원에 문의해요.",
+    "avoid": "소화용 모래나 자갈을 상시 먹이는 방식",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 갑오징어뼈 미네랄 블록",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "FOOD",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/cockatiels-feeding",
+        "title": "Cockatiels – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/conures-feeding",
+        "title": "Feeding Conures – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.merckvetmanual.com/management-and-nutrition/nutrition-exotic-and-zoo-animals/nutrition-in-psittacines",
+        "title": "Nutrition in Psittacines – Merck Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/disorders-and-diseases-of-birds/nutritional-disorders-of-pet-birds",
+        "title": "Nutritional Disorders of Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
+  },
+  {
+    "id": "req-parrot-medium-bird-bath",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "bird-bath",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "스스로 물을 묻히며 깃털을 손질할 기회를 제공해요. 코카틸은 파우더 다운에서 생기는 분진이 많아 목욕과 주변 청소를 함께 해요.",
+    "whyShort": "스스로 물을 묻히며 깃털을 손질하게 해요.",
+    "caution": "발을 딛고 쉽게 나올 수 있는 얕은 그릇에 깨끗한 물을 담아요. 억지로 담그지 않고, 젖은 뒤에는 찬바람을 피하게 해요. 집에 있는 적당한 그릇도 활용해요.",
+    "avoid": "몸이 잠기는 깊은 통 · 비누나 향을 섞은 목욕물 · 강제로 물 뿌리기",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 얕은 새 목욕통",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-foraging-toy",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "foraging-toy",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "먹이를 찾고 부리로 뜯는 활동을 제공해요. 갉는 활동이 활발하고 목소리가 큰 편이라, 놀잇감과 함께 매일 교감하고 활동할 시간을 마련해요.",
+    "whyShort": "먹이를 찾고 뜯는 활동으로 시간을 보내요.",
+    "caution": "쉽게 풀 수 있는 것부터 소개하고 삼키거나 몸이 끼일 부품이 없는지 살펴요. 갉는 습성이 강한 새는 빨리 부술 수 있어 손상 상태를 자주 확인해요. 큰 소리를 놀잇감만으로 없애려 하지 않아요.",
+    "avoid": "긴 실과 풀린 끈 · 발이나 머리가 끼는 고리 · 떨어지는 작은 금속 부품",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": [
+        {
+          "key": "material",
+          "op": "in",
+          "value": [
+            "WOOD",
+            "PAPER"
+          ],
+          "reason": "새용으로 만든 나무와 종이 놀잇감은 부리로 뜯는 활동을 제공하기 좋아요"
+        }
+      ]
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 포리징 나무 종이 놀잇감",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-cage-cover",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "cage-cover",
+    "priority": "OPTIONAL",
+    "orderHint": "AS_NEEDED",
+    "why": "밤에 실내 조명이 오래 켜져 있다면 빛을 줄이는 데 활용해요. 조용하고 어두운 곳에서 규칙적으로 쉬게 하고, 방 자체를 어둡게 할 수 있으면 덮개 없이 관리해요.",
+    "whyShort": "밤에 들어오는 빛을 줄일 때 활용해요.",
+    "caution": "공기가 통할 틈을 남기고 천을 부리로 끌어당기지 못하게 해요. 코카틸이 밤에 놀라 퍼덕이면 완전히 가리기보다 덮는 범위와 은은한 야간 조명을 조절해요. 낮에 소리를 막으려고 덮지 않아요.",
+    "avoid": "통풍을 막는 밀폐 덮개 · 풀린 실이 많은 천 · 낮 동안 계속 가리기",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "breathable",
+          "op": "eq",
+          "value": true,
+          "reason": "덮개를 사용해도 새장 안에 공기가 통해야 해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 통기성 새장 덮개",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "CARE",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-carrier",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "carrier",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "집으로 데려오거나 병원에 갈 때 몸을 보호하며 이동할 공간이 필요해요. 평소 문을 열어 두고 익숙해질 기회를 제공해요.",
+    "whyShort": "외출과 병원 이동에 사용할 공간을 준비해요.",
+    "caution": "잠금장치와 통풍구를 확인하고 꼬리가 꺾이지 않을 크기를 골라요. 횃대를 넣으면 낮고 단단하게 고정해요. 직사광선과 차량 안의 열기를 피해요.",
+    "avoid": "밀폐된 통 · 쉽게 열리는 문 · 이동 중 흔들리는 장식",
+    "minSpec": {
+      "rules": [
+        {
+          "key": "ventilated",
+          "op": "eq",
+          "value": true,
+          "reason": "이동 중에도 공기가 통하는 구조가 필요해요"
+        }
+      ]
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 앵무 이동장",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-thermo",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "thermo",
+    "priority": "RECOMMENDED",
+    "orderHint": "BEFORE_ARRIVAL",
+    "why": "새장 주변의 온도와 하루 동안의 변화를 확인해요. 계절이나 냉난방에 따라 달라지는 환경을 살피기 편해요.",
+    "whyShort": "새장 주변의 온도 변화를 확인해요.",
+    "caution": "새가 닿지 않는 새장 가까이에 설치하고 직사광선이나 냉난방 바람이 바로 닿는 위치는 피해요. 전선과 배터리를 갉지 못하게 해요.",
+    "avoid": "새가 갉을 수 있는 전선 · 노출된 배터리 · 냉난방기 바로 앞에서만 측정하기",
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 실내 온습도계",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "SPEC",
+    "source": []
+  },
+  {
+    "id": "req-parrot-medium-scale",
+    "careProfileId": "cp-parrot-medium",
+    "supplyItemId": "scale",
+    "priority": "RECOMMENDED",
+    "orderHint": "FIRST_WEEK",
+    "why": "체중 변화를 살펴요.",
+    "caution": "체중이 줄거나 먹는 양과 활력이 달라지면 병원에 문의해요.",
+    "avoid": null,
+    "minSpec": {
+      "rules": []
+    },
+    "recommendedSpec": {
+      "rules": []
+    },
+    "notNowReason": null,
+    "searchKeyword": "{animal} 앵무 체중 저울",
+    "reviewStatus": "GENERAL_INFO",
+    "reviewerType": "AI_DRAFT",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "reviewBasis": null,
+    "draftedAt": "2026-11-23",
+    "contentKind": "HEALTH",
+    "source": [
+      {
+        "url": "https://vcahospitals.com/know-your-pet/amazon-parrots-feeding",
+        "title": "Amazon Parrots – Feeding – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://vcahospitals.com/know-your-pet/budgies-feeding",
+        "title": "Feeding Budgies – VCA Animal Hospitals",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/exotic-and-laboratory-animals/pet-birds/management-of-pet-birds",
+        "title": "Management of Pet Birds – MSD Veterinary Manual (전문가판)",
+        "accessedAt": "2026-11-25"
+      },
+      {
+        "url": "https://www.msdvetmanual.com/bird-owners/routine-care-and-safety-of-birds/illness-in-pet-birds",
+        "title": "Illness in Pet Birds – MSD Veterinary Manual (보호자판)",
+        "accessedAt": "2026-11-25"
+      }
+    ],
+    "crossCheck": {
+      "tool": "CODEX_DISCUSS",
+      "checkedAt": "2026-11-23",
+      "result": "AGREE"
+    }
   }
 ]

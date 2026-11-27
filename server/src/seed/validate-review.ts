@@ -1,10 +1,21 @@
-// 검수 규칙 V01~V05·V08~V11 + W-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
+// 검수 규칙 V01~V05·V08~V13 +W-STALE·W-GENERAL-STALE·W-COHERENCE (불변식 7). slug 규칙은 validate-slug.ts(R3 C2, W-SLUG 대체).
 //   노출 판정은 여기서 하지 않는다(A-6: engine/exposure.ts 단일). 여기선 "검수 기록이 규칙에 맞는가"만.
 import { STALE_DAYS, isVerified, reviewerRank } from '../engine/index.js';
 import { CONTENT_KEYS, daysBetween, has, isIsoDate, isNonEmptyStr, asRec, type Rec, type SeedKey } from './common.js';
 import { isReviewBasis, requiredBasis, requiredBasisReason, REVIEW_BASES } from './signatures.js';
 import { registrableDomainOfUrl } from './hostname.js';
 import { isAiHandle } from './ai-handle.js';
+import {
+  CROSS_CHECK_CONTENT_KINDS,
+  GENERAL_INFO_CONTENT_KINDS,
+  GENERAL_INFO_MAX_AGE_DAYS,
+  GENERAL_INFO_STATUS,
+  GENERAL_INFO_TYPE_IDS,
+  hasHttpsSource,
+  isCrossCheckShape,
+  isGeneralInfoTypeId,
+} from '../engine/general-info.js';
+import { GENERAL_INFO_FILES } from './validate-structure.js';
 import type { Ctx } from './context.js';
 
 /** contentKind 별 최소 검수 등급(제품기획 §7.3 + A-7). LEGAL 은 정확히 OFFICIAL_SOURCE. */
@@ -52,6 +63,7 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   for (const f of ['verifiedBy', 'specVerifiedBy'] as const) {
     if (isAiHandle(r[f])) out.error('V11', key, id, f, `${f}=${JSON.stringify(r[f])} 는 AI/봇 핸들 — 검수자는 사람만(불변식 7)`);
   }
+  checkGeneralInfo(ctx, key, id, r);
   if (!verified) return;
 
   // V10 — 행별 출처 확인이 근거인 행(상품·최소 규격)은 ROW_CHECKED 만(일괄 승인 불가, Kenny 2026-10-24 H-1).
@@ -93,10 +105,88 @@ function checkRow(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
   }
 }
 
+/**
+ * V12(356, Kenny 2026-11-23 — 불변식 7 「예외 2」): GENERAL_INFO(일반 참고 정보) 기록 규칙. VERIFIED 승격이 아니다(V01 그대로).
+ *   - 체인 네 파일(animalTypes·careProfiles·supplyItems·supplyRequirements)에만. 상품·구성안·호환·Taxon·후기 → ERROR.
+ *   - animalTypes 행은 코드 고정 6종(engine/general-info.ts)만.
+ *   - 검수자 필드 없음: verifiedBy·verifiedAt null(reviewBasis 는 V09 가 본다).
+ *   - draftedAt(YYYY-MM-DD) 필수 · contentKind ∈ SPEC·CARE·FOOD·HEALTH(LEGAL 불가).
+ *   - FOOD·HEALTH 는 crossCheck{tool,checkedAt,result} 필수, draftedAt ≤ checkedAt(미래는 S07).
+ *   - FOOD·HEALTH 는 https 출처 1곳 이상(Kenny 2026-11-25, 356r M3). 형식(url·title·accessedAt)은 S04, 노출 쪽도 같은 조건.
+ *   - draftedAt·crossCheck 값은 GENERAL_INFO 행에만(다른 상태 행에 남아 있으면 ERROR — VERIFIED 로 올릴 때 지운다).
+ *   - draftedAt 이 GENERAL_INFO_MAX_AGE_DAYS 초과 → W-GENERAL-STALE(노출 판정에서 빠진다 — engine isGeneralInfoMeta).
+ */
+function checkGeneralInfo(ctx: Ctx, key: SeedKey, id: string, r: Rec): void {
+  const { out } = ctx;
+  if (r.reviewStatus !== GENERAL_INFO_STATUS) {
+    for (const f of ['draftedAt', 'crossCheck'] as const) {
+      if (has(r, f) && r[f] !== null) out.error('V12', key, id, f, `${f} 는 GENERAL_INFO 행에만(현재 ${String(r.reviewStatus)}) — 다른 상태로 옮길 때 지운다`);
+    }
+    return;
+  }
+  if (!GENERAL_INFO_FILES.includes(key)) {
+    out.error('V12', key, id, 'reviewStatus', `GENERAL_INFO 는 ${GENERAL_INFO_FILES.join('·')} 에만(356 — 상품·구성안·호환·Taxon·후기는 VERIFIED 만)`);
+    return;
+  }
+  if (key === 'animalTypes' && !isGeneralInfoTypeId(id)) {
+    out.error('V12', key, id, 'reviewStatus', `GENERAL_INFO 동물 타입은 코드 고정 ${GENERAL_INFO_TYPE_IDS.join('·')} 만(engine/general-info.ts)`);
+  }
+  for (const f of ['verifiedBy', 'verifiedAt'] as const) {
+    if (has(r, f) && r[f] !== null) out.error('V12', key, id, f, `GENERAL_INFO 는 검수 기록이 아니다 — ${f} 는 null`);
+  }
+  const kind = r.contentKind as string;
+  if (!(GENERAL_INFO_CONTENT_KINDS as readonly string[]).includes(kind)) {
+    out.error('V12', key, id, 'contentKind', `GENERAL_INFO contentKind 는 ${GENERAL_INFO_CONTENT_KINDS.join('/')} 만(LEGAL 불가, 현재 ${String(kind)})`);
+  }
+  const drafted = isIsoDate(r.draftedAt) ? r.draftedAt : null;
+  if (drafted === null) {
+    out.error('V12', key, id, 'draftedAt', 'GENERAL_INFO 는 draftedAt(YYYY-MM-DD) 필수');
+  } else if (daysBetween(drafted, ctx.now) > GENERAL_INFO_MAX_AGE_DAYS) {
+    out.warn('W-GENERAL-STALE', key, id, 'draftedAt', `초안 ${daysBetween(drafted, ctx.now)}일 경과(>${GENERAL_INFO_MAX_AGE_DAYS}) — 다시 정리 필요, 노출 판정에서 빠진다`);
+  }
+  if ((CROSS_CHECK_CONTENT_KINDS as readonly string[]).includes(kind)) {
+    if (!hasHttpsSource(r.source)) out.error('V12', key, id, 'source', `GENERAL_INFO ${kind} 는 https 출처 1곳 이상 필수`);
+    if (!isCrossCheckShape(r.crossCheck)) {
+      out.error('V12', key, id, 'crossCheck', `GENERAL_INFO ${kind} 는 교차 확인 기록 crossCheck{tool,checkedAt,result} 필수`);
+    } else if (drafted !== null && (asRec(r.crossCheck)?.checkedAt as string) < drafted) {
+      out.error('V12', key, id, 'crossCheck', `crossCheck.checkedAt 이 draftedAt(${drafted}) 보다 앞선다`);
+    }
+  }
+}
+
+/**
+ * V13(356r M1, 불변식 3·7): VERIFIED 상품의 연결 체인에 GENERAL_INFO 행이 있으면 ERROR.
+ *   체인 = 상품 supplyItemId 의 SupplyItem · careProfileIds 의 CareProfile · (그 프로필, 그 용품) SupplyRequirement
+ *        · 그 프로필을 쓰는 AnimalType. GENERAL_INFO 의 minSpec 은 AI 초안이라 meetsMinSpec 판정 근거가 될 수 없다.
+ *   노출 쪽은 engine/exposure.ts strictChainOk 가 같은 연결을 비노출로 막는다(이중 방어).
+ */
+function checkProductChain(ctx: Ctx): void {
+  const isGi = (r: Rec | undefined): boolean => r !== undefined && r.reviewStatus === GENERAL_INFO_STATUS;
+  for (const { rec, id } of ctx.rows.curatedProducts) {
+    if (rec.reviewStatus !== 'VERIFIED') continue;
+    const itemId = rec.supplyItemId;
+    const profileIds = Array.isArray(rec.careProfileIds) ? rec.careProfileIds.filter((x): x is string => typeof x === 'string') : [];
+    const hits: string[] = [];
+    if (typeof itemId === 'string' && isGi(ctx.byId.supplyItems.get(itemId))) hits.push(`SupplyItem ${itemId}`);
+    for (const pid of profileIds) if (isGi(ctx.byId.careProfiles.get(pid))) hits.push(`CareProfile ${pid}`);
+    for (const { rec: r, id: rid } of ctx.rows.supplyRequirements) {
+      if (r.supplyItemId === itemId && profileIds.includes(r.careProfileId as string) && isGi(r)) hits.push(`SupplyRequirement ${rid}`);
+    }
+    for (const { rec: t, id: tid } of ctx.rows.animalTypes) {
+      if (profileIds.includes(t.careProfileId as string) && isGi(t)) hits.push(`AnimalType ${tid}`);
+    }
+    if (hits.length > 0) {
+      ctx.out.error('V13', 'curatedProducts', id, 'careProfileIds', `VERIFIED 상품이 GENERAL_INFO 체인에 연결됨(${hits.join(', ')}) — AI 초안 minSpec 으로 규격 판정 불가(불변식 3·7)`);
+    }
+  }
+}
+
 export function checkReview(ctx: Ctx): void {
   for (const key of CONTENT_KEYS) {
     for (const { rec, id } of ctx.rows[key]) checkRow(ctx, key, id, rec);
   }
+
+  checkProductChain(ctx);
 
   // W-COHERENCE: VERIFIED 요구사항인데 용품·프로필이 미검수 → 노출 안 됨을 운영자에게 알림.
   for (const { rec, id } of ctx.rows.supplyRequirements) {

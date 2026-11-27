@@ -136,6 +136,14 @@ function specTarget(t: TypeModel): { r: RequirementModel; figure: MinSpecFigure 
  *   PRD 순서(지금 → 처음 준비 → 준비물 → 병원 → 저장)는 지키고, R4 시안 섹션(나중에·규격)은 관련 섹션 뒤에 둔다. 데이터 없는 나중에·처음 준비·규격·준비물은 섹션 없음.
  *   하이드레이션 후에만 동작하는 버튼(① 주 버튼 → L2)은 정적에서 같은 클래스의 링크(첫 필수 항목 L4 문서).
  */
+/**
+ * 356(Kenny 11/23 예외 2 · K4): 일반 참고 정보 고지 — 타입 표지(pub.generalInfo)가 있으면 종 페이지 머리(h1 다음) 1회, 없으면 ''(바이트 동일).
+ *   클라 HomeB 와 같은 마크업. 레이어(L4·L5)는 고지 문장을 다시 쓰지 않고 출처 라벨만(compliance C9-GENERAL: 라우트당 정확히 1회).
+ */
+export function generalInfoNote(t: Pick<TypeModel, 'pub'>): string {
+  return t.pub.generalInfo ? `<p class="ws-t-meta ws-muted ws-context-note" data-ws-notice="general-info">${h(COPY.generalInfo.notice)}</p>` : '';
+}
+
 function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
   const required = t.requirements.filter((r) => r.pub.priority === 'REQUIRED');
   const later = t.requirements.filter((r) => r.pub.priority === 'NOT_NOW');
@@ -254,7 +262,7 @@ function typeMain(ctx: PageContext, m: SiteModel, t: TypeModel): string {
   return [
     mainOpen(ctx, t.id, {}, 'ws-home-b'),
     `<section class="ws-context" data-ws-id="animalTypes#${a(t.id)}" aria-labelledby="ws-context-title">`,
-    `<div class="ws-context-text"><p class="ws-t-meta ws-muted ws-context-eyebrow">${h(COPY.homeB.contextEyebrow)}</p><h1 id="ws-context-title" class="ws-t-display">${h(t.pub.displayName)}</h1></div>`,
+    `<div class="ws-context-text"><p class="ws-t-meta ws-muted ws-context-eyebrow">${h(COPY.homeB.contextEyebrow)}</p><h1 id="ws-context-title" class="ws-t-display">${h(t.pub.displayName)}</h1>${generalInfoNote(t)}</div>`,
     `<a class="ws-context-change" data-ws-action="change-animal" href="${PICK_PATH}" aria-label="${a(COPY.nav.changeFriend)}">${h(COPY.homeB.change)}</a>`,
     '</section>',
     ...nowSection,
@@ -364,7 +372,14 @@ export function layerL4(t: TypeModel, r: RequirementModel, parentPath: string = 
           .map((x) => productCard(t, x, r.item))
           .join('\n')}\n</ul></section>`
       : '',
-    lm || p.source.length
+    // 356 K4: 일반 참고 정보 요구사항 — 「검수 내용」·마지막 검수 대신 「출처」 + 「관련 참고 링크」(실제 출처가 있으면 뒤에). 고지 문장은 main 머리 1회.
+    p.generalInfo
+      ? [
+          `<section data-ws-part="verified"><h3>${h(COPY.supplyLayer.source)}</h3>`,
+          `<p class="ws-source" data-ws-source="general-info">${h(p.source.length ? COPY.generalInfo.sourceLabel : COPY.generalInfo.sourceLabelNone)}${p.source.length ? ` · ${p.source.map((s) => externalLink(s.url, s.title)).join(' · ')}` : ''}</p>`,
+          '</section>',
+        ].join('\n')
+      : lm || p.source.length
       ? [
           `<section data-ws-part="verified"><h3>${h(COPY.supplyLayer.reviewTitle)}</h3>`,
           lm ? `<p class="ws-verified">${h(COPY.supplyLayer.lastVerified)} ${h(lm)}</p>` : '',
@@ -588,6 +603,7 @@ export function renderSetupPage(m: SiteModel, ctx: PageContext, t: TypeModel): R
     renderHeader(t.pub, navCurrent(ctx.route), setupData),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.homeB.bundlesTitle)}</h1>`,
+    ...(generalInfoNote(t) ? [generalInfoNote(t)] : []), // VERIFIED 종은 '' — 빈 줄 0(출력 바이트 불변)
     ...(t.tips.length > 0 ? [tipsEntry(t)] : []), // 301: 팁 0 이면 줄 자체를 넣지 않는다(기존 바이트 동일)
     ...cards,
     '</main>',
@@ -724,6 +740,7 @@ export function renderTipsPage(m: SiteModel, ctx: PageContext, t: TypeModel): Re
     renderHeader(t.pub, navCurrent(ctx.route), tipsData),
     mainOpen(ctx, t.id),
     `<h1>${h(t.pub.displayName)} · ${h(COPY.tips.title)}</h1>`,
+    ...(generalInfoNote(t) ? [generalInfoNote(t)] : []), // VERIFIED 종은 '' — 빈 줄 0(출력 바이트 불변)
     `<p class="ws-tips-disclaimer">${h(COPY.tips.disclaimer)}</p>`,
     `<p>${h(COPY.tips.lead)}</p>`,
     ...sections,

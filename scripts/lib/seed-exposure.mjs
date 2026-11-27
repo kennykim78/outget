@@ -5,20 +5,26 @@
 //   verified(r)        = reviewStatus === 'VERIFIED' ∧ rank(reviewerType) ≥ rank(OPERATOR)   (AI_DRAFT·미지값 제외)
 //                        ∧ fresh(r, asOf): verifiedAt 달력 날짜 ∧ 0 ≤ (asOf − verifiedAt) ≤ STALE_DAYS(180)   (M-1, R4 D5)
 //                        computeExposure(seed, asOf) — asOf 필수(YYYY-MM-DD 아니면 RangeError). 아래 "verified" 는 전부 이 뜻.
-//   careProfile        = verified
-//   animalType(base)   = status ACTIVE ∧ verified ∧ careProfile 존재·verified(Taxon 은 보지 않음 — Kenny 2026-10-24 K-4 되돌림)
-//   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ verified(r) ∧ item verified
+//   chainOk(r, t)      = verified(r) ∨ (t ∈ GENERAL_INFO_TYPE_IDS(코드 고정 6종) ∧ generalInfoRowOk(r))   (356 예외 2, Kenny 2026-11-23)
+//                        generalInfoRowOk = reviewStatus GENERAL_INFO ∧ 알려진 reviewerType ∧ contentKind ∈ {SPEC,CARE,FOOD,HEALTH}
+//                        ∧ draftedAt 0~STALE_DAYS ∧ (FOOD·HEALTH → crossCheck 키 3개{CODEX_DISCUSS, checkedAt, AGREE|REVISED}
+//                        ∧ draftedAt ≤ checkedAt ≤ asOf ∧ https 출처 1곳 이상). 체인 메타 네 개(type·profile·requirement·item)에만 — 아래 나머지는 verified 그대로.
+//   careProfile        = 노출 type 의 프로필(그 type 기준 chainOk)
+//   animalType(base)   = status ACTIVE ∧ chainOk(t,t) ∧ careProfile 존재·chainOk(Taxon 은 보지 않음 — Kenny 2026-10-24 K-4 되돌림)
+//   requirement(t,r)   = base(t) ∧ r.careProfileId === t.careProfileId ∧ chainOk(r,t) ∧ item chainOk(·,t)
 //   animalType         = base ∧ 노출 requirement ≥ 1
-//   supplyItem         = verified ∧ 어떤 노출 (type,item) 쌍의 item
+//   supplyItem         = 어떤 노출 (type,item) 쌍의 item(그 type 기준 chainOk)
 //   curatedProduct     = status ACTIVE ∧ verified ∧ meetsMinSpec === true ∧ ∃ 노출 type t:
-//                        t.careProfileId ∈ careProfileIds ∧ (t,item) 노출 ∧ minSpec(base ⊕ override, (key,op) 교체) 전부 충족
+//                        t.careProfileId ∈ careProfileIds ∧ (t,item) 노출 ∧ 체인(type·프로필·요구사항·용품) 전부 verified(GENERAL_INFO 불가, 356r M1) ∧ minSpec(base ⊕ override, (key,op) 교체) 전부 충족
 //                        (키 누락·미지 op·when 평가 불가 → 비노출)
 //   setupBundle        = verified ∧ ∃ 노출 type t: careProfileId 일치 ∧ itemIds 비어있지 않고 전부 (t,item) 노출
 //   compatibilityRule  = verified ∧ a·b 둘 다 노출 item ∧ (careProfileId 없음 ∨ 노출 타입의 프로필)
 //   taxon              = verified ∧ (노출 type 의 taxonId ∨ 노출 careProfile 의 taxonIds 중 비노출 type 의 taxonId 아닌 것, 277 QA M-1) — 산출물의 Taxon 참조는 이 집합만(불변식 7)
 //   vetClinic          = verification.status === 'VERIFIED'
 //   testimonial        = status === 'APPROVED' ∧ verifiedUsage === true ∧ animalTypeId ∈ 노출 animalType(F5)
-//   photo              = status ∈ {READY} ∧ license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author)
+//   photo              = status ∈ {READY} ∧ (license === AI_GENERATED → 생성 기록 전부(source CODEX|AGY·generatedAt·promptPath·asset
+//                        ·사람 speciesCheck·원본 URL 없음, 354) | 아래 실사 규칙)
+//                        실사: license ∈ I01 ∧ source ∧ https sourceUrl ∧ downloadedAt ∧ (CC0 ∨ author) ∧ (asset 있으면 경로 형식)
 //                        ∧ 출처별 호스트 허용목록·userinfo 거부(M-1) ∧ CC_BY_SA 원본·카드 슬롯(L8)
 //                        ∧ (CC_BY·CC_BY_SA → licenseUrl 이 같은 종류의 creativecommons.org 증서, M-3)
 //   budgetTip          = REFERENCE 별도 경로(Kenny 2026-11-22 — 검수 메타를 보지 않는다, 불변식 7 명시 예외):
@@ -62,6 +68,30 @@ export function isVerifiedRow(r) {
 
 /** 검수 유효 일수 — server/src/engine/domain.ts STALE_DAYS 와 같아야 한다(패리티 테스트 engine.exposure.parity). */
 export const STALE_DAYS = 180;
+
+/** 356: 일반 참고 정보 등급 허용 6종 — server/src/engine/general-info.ts 와 같아야 한다(패리티 engine.general-info.parity). */
+export const GENERAL_INFO_TYPE_IDS = Object.freeze(['hamster-robo', 'gerbil-mongolian', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure']);
+export const GENERAL_INFO_MAX_AGE_DAYS = STALE_DAYS;
+const GI_KINDS = new Set(['SPEC', 'CARE', 'FOOD', 'HEALTH']);
+const GI_CROSS_KINDS = new Set(['FOOD', 'HEALTH']);
+
+/** 356: GENERAL_INFO 행 유효(타입 범위는 보지 않음 — computeExposure 가 체인 type 으로 본다). 엔진과 독립 구현, fail-closed. */
+export function generalInfoRowOk(r, asOfDay) {
+  if (!isObj(r) || r.reviewStatus !== 'GENERAL_INFO') return false;
+  if (!REVIEWER_RANK.includes(r.reviewerType)) return false;
+  if (!GI_KINDS.has(r.contentKind)) return false;
+  const d = dayNumber(r.draftedAt);
+  if (d === null || asOfDay - d < 0 || asOfDay - d > GENERAL_INFO_MAX_AGE_DAYS) return false;
+  if (!GI_CROSS_KINDS.has(r.contentKind)) return true;
+  if (!Array.isArray(r.source) || !r.source.some((s) => isObj(s) && typeof s.url === 'string' && s.url.startsWith('https://'))) return false;
+  const cc = r.crossCheck;
+  if (!isObj(cc)) return false;
+  const ks = Object.keys(cc).sort();
+  if (ks.length !== 3 || ks[0] !== 'checkedAt' || ks[1] !== 'result' || ks[2] !== 'tool') return false;
+  if (cc.tool !== 'CODEX_DISCUSS' || (cc.result !== 'AGREE' && cc.result !== 'REVISED')) return false;
+  const c = dayNumber(cc.checkedAt);
+  return c !== null && c >= d && c <= asOfDay;
+}
 
 /** YYYY-MM-DD(달력상 존재) → 정수 일 번호, 아니면 null. 엔진과 독립 구현(Date 왕복 검사). */
 export function dayNumber(v) {
@@ -152,9 +182,52 @@ export function ccBySaPlacementOk(p) {
   return CC_BY_SA_SLOT_EXACT.has(p.slot) || CC_BY_SA_SLOT_PREFIX.test(p.slot);
 }
 
+// ── 354(Kenny 2026-11-23 「빈 이미지 칸 0」): 생성 이미지 기록 규칙(독립 구현 — engine/photo-ai.ts 와 패리티 시험) ─────────────
+export const PHOTO_AI_LICENSE = 'AI_GENERATED';
+export const PHOTO_AI_SOURCES = new Set(['CODEX', 'AGY']);
+/** 배포 파일 /assets/(photos|items)/<kebab>[--<kebab>].webp — 경로 순회·대문자·다른 확장자 금지. */
+export const PHOTO_ASSET_PATH_RE = /^\/assets\/(?:photos|items)\/[a-z0-9]+(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?\.webp$/;
+/** 프롬프트 파일 docs/assets/prompts/<kebab>[--<kebab>].md(저장소 상대). */
+export const PHOTO_PROMPT_RE = /^docs\/assets\/prompts\/[a-z0-9]+(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?\.md$/;
+const MACHINE_SIGNER_EXACT = new Set(['AI', 'AGY', 'GPT']);
+const MACHINE_SIGNER_PART = ['AIDRAFT', 'AIGENERATED', 'CODEX', 'ANTIGRAVITY', 'CHATGPT', 'OPENAI', 'GEMINI', 'CLAUDE', 'GPTIMAGE', 'IMAGEGEN'];
+
+/** 종 확인 서명자가 사람이 아닌 표지(AI_DRAFT 변형·생성 도구·모델 이름)인가. */
+export function machineSigner(v) {
+  if (typeof v !== 'string') return false;
+  const letters = v.normalize('NFKC').toUpperCase().replace(/[^A-Z]/g, '');
+  return MACHINE_SIGNER_EXACT.has(letters) || MACHINE_SIGNER_PART.some((m) => letters.includes(m));
+}
+
+/** AI_GENERATED 행의 누락·위반 필드 이름 목록(빈 배열 = 기록 완전). */
+export function aiPhotoRowMissing(p) {
+  const miss = [];
+  if (!isObj(p)) return ['row'];
+  if (!PHOTO_AI_SOURCES.has(p.source)) miss.push('source(CODEX|AGY)');
+  if (p.sourceUrl !== null && p.sourceUrl !== undefined) miss.push('sourceUrl(null 이어야 함)');
+  if (p.licenseUrl !== null && p.licenseUrl !== undefined) miss.push('licenseUrl(null 이어야 함)');
+  const gen = dayNumber(p.generatedAt);
+  if (gen === null) miss.push('generatedAt');
+  if (typeof p.promptPath !== 'string' || !PHOTO_PROMPT_RE.test(p.promptPath)) miss.push('promptPath(docs/assets/prompts/<kebab>.md)');
+  if (typeof p.asset !== 'string' || !PHOTO_ASSET_PATH_RE.test(p.asset)) miss.push('asset(/assets/(photos|items)/<kebab>.webp)');
+  const sc = p.speciesCheck;
+  if (!isObj(sc)) {
+    miss.push('speciesCheck');
+    return miss;
+  }
+  const ks = Object.keys(sc);
+  if (ks.length !== 2 || !ks.includes('checkedBy') || !ks.includes('checkedAt')) miss.push('speciesCheck(키 checkedBy·checkedAt 만)');
+  if (!nonEmpty(sc.checkedBy) || machineSigner(sc.checkedBy)) miss.push('speciesCheck.checkedBy(사람 — AI_DRAFT·생성 도구 금지)');
+  const chk = dayNumber(sc.checkedAt);
+  if (chk === null || (gen !== null && chk < gen)) miss.push('speciesCheck.checkedAt(생성일 이후 날짜)');
+  return miss;
+}
+
 /** engine isPhotoUsable 과 정확히 같은 판정(S-R4 L-D, 패리티 테스트) — 이보다 넓으면 안 된다. */
 export function isPhotoUsableRow(p) {
   if (!isObj(p) || !PHOTO_USABLE_STATUSES.has(p.status)) return false;
+  if (p.license === PHOTO_AI_LICENSE) return aiPhotoRowMissing(p).length === 0;
+  if (p.asset !== undefined && p.asset !== null && (typeof p.asset !== 'string' || !PHOTO_ASSET_PATH_RE.test(p.asset))) return false;
   if ((p.license === 'CC_BY' || p.license === 'CC_BY_SA') && ccLicenseOfUrl(p.licenseUrl) !== p.license) return false;
   if (!PHOTO_LICENSES.has(p.license)) return false;
   if (!nonEmpty(p.source)) return false;
@@ -436,19 +509,26 @@ export function computeExposure(seed, asOf) {
   const asOfDay = dayNumber(asOf);
   if (asOfDay === null) throw new RangeError(`computeExposure: asOf 는 YYYY-MM-DD 여야 한다 (${String(asOf)})`);
   const ok = (r) => isVerifiedRow(r) && isFreshRow(r, asOfDay);
+  // 356: 체인 메타 전용 — 코드 고정 6종 type 의 체인이면 GENERAL_INFO 행도 통과. 상품·구성안·호환·Taxon 은 ok 만.
+  const giTypes = new Set(GENERAL_INFO_TYPE_IDS);
+  const chainOk = (r, typeId) => ok(r) || (giTypes.has(typeId) && generalInfoRowOk(r, asOfDay));
   const rows = (k) => (Array.isArray(seed[k]) ? seed[k] : []);
   const profiles = groupById(rows('careProfiles'));
   const items = groupById(rows('supplyItems'));
-  const verifiedProfile = (id) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every(ok);
-  const verifiedItem = (id) => typeof id === 'string' && items.has(id) && items.get(id).every(ok);
+  const chainProfile = (id, typeId) => typeof id === 'string' && profiles.has(id) && profiles.get(id).every((r) => chainOk(r, typeId));
+  const chainItem = (id, typeId) => typeof id === 'string' && items.has(id) && items.get(id).every((r) => chainOk(r, typeId));
 
   const typeRows = groupById(rows('animalTypes'));
-  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && ok(t) && verifiedProfile(t.careProfileId);
+  const baseType = (t) => isObj(t) && t.status === 'ACTIVE' && chainOk(t, t.id) && chainProfile(t.careProfileId, t.id);
 
   const reqs = rows('supplyRequirements').filter(isObj);
   const reqIdGroups = groupById(reqs);
   const reqExposedForType = (t, r) =>
-    baseType(t) && r.careProfileId === t.careProfileId && ok(r) && verifiedItem(r.supplyItemId) && reqIdGroups.get(r.id)?.every(ok) !== false;
+    baseType(t) &&
+    r.careProfileId === t.careProfileId &&
+    chainOk(r, t.id) &&
+    chainItem(r.supplyItemId, t.id) &&
+    reqIdGroups.get(r.id)?.every((x) => chainOk(x, t.id)) !== false;
 
   const pairs = new Set();
   const pairReq = new Map(); // typeId|itemId → req rows (같은 프로필·아이템 중복이면 전부 노출일 때만)
@@ -477,6 +557,12 @@ export function computeExposure(seed, asOf) {
   const exposedItemIds = new Set();
   for (const p of pairs) exposedItemIds.add(p.split('|')[1]);
 
+  // 356r M1(불변식 3·7): 상품 판정용 체인 — type·프로필·요구사항·용품 전 행이 ok(VERIFIED ∧ 유효). GENERAL_INFO 체인(AI 초안 minSpec)에
+  //   연결된 상품은 추천 영역에 내지 않는다(엔진 exposure.ts strictChainOk 미러, validate V13 이 연결 자체를 ERROR).
+  const allOk = (grp) => Array.isArray(grp) && grp.length > 0 && grp.every(ok);
+  const productStrictChain = (t, req, itemId) =>
+    ok(t) && allOk(profiles.get(t.careProfileId)) && allOk(reqIdGroups.get(req.id)) && allOk(items.get(itemId));
+
   const productTypes = new Set();
   const productIds = idsWhere(rows('curatedProducts'), (p) => {
     if (!(p.status === 'ACTIVE' && ok(p) && p.meetsMinSpec === true && Array.isArray(p.careProfileIds))) return false;
@@ -484,7 +570,7 @@ export function computeExposure(seed, asOf) {
     for (const [tid, t] of types) {
       if (!p.careProfileIds.includes(t.careProfileId)) continue;
       const req = pairReq.get(`${tid}|${p.supplyItemId}`);
-      if (!req) continue;
+      if (!req || !productStrictChain(t, req, p.supplyItemId)) continue;
       const rules = resolvedMinRules(req, t, p.supplyItemId);
       const rec = resolvedRecommendedRules(req, t, p.supplyItemId);
       // M-1(QA): 최소·권장 해석 규칙이 둘 다 비면 무규격 — 엔진 evaluateProductStage 와 같게 CHECK(노출 불가, 불변식 ③ fail-closed).
@@ -530,8 +616,9 @@ export function computeExposure(seed, asOf) {
   const ids = {
     animalTypes: new Set(types.keys()),
     taxa: idsWhere(rows('taxa'), (x) => ok(x) && typeTaxa.has(x.id)),
-    careProfiles: idsWhere(rows('careProfiles'), (x) => ok(x) && typeProfiles.has(x.id)),
-    supplyItems: idsWhere(rows('supplyItems'), (x) => ok(x) && exposedItemIds.has(x.id)),
+    // 356: 노출 type 의 baseType·쌍 판정이 이미 그 type 기준 chainOk(같은 id 전 행)를 봤다 — 여기서 ok 를 다시 요구하면 GENERAL_INFO 6종이 빠진다.
+    careProfiles: idsWhere(rows('careProfiles'), (x) => typeProfiles.has(x.id)),
+    supplyItems: idsWhere(rows('supplyItems'), (x) => exposedItemIds.has(x.id)),
     supplyRequirements: exposedReqIds,
     // M4: 프로필 범위 규칙은 노출 타입의 프로필일 때만(엔진 projectCatalog 와 같은 조건).
     compatibilityRules: idsWhere(
@@ -546,7 +633,8 @@ export function computeExposure(seed, asOf) {
     photos: photoIds,
   };
   // 저렴 대체 팁(REFERENCE 별도 경로) — tipTypes = `${typeId}|${tipId}`.
-  const itemCategory = (id) => (verifiedItem(id) ? items.get(id)[0].category : undefined);
+  // 356: 용품 검수는 tipOkFor 의 pairs(type 기준 chainOk)가 본다 — 엔진 isBudgetTipExposable(requirementOk) 미러.
+  const itemCategory = (id) => (typeof id === 'string' && items.has(id) && items.get(id).length === 1 ? items.get(id)[0].category : undefined);
   const tipTypes = new Set();
   const tipOkFor = (x, tid, t) =>
     t.careProfileId === x.careProfileId && (x.animalTypeIds === undefined || (Array.isArray(x.animalTypeIds) && x.animalTypeIds.includes(tid))) && pairs.has(`${tid}|${x.supplyItemId}`);

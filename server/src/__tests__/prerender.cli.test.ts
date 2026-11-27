@@ -75,7 +75,7 @@ describe('seedDigest — lane E 구현과 동일', () => {
 });
 
 describe('prerender CLI', () => {
-  it('실시드(2026-11-16 서명 + 2026-11-23 활성화): 요약 한 줄(골든·드워프·기니피그 3타입), 파일 생성, 2회 실행 트리 동일, 셸 보존 · 서명 전 기준은 types 0', async () => {
+  it('실시드(2026-11-16 서명 + 2026-11-23 9종 활성화): 요약 한 줄(9타입), 파일 생성, 2회 실행 트리 동일, 셸 보존 · 서명 전 기준은 types 0', async () => {
     const pre = outDir();
     const pr = await run(['--out', pre, '--public-dir', tmp('pub'), '--seed-dir', writeUnsignedSeedDir(tmp('seed-unsigned'))]);
     expect([pr.code, pr.out]).toEqual([0, ['prerender — pages 7 (+404), indexable 2, types 0']]);
@@ -84,10 +84,9 @@ describe('prerender CLI', () => {
     const r1 = await run(['--out', out, '--public-dir', tmp('pub')]);
     expect(r1.err).toEqual([]);
     expect(r1.code).toBe(0);
-    expect(r1.out).toEqual(['prerender — pages 171 (+404), indexable 125, types 3' /* 2026-11-23 드워프·기니피그 활성화(옛 61·44·1) · 315 총괄 11/22: 실시드 팁 검수 기록(summaryCheck·vetReview) null → /tips 0 */]);
-    // 노출은 ACTIVE 골든·드워프·기니피그 — PLANNED 저빌·앵무(서명됐어도) 경로 0.
-    for (const f of ['hamster/index.html', 'hamster/golden/index.html', 'hamster/golden/supplies/cage/index.html', 'hamster/golden/check/wheel/index.html', 'hamster/dwarf/index.html', 'guinea-pig/index.html']) expect(existsSync(join(out, f)), f).toBe(true);
-    for (const f of ['gerbil', 'parrot']) expect(existsSync(join(out, f)), f).toBe(false);
+    expect(r1.out).toEqual(['prerender — pages 401 (+404), indexable 283, types 9' /* 356 2026-11-23 6종 활성화(VERIFIED 4 + GENERAL_INFO 5, 옛 171·125·3, 그 전 61·44·1) · 315 총괄 11/22: 실시드 팁 검수 기록(summaryCheck·vetReview) null → /tips 0 */]);
+    // 356: 노출은 ACTIVE 9타입 — 골든·드워프·기니피그·저빌(VERIFIED) + 로보·앵무 4종(GENERAL_INFO, 코드 고정 6종).
+    for (const f of ['hamster/index.html', 'hamster/golden/index.html', 'hamster/golden/supplies/cage/index.html', 'hamster/golden/check/wheel/index.html', 'hamster/dwarf/index.html', 'guinea-pig/index.html', 'gerbil/index.html', 'hamster/robo/index.html', 'parrot/index.html', 'parrot/budgie/index.html', 'parrot/cockatiel/index.html', 'parrot/lovebird-peach/index.html', 'parrot/sun-conure/index.html']) expect(existsSync(join(out, f)), f).toBe(true);
     for (const f of ['index.html', 'supplies/index.html', 'vet/index.html', 'credits/index.html', '404.html', 'sitemap.xml', 'robots.txt', 'prerender-manifest.json', SHELL_FILE]) {
       expect(existsSync(join(out, f)), f).toBe(true);
     }
@@ -208,6 +207,39 @@ describe('prerender CLI', () => {
     mkdirSync(join(pub, 'assets', 'products'), { recursive: true });
     writeFileSync(join(pub, 'assets', 'products', 'cp-001.webp'), 'x');
     expect((await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub])).code).toBe(0);
+  });
+
+  it('354: 사용 가능 생성 이미지 행의 asset 파일이 없으면 exit 1, public 에 있으면 통과', async () => {
+    const out = outDir();
+    const pub = tmp('pub');
+    const seedDir = tmp('seed');
+    const s = promoted({ publishable: true });
+    patch(s, 'photos', 'ph-01', {
+      status: 'READY', license: 'AI_GENERATED', source: 'CODEX', sourceUrl: null, licenseUrl: null,
+      generatedAt: '2026-11-20', promptPath: 'docs/assets/prompts/intro-1.md', asset: '/assets/photos/intro-1.webp',
+      speciesCheck: { checkedBy: 'Kenny', checkedAt: '2026-11-21' },
+    });
+    writeSeedDir(seedDir, s);
+    const r = await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub]);
+    expect(r.code).toBe(1);
+    expect(r.err.join('\n')).toContain('참조 자산 없음: /assets/photos/intro-1.webp');
+    expect(existsSync(join(out, 'prerender-manifest.json'))).toBe(false);
+    mkdirSync(join(pub, 'assets', 'photos'), { recursive: true });
+    writeFileSync(join(pub, 'assets', 'photos', 'intro-1.webp'), 'x');
+    expect((await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub])).code).toBe(0);
+  });
+
+  it('354: SLOT·기록 미비 사진의 asset 은 실재를 요구하지 않는다(사용 불가 = 화면에 안 나감)', async () => {
+    const out = outDir();
+    const pub = tmp('pub');
+    const seedDir = tmp('seed');
+    const s = promoted({ publishable: true });
+    // promoted() 픽스처는 ph-01 을 READY·CC_BY(사용 가능)로 올린다 — 여기서는 SLOT 으로 되돌린다.
+    //   (READY 인데 생성 기록이 빠진 AI 행은 validate I04 ERROR 로 먼저 막힌다 — engine.photo-ai.test.ts.)
+    patch(s, 'photos', 'ph-01', { status: 'SLOT', asset: '/assets/photos/intro-1.webp' });
+    writeSeedDir(seedDir, s);
+    const rr = await run(['--out', out, '--seed-dir', seedDir, '--public-dir', pub]);
+    expect(rr.code, rr.err.join('\n')).toBe(0);
   });
 
   it('마커 없는 템플릿·잘못된 인자 → exit 2', async () => {

@@ -30,10 +30,10 @@ const ITEMS_SEED_ORDER = ['cage', 'wheel', 'saucer', 'bedding', 'water', 'food-b
 const PRODUCT_ORDER = ['001', '002', '003', '004', '006', '007', '008', '005', '010', '011', '012', '013', '014', '015'].map((n) => `cp-dw-${n}`);
 
 describe('디스크 시드 — 2026-11-23 활성화로 드워프 실노출', () => {
-  it('projectSite(실시드, 2026-11-16 서명 + 2026-11-23 활성화) 타입 = 골든·드워프·기니피그 — 드워프 VERIFIED·ACTIVE', () => {
+  it('projectSite(실시드, 2026-11-16 서명 + 2026-11-23 9종 활성화) 타입 9 — 드워프 VERIFIED·ACTIVE', () => {
     const at = realSeed().animalTypes.find((t) => t.id === D);
     expect([at?.status, at?.reviewStatus]).toEqual(['ACTIVE', 'VERIFIED']);
-    expect(projectSite(realSeed(), DWARF_PREVIEW_AS_OF).types.map((t) => t.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'guinea-pig']);
+    expect(projectSite(realSeed(), DWARF_PREVIEW_AS_OF).types.map((t) => t.id)).toEqual(['hamster-golden', 'hamster-dwarf', 'gerbil-mongolian', 'guinea-pig', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure', 'hamster-robo']);
   });
 });
 

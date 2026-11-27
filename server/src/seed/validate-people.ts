@@ -1,5 +1,21 @@
 // 사람·장소·사진 규칙 T01~T03·VC01·VC02·I01~I03 (불변식 1·7·8, A-18 — 부록 B 면제 파일).
-import { PHOTO_USABLE_STATUSES, isoDayNumber, parseCcLicenseUrl } from '../engine/index.js';
+import {
+  PHOTO_AI_LICENSE,
+  PHOTO_ASSET_RE,
+  PHOTO_SCOPE_KEYS,
+  PHOTO_USABLE_STATUSES,
+  PHOTO_USES,
+  aiPhotoRecordProblems,
+  isAnimalGroup,
+  isoDayNumber,
+  parseCcLicenseUrl,
+  photoPlacements,
+  photoScopeKey,
+  resolvePlacement,
+  sceneFallbackAllowed,
+  scenePhotoIdFor,
+  type PhotoRec,
+} from '../engine/index.js';
 import { asRec, isIsoDate, isNonEmptyStr, isSlotRow } from './common.js';
 import type { Ctx } from './context.js';
 
@@ -98,6 +114,14 @@ function checkPhotos(ctx: Ctx): void {
       out.error('I01', 'photos', id, 'status', `사진 status 는 SLOT 또는 ${PHOTO_USABLE_STATUSES.join('/')} (현재 ${JSON.stringify(rec.status)})`);
     }
     if (rec.license === null || rec.license === undefined) out.error('I01', 'photos', id, 'license', '사용권 기록 필요(불변식 1)');
+    // I04(354, Kenny 2026-11-23): 생성 이미지는 원본 URL·저작자 대신 생성 기록 전부(engine isPhotoUsable AI 분기와 같은 규칙).
+    if (rec.license === PHOTO_AI_LICENSE) {
+      for (const p of aiPhotoRecordProblems(rec)) out.error('I04', 'photos', id, p.field, p.message);
+      continue;
+    }
+    if (rec.asset !== null && rec.asset !== undefined && (typeof rec.asset !== 'string' || !PHOTO_ASSET_RE.test(rec.asset))) {
+      out.error('I04', 'photos', id, 'asset', `배포 파일은 /assets/(photos|items)/<kebab>[--<kebab>].webp (현재 ${JSON.stringify(rec.asset)})`);
+    }
     if (!isNonEmptyStr(rec.source)) out.error('I01', 'photos', id, 'source', '출처 사이트 기록 필요');
     // engine isPhotoUsable 과 같은 엄격도(검증 통과 ↔ 노출 가능 일치 — 통과했는데 조용히 안 보이는 사진 금지).
     if (typeof rec.sourceUrl !== 'string' || !PHOTO_SOURCE_URL_RE.test(rec.sourceUrl)) {
@@ -129,8 +153,107 @@ function checkPhotos(ctx: Ctx): void {
   }
 }
 
+/**
+ * I05(354) — 사진 scope 형식·참조·종 정합. SLOT 행 포함(생성 대기 자리도 scope 가 맞아야 한다).
+ *   키는 use·animalTypeId·careProfileId·supplyItemId 만, use ∈ PHOTO_USES, 단계 조합만(resolvePhoto 가 보는 키 집합),
+ *   참조 존재, (종|프로필)+품목은 그 프로필에 요구 행이 있어야 한다(기니피그+쳇바퀴 같은 종 오류 사진을 막는다), 같은 scope 중복 금지,
+ *   품목 자리 asset 은 /assets/items/, 종 자리는 /assets/photos/.
+ */
+function checkPhotoScopes(ctx: Ctx): void {
+  const { out } = ctx;
+  const seen = new Map<string, string>();
+  const reqItems = new Set([...ctx.reqPairs].map((k) => k.slice(k.indexOf('|') + 1)));
+  for (const { rec, id } of ctx.rows.photos) {
+    if (rec.scope === null || rec.scope === undefined) continue;
+    const err = (path: string, msg: string): void => out.error('I05', 'photos', id, path, msg);
+    const s = asRec(rec.scope);
+    if (!s) {
+      err('scope', 'scope 는 객체 또는 null');
+      continue;
+    }
+    const key = photoScopeKey(s);
+    if (key === null) {
+      err('scope', `scope 키는 ${PHOTO_SCOPE_KEYS.join('·')} 만, 값은 비어 있지 않은 문자열`);
+      continue;
+    }
+    const use = s.use as string;
+    if (!(PHOTO_USES as readonly string[]).includes(use)) {
+      err('scope.use', `use 는 ${PHOTO_USES.join('/')} 중 하나 (현재 ${JSON.stringify(use)})`);
+      continue;
+    }
+    const t = s.animalTypeId as string | undefined;
+    const p = s.careProfileId as string | undefined;
+    const i = s.supplyItemId as string | undefined;
+    if (use === 'item') {
+      if (i === undefined) err('scope.supplyItemId', 'item 자리는 supplyItemId 필요');
+      if (t !== undefined && p !== undefined) err('scope', 'animalTypeId 와 careProfileId 는 함께 쓰지 않는다(대체 순서 단계 하나만)');
+    } else {
+      if (i !== undefined) err('scope.supplyItemId', `${use} 자리는 supplyItemId 를 쓰지 않는다`);
+      if ((t === undefined) === (p === undefined)) err('scope', `${use} 자리는 animalTypeId 또는 careProfileId 중 하나만`);
+    }
+    if (t !== undefined && !ctx.byId.animalTypes.has(t)) err('scope.animalTypeId', `AnimalType "${t}" 없음`);
+    if (p !== undefined && !ctx.byId.careProfiles.has(p)) err('scope.careProfileId', `CareProfile "${p}" 없음`);
+    if (i !== undefined && !ctx.byId.supplyItems.has(i)) err('scope.supplyItemId', `SupplyItem "${i}" 없음`);
+    if (i !== undefined) {
+      const profile = p ?? (t !== undefined ? (ctx.byId.animalTypes.get(t)?.careProfileId as string | null | undefined) : undefined);
+      if (t !== undefined || p !== undefined) {
+        if (typeof profile !== 'string' || !ctx.reqPairs.has(`${profile}|${i}`)) {
+          err('scope', `이 종(${t ?? p})의 요구 품목에 "${i}" 가 없다 — 다른 종의 용품 사진을 붙이지 않는다`);
+        }
+      } else if (!reqItems.has(i)) {
+        err('scope.supplyItemId', `어느 종의 요구 품목에도 "${i}" 가 없다`);
+      }
+    }
+    const prev = seen.get(key);
+    if (prev !== undefined) err('scope', `같은 scope 가 이미 ${prev} 에 있다`);
+    else seen.set(key, id);
+    if (typeof rec.asset === 'string' && PHOTO_ASSET_RE.test(rec.asset)) {
+      const dir = use === 'item' ? '/assets/items/' : '/assets/photos/';
+      if (!rec.asset.startsWith(dir)) err('asset', `${use} 자리 파일은 ${dir} 아래`);
+    }
+  }
+}
+
+/**
+ * I06·I07(354) — 화면 사진 자리 전수(engine photoPlacements: 홈 A 장면 + ACTIVE 종마다 종 자리 3 + 요구 품목 자리)를
+ *   resolvePhoto 로 풀어 본다. 장면 행까지 없으면 I06 ERROR(빈 칸을 빌드에서 막는다). 풀렸지만 아직 사용 불가(SLOT·기록 미비)인
+ *   자리는 I07 WARN 한 줄로 센다(생성 라운드 진척 — 0 이 「빈 이미지 칸 0」).
+ */
+function checkPhotoCoverage(ctx: Ctx): void {
+  const { out } = ctx;
+  const photos = ctx.rows.photos.map((r) => r.rec as unknown as PhotoRec);
+  const types = ctx.rows.animalTypes
+    .filter(({ rec }) => rec.status === 'ACTIVE' && isNonEmptyStr(rec.id))
+    .map(({ rec }) => ({
+      id: rec.id as string,
+      group: isAnimalGroup(rec.group) ? rec.group : null,
+      careProfileId: isNonEmptyStr(rec.careProfileId) ? rec.careProfileId : null,
+    }));
+  const itemsOf = (cp: string): string[] =>
+    [...new Set(ctx.rows.supplyRequirements.filter(({ rec }) => rec.careProfileId === cp && isNonEmptyStr(rec.supplyItemId)).map(({ rec }) => rec.supplyItemId as string))];
+  let empty = 0;
+  let total = 0;
+  for (const pl of photoPlacements(types, itemsOf)) {
+    total++;
+    const r = resolvePlacement(photos, pl);
+    const where = pl.kind === 'scene' ? `홈 A 장면 ${pl.photoId}` : `${pl.query.animalTypeId} ${pl.query.use}${pl.query.supplyItemId ? ` ${pl.query.supplyItemId}` : ''}`;
+    if (r === null && pl.kind === 'query' && !sceneFallbackAllowed(pl.query.group)) {
+      // 356 ⑦ 충돌 H: 장면 행(햄스터 사진)은 SCENE_PHOTO_GROUPS 종에만 붙는다 — 그 밖의 그룹은 종·케어프로필 단위 행이 있어야 한다.
+      out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 그룹 ${pl.query.group ?? '(모름)'} 은 장면 행(햄스터 사진) 대체 밖 — 종·케어프로필 단위 사진 행(scope)이 필요하다`);
+    } else if (r === null) {
+      const scene = pl.kind === 'scene' ? pl.photoId : scenePhotoIdFor(pl.query.use, pl.query.supplyItemId);
+      out.error('I06', 'photos', null, 'scope', `사진 자리 ${where}: 종·품목 사진도 장면 행(${scene}, scope 없음)도 없다 — 빈 칸`);
+    } else if (!r.usable) {
+      empty++;
+    }
+  }
+  if (empty > 0) out.warn('I07', 'photos', null, '', `빈 사진 칸 ${empty}/${total} — 사용 가능한 사진(READY·사용권 기록)이 아직 없다`);
+}
+
 export function checkPeople(ctx: Ctx): void {
   checkTestimonials(ctx);
   checkVets(ctx);
   checkPhotos(ctx);
+  checkPhotoScopes(ctx);
+  checkPhotoCoverage(ctx);
 }

@@ -689,6 +689,10 @@ ul.ws-vet-rows > li {
   margin-bottom: var(--ws-space-2);
 }
 
+.ws-context-note {
+  margin-top: var(--ws-space-2);
+}
+
 .ws-context-change,
 .ws-home-link {
   display: inline-flex;

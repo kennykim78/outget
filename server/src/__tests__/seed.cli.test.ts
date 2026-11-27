@@ -9,7 +9,7 @@ import { writeUnsignedSeedDir } from './fixtures/prerender-seed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = join(here, '..', '..', 'seed');
-const NOW = ['--now', '2026-11-22']; // 팁 checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지
+const NOW = ['--now', '2026-11-25']; // 356: 6종 draftedAt(2026-11-23) 이상 · 팁 checkedAt(2026-11-22) 이상 · 실서명일 이상(옛 값 2026-11-03) — 디스크 verifiedAt S07 방지 // 368: 2026-11-25 = 8행 출처 접근일(S07 미래 날짜 방지, 옛 값 2026-11-23).
 
 const temps: string[] = [];
 afterAll(() => {
@@ -38,17 +38,18 @@ function editJson(dir: string, file: string, id: string, edit: (r: Row) => void)
 async function run(argv: string[]): Promise<{ code: number; out: string[]; err: string[] }> {
   const out: string[] = [];
   const err: string[] = [];
-  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-11-22' };
+  const io: CliIo = { stdout: (l) => out.push(l), stderr: (l) => err.push(l), today: () => '2026-11-25' };
   const code = await runValidateCli(argv, io);
   return { code, out, err };
 }
 
 describe('seed:validate CLI', () => {
-  it('실제 시드(2026-11-16 서명 후) → exit 0, errors 0, warnings 25(308 W-TIP-CAT +1 · 315 W-TIP-SC 5 · W-TIP-VET 1), 노출 3타입(골든·드워프·기니피그, 2026-11-23 활성화)·요구사항 42·상품 14, W-EXPOSURE-ZERO 없음', async () => {
+  it('실제 시드(2026-11-16 서명 후) → exit 0, errors 0, warnings 56(393 · 356 6종 활성화 — seed.validate.test byRule 참고), 노출 9타입(VERIFIED 4 + GENERAL_INFO 5)·요구사항 114·상품 14, W-EXPOSURE-ZERO 없음', async () => {
     const r = await run(NOW);
     expect(r.code).toBe(0);
     const summary = r.out[r.out.length - 1];
-    expect(summary).toBe('seed:validate — errors 0, warnings 25, exposable: types 3, requirements 42, products 14, testimonials 0, vets 0');
+    // 354: 빈 사진 칸 수 I07 WARN +1 → 26 · 356: 6종 활성화(L03 caution +31 · W-RULESCOPED +2 · …) → 59
+    expect(summary).toBe('seed:validate — errors 0, warnings 56, exposable: types 9, requirements 114, products 14, testimonials 0, vets 0'); // 368: 앵무 저울 2행 caution 이 1문장이 돼 L03 −2.
     expect(r.out.some((l) => l.includes('W-EXPOSURE-ZERO'))).toBe(false);
   });
 
@@ -64,7 +65,7 @@ describe('seed:validate CLI', () => {
     writeUnsignedSeedDir(dir);
     const r = await run([...NOW, '--dir', dir]);
     expect(r.code).toBe(0);
-    expect(r.out[r.out.length - 1]).toBe('seed:validate — errors 0, warnings 26, exposable: types 0, requirements 0, products 0, testimonials 0, vets 0');
+    expect(r.out[r.out.length - 1]).toBe('seed:validate — errors 0, warnings 57, exposable: types 0, requirements 0, products 0, testimonials 0, vets 0'); // 368: 앵무 저울 2행 caution 이 1문장이 돼 L03 −2.
     expect(r.out.some((l) => l.startsWith('WARN [W-EXPOSURE-ZERO] animal-types.json#hamster-golden'))).toBe(true);
     const s = await run([...NOW, '--dir', dir, '--strict']);
     expect(s.code).toBe(1);
