@@ -3084,6 +3084,94 @@ test('390 C9-GENERAL: 같은 시드의 asOf 180일·181일 경계 → GI 요구�
   expectGeneral390(expired, 0, 0);
 });
 
+// ── 391: C9-GENERAL — 고정 6종 전부 × typeId 를 가진 프리렌더 경로 형태 전부(합성 픽스처, 실제 종 사실 아님) ─────────────
+// 형태는 server/src/prerender/routes.ts 와 같다: L4·L5·L7 은 타입 slug 아래 kind TYPE, SUPPLY_ITEM_TYPE 만 /supplies/{item}/{type}.
+const SHAPES391 = (typeId) => {
+  const base = `/parrot/${typeId}`;
+  const itemId = 'item-390-other';
+  const productId = 'prod-391';
+  return [
+    { name: 'TYPE', path: base, kind: 'TYPE', indexable: true },
+    { name: 'SETUP', path: `${base}/setup`, kind: 'SETUP', indexable: true },
+    { name: 'TIPS', path: `${base}/tips`, kind: 'TIPS', indexable: true },
+    { name: 'L4', path: `${base}/supplies/${itemId}`, kind: 'TYPE', itemId, layer: { kind: 'L4', typeId, itemId }, indexable: true },
+    { name: 'L5', path: `${base}/check/${itemId}`, kind: 'TYPE', itemId, layer: { kind: 'L5', typeId, itemId }, indexable: true },
+    { name: 'L7', path: `${base}/products/${productId}`, kind: 'TYPE', productId, layer: { kind: 'L7', typeId, productId }, indexable: true },
+    { name: 'SIT', path: `/supplies/${itemId}/${typeId}`, kind: 'SUPPLY_ITEM_TYPE', itemId, layer: { kind: 'L4', typeId, itemId }, indexable: false },
+  ].map((r) => ({ ...r, typeId, file: `${r.path.slice(1)}/index.html` }));
+};
+/** counts: 형태 이름 → 고지 횟수(없으면 want). */
+async function scanGeneral391({ typeId, giRow, counts = {} }) {
+  const want = giRow ? 1 : 0;
+  const shapes = SHAPES391(typeId);
+  const root = await makeRoot({
+    seed: (d) => {
+      withGeneral390Seed(d);
+      Object.assign(d['animal-types.json'].find((r) => r.id === 'budgie'), { id: typeId, slug: `parrot/${typeId}` });
+      // GI 는 req-390 체인에만 — L7 상품이 붙는 item-390-other 체인은 VERIFIED(356r M1).
+      if (giRow) Object.assign(d['supply-requirements.json'].find((r) => r.id === 'req-390'), general390Meta());
+      d['curated-products.json'].push({ ...d['curated-products.json'][0], id: 'prod-391', careProfileIds: ['cp-390'], supplyItemId: 'item-390-other' });
+    },
+    output: (o) => {
+      for (const r of shapes) {
+        const n = counts[r.name] ?? want;
+        o[r.file] = page(`<main class="ws-page" data-ws-route="${r.kind}" data-ws-type="${typeId}"><h1>픽스처</h1>${`<p>${GI_NOTICE}</p>`.repeat(n)}</main>`);
+      }
+    },
+    manifest: (digest) => {
+      const m = manifestFor(digest);
+      m.routes.push(...shapes.map(({ name, ...r }) => r));
+      return m;
+    },
+  });
+  const { readSeed, computeExposure, seedDigest, GENERAL_INFO_TYPE_IDS } = await import('../lib/seed-exposure.mjs');
+  const { scanOutputs } = await import('../lib/rules-output.mjs');
+  const { loadBannedWords } = await import('../lib/normalize.mjs');
+  const { seed } = readSeed(join(root, 'server/seed'));
+  const ex = computeExposure(seed, FIXED_NOW);
+  const findings = [];
+  assert.equal(scanOutputs({
+    root, dist: join(root, 'client/dist'), seed, ex, digest: seedDigest(join(root, 'server/seed')),
+    bw: loadBannedWords(join(root, 'server/src/seed/banned-words.json')), requireOutput: true,
+    add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }),
+  }), 'RUN');
+  assert.ok(GENERAL_INFO_TYPE_IDS.includes(typeId));
+  assert.ok(ex.types.has(typeId));
+  assert.ok(ex.productTypes.has(`${typeId}|prod-391`), 'L7 상품 노출');
+  return {
+    shapes,
+    // 합성 경로가 매니페스트 검사를 통과해야 의미가 있다. TIPS 고지 원문(C9-TIPS)은 이 시험 대상이 아니다.
+    routeFails: findings.filter((f) => f.rule === 'C3-OUT-ROUTE' && f.severity === 'FAIL'),
+    general: findings.filter((f) => f.rule === 'C9-GENERAL'),
+  };
+}
+test('391 C9-GENERAL: 경로 형태 7종 목록 고정', () => {
+  assert.deepEqual(SHAPES391('budgie').map((r) => r.name), ['TYPE', 'SETUP', 'TIPS', 'L4', 'L5', 'L7', 'SIT']);
+});
+// 목록을 코드에서 가져오지 않고 고정한다 — 6종에서 하나가 빠지면 includes 단언이 실패한다.
+for (const typeId of ['hamster-robo', 'gerbil-mongolian', 'budgie', 'cockatiel', 'lovebird-peach', 'sun-conure']) {
+  for (const giRow of [true, false]) {
+    const want = giRow ? 1 : 0;
+    test(`391 C9-GENERAL: ${typeId} GI ${giRow} — 7개 경로 형태 고지 ${want}회 → clean`, async () => {
+      const res = await scanGeneral391({ typeId, giRow });
+      assert.deepEqual(res.routeFails, []);
+      assert.deepEqual(res.general, []);
+    });
+    test(`391 C9-GENERAL: ${typeId} GI ${giRow} — 7개 경로 형태 고지 ${1 - want}회 → 경로마다 FAIL`, async () => {
+      const names = SHAPES391(typeId).map((r) => r.name);
+      const res = await scanGeneral391({ typeId, giRow, counts: Object.fromEntries(names.map((n) => [n, 1 - want])) });
+      assert.deepEqual(res.routeFails, []);
+      assert.equal(res.general.length, res.shapes.length, JSON.stringify(res.general));
+      for (const r of res.shapes) {
+        const hit = res.general.filter((f) => f.file.replaceAll('\\', '/').endsWith(`dist/${r.file}`));
+        assert.equal(hit.length, 1, `${r.name}: ${JSON.stringify(res.general)}`);
+        assert.equal(hit[0].severity, 'FAIL');
+        assert.ok(hit[0].message.includes(`${1 - want}회(기대 ${want}회)`), hit[0].message);
+      }
+    });
+  }
+}
+
 // ── 계획 86 P11: C9-PRIVACY — /privacy 존재·모든 라우트 링크·자리표시(빌드는 항상 WARN — 차단은 운영 기동 검사)·기간 숫자 = policy.ts ─────────────
 const c9Of = (res, severity) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-PRIVACY' && (!severity || f.severity === severity));
 const withPrivacy = (opts) => (o) => { o['privacy/index.html'] = page(privacyMain(opts)); };
