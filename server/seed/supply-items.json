@@ -1300,19 +1300,17 @@
           "type": "enum",
           "options": [
             "BLOCK",
-            "CUTTLEBONE",
             "OTHER"
           ],
           "optionLabels": {
             "BLOCK": "미네랄 블록",
-            "CUTTLEBONE": "갑오징어뼈",
             "OTHER": "기타"
           }
         }
       ]
     },
     "compatibleAlternativeIds": [],
-    "description": "새장에 걸어 두는 미네랄 블록·갑오징어뼈 같은 용품이에요.",
+    "description": "새장에 걸어 두는 미네랄 블록 같은 용품이에요.",
     "reviewStatus": "GENERAL_INFO",
     "reviewerType": "AI_DRAFT",
     "verifiedBy": null,
