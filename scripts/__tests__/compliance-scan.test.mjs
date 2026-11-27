@@ -4686,12 +4686,10 @@ const r398Aff = async (html, rel = 'hamster/golden/index.feed.html') => {
 const R398_IMG_MSG = /img|referrerpolicy|FEED_IMAGE_HOSTS|사진/;
 const r398ImgFails = (fs) => fs.filter((f) => f.rule === 'C11-FEED-OUT' && f.severity === 'FAIL' && R398_IMG_MSG.test(f.message));
 const r398Row = (thumb) => j(
-  '<html><body><main><section class="ws-supply-part ws-feed" data-ws-part="feed"><ul class="ws-feed-rows" role="list">',
-  '<li class="ws-feed-row" data-ws-merchant="COUPANG">', thumb, '<div class="ws-feed-body"><p class="ws-t-cta ws-feed-title">케이지</p></div></li>',
-  '</ul></section></main></body></html>',
+  '<html><body><main>', r2cSection('L4', r2cRow({ title: '케이지', photo: thumb })), '</main></body></html>',
 );
 const R398_LOCAL = '<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-hamster-syrian-wheel.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-hamster-syrian-wheel">';
-const R398_LOCAL_AI = j('<span class="ws-photo-frame ws-feed-photo">', '<img class="ws-photo" src="/assets/items/ph-item-perch.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-item-perch">', '<span class="ws-photo-notice ws-t-meta" aria-hidden="true">x</span></span>');
+const R398_LOCAL_AI = j('<span class="ws-photo-frame ws-feed-photo">', '<img class="ws-photo" src="/assets/items/ph-item-perch.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-item-perch">', '<span class="ws-photo-notice ws-t-meta" aria-hidden="true">생성 이미지 · 임시</span></span>');
 test('398 C1 C11-FEED-OUT clean: 피드 행 로컬 대체 사진(img.ws-photo · 실사·생성 틀)은 외부 썸네일 규칙 밖', async () => {
   for (const thumb of [R398_LOCAL, R398_LOCAL_AI, '<span class="ws-photo ws-feed-photo" aria-hidden="true"></span>']) {
     assert.deepEqual(r398ImgFails(await r398Aff(r398Row(thumb))), [], thumb);
@@ -4822,14 +4820,13 @@ test('398 C4 C6-IMG-SPECIES-SRC: client 소스에 "ph-budgie-habitat" 고정 →
 });
 
 // ── 399 B-1: HTML 에만 넣은 피드 상품 — HTML → ws-data data.feed 방향 대조 ──
-const R399_RAIL = { supplyItemId: 'cage', title: '케이지', url: '/mall-fixture' };
+const R399_RAIL = { supplyItemId: 'cage', title: '케이지', url: j(HTTPS, FCP, '/a/Mk1x'), verdict: 'OK' };
 const r399Page = ({ cards = ['cage'], secItem = 'cage', looseRow = false, feed = { v: 1, stage: 'full', items: ['cage'], rail: [R399_RAIL] } } = {}) => {
-  const row = '<li class="ws-feed-row" data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p></li>';
+  const row = r2cRow({ title: '케이지' });
   return j(
-    '<html><body><main><section data-ws-section="mall"><ul>',
-    cards.map((id) => `<li class="ws-feed-card"${id === null ? '' : ` data-ws-item="${id}"`} data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p><a href="${R399_RAIL.url}">몰</a></li>`).join(''),
-    '</ul></section>',
-    secItem === null ? '' : `<section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-${secItem}" data-ws-aff="note-feed">고지</p><ul>${row}</ul></section>`,
+    '<html><body><main>',
+    r2cSection('몰 레일', cards.map((id) => r2cRow({ surface: '몰 레일', title: '케이지' }).replace(' data-ws-item="cage"', id === null ? '' : ` data-ws-item="${id}"`)).join('')),
+    secItem === null ? '' : r2cSection('L4', row).replaceAll('ws-aff-feed-cage', `ws-aff-feed-${secItem}`),
     looseRow ? `<ul>${row}</ul>` : '',
     '</main><script id="ws-data" type="application/json">', JSON.stringify({ v: 1, data: { feed } }), '</script></body></html>',
   );
@@ -4868,28 +4865,11 @@ for (const [name, title] of [['「/」로 시작', j('/', KO.safe, ' 케이지')
 const R2_URL = j(HTTPS, FCP, '/a/Mk1x');
 const R2_URL_GI = j(HTTPS, FCP, '/a/Zz9q');
 async function r399Rows(htmlRows) {
-  const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
-  const dir = mkdtempSync(join(tmpdir(), 'ws-r399-'));
-  try {
-    const dist = join(dir, 'dist');
-    const put = (p, s) => { mkdirSync(dirname(join(dist, p)), { recursive: true }); writeFileSync(join(dist, p), s); };
-    const row = ([url, title]) => j('<li class="ws-feed-row" data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">', title, '</p>', url === null ? '' : `<a class="ws-btn ws-feed-go" href="${url}">몰</a>`, '</li>');
-    put('prerender-manifest.json', JSON.stringify({ mode: 'production' }));
-    put('feed-manifest.json', JSON.stringify({ variants: { full: ['hamster/golden/feed/cage.json'], noprice: [] } }));
-    put('hamster/golden/feed/cage.json', JSON.stringify({ v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', rows: [{ title: '넓은 케이지 & 선반', url: R2_URL }] }));
-    put('hamster/golden/supplies/cage/index.feed.html', j(
-      '<html><body><main><section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-cage" data-ws-aff="note-feed">고지</p><ul>',
-      htmlRows.map(row).join(''),
-      '</ul></section></main><script id="ws-data" type="application/json">',
-      JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed: { v: 1, stage: 'full', items: ['cage'], rail: [] } } }),
-      '</script></body></html>',
-    ));
-    const findings = [];
-    scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
-    return findings.filter((f) => f.rule === 'C11-FEED-OUT' && /L4 피드 행/.test(f.message));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  const findings = await r2cScan({ title: '넓은 케이지 & 선반', mutate: () => htmlRows.map(([url, title]) => {
+    const row = r2cRow({ title: title.replaceAll('&amp;', '&'), url: url ?? R2_URL });
+    return url === null ? row.replace(/<a\b[^>]*>[\s\S]*?<\/a>/, '') : row;
+  }).join('') });
+  return findings.filter((f) => f.rule === 'C11-FEED-OUT');
 }
 const R2_OK = [R2_URL, '넓은 케이지 &amp; 선반'];
 test('399 R-2 clean: HTML 행이 피드 JSON 행과 일치 → 0', async () => {
@@ -4918,31 +4898,11 @@ test('399 R-3 C4-BANNED: ws-data data.feed.rail[].title 이 「/」·http 로 �
 const R2_ROW = (attrs, url, title = '넓은 케이지 &amp; 선반') => j('<li', attrs, '><p class="ws-t-cta ws-feed-title">', title, '</p><a class="ws-btn ws-feed-go" href="', url, '">몰</a></li>');
 const R2B_MSG = /L4 피드 행|몰 레일 카드|피드 영역/;
 async function r399Surface({ l4Extra = '', mallExtra = '' } = {}) {
-  const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
-  const dir = mkdtempSync(join(tmpdir(), 'ws-r399b-'));
-  try {
-    const dist = join(dir, 'dist');
-    const put = (p, s) => { mkdirSync(dirname(join(dist, p)), { recursive: true }); writeFileSync(join(dist, p), s); };
-    const rows = [{ title: '넓은 케이지 & 선반', url: R2_URL }];
-    const rail = [{ supplyItemId: 'cage', title: '넓은 케이지 & 선반', url: R2_URL }];
-    put('prerender-manifest.json', JSON.stringify({ mode: 'production' }));
-    put('feed-manifest.json', JSON.stringify({ variants: { full: ['hamster/golden/feed/cage.json'], noprice: [] } }));
-    put('hamster/golden/feed/cage.json', JSON.stringify({ v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', rows }));
-    put('hamster/golden/supplies/cage/index.feed.html', j(
-      '<html><body><main><section data-ws-section="mall"><ul>',
-      R2_ROW(' class="ws-feed-card" data-ws-item="cage"', R2_URL), mallExtra,
-      '</ul></section><section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-cage" data-ws-aff="note-feed">고지</p><ul>',
-      R2_ROW(' class="ws-feed-row"', R2_URL), l4Extra,
-      '</ul></section></main><script id="ws-data" type="application/json">',
-      JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed: { v: 1, stage: 'full', items: ['cage'], rail } } }),
-      '</script></body></html>',
-    ));
-    const findings = [];
-    scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
-    return findings.filter((f) => f.rule === 'C11-FEED-OUT' && R2B_MSG.test(f.message));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  const findings = [
+    ...await r2cScan({ title: '넓은 케이지 & 선반', mutate: (s) => s + l4Extra }),
+    ...await r2cScan({ surface: '몰 레일', title: '넓은 케이지 & 선반', mutate: (s) => s + mallExtra }),
+  ];
+  return findings.filter((f) => f.rule === 'C11-FEED-OUT' && R2B_MSG.test(f.message));
 }
 test('399 R-2b clean: 몰 카드·L4 행이 데이터와 일치 → 0', async () => {
   assert.deepEqual(await r399Surface(), []);
@@ -4961,3 +4921,111 @@ for (const [name, over] of [
     assert.ok((await r399Surface(over)).length > 0, name);
   });
 }
+
+// 399 R-2c: pages/feed.ts feedRow·feedRailCard·feedBlockL4, common.ts photoTile·railSection 의 실제 마크업.
+// CLI·build 없이 합성 산출물만 검사하며 임시 파일도 작업 폴더 안에서 만들고 지운다.
+const r2cEscape = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+const R2C_TITLE = '햄스터 통면 쳇바퀴 30cm';
+const R2C_PHOTO = '<span class="ws-photo ws-feed-photo" aria-hidden="true"></span>';
+const R2C_LISTED = '<span class="ws-t-label ws-feed-badge ws-feed-badge--listed">표기 규격 통과</span>';
+const R2C_CHECK = '<span class="ws-t-label ws-feed-badge ws-feed-badge--check"><span class="ws-glyph" data-ws-glyph="check" aria-hidden="true">△</span>규격 확인 필요</span>';
+const R2C_AFF = '<span class="ws-t-label ws-muted ws-feed-aff" data-ws-aff="card">제휴 링크</span>';
+function r2cRow({ surface = 'L4', title = R2C_TITLE, url = R2_URL, badge = 'LISTED_PASS', photo = R2C_PHOTO, spec = false, price = false } = {}) {
+  const mall = surface === '몰 레일';
+  const note = mall ? 'ws-aff-feed-home' : 'ws-aff-feed-cage';
+  const go = `<a class="ws-btn ws-btn--outline ws-feed-go${mall ? ' ws-feed-go--compact' : ''}" href="${r2cEscape(url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" aria-describedby="${note}" data-ws-merchant="COUPANG">쿠팡에서 보기<span class="ws-visually-hidden"> (새 창)</span></a>`;
+  const titleHtml = `<p class="ws-t-cta ws-feed-title">${r2cEscape(title)}</p>`;
+  const specHtml = spec ? '<p class="ws-t-meta ws-feed-spec">표기 · 지름 30cm</p>' : '';
+  const badgeHtml = badge === 'LISTED_PASS' ? R2C_LISTED : R2C_CHECK;
+  const amount = '<span class="ws-feed-amount">12,900원</span>';
+  const priceHtml = !price ? '' : mall
+    ? `<p class="ws-t-meta ws-feed-price">${amount}</p><p class="ws-t-meta ws-muted ws-feed-checked">11월 23일 확인</p>`
+    : `<p class="ws-t-meta ws-feed-price">${amount}<span class="ws-muted"> · 11월 23일 확인 · 몰에서 달라질 수 있어요</span></p>`;
+  return mall
+    ? `<li class="ws-feed-card" data-ws-item="cage" data-ws-merchant="COUPANG">${photo}<p class="ws-t-label ws-muted ws-feed-item">케이지</p>${titleHtml}${specHtml}${badgeHtml}${priceHtml}${R2C_AFF}${go}</li>`
+    : `<li class="ws-feed-row" data-ws-merchant="COUPANG">${photo}<div class="ws-feed-body">${titleHtml}${specHtml}<p class="ws-feed-meta">${badgeHtml}${R2C_AFF}</p>${priceHtml}${go}</div></li>`;
+}
+function r2cSection(surface, rows, stage = 'full') {
+  const note = (id) => `<p class="ws-t-meta ws-aff-note" id="${id}" data-ws-aff="note-feed">${AFF_NOTE}</p>`;
+  return surface === 'L4'
+    ? `<section class="ws-supply-part ws-feed" data-ws-part="feed" aria-labelledby="ws-feed-title"><h3 id="ws-feed-title" class="ws-t-label ws-supply-head">몰 검색 결과</h3><p class="ws-t-meta ws-muted ws-feed-sub">쇼핑몰 상품명에 적힌 정보로 골랐어요. 실제 규격은 몰에서 확인해요.</p>${note('ws-aff-feed-cage')}<ul class="ws-feed-rows" role="list">${rows}</ul></section>`
+    : `<section class="ws-rail-section ws-rail-section--product ws-home-sec ws-mall-sec" data-ws-section="mall" aria-labelledby="ws-sec-mall-title"><div class="ws-rail-head"><div class="ws-rail-heading ws-home-sec-head"><h2 id="ws-sec-mall-title" class="ws-t-display ws-home-sec-title">몰에 올라온 상품</h2>${stage === 'full' ? '<p class="ws-t-body ws-muted ws-home-sec-lead">몰 가격은 확인한 날 기준이에요. 몰에서 달라질 수 있어요.</p>' : ''}${note('ws-aff-feed-home')}</div><div class="ws-rail-tools"></div></div><ul class="ws-rail ws-products" role="list" tabindex="0" aria-labelledby="ws-sec-mall-title">${rows}</ul></section>`;
+}
+async function r2cScan({ surface = 'L4', stage = 'full', title = R2C_TITLE, badge = 'LISTED_PASS', mutate = (s) => s, mutatePage = (s) => s, ...opts } = {}) {
+  const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
+  const dir = mkdtempSync(resolve(HERE, '../../_workspace/ws-r399c-'));
+  try {
+    const dist = join(dir, 'dist');
+    const put = (p, s) => { mkdirSync(dirname(join(dist, p)), { recursive: true }); writeFileSync(join(dist, p), s); };
+    const file = `hamster/golden/feed/cage${stage === 'noprice' ? '.noprice' : ''}.json`;
+    const priceData = stage === 'full' && opts.price ? { price: { amount: 12900, currency: 'KRW' } } : {};
+    const checkedData = stage === 'full' && opts.price ? { priceCheckedOn: '2026-11-23' } : {};
+    const row = { provider: 'COUPANG', title, url: R2_URL, imageUrl: null, verdict: badge === 'LISTED_PASS' ? 'OK' : null, specValues: opts.spec ? { diameterCm: 30 } : null, ...priceData };
+    const block = { v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', badge, generalInfo: false, ...checkedData, rows: [row] };
+    const rail = surface === '몰 레일' ? [{ ...row, supplyItemId: 'cage', specValues: row.specValues ?? {} }] : [];
+    put('prerender-manifest.json', JSON.stringify({ mode: 'production' }));
+    put('feed-manifest.json', JSON.stringify({ variants: { full: stage === 'full' ? [file] : [], noprice: stage === 'noprice' ? [file] : [] } }));
+    put(file, JSON.stringify(block));
+    const feed = { v: 1, stage, ...checkedData, items: surface === 'L4' ? ['cage'] : [], rail };
+    const section = r2cSection(surface, mutate(r2cRow({ surface, title, badge, ...opts })), stage);
+    const body = surface === 'L4'
+      ? `<main></main><aside class="ws-layer" id="ws-layer" data-ws-layer="L4" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#req-cage">${section}</aside>`
+      : `<main id="main" class="ws-page ws-home-b" data-ws-route="TYPE" data-ws-type="hamster-golden">${section}</main>`;
+    const ws = JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed } }).replaceAll('<', '\\u003c');
+    put(`hamster/golden/index.feed${stage === 'noprice' ? '-noprice' : ''}.html`, mutatePage(`<html lang="ko"><body><div id="root">${body}<footer class="ws-footer"><p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">${AFF_NOTE}</p><p class="ws-footer-copy">© WithSmall</p></footer></div><script id="ws-data" type="application/json">${ws}</script></body></html>`));
+    const findings = [];
+    scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
+    return findings.filter((f) => f.severity === 'FAIL');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+for (const surface of ['L4', '몰 레일']) for (const stage of ['full', 'noprice']) {
+  test(`399 R-2c 피드 clean: ${surface} ${stage} 렌더러 구조·특수문자 제목 → 전체 FAIL 0`, async () => {
+    for (const title of [R2C_TITLE, '넓은 & <대형> "케이지"', "선반 '큰 것' &amp;", '  케이지\n선반  ']) {
+      assert.deepEqual(await r2cScan({ surface, stage, title }), []);
+    }
+    for (const photo of [R398_LOCAL, R398_LOCAL_AI]) {
+      assert.deepEqual(await r2cScan({ surface, stage, photo, spec: true, price: stage === 'full' }), []);
+    }
+    if (surface === 'L4') assert.deepEqual(await r2cScan({ surface, stage, badge: 'CHECK_NEEDED' }), []);
+  });
+  const titleHtml = `<p class="ws-t-cta ws-feed-title">${R2C_TITLE}</p>`;
+  for (const [name, mutate, mutatePage] of [
+    ['re3 숨긴 정상 제목 뒤 다른 표시 제목', (s) => s.replace(titleHtml, `<p hidden class="ws-t-cta ws-feed-title">${R2C_TITLE}</p><div><p class="ws-t-cta ws-feed-title">햄스터 통면 쳇바퀴 20cm</p></div>`)],
+    ['제목 0개', (s) => s.replace(titleHtml, '')],
+    ['정상 제목 2개', (s) => s.replace(titleHtml, titleHtml + titleHtml)],
+    ['제목 style', (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" style="display:none"')],
+    ['제목 aria-hidden', (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" aria-hidden="true"')],
+    ['제목 모르는 속성', (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" data-other="x"')],
+    ['제목 모르는 클래스', (s) => s.replace('ws-t-cta ws-feed-title', 'ws-t-cta ws-feed-title other')],
+    ['제목 안 모르는 요소', (s) => s.replace(R2C_TITLE, `<em>${R2C_TITLE}</em>`)],
+    ['허용 자리 밖 글자', (s) => s.replace('</li>', '다른 상품</li>')],
+    ['허용 자리 밖 요소', (s) => s.replace('</li>', '<div>다른 상품</div></li>')],
+    ['중첩 상품 행', (s) => s.replace('</li>', `<ul>${r2cRow({ surface })}</ul></li>`) ],
+    ['배지 0개', (s) => s.replace(R2C_LISTED, '')],
+    ['배지 2개', (s) => s.replace(R2C_LISTED, R2C_LISTED + R2C_LISTED)],
+    ['배지 문구 변조', (s) => s.replace('표기 규격 통과', '다른 표식')],
+    ['JSON과 다른 배지', (s) => s.replace(R2C_LISTED, R2C_CHECK)],
+    ['행 hidden', (s) => s.replace('<li ', '<li hidden ')],
+    ['블록 hidden', undefined, (s) => s.replace('<section ', '<section hidden ')],
+    ['목록 aria-hidden', undefined, (s) => s.replace('<ul ', '<ul aria-hidden="true" ')],
+    ['조상 style', undefined, (s) => s.replace('<div id="root"', '<div style="display:none" id="root"')],
+    ['조상 inert', undefined, (s) => s.replace('<body>', '<body inert>')],
+    ['목록 밖 일반 글자', undefined, (s) => s.replace('</ul>', '</ul>다른 상품')],
+  ]) {
+    test(`399 R-2c 피드: ${surface} ${stage} ${name} → C11-FEED-OUT FAIL`, async () => {
+      const fails = await r2cScan({ surface, stage, mutate, mutatePage });
+      assert.ok(fails.some((f) => f.rule === 'C11-FEED-OUT'), `${name}: ${JSON.stringify(fails)}`);
+    });
+  }
+}
+
+test('399 R-2c 피드: 파서가 누락하는 속성·잘못된 선택 조합도 FAIL', async () => {
+  for (const surface of ['L4', '몰 레일']) {
+    const fails = await r2cScan({ surface, mutate: (s) => s.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" __proto__="x"') });
+    assert.ok(fails.some((f) => f.rule === 'C11-FEED-OUT'), `${surface} __proto__: ${JSON.stringify(fails)}`);
+  }
+  assert.ok((await r2cScan({ badge: 'CHECK_NEEDED', spec: true })).some((f) => f.rule === 'C11-FEED-OUT'), 'CHECK_NEEDED 에 규격 줄');
+  assert.ok((await r2cScan({ surface: '몰 레일', price: true, mutate: (s) => s.replace(/<p class="ws-t-meta ws-feed-price">[\s\S]*?<\/p>/, '') })).some((f) => f.rule === 'C11-FEED-OUT'), '가격 없이 확인일만');
+});
