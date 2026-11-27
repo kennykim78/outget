@@ -2917,7 +2917,7 @@ test('C3-OUT-REVIEWMETA 356: JS 번들의 AI_DRAFT 상수(엔진 열거형)는 �
 // ── 356 단계 10: C9-GENERAL — 코드 고정 6종 라우트 HTML 에 고지 원문 정확히 1회, 그 밖 타입 라우트 0(합성 HTML 픽스처) ─────────────
 const GI_NOTICE = '일반 참고 정보예요 · 개체·환경에 따라 다를 수 있어요';
 const BUDGIE_HTML = 'parrot/budgie/index.html';
-/** 합성 노출 타입 budgie(코드 고정 6종 id — VERIFIED 자리표시라 체인 관대함 없이 노출. 실제 종 사실 아님). */
+/** 합성 노출 타입 budgie(코드 고정 6종 id. 여기서는 VERIFIED 자리표시 — 고지를 기대하는 시험은 타입 행을 GENERAL_INFO 로 바꾼다. 실제 종 사실 아님). */
 const withBudgieSeed = (d) => {
   d['animal-types.json'].push({
     id: 'budgie', slug: 'parrot/budgie', group: 'PARROT', displayName: '픽스처 앵무', status: 'ACTIVE',
@@ -2934,8 +2934,13 @@ const budgieManifest = (digest) => {
   return m;
 };
 const c9GeneralOf = (res) => (res.json?.findings ?? []).filter((f) => f.rule === 'C9-GENERAL');
+/** 390: 고지 1회를 기대하는 356 시험의 시드 — budgie 타입 행이 GENERAL_INFO. */
+const withBudgieGiSeed = (d) => {
+  withBudgieSeed(d);
+  Object.assign(d['animal-types.json'].find((r) => r.id === 'budgie'), general390Meta({ contentKind: 'CARE' }));
+};
 async function scanGeneral(body, goldenExtra) {
-  return scan(await makeRoot({ seed: withBudgieSeed, output: budgieOut(body, goldenExtra), manifest: budgieManifest }));
+  return scan(await makeRoot({ seed: withBudgieGiSeed,output: budgieOut(body, goldenExtra), manifest: budgieManifest }));
 }
 
 test('C9-GENERAL 고지 원문 = rules-output GENERAL_INFO_NOTICE', async () => {
@@ -2967,6 +2972,116 @@ test('C9-GENERAL: ws-data·스크립트 안 고지 문자열은 세지 않는다
 test('C9-GENERAL: typeId 없는 라우트(HOME)는 규칙 밖', async () => {
   const res = scan(await makeRoot({ output: (o) => { o['index.html'] = o['index.html'].replace('</main>', `<p>${GI_NOTICE}</p></main>`); } }));
   expectClean(res);
+});
+
+// ── 390: 시드 + asOf 의 독립 노출 체인으로 고지 기대값 판정(합성 파일만, CLI의 git 호출·빌드 없음) ─────────────
+const general390Meta = (over = {}) => meta({
+  reviewStatus: 'GENERAL_INFO', reviewerType: 'AI_DRAFT', verifiedBy: null, verifiedAt: null,
+  draftedAt: '2026-09-30', source: [], ...over,
+});
+const general390Chain = (d) => ({
+  type: d['animal-types.json'].find((r) => r.id === 'budgie'),
+  profile: d['care-profiles.json'].find((r) => r.id === 'cp-390'),
+  requirement: d['supply-requirements.json'].find((r) => r.id === 'req-390'),
+  item: d['supply-items.json'].find((r) => r.id === 'item-390'),
+});
+function withGeneral390Seed(d) {
+  withBudgieSeed(d);
+  d['animal-types.json'].find((r) => r.id === 'budgie').careProfileId = 'cp-390';
+  d['care-profiles.json'].push({ ...d['care-profiles.json'][0], id: 'cp-390' });
+  // 두 번째 VERIFIED 요구사항은 첫 체인이 만료돼도 타입 노출을 유지한다.
+  for (const suffix of ['390', '390-other']) {
+    d['supply-items.json'].push({ ...d['supply-items.json'][0], id: `item-${suffix}` });
+    d['supply-requirements.json'].push({
+      ...d['supply-requirements.json'][0], id: `req-${suffix}`, careProfileId: 'cp-390', supplyItemId: `item-${suffix}`,
+    });
+  }
+}
+async function scanGeneral390({ mutate = noop, count = 0, goldenCount = 0, asOf = FIXED_NOW, seedFile = null } = {}) {
+  const root = await makeRoot({
+    seed: (d) => { withGeneral390Seed(d); mutate(d, general390Chain(d)); },
+    output: budgieOut(`<p>${GI_NOTICE}</p>`.repeat(count), `<p>${GI_NOTICE}</p>`.repeat(goldenCount)),
+    manifest: budgieManifest,
+  });
+  // 읽기 실패도 CLI와 같은 readSeed → computeExposure 경로로 확인한다.
+  if (seedFile === 'missing') unlinkSync(join(root, 'server/seed/animal-types.json'));
+  if (seedFile === 'invalid') writeFileSync(join(root, 'server/seed/animal-types.json'), '{');
+  const { readSeed, computeExposure, seedDigest } = await import('../lib/seed-exposure.mjs');
+  const { scanOutputs } = await import('../lib/rules-output.mjs');
+  const { loadBannedWords } = await import('../lib/normalize.mjs');
+  const { seed } = readSeed(join(root, 'server/seed'));
+  const ex = computeExposure(seed, asOf);
+  const findings = [];
+  assert.equal(scanOutputs({
+    root, dist: join(root, 'client/dist'), seed, ex, digest: seedDigest(join(root, 'server/seed')),
+    bw: loadBannedWords(join(root, 'server/src/seed/banned-words.json')), requireOutput: true,
+    add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }),
+  }), 'RUN');
+  return { ex, findings, general: findings.filter((f) => f.rule === 'C9-GENERAL') };
+}
+function expectGeneral390(res, want, count, typeId = 'budgie') {
+  if (count === want) {
+    assert.deepEqual(res.general, []);
+    assert.deepEqual(res.findings.filter((f) => f.severity === 'FAIL'), []);
+  } else {
+    assert.equal(res.general.length, 1, JSON.stringify(res.general));
+    assert.equal(res.general[0].severity, 'FAIL');
+    assert.ok(res.general[0].message.includes(`${typeId} 라우트`), JSON.stringify(res.general));
+    assert.ok(res.general[0].message.includes(`${count}회(기대 ${want}회)`), JSON.stringify(res.general));
+  }
+}
+
+for (const count of [0, 1]) {
+  test(`390 C9-GENERAL: 전 행 VERIFIED + 고지 ${count} → 기대 0`, async () => {
+    const res = await scanGeneral390({ count });
+    assert.ok(res.ex.types.has('budgie'));
+    expectGeneral390(res, 0, count);
+  });
+  for (const row of ['type', 'profile', 'requirement', 'item']) {
+    test(`390 C9-GENERAL: ${row} 만 GI + 고지 ${count} → 기대 1`, async () => {
+      const res = await scanGeneral390({ count, mutate: (_d, chain) => Object.assign(chain[row], general390Meta()) });
+      assert.ok(res.ex.types.has('budgie'));
+      assert.ok(res.ex.pairs.has('budgie|item-390'));
+      expectGeneral390(res, 1, count);
+    });
+  }
+  for (const row of ['requirement', 'item']) {
+    for (const typeGi of [false, true]) {
+      test(`390 C9-GENERAL: ${row} GI 만료·타입 GI ${typeGi} + 고지 ${count}`, async () => {
+        const res = await scanGeneral390({ count, mutate: (_d, chain) => {
+          Object.assign(chain[row], general390Meta({ draftedAt: '2026-04-03' }));
+          if (typeGi) Object.assign(chain.type, general390Meta());
+        } });
+        assert.ok(res.ex.types.has('budgie'));
+        assert.ok(res.ex.pairs.has('budgie|item-390-other'));
+        assert.ok(!res.ex.pairs.has('budgie|item-390'));
+        expectGeneral390(res, typeGi ? 1 : 0, count);
+      });
+    }
+  }
+  for (const state of ['inactive', 'no-requirements', 'missing', 'invalid']) {
+    test(`390 C9-GENERAL: 비노출·판정 불가 ${state} + 고지 ${count} → FAIL`, async () => {
+      const res = await scanGeneral390({ count, seedFile: state, mutate: (d, chain) => {
+        if (state === 'inactive') chain.type.status = 'PLANNED';
+        if (state === 'no-requirements') d['supply-requirements.json'] = d['supply-requirements.json'].filter((r) => r.careProfileId !== 'cp-390');
+      } });
+      assert.ok(!res.ex.types.has('budgie'));
+      assert.ok(res.general.some((f) => f.severity === 'FAIL' && /budgie.*노출.*판정/.test(f.message)), JSON.stringify(res.general));
+    });
+  }
+}
+test('390 C9-GENERAL: 6종 밖 + 고지 1 → FAIL', async () => {
+  expectGeneral390(await scanGeneral390({ goldenCount: 1 }), 0, 1, 'hamster-golden');
+});
+test('390 C9-GENERAL: 같은 시드의 asOf 180일·181일 경계 → GI 요구사항만 제외', async () => {
+  const mutate = (_d, chain) => Object.assign(chain.requirement, general390Meta({ draftedAt: '2026-04-04' }));
+  const fresh = await scanGeneral390({ mutate, asOf: '2026-10-01', count: 1 });
+  assert.ok(fresh.ex.pairs.has('budgie|item-390'));
+  expectGeneral390(fresh, 1, 1);
+  const expired = await scanGeneral390({ mutate, asOf: '2026-10-02', count: 0 });
+  assert.ok(expired.ex.types.has('budgie'));
+  assert.ok(!expired.ex.pairs.has('budgie|item-390'));
+  expectGeneral390(expired, 0, 0);
 });
 
 // ── 계획 86 P11: C9-PRIVACY — /privacy 존재·모든 라우트 링크·자리표시(빌드는 항상 WARN — 차단은 운영 기동 검사)·기간 숫자 = policy.ts ─────────────
@@ -4211,6 +4326,8 @@ const spType = (id, slug, group) => ({
 const spSeed = (extra = noop) => (d) => {
   d['animal-types.json'] = d['animal-types.json'].filter((t) => t.id !== 'hamster-dwarf');
   d['animal-types.json'].push(spType('budgie', 'parrot/budgie', 'PARROT'), spType('lovebird-peach', 'parrot/lovebird-peach', 'PARROT'), spType('hamster-dwarf', 'hamster/dwarf', 'SMALL_MAMMAL'));
+  // 390: 고지를 싣는 SP_GI 타입은 타입 행이 GENERAL_INFO.
+  for (const t of d['animal-types.json']) if (SP_GI.has(t.id)) Object.assign(t, general390Meta({ contentKind: 'CARE' }));
   d['photos.json'].push(
     SP_PHOTO('ph-08'),
     SP_PHOTO('ph-03'),

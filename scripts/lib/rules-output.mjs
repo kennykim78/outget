@@ -1,6 +1,8 @@
 // 산출물 규칙(client/dist) — C3-OUT-ID, C3-OUT-ROUTE, C3-OUT-SRC, C3-OUT-TAXON, C3-OUT-DRAFTSRC, C3-OUT-REVIEWMETA, C4-BANNED(산출물), C6-IMG(산출물), C8-OUT-SAFE, C9-PRIVACY, C9-TIPS, C9-GENERAL, C6-IMG-SPECIES.
 //   + 시드 노출 규칙 C3-TAXON(scanSeedExposure, 산출물 유무와 무관).
 //   노출 판단은 seed-exposure.mjs(원시 시드 독립 재구현, D9)만 쓴다.
+//   C9-GENERAL: 고정 6종 중 시드+asOf 로 노출된 타입의 타입·프로필·노출 요구사항·용품에 GENERAL_INFO 가 있으면 고지 1회, 없으면 0회.
+//   고정 6종의 노출 판정 불가는 FAIL, 그 밖 타입은 고지 0회. 산출물 표지는 기대값 근거로 쓰지 않는다.
 //
 // prerender-manifest.json 계약(F3 가 쓴다):
 //   { v: 1, seedDigest: "<sha256 hex — seed-exposure.mjs seedDigest()>", indexable: boolean(사이트 수준, WS_INDEXABLE),
@@ -648,17 +650,34 @@ export function generalInfoNoticeCount(html) {
 /**
  * C9-GENERAL(356 단계 10, Kenny 11/23 예외 2) — 일반 참고 정보 고지.
  *   typeId 가 있는 라우트 페이지(TYPE·SETUP·TIPS·SUPPLY_ITEM_TYPE 및 L4·L5·L7 레이어 경로)의 렌더 HTML 가시 텍스트에서
- *   ① typeId ∈ GENERAL_INFO_TYPE_IDS(코드 고정 6종, seed-exposure 독립 목록) → 고지 원문 정확히 1회
- *   ② 그 밖 타입 → 0회.  typeId 없는 라우트(HOME·FAMILY·SUPPLIES 등)는 이 규칙 밖.
+ *   ① 고정 6종 ∧ seed-exposure(시드+asOf)가 노출 판정 ∧ 타입·프로필·노출 요구사항 체인(요구사항·용품)에 GENERAL_INFO 행 있음 → 정확히 1회
+ *   ② 노출된 6종의 체인에 GENERAL_INFO 없음 또는 6종 밖 타입 → 0회. 비노출 요구사항 체인의 GI 는 세지 않는다.
+ *   ③ 6종 타입의 노출 판정 불가(시드 누락·읽기 실패 포함) → FAIL. typeId 없는 라우트는 이 규칙 밖.
+ *   기대값은 ex.types·ex.pairs 와 원시 시드만 사용하며 렌더러·ws-data·산출물 표지는 참조하지 않는다.
  */
-function checkGeneralInfo({ root, dist, routes, add }) {
+function checkGeneralInfo({ root, dist, routes, ex, seed, add }) {
   const gi = new Set(GENERAL_INFO_TYPE_IDS);
+  const rows = (key) => Array.isArray(seed?.[key]) ? seed[key] : [];
+  const isGi = (row) => row?.reviewStatus === 'GENERAL_INFO';
   for (const r of routes) {
     if (typeof r.typeId !== 'string' || typeof r.file !== 'string') continue;
     const abs = join(dist, r.file);
+    let want = 0;
+    if (gi.has(r.typeId)) {
+      const type = ex.types.get(r.typeId);
+      if (!type) {
+        add('C9-GENERAL', 'FAIL', relPosix(root, abs), null, `${L(r.typeId)} 라우트 ${L(r.path)}: 시드에서 타입 노출 판정 불가`);
+        continue;
+      }
+      const hasGi = isGi(type)
+        || rows('careProfiles').some((p) => p?.id === type.careProfileId && isGi(p))
+        || rows('supplyRequirements').some((req) => req?.careProfileId === type.careProfileId
+          && ex.pairs.has(`${r.typeId}|${req.supplyItemId}`)
+          && (isGi(req) || rows('supplyItems').some((item) => item?.id === req.supplyItemId && isGi(item))));
+      want = hasGi ? 1 : 0;
+    }
     if (!existsSync(abs)) continue; // 파일 없음은 C3-OUT-ROUTE 가 FAIL
     const n = generalInfoNoticeCount(readFileSync(abs, 'utf8'));
-    const want = gi.has(r.typeId) ? 1 : 0;
     if (n !== want) {
       add('C9-GENERAL', 'FAIL', relPosix(root, abs), null, `${L(r.typeId)} 라우트 ${L(r.path)}: 일반 참고 정보 고지 ${n}회(기대 ${want}회)`);
     }
@@ -934,7 +953,7 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   const all = walk(dist);
   checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
   checkTips({ root, dist, routes, all, ex, add, seed });
-  checkGeneralInfo({ root, dist, routes, add });
+  checkGeneralInfo({ root, dist, routes, ex, seed, add });
   checkPhotoSpecies({ root, dist, routes, ex, add, seed });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
