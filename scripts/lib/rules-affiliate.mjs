@@ -2003,19 +2003,39 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
         if (!/\d{1,2}월 \d{1,2}일 확인/.test(decodeEntities(html.slice(box.start, box.end ?? box.start)))) out(i, '가격 줄에 확인일(「M월 D일 확인」) 동반 없음');
       }
     }
-    // 399 R-2: L4 블록 행마다 (타입·품목·URL·제목)을 모은다 — 같은 단계 피드 JSON 과의 대조는 scanAffiliateOutputs.
-    if (sink && variant !== null) {
-      for (let i = 0; i < n; i++) {
-        if (!(els[i].name === 'li' && classesOf(els[i]).includes('ws-feed-row') && feedUp[i] >= 0 && isFeedSec(feedUp[i]))) continue;
-        const text = (x) => decodeEntities(html.slice(els[x].start, els[x].end ?? els[x].start).replace(/<[^>]*>/g, '')).trim();
-        const links = [];
-        let title = null;
-        for (let j = i + 1; j < n; j++) {
-          if (!isAncestor(i, j)) continue;
-          if (els[j].name === 'a' && els[j].attrs.href !== undefined) links.push(decodeEntities(els[j].attrs.href));
-          if (title === null && classesOf(els[j]).includes('ws-feed-title')) title = text(j);
-        }
-        sink.feedRows.push({ rel, line: lineOf(els[i].start), typeId: wsTypeId, supplyItemId: secItems.get(feedUp[i]) ?? null, stage: variant, links, title });
+    // 399 R-2: 피드 영역(L4 블록·홈 몰 레일)의 상품 행·링크는 class 와 무관하게 데이터와 대조한다.
+    //   영역 안 모든 li = 상품 행, 링크·상품 제목·썸네일은 li 안에만. L4 행(타입·품목·URL·제목)은 scanAffiliateOutputs 가 같은 단계 피드 JSON 과,
+    //   몰 카드(품목·URL·제목)는 이 파일의 ws-data data.feed.rail 과 대조한다.
+    const isMallSec = (x) => els[x].name === 'section' && els[x].attrs['data-ws-section'] === 'mall';
+    const textOf = (x) => decodeEntities(html.slice(els[x].start, els[x].end ?? els[x].start).replace(/<[^>]*>/g, '')).trim();
+    const railRows = wsFeed && Array.isArray(wsFeed.rail) ? wsFeed.rail.filter(isObj) : [];
+    for (let i = 0; i < n; i++) {
+      let surface = -1;
+      let inLi = false;
+      for (let x = els[i].parent; x >= 0 && surface < 0; x = els[x].parent) {
+        if (isFeedSec(x) || isMallSec(x)) surface = x;
+        else if (els[x].name === 'li') inLi = true;
+      }
+      if (surface < 0) continue;
+      if (els[i].name !== 'li') {
+        const cls = classesOf(els[i]);
+        const product = (els[i].name === 'a' && els[i].attrs.href !== undefined) || cls.includes('ws-feed-title') || cls.includes('ws-feed-thumb');
+        if (product && !inLi) out(i, '피드 영역의 링크·상품 제목·썸네일은 상품 행(li) 안에만');
+        continue;
+      }
+      const links = [];
+      let title = null;
+      for (let j = i + 1; j < n; j++) {
+        if (!isAncestor(i, j)) continue;
+        if (els[j].name === 'a' && els[j].attrs.href !== undefined) links.push(decodeEntities(els[j].attrs.href));
+        if (title === null && classesOf(els[j]).includes('ws-feed-title')) title = textOf(j);
+      }
+      if (isMallSec(surface)) {
+        const item = els[i].attrs['data-ws-item'];
+        const hit = links.length === 1 && railRows.some((c) => c.supplyItemId === item && c.url === links[0] && typeof c.title === 'string' && c.title.trim() === title);
+        if (!classesOf(els[i]).includes('ws-feed-card') || !hit) out(i, `몰 레일 카드(${L(String(item))})가 ws-data data.feed.rail 의 품목·URL·제목과 일치하지 않는다(li.ws-feed-card·링크 1개)`);
+      } else if (sink && variant !== null) {
+        sink.feedRows.push({ rel, line: lineOf(els[i].start), typeId: wsTypeId, supplyItemId: secItems.get(surface) ?? null, stage: variant, links, title });
       }
     }
     if (wsFeed) for (let i = 0; i < n; i++) if (isFeedSec(i) && !notedSecs.has(i)) out(i, '피드 블록 section[data-ws-part=feed] 에 품목 고지 id(ws-aff-feed-{품목}) 없음');

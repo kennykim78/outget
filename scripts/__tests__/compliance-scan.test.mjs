@@ -4822,11 +4822,12 @@ test('398 C4 C6-IMG-SPECIES-SRC: client 소스에 "ph-budgie-habitat" 고정 →
 });
 
 // ── 399 B-1: HTML 에만 넣은 피드 상품 — HTML → ws-data data.feed 방향 대조 ──
-const r399Page = ({ cards = ['cage'], secItem = 'cage', looseRow = false, feed = { v: 1, stage: 'full', items: ['cage'], rail: [{ supplyItemId: 'cage' }] } } = {}) => {
+const R399_RAIL = { supplyItemId: 'cage', title: '케이지', url: '/mall-fixture' };
+const r399Page = ({ cards = ['cage'], secItem = 'cage', looseRow = false, feed = { v: 1, stage: 'full', items: ['cage'], rail: [R399_RAIL] } } = {}) => {
   const row = '<li class="ws-feed-row" data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p></li>';
   return j(
     '<html><body><main><section data-ws-section="mall"><ul>',
-    cards.map((id) => `<li class="ws-feed-card"${id === null ? '' : ` data-ws-item="${id}"`} data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p></li>`).join(''),
+    cards.map((id) => `<li class="ws-feed-card"${id === null ? '' : ` data-ws-item="${id}"`} data-ws-merchant="COUPANG"><p class="ws-t-cta ws-feed-title">케이지</p><a href="${R399_RAIL.url}">몰</a></li>`).join(''),
     '</ul></section>',
     secItem === null ? '' : `<section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-${secItem}" data-ws-aff="note-feed">고지</p><ul>${row}</ul></section>`,
     looseRow ? `<ul>${row}</ul>` : '',
@@ -4912,3 +4913,51 @@ test('399 R-3 C4-BANNED: ws-data data.feed.rail[].title 이 「/」·http 로 �
     assert.ok(res.fails('C4-BANNED', R398_VAR).length > 0, `${prefix} ${JSON.stringify(res.findings)}`);
   }
 });
+
+// ── 399 R-2b: 피드 영역의 상품 행·링크는 class 와 무관하게 데이터와 대조(Codex 재검 2) ──
+const R2_ROW = (attrs, url, title = '넓은 케이지 &amp; 선반') => j('<li', attrs, '><p class="ws-t-cta ws-feed-title">', title, '</p><a class="ws-btn ws-feed-go" href="', url, '">몰</a></li>');
+const R2B_MSG = /L4 피드 행|몰 레일 카드|피드 영역/;
+async function r399Surface({ l4Extra = '', mallExtra = '' } = {}) {
+  const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'ws-r399b-'));
+  try {
+    const dist = join(dir, 'dist');
+    const put = (p, s) => { mkdirSync(dirname(join(dist, p)), { recursive: true }); writeFileSync(join(dist, p), s); };
+    const rows = [{ title: '넓은 케이지 & 선반', url: R2_URL }];
+    const rail = [{ supplyItemId: 'cage', title: '넓은 케이지 & 선반', url: R2_URL }];
+    put('prerender-manifest.json', JSON.stringify({ mode: 'production' }));
+    put('feed-manifest.json', JSON.stringify({ variants: { full: ['hamster/golden/feed/cage.json'], noprice: [] } }));
+    put('hamster/golden/feed/cage.json', JSON.stringify({ v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', rows }));
+    put('hamster/golden/supplies/cage/index.feed.html', j(
+      '<html><body><main><section data-ws-section="mall"><ul>',
+      R2_ROW(' class="ws-feed-card" data-ws-item="cage"', R2_URL), mallExtra,
+      '</ul></section><section class="ws-supply-part ws-feed" data-ws-part="feed"><p id="ws-aff-feed-cage" data-ws-aff="note-feed">고지</p><ul>',
+      R2_ROW(' class="ws-feed-row"', R2_URL), l4Extra,
+      '</ul></section></main><script id="ws-data" type="application/json">',
+      JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed: { v: 1, stage: 'full', items: ['cage'], rail } } }),
+      '</script></body></html>',
+    ));
+    const findings = [];
+    scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
+    return findings.filter((f) => f.rule === 'C11-FEED-OUT' && R2B_MSG.test(f.message));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+test('399 R-2b clean: 몰 카드·L4 행이 데이터와 일치 → 0', async () => {
+  assert.deepEqual(await r399Surface(), []);
+});
+for (const [name, over] of [
+  ['class 없는 L4 상품 행', { l4Extra: R2_ROW('', R2_URL_GI) }],
+  ['다른 class 의 L4 상품 행', { l4Extra: R2_ROW(' class="ws-product-row"', R2_URL_GI) }],
+  ['li 없이 div 로 넣은 L4 링크', { l4Extra: j('<div><a href="', R2_URL_GI, '">몰</a></div>') }],
+  ['li 밖 상품 제목', { l4Extra: '<div><p class="ws-feed-title">다른 상품</p></div>' }],
+  ['class 없는 몰 카드', { mallExtra: R2_ROW(' data-ws-item="cage"', R2_URL_GI) }],
+  ['같은 품목 id·다른 URL 몰 카드', { mallExtra: R2_ROW(' class="ws-feed-card" data-ws-item="cage"', R2_URL_GI) }],
+  ['같은 URL·다른 제목 몰 카드', { mallExtra: R2_ROW(' class="ws-feed-card" data-ws-item="cage"', R2_URL, '다른 상품') }],
+  ['li 없이 div 로 넣은 몰 링크', { mallExtra: j('<div><a href="', R2_URL_GI, '">몰</a></div>') }],
+]) {
+  test(`399 R-2b C11-FEED-OUT: ${name} → FAIL`, async () => {
+    assert.ok((await r399Surface(over)).length > 0, name);
+  });
+}
