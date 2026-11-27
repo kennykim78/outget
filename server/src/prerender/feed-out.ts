@@ -2,7 +2,7 @@
 //   파일: {slug}/feed/{item}.json(full, 가격 있음) · {item}.noprice.json(가격 키 0) · feed-manifest.json(site.ts 가 pages 를 채워 쓴다).
 //   단계(빌드 시각 기준): full → 두 변형 / noprice → noprice 만 / nofeed(168h 초과·generatedAt 없음) → 파일·manifest 0.
 //   이미 지난 단계의 변형은 만들지 않는다. 빌드 시각은 어떤 파일에도 쓰지 않는다(manifest 는 generatedAt 파생값만).
-//   홈 레일 모델(D-2): LISTED_PASS ∧ 비 GENERAL_INFO 블록의 첫 행만, 품목당 1장. N9: 단계별 ws-data data.feed(레일 카드 1.5KB 예산 안) + 마크업용 블록.
+//   홈 레일 모델(D-2): LISTED_PASS 블록의 첫 행만(398: GENERAL_INFO 체인은 selectFeedRows 가 null — 블록·JSON·레일 0), 품목당 1장. N9: 단계별 ws-data data.feed(레일 카드 1.5KB 예산 안) + 마크업용 블록.
 import { FEED_POPULAR_SORTS, FEED_SCREEN_ROWS, feedDeadlines, feedFreshAt, feedJsonFile, feedOldestFetchedMs, feedStage, parseFeedInstant, seoulDate, seoulIso, type FeedLiveStage, type FeedProvider, type FeedRowIn, type FeedSortAllow } from '../engine/feed-types.js';
 import {
   createCatalog,
@@ -146,7 +146,7 @@ export function buildFeedOutputs(seed: SeedBundle, model: SiteModel, asOf: strin
       }
       blocks.set(itemId, per);
       const f = s.rows[0];
-      if (s.badge === 'LISTED_PASS' && !s.generalInfo && f.verdict !== null && f.specValues !== null) {
+      if (s.badge === 'LISTED_PASS' && f.verdict !== null && f.specValues !== null) {
         const card: PublicFeedRailCard = { supplyItemId: itemId, provider: f.provider, title: f.title, url: f.url, imageUrl: f.imageUrl, verdict: f.verdict, specValues: f.specValues };
         cards.push(s.showPrice ? { ...card, price: f.price } : card);
       }

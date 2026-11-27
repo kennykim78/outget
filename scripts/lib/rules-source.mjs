@@ -973,7 +973,8 @@ function lines(s) {
 
 // C6-IMG-SPECIES-SRC(359) — 사진 id 를 화면 경로 소스에 적으면 종 범위를 우회한다. 사진은 ws-data(엔진 resolvePhoto 결과)로만.
 //   장면 표를 가진 server/src/engine/photo-resolve.ts 는 대상 경로(client/src·server/src/prerender) 밖이다.
-const PHOTO_ID_LITERAL_RE = /(?<![A-Za-z0-9_-])ph-\d{2}(?![A-Za-z0-9_-])/;
+//   398 C4: 숫자 두 자리(ph-01)만이 아니라 시드의 이름형 id(ph-budgie-habitat·ph-item-perch 등) 전부 — 시드 id 모양 ph-<kebab 소문자>.
+export const PHOTO_ID_LITERAL_RE = /(?<![A-Za-z0-9_-])ph-[a-z0-9]+(?:-[a-z0-9]+)*(?![A-Za-z0-9_-])/;
 //   363(감사 361 결함 1): 대상 확장자를 ts/tsx 에서 [cm]?[jt]sx? 전부로. client/src 는 asset 사진·품목 경로 리터럴과
 //   장면 표·사진 선택 식별자도 FAIL(클라이언트는 재판정하지 않는다 — 서버 prerender 의 resolvePhoto 호출은 허용).
 const PHOTO_SRC_SCOPE = (rel) => (rel.startsWith('client/src/') || rel.startsWith('server/src/prerender/')) && /\.[cm]?[jt]sx?$/.test(rel) && !isTestFile(rel);

@@ -1,6 +1,6 @@
 // 362 N10 L4 아래층 블록(364 §2.4 · §3.1 · §3.2) — 프리렌더 feedBlockL4 와 같은 마크업. 자리 = products 뒤(products 0 이어도 같은 자리).
 //   요청 안 함·404·행 0 → 블록 없음. 로딩 → 제목 + StateBlock loading(고지는 공급자를 알 때까지 0). 실패 → 제목 + StateBlock error + 테두리 「다시 시도하기」.
-//   GENERAL_INFO(D-7): 행은 전부 △, 규격 줄 생략 — LISTED_PASS 블록은 feedBlock 검사가 거부한다.
+//   GENERAL_INFO(398 불변식 7, 362 D-7 폐기): 블록 0 — feedPathFor 가 null(fetch 0), 응답이 와도 parseFeedBlock 이 거부.
 import { useEffect, type ReactNode } from 'react';
 import { COPY } from '@ws/copy';
 import { specLine, type PublicAnimalType, type PublicRequirement, type WsPageData } from '@ws/engine';

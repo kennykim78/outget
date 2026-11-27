@@ -215,6 +215,17 @@ function checkWsData(d, rel, line, ex, add) {
         if (feedBad(it)) foodHealth(`data.feed.items ${L(it)}`);
       }
       for (const c of arr.rail) if (isObj(c) && feedBad(c.supplyItemId)) foodHealth(`data.feed.rail ${L(c.supplyItemId)}`);
+      // 398 GI: 라우트 타입 문맥(route.typeId ∪ layer.typeId)의 품목·레일 쌍은 체인 전 행 VERIFIED ∧ 유효(ex.feedStrictPairs)만 — GENERAL_INFO 체인 피드 0.
+      {
+        const tids = [...new Set([isObj(r) ? r.typeId : undefined, isObj(d.layer) ? d.layer.typeId : undefined].filter((x) => typeof x === 'string'))];
+        const strict = ex.feedStrictPairs instanceof Set ? ex.feedStrictPairs : new Set();
+        const giBad = (it, w) => {
+          if (tids.length === 0) add('C11-FEED-OUT', 'FAIL', rel, line, `ws-data ${w} ${L(it)} — 라우트 타입 문맥 없음(GENERAL_INFO 체인 판정 불가)`);
+          else for (const tid of tids) if (!strict.has(`${tid}|${it}`)) add('C11-FEED-OUT', 'FAIL', rel, line, `ws-data ${w} ${pairLabel(tid, it)} — 체인이 전부 VERIFIED 가 아님(GENERAL_INFO 체인 피드 0)`);
+        };
+        for (const it of arr.items) giBad(it, 'data.feed.items');
+        for (const c of arr.rail) giBad(isObj(c) ? c.supplyItemId : undefined, 'data.feed.rail');
+      }
       for (const c of arr.rail) {
         const tid = isObj(r) ? r.typeId : undefined; // 레일 카드는 라우트 타입 문맥(카드에 타입 id 없음)
         if (!isObj(c) || !ex.pairs.has(`${tid}|${c.supplyItemId}`)) bad(`data.feed.rail ${pairLabel(tid, c?.supplyItemId)}`);
@@ -877,6 +888,66 @@ function checkPhotoSpecies({ root, dist, routes, ex, add, seed }) {
   }
 }
 
+/** 398 C2: 피드 변형 파일 이름(server engine FEED_PAGE_VARIANT 미러) — 기본 파일 …/index.html 옆. */
+const FEED_PAGE_VARIANTS = Object.freeze({ full: 'index.feed.html', noprice: 'index.feed-noprice.html' });
+const FEED_VARIANT_RE = /(?:^|\/)index\.feed(?:-noprice)?\.html$/;
+const feedVariantBase = (rel) => rel.replace(/index\.feed(?:-noprice)?\.html$/, 'index.html');
+
+/**
+ * 398 C2 — 피드 변형 HTML 을 기본 라우트 문맥(typeId·layer·kind)으로 되돌린 라우트 목록(file 만 변형 파일).
+ *   대상 = dist 의 index.feed[-noprice].html 전부 ∪ feed-manifest.json pages.{full,noprice}(산출물 표지에 기대지 않고 디스크도 본다).
+ *   ① 디스크 변형 파일의 기본 파일(…/index.html)이 manifest 라우트가 아니면 FAIL(문맥 없는 변형 = 판정 불가, fail-closed).
+ *   ② pages 항목이 단계 변형 이름이 아니거나·경로 이탈·파일 없음·기본 라우트 없음이면 FAIL.
+ */
+function feedVariantRoutes({ root, dist, routes, all, add }) {
+  const R = 'feed-manifest.json';
+  const byFile = new Map();
+  for (const r of routes) if (typeof r.file === 'string' && !byFile.has(r.file)) byFile.set(r.file, r);
+  const files = new Set();
+  for (const abs of all) {
+    const rel = relPosix(dist, abs);
+    if (FEED_VARIANT_RE.test(rel)) files.add(rel);
+  }
+  const fmPath = join(dist, R);
+  if (existsSync(fmPath)) {
+    let fm = null;
+    try {
+      fm = JSON.parse(stripBom(readFileSync(fmPath, 'utf8')));
+    } catch {
+      // 파싱 실패는 C11-FEED-OUT(rules-affiliate scanAffiliateOutputs)이 FAIL — 디스크 변형 파일은 그대로 본다.
+    }
+    const pages = isObj(fm) ? fm.pages : undefined;
+    if (isObj(fm) && pages !== undefined && !isObj(pages)) add('C3-OUT-ROUTE', 'FAIL', R, null, '피드 변형 pages 형식(객체 아님)');
+    for (const [stage, name] of Object.entries(FEED_PAGE_VARIANTS)) {
+      const list = isObj(pages) ? pages[stage] : undefined;
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) {
+        add('C3-OUT-ROUTE', 'FAIL', R, null, `피드 변형 pages.${stage} 형식(배열 아님)`);
+        continue;
+      }
+      for (const f of list) {
+        const ok = typeof f === 'string' && (f === name || f.endsWith(`/${name}`)) && !f.split(/[\\/]/).includes('..') && !/^([a-z]:|\/)/i.test(f);
+        if (!ok) {
+          add('C3-OUT-ROUTE', 'FAIL', R, null, `피드 변형 pages.${stage} 항목이 ${name} 변형 이름 아님·경로 이탈: ${L(String(f))}`);
+          continue;
+        }
+        if (!existsSync(join(dist, f))) add('C3-OUT-ROUTE', 'FAIL', R, null, `피드 변형 pages.${stage} 파일 없음: ${L(f)}`);
+        else files.add(f);
+      }
+    }
+  }
+  const out = [];
+  for (const f of [...files].sort()) {
+    const base = byFile.get(feedVariantBase(f));
+    if (!base) {
+      add('C3-OUT-ROUTE', 'FAIL', relPosix(root, join(dist, f)), null, `피드 변형 파일의 기본 라우트(${L(feedVariantBase(f))})가 manifest 에 없음 — 문맥 판정 불가`);
+      continue;
+    }
+    out.push({ ...base, file: f });
+  }
+  return out;
+}
+
 export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, seed }) {
   const manPath = join(dist, 'prerender-manifest.json');
   if (!existsSync(manPath)) {
@@ -953,8 +1024,10 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
   const all = walk(dist);
   checkPrivacy({ root, dist, m, routes, routeFiles, all, add });
   checkTips({ root, dist, routes, all, ex, add, seed });
-  checkGeneralInfo({ root, dist, routes, ex, seed, add });
-  checkPhotoSpecies({ root, dist, routes, ex, add, seed });
+  // 398 C2: 피드 변형 HTML(index.feed[-noprice].html)도 실제 제공 파일 — 기본 라우트와 같은 문맥으로 고지·종별 사진을 본다.
+  const pageRoutes = [...routes, ...feedVariantRoutes({ root, dist, routes, all, add })];
+  checkGeneralInfo({ root, dist, routes: pageRoutes, ex, seed, add });
+  checkPhotoSpecies({ root, dist, routes: pageRoutes, ex, add, seed });
   for (const abs of all.filter((f) => f.endsWith('.html'))) {
     const rel = relPosix(root, abs);
     const html = readFileSync(abs, 'utf8');
@@ -1054,11 +1127,29 @@ export function scanOutputs({ root, dist, ex, digest, bw, add, requireOutput, se
     const rel = relPosix(root, abs);
     const m = /\/feed\/([^/]+?)(?:\.noprice)?\.json$/.exec(relPosix(dist, abs));
     const ids = new Set([m?.[1]]);
+    let d;
     try {
-      const d = JSON.parse(stripBom(readFileSync(abs, 'utf8')));
+      d = JSON.parse(stripBom(readFileSync(abs, 'utf8')));
       if (isObj(d) && d.supplyItemId !== undefined) ids.add(d.supplyItemId);
     } catch {
       // 파싱 실패는 C11-FEED-OUT(rules-affiliate checkFeedJsonOut)이 FAIL — 여기선 경로 품목만 본다.
+    }
+    if (d !== undefined) {
+      try {
+        // 398 C3: L4 가 읽는 피드 JSON 의 글자(제목 등) 금지어 — data/ 밖이라 아래 카탈로그 JSON 검사에 안 걸린다.
+        jsonStrings(d, '', (t, k) => bannedIn(t, rel, null, `피드 JSON ${L(k)}`, add, bw));
+        // 398 GI(불변식 ⑦ 예외 2 — GENERAL_INFO 체인에 연결된 상품은 노출하지 않는다): 피드 블록의 (typeId, 품목) 체인 전 행 VERIFIED ∧ 유효만.
+        //   블록 generalInfo 가 false 가 아니면(키 없음 포함) FAIL — 산출물 표지만 믿지 않고 시드 체인으로도 따로 본다.
+        if (isObj(d)) {
+          if (d.generalInfo !== false) add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON generalInfo=${L(String(d.generalInfo))}(false 만) — GENERAL_INFO 체인 피드 0`);
+          const pair = `${d.typeId}|${d.supplyItemId}`;
+          if (!(ex.feedStrictPairs instanceof Set) || !ex.feedStrictPairs.has(pair)) {
+            add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON ${pairLabel(d.typeId, d.supplyItemId)} — 체인이 전부 VERIFIED 가 아님(GENERAL_INFO·비노출 체인 피드 0)`);
+          }
+        }
+      } catch {
+        add('C11-FEED-OUT', 'FAIL', rel, null, '피드 JSON 검사 중 예외(비정상 구조 — 원문 확인)');
+      }
     }
     for (const it of ids) {
       if (!(ex.feedExcludedItems instanceof Set) || ex.feedExcludedItems.has(it)) add('C11-FEED-OUT', 'FAIL', rel, null, `피드 JSON 품목 ${L(it)} — FOOD/HEALTH 품목 피드 0`);

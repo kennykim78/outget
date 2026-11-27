@@ -113,7 +113,7 @@ describe('selectFeedRows — 규칙 있는 품목(LISTED_PASS)', () => {
   });
 });
 
-describe('selectFeedRows — 규칙 0 품목·GENERAL_INFO(D-7)', () => {
+describe('selectFeedRows — 규칙 0 품목·GENERAL_INFO(398: 불변식 7 — 체인 상품 노출 0, 362 D-7 폐기)', () => {
   it('규칙 0(은신처) → CHECK_NEEDED, verdict·규격 값 null', () => {
     const s = selectFeedRows(cat, G, 'hideout', [row(G, 'hideout', '햄스터 나무 은신처')], opts());
     expect(s?.badge).toBe('CHECK_NEEDED');
@@ -121,16 +121,12 @@ describe('selectFeedRows — 규칙 0 품목·GENERAL_INFO(D-7)', () => {
     expect(s?.rows[0].specValues).toBeNull();
   });
 
-  it('GENERAL_INFO 체인(로보 쳇바퀴) → CHECK_NEEDED 만, 규칙 필터는 그대로', () => {
+  it('GENERAL_INFO 체인(로보 쳇바퀴·은신처) → null(블록 없음 — 행이 규칙을 통과해도)', () => {
     const J = 'hamster-robo';
     const r = resolveRequirement(cat, J, 'wheel');
     expect(r?.minSpec.rules.length).toBeGreaterThan(0);
-    const s = selectFeedRows(cat, J, 'wheel', [row(J, 'wheel', '쳇바퀴 30cm 통면'), row(J, 'wheel', '쳇바퀴 30cm 메쉬'), row(J, 'wheel', '쳇바퀴 30cm')], opts());
-    expect(s?.badge).toBe('CHECK_NEEDED');
-    expect(s?.generalInfo).toBe(true);
-    expect(titlesOf(s)).toEqual(['쳇바퀴 30cm 통면']);
-    expect(s?.rows[0].specValues).toBeNull();
-    expect(s?.rows[0].verdict).toBeNull();
+    expect(selectFeedRows(cat, J, 'wheel', [row(J, 'wheel', '쳇바퀴 30cm 통면'), row(J, 'wheel', '쳇바퀴 30cm 메쉬')], opts())).toBeNull();
+    expect(selectFeedRows(cat, J, 'hideout', [row(J, 'hideout', '햄스터 나무 은신처')], opts())).toBeNull();
   });
 });
 

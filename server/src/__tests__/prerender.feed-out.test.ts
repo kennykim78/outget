@@ -101,6 +101,37 @@ describe('N6 정적 피드 JSON', () => {
   });
 });
 
+describe('398 GENERAL_INFO 체인 피드 차단(불변식 7)', () => {
+  // 로보 GENERAL_INFO 체인은 2026-11-25 부터 노출(REAL_AS_OF 11-22 엔 종 자체가 비노출이라 시험이 공허해진다).
+  const GI_AS_OF = '2026-11-25';
+  const J = 'hamster-robo';
+  const giOpts = (rows: FeedRowIn[]): BuildSiteOptions => ({
+    ...baseOptions(GI_AS_OF),
+    productFeed: { rows, generatedAt: GEN, buildAtMs: GEN_MS + H, isTitleBanned: (t) => lintText(t).length > 0 },
+  });
+  const giOff = buildSite(seed, baseOptions(GI_AS_OF));
+
+  it('전제: 이 기준일에 로보 종 페이지가 있다', () => {
+    expect([...giOff.files.keys()].some((k) => k.startsWith('hamster/robo'))).toBe(true);
+  });
+
+  it('로보(GENERAL_INFO 체인) 행 → JSON·manifest·홈 레일·ws-data feed·L4 마크업 0(off 와 바이트 동일)', () => {
+    const b = buildSite(seed, giOpts([row(J, 'wheel', '햄스터 쳇바퀴 30cm 통면'), row(J, 'hideout', '햄스터 나무 은신처')]));
+    expect(feedKeys(b.files)).toEqual([]);
+    expect(b.feedRail.size).toBe(0);
+    for (const [k, v] of giOff.files) expect(b.files.get(k), k).toBe(v);
+    expect([...b.files.keys()].filter((k) => !giOff.files.has(k))).toEqual([]);
+  });
+
+  it('골든과 섞여도 로보 산출물 0, 골든만 남는다', () => {
+    const b = buildSite(seed, giOpts([...ROWS, row(J, 'wheel', '햄스터 쳇바퀴 30cm 통면')]));
+    expect(feedKeys(b.files)).toContain('hamster/golden/feed/wheel.json');
+    expect(feedKeys(b.files).filter((k) => k.includes('robo'))).toEqual([]);
+    expect(b.feedRail.has(J)).toBe(false);
+    for (const [k, v] of b.files) if (k.includes('robo')) expect(v, k).not.toMatch(/data-ws-part="feed"|"feed":/);
+  });
+});
+
 describe('N7 만료 변형', () => {
   it('빌드 −1h: full·noprice 둘 다, manifest priceUntil/blockUntil = +72h/+168h(+09:00)', () => {
     const b = buildSite(seed, opts(GEN_MS + H));

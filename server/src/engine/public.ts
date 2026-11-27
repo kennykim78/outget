@@ -311,6 +311,7 @@ export interface PublicFeedBlock {
   typeId: string;
   supplyItemId: string;
   badge: 'LISTED_PASS' | 'CHECK_NEEDED';
+  /** 398(불변식 7): 서버는 항상 false 만 싣는다(GENERAL_INFO 체인은 블록 0). 클라는 false 가 아니면 블록 거부. */
   generalInfo: boolean;
   /** 380 S3: 보이는 행이 모두 인기순 확인 sort(FEED_POPULAR_SORTS)에서 온 블록만 true. 그 밖엔 키 없음. */
   popular?: true;

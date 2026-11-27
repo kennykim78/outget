@@ -3,7 +3,7 @@
 //   FOOD/HEALTH 품목(engine FEED_EXCLUDED_CATEGORIES)은 items 에 있어도 읽지 않는다(서버 selectFeedRows 와 같은 규칙, 방어 심화).
 //   응답 검사는 fail-closed(형식이 하나라도 어긋나면 블록 전체를 버린다 — 「실패」 상태, 행 0):
 //     키 집합 정확 · 단계(noprice 면 priceCheckedOn·price 키 자체가 없어야) · 링크 isFeedLink · 이미지 isFeedImageUrl ·
-//     GENERAL_INFO(D-7 — 블록·요구사항·타입 중 하나라도)면 LISTED_PASS 거부 · 알리 행 거부(고지 문안 Kenny 결정 전, 프리렌더 feed.ts 와 같은 막음).
+//     GENERAL_INFO(398 불변식 7 — 블록·요구사항·타입 중 하나라도)면 블록 거부(배지 무관, 362 D-7 폐기)·요청 0 · 알리 행 거부(고지 문안 Kenny 결정 전, 프리렌더 feed.ts 와 같은 막음).
 //   이 파일은 HomeB(클라 순서 모듈)가 import 하지 않는다 — 홈 레일 데이터는 pageData isWsFeedData 가 이미 검사했다.
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -66,7 +66,7 @@ export interface FeedExpect {
   typeId: string;
   itemId: string;
   stage: Stage;
-  /** 요구사항·타입 중 하나라도 일반 참고 정보(D-7)면 true — LISTED_PASS 거부. */
+  /** 요구사항·타입 중 하나라도 일반 참고 정보면 true — 블록 거부(398 불변식 7). */
   generalInfo: boolean;
 }
 
@@ -81,8 +81,7 @@ export function parseFeedBlock(raw: unknown, ex: FeedExpect): PublicFeedBlock | 
   if (!exactKeys(raw, hasPopular ? [...keys, 'popular'] : keys)) return null;
   if (raw.typeId !== ex.typeId || raw.supplyItemId !== ex.itemId) return null;
   if (raw.badge !== 'LISTED_PASS' && raw.badge !== 'CHECK_NEEDED') return null;
-  if (typeof raw.generalInfo !== 'boolean') return null;
-  if (raw.badge === 'LISTED_PASS' && (raw.generalInfo || ex.generalInfo)) return null;
+  if (raw.generalInfo !== false || ex.generalInfo) return null; // 398: GENERAL_INFO 체인 상품 노출 0(CHECK_NEEDED 도)
   if (full && feedCheckedParts(raw.priceCheckedOn) === null) return null;
   const rows = raw.rows;
   if (!Array.isArray(rows) || rows.length > FEED_SCREEN_ROWS) return null;
@@ -99,6 +98,7 @@ export function isSameOriginPath(p: string): boolean {
 export function feedPathFor(page: WsPageData, type: PublicAnimalType | null, r: PublicRequirement | null): string | null {
   const feed = page.data.feed;
   if (!feed || !type || !r) return null;
+  if (type.generalInfo || r.generalInfo) return null; // 398(불변식 7): GENERAL_INFO 체인 → fetch 0
   if (!feed.items.includes(r.supplyItemId)) return null;
   if (FEED_EXCLUDED_CATEGORIES.includes(r.item.category)) return null;
   const p = feedJsonPath(type.slug, r.supplyItemId, feed.stage);

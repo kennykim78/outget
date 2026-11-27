@@ -1,6 +1,6 @@
 // 362 N10 L4 아래층 「많이 찾는 상품」(364 §2.1·§3.1·§3.2, 367 §1). 합성 fixture·모의 fetch 만(실호출·키 0).
 //   요청 조건(data.feed.items ∋ 품목 · FOOD/HEALTH 제외) · 같은 오리진 상대 경로 · 로딩/404/실패/다시 시도 · products 뒤 자리 ·
-//   ○·ws-badge·ws-product 0 · rel sponsored+noopener · referrerpolicy · 이미지 실패 → PhotoTile · GENERAL_INFO △ 만 ·
+//   ○·ws-badge·ws-product 0 · rel sponsored+noopener · referrerpolicy · 이미지 실패 → PhotoTile · GENERAL_INFO 블록 0(398 불변식 7) ·
 //   noprice(72h 초과) 가격·확인일이 어떤 표기(원·₩·KRW·날짜 형식)로도 DOM 에 0.
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { COPY } from '@ws/copy';
@@ -143,6 +143,10 @@ describe('362 N10 feedBlock 순수 규칙', () => {
     expect(parseFeedBlock(blockFull([rowFull(1, { price: { amount: 12900, currency: 'USD' } })]), ex)).toBeNull();
     expect(parseFeedBlock(blockFull(undefined, { generalInfo: true }), ex)).toBeNull();
     expect(parseFeedBlock(blockFull(), { ...ex, generalInfo: true })).toBeNull();
+    // 398(불변식 7): GENERAL_INFO 는 CHECK_NEEDED 블록도 거부(362 D-7 「△만」 폐기)
+    expect(parseFeedBlock(blockFull(undefined, { badge: 'CHECK_NEEDED', generalInfo: true }), ex)).toBeNull();
+    expect(parseFeedBlock(blockFull(undefined, { badge: 'CHECK_NEEDED' }), { ...ex, generalInfo: true })).toBeNull();
+    expect(parseFeedBlock(blockFull(undefined, { badge: 'CHECK_NEEDED' }), ex)).not.toBeNull();
     expect(parseFeedBlock(blockFull([1, 2, 3, 4, 5, 6, 7].map((n) => rowFull(n))), ex)).toBeNull();
     expect(parseFeedBlock(blockFull(undefined, { supplyItemId: 'cage' }), ex)).toBeNull();
     const np = { ...ex, stage: 'noprice' as const };
@@ -288,28 +292,26 @@ describe('362 N10 L4 피드 블록', () => {
     await waitFor(() => expect(feedSec(d)?.querySelectorAll('li.ws-feed-row')).toHaveLength(3));
   });
 
-  it('GENERAL_INFO 종: △ 「규격 확인 필요」만·규격 줄 0 — LISTED_PASS JSON 은 거부(「표기 규격 통과」 0)', async () => {
+  it('GENERAL_INFO 종·요구사항(398 불변식 7): items 에 있어도 fetch 0·블록 0(「규격 확인 필요」 블록도 0)', async () => {
     const gi = { ...golden, generalInfo: true as const };
-    fetchMock.mockResolvedValueOnce(jsonRes(blockFull(undefined, { badge: 'CHECK_NEEDED', generalInfo: true })));
+    fetchMock.mockResolvedValue(jsonRes(blockFull(undefined, { badge: 'CHECK_NEEDED', generalInfo: true })));
     const d = openL4(pageWith(FULL, wheel({ generalInfo: true } as Partial<PublicRequirement>), [], gi));
-    const sec = await waitFor(() => {
-      const s = feedSec(d) as HTMLElement;
-      expect(s.querySelectorAll('li.ws-feed-row')).toHaveLength(3);
-      return s;
-    });
-    expect(sec.querySelectorAll('.ws-feed-badge--check')).toHaveLength(3);
-    expect(sec.querySelectorAll('.ws-feed-badge--check [data-ws-glyph="check"]')).toHaveLength(3);
-    expect(sec.querySelector('.ws-feed-badge--listed')).toBeNull();
-    expect(sec.textContent).not.toContain(COPY.feed.badgeListed);
-    expect(sec.querySelector('.ws-feed-spec')).toBeNull();
+    await act(async () => undefined);
+    expect(feedSec(d)).toBeNull();
     cleanup();
     act(() => layerStore.resetForTest());
     resetFeedCacheForTest();
-    // 서버가 잘못 LISTED_PASS 를 실어도(블록 generalInfo false) 요구사항이 GENERAL_INFO 면 거부
-    fetchMock.mockResolvedValueOnce(jsonRes(blockFull()));
-    const d2 = openL4(pageWith(FULL, wheel({ generalInfo: true } as Partial<PublicRequirement>), [], gi));
-    await waitFor(() => expect(d2.querySelector('[data-ws-error="feed"]')).not.toBeNull());
-    expect(d2.textContent).not.toContain(COPY.feed.badgeListed);
+    // 타입만 GENERAL_INFO 여도, 요구사항만 GENERAL_INFO 여도 같다
+    const d2 = openL4(pageWith(FULL, wheel(), [], gi));
+    await act(async () => undefined);
+    expect(feedSec(d2)).toBeNull();
+    cleanup();
+    act(() => layerStore.resetForTest());
+    resetFeedCacheForTest();
+    const d3 = openL4(pageWith(FULL, wheel({ generalInfo: true } as Partial<PublicRequirement>)));
+    await act(async () => undefined);
+    expect(feedSec(d3)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('FOOD/HEALTH 품목: items 에 있어도 fetch 0·블록 0', async () => {

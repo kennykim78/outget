@@ -1,5 +1,6 @@
 // 362 N4 — 몰 원제목 → 규격 값(parseTitleSpec). 순수·결정론(시계·난수·I/O 0). 피드 노출(exposure.ts selectFeedRows)만 쓴다.
 //   fail-closed: 옵션 나열(「21/27/30cm」·「S/M/L」·「사이즈 선택」)·후보 2개 이상·단위 혼재·인치 → null(판단 불가 — 행 버림).
+//   398: 비교(미만·이하·이상·이내·까지·최대·약 등)·범위(20-30cm·대시 변형)·호환(케이지용·호환·맞는·장착) 표현도 null.
 //   숫자는 단위가 붙은 값만, 품목별 고정 매핑표로만 넣는다(옵션 치수 임의 대응 금지). enum·boolean 은 긍정 사전으로만 채운다.
 //   C4(362): mm 는 매핑표가 mm 필드를 둔 곳(cage·bird-cage barGapMm = 「간격」 표지, perch diameterMm)만, cm 와 한 제목에 섞이면 null.
 //   값의 범위(specSchema min/max)는 여기서 보지 않는다 — selectFeedRows 가 rules.readSpecValue 로 본다.
@@ -97,6 +98,54 @@ const OPTION_RE = /\d\s*[/~∼]\s*\d|택\s*1|옵션|사이즈\s*선택|색상\s*
 const SIZE_LIST_RE = /(?<![A-Za-z])X{0,3}[SML](?![A-Za-z])\s*\/\s*X{0,3}[SML](?![A-Za-z])/;
 const INCH_RE = /인치|inch|\d\s*["″”]/i;
 const LABELS = String.raw`(안쪽\s*지름|안지름|내경|지름|직경|깊이|높이|간격|길이|두께|폭|가로|세로)`;
+
+// 398 — 비교·범위·호환 표현(fail-closed). 숫자가 정확한 제품 값이 아닐 수 있으면 null(행 버림).
+/** 단위(치수·리터) 꼬리. */
+const UNIT_ANY = String.raw`(?:cm|mm|㎝|㎜|L|리터)`;
+/** 범위: 숫자(단위?) [하이픈·대시·물결] 숫자 — 「20-30cm」「20cm - 30cm」「20–30」「20cm~30cm」. 모델명 하이픈(HW-28)은 앞이 글자라 걸리지 않는다. */
+const RANGE_RE = new RegExp(String.raw`\d\s*${UNIT_ANY}?\s*[-‐‑‒–—―−~∼～〜]\s*\d`, 'i');
+/** 단위 나열: 「21cm/27cm」「21cm, 27cm」. */
+const UNIT_LIST_RE = new RegExp(String.raw`\d\s*${UNIT_ANY}\s*[/,]\s*\d`, 'i');
+/** 숫자 뒤 비교·근사: 미만·이하·이내·초과·이상·까지·부터·내외·전후·정도·가량·안팎·언더·오버·급·「N cm대」·↑↓·+. */
+const SUFFIX_RE = new RegExp(
+  String.raw`\d\s*${UNIT_ANY}(?![A-Za-z])\s*(?:미만|이하|이내|초과|이상|까지|부터|내외|전후|정도|가량|안팎|언더|오버|급|대(?![가-힣])|[↑↓▲▼+＋<>≤≥≦≧])`,
+  'i',
+);
+/** 숫자 앞 비교·근사: 최대·최소·약·대략·max·min·up to·under·over·부호(~ < > ≤ ≥ ±). 라벨(지름 등)이 사이에 와도 잡는다. */
+const PREFIX_RE = new RegExp(
+  String.raw`(?:최대|최소|최장|최고|(?<![가-힣])약|대략|(?<![A-Za-z])(?:max|min|up\s*to|under|over)|[~∼～〜<>≤≥≦≧±])\s*(?:${LABELS}\s*:?\s*)?\d`,
+  'i',
+);
+/** 호환·장착 문구 — 숫자가 다른 물건(케이지 등)의 크기를 가리킬 수 있다. */
+const COMPAT_RE = /호환|맞는|맞춤|대응|적합|장착|부착|끼우는|들어가는|넣는|사용\s*가능/;
+/** 「X용·X 전용·X 겸용」— X 가 동물어로 끝날 때만 허용(햄스터용·골든햄스터 전용). 그 밖(케이지용·27cm용) → null. */
+const USE_RE = /([가-힣A-Za-z0-9]*?)\s*(?:전용|겸용|용)(?![가-힣])/g;
+const ANIMAL_USE: readonly string[] = [
+  '햄스터', '골햄', '드워프', '로보', '로보로브스키', '정글리안', '저빌', '기니피그', '친칠라', '데구', '토끼', '고슴도치',
+  '다람쥐', '래트', '쥐', '소동물', '설치류', '앵무새', '앵무', '잉꼬', '코뉴어', '조류', '새', '반려동물', '애완동물', '동물',
+];
+
+/** 한글 범위: 「20에서 30cm」「20부터 30」「20 내지 30」. */
+const WORD_RANGE_RE = new RegExp(String.raw`\d\s*${UNIT_ANY}?\s*(?:에서|부터|내지)\s*\d`, 'i');
+/** 단위 없는 숫자로 끝나는 모델명(HW28-01·WS-2030) — 범위 검사 전에만 지운다. 단위나 범위 기호가 이어지면 남긴다. */
+const MODEL_RE = /[A-Za-z]+-?\d+(?:-\d+)*(?![\dA-Za-z]|\s*(?:[-‐‑‒–—―−~∼～〜]|cm|mm|㎝|㎜|L(?![A-Za-z])|리터))/g;
+/** 케이지류가 아닌 품목: 치수 바로 뒤에 사육장 낱말이 오거나 「케이지에 …」 설치 문맥이면 숫자의 대상이 불분명하다. */
+const CAGE_ITEMS: ReadonlySet<string> = new Set(['cage', 'playpen', 'bird-cage']);
+const HOST = String.raw`(?:케이지|리빙\s*박스|사육장|새장|수조|어항)`;
+const HOST_RE = new RegExp(String.raw`\d\s*${UNIT_ANY}(?![A-Za-z])\s*${HOST}|${HOST}\s*에`, 'i');
+
+function hasQualifier(itemId: string, title: string): boolean {
+  // 괄호는 지워서 「27cm(미만)」「(최대) 30cm」도 같은 규칙으로 본다.
+  const t = title.replace(/[()[\]{}（）［］【】〔〕]/g, ' ');
+  if (!CAGE_ITEMS.has(itemId) && HOST_RE.test(t)) return true;
+  if (WORD_RANGE_RE.test(t) || RANGE_RE.test(t.replace(MODEL_RE, ' '))) return true;
+  if (UNIT_LIST_RE.test(t) ||SUFFIX_RE.test(t) || PREFIX_RE.test(t) || COMPAT_RE.test(t)) return true;
+  for (const m of t.matchAll(USE_RE)) {
+    const noun = m[1];
+    if (noun === '' || !ANIMAL_USE.some((a) => noun.endsWith(a))) return true;
+  }
+  return false;
+}
 
 interface Dims {
   values: number[];
@@ -220,7 +269,7 @@ export function parseTitleSpec(supplyItemId: string, title: string): TitleSpec |
   if (typeof title !== 'string' || typeof supplyItemId !== 'string') return null;
   if (!TITLE_SPEC_ITEMS.has(supplyItemId)) return {};
   const t = title.normalize('NFC');
-  if (OPTION_RE.test(t) || SIZE_LIST_RE.test(t) || INCH_RE.test(t)) return null;
+  if (OPTION_RE.test(t) || SIZE_LIST_RE.test(t) || INCH_RE.test(t) || hasQualifier(supplyItemId, t)) return null;
   const nums = mapNumbers(supplyItemId, scanNumbers(t));
   if (nums === null) return null;
   const enums = mapEnums(supplyItemId, t);

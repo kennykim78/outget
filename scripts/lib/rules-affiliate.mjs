@@ -27,6 +27,10 @@ import { CODE_EXT, isDir, lexJs, lineIndex, relPosix, stripBom, walk } from './f
 import { decodeEntities, dupAttrNames, maskNonMarkup, parseAttrs, scripts } from './html.mjs';
 import { lintText } from './normalize.mjs';
 import { isTestFile, jsonErrorWhere, safeLabel } from './rules-source.mjs';
+import { PHOTO_ASSET_PATH_RE } from './seed-exposure.mjs';
+
+/** 398 C1: 로컬 대체 사진 data-ws-photo 값 모양(시드 사진 id = ph-<kebab>). */
+const PHOTO_ID_RE = /^ph-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const L = safeLabel;
 const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -1919,6 +1923,15 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     let boxes = 0;
     const popularOk = hasPopularSort(sink?.popularSorts ?? FEED_POPULAR_SORTS);
     const homeSecOf = (i) => (upSection[i] >= 0 ? els[upSection[i]].attrs['data-ws-section'] : undefined);
+    const isLocalFeedPhoto = (i) => {
+      const e = els[i];
+      const cls = classesOf(e);
+      if (!cls.includes('ws-photo') || cls.includes('ws-feed-thumb') || e.attrs.srcset !== undefined) return false;
+      if (!PHOTO_ID_RE.test(e.attrs['data-ws-photo'] ?? '') || !PHOTO_ASSET_PATH_RE.test(e.attrs.src ?? '')) return false;
+      if (cls.includes('ws-feed-photo')) return true;
+      const p = e.parent >= 0 ? els[e.parent] : null;
+      return p !== null && p.name === 'span' && classesOf(p).includes('ws-photo-frame') && classesOf(p).includes('ws-feed-photo');
+    };
     for (let i = 0; i < n; i++) {
       const e = els[i];
       const cls = classesOf(e);
@@ -1951,9 +1964,13 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       if (e.attrs['data-ws-glyph'] === 'ok') out(i, '피드 블록에 ○ 글리프(data-ws-glyph="ok")');
       if (cls.includes('ws-feed-badge') && cls.filter((c) => c === 'ws-feed-badge--listed' || c === 'ws-feed-badge--check').length !== 1) out(i, '피드 배지는 ws-feed-badge--listed·--check 중 정확히 하나');
       if (e.name === 'img') {
+        // 398 C1: 행 imageUrl=null 의 로컬 대체 사진(server feed.ts thumb → common.ts photoTile(…, 'ws-feed-photo')) 은 외부 썸네일 규칙 밖.
+        //   모양 고정 — img.ws-photo(ws-feed-thumb 아님)·data-ws-photo id·src = PHOTO_ASSET_PATH_RE(/assets/(photos|items)/<kebab>.webp)·srcset 0,
+        //   자리 = 자기 class ws-feed-photo(실사) 또는 부모 span.ws-photo-frame.ws-feed-photo(생성). 사용권·종 범위는 C6-IMG-SPECIES(rules-output)가 같은 파일에서 본다.
+        if (isLocalFeedPhoto(i)) continue;
         const li = upLi[i];
         const merchant = li >= 0 ? els[li].attrs['data-ws-merchant'] : undefined;
-        if (!cls.includes('ws-feed-thumb')) out(i, '피드 블록 img 는 img.ws-feed-thumb 만');
+        if (!cls.includes('ws-feed-thumb')) out(i, '피드 블록 img 는 img.ws-feed-thumb 만(로컬 대체 사진은 img.ws-photo.ws-feed-photo · data-ws-photo · /assets/(photos|items)/ 만)');
         if ((e.attrs.referrerpolicy ?? '').trim().toLowerCase() !== 'no-referrer') out(i, '피드 이미지 referrerpolicy="no-referrer" 아님');
         if (!feedImageOk(merchant, (e.attrs.src ?? '').trim())) out(i, `피드 이미지 호스트가 FEED_IMAGE_HOSTS.${L(String(merchant))} 밖(https 정확 일치)`);
       }

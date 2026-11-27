@@ -239,8 +239,8 @@ export interface SelectedFeedRow {
 
 export interface FeedSelection {
   badge: FeedBadge;
-  /** 체인 메타에 GENERAL_INFO 가 있다(D-7 — LISTED_PASS 금지, 홈 레일 카드 0). */
-  generalInfo: boolean;
+  /** 398(불변식 7): GENERAL_INFO 체인은 블록 자체가 없다(selectFeedRows null) — 항상 false. 공개 JSON 키 호환용. */
+  generalInfo: false;
   showPrice: boolean;
   rows: SelectedFeedRow[];
 }
@@ -295,12 +295,12 @@ function hitsNotInWord(r: ResolvedRequirement, title: string): boolean {
 
 /**
  * 「많이 찾는 상품」 피드 노출 결정 — 피드는 여기 한 곳에서만 고른다(불변식 3·5·7, D-1~D-7). 순수·결정론, 입력 불변.
- *   null(블록 없음): 타입·요구사항 비노출 ∨ 품목 FOOD·HEALTH ∨ generatedAt 없음·168h 초과.
+ *   null(블록 없음): 타입·요구사항 비노출 ∨ GENERAL_INFO 체인 ∨ 품목 FOOD·HEALTH ∨ generatedAt 없음·168h 초과.
  *   행 버림(개작 0): 타입·품목 불일치 ∨ keyword ≠ buildSearchKeyword ∨ 금지어(주입) ∨ 제목 가격·날짜(373 D2) ∨ 형식 밖·미래 fetchedAt(D3)
  *     ∨ 의료 효능어 ∨ avoid·not_in 사전어. 단계 기준 시각 = feedFreshAt(generatedAt, rows)(D4 — 가장 오래된 fetchedAt 쪽).
  *   minSpec 규칙 0 → CHECK_NEEDED(모든 행). 규칙 ≥1 → 제목에서 minSpec 이 참조하는 키 전부(규칙·when)를 범위 안 값으로
  *     읽어야 하고 MIN 판정 OK 여야 남는다(못 읽으면 버림, D-1). 권장 판정으로 verdict(OK/BELOW_RECOMMENDED).
- *   D-7: 체인 메타 중 하나라도 GENERAL_INFO(strictChainOk 거짓) → 필터는 같게, 배지는 CHECK_NEEDED·규격 값·verdict null.
+ *   398(불변식 7 — 362 D-7 「△만」 폐기): 체인 메타 중 하나라도 GENERAL_INFO(strictChainOk 거짓) → null(블록·JSON·L4·홈 레일 0).
  *   정렬 compareFeedRows(verdict → 공급자 고정순 → rank) — 가격은 정렬 입력이 아니다. 72h 초과면 price null.
  */
 export function selectFeedRows(
@@ -315,15 +315,15 @@ export function selectFeedRows(
   const at = cat.animalTypes.get(animalTypeId);
   const r = resolveRequirement(cat, animalTypeId, supplyItemId);
   if (!at || !r || !requirementOk(cat, r, day)) return null;
+  if (!strictChainOk(r, day)) return null; // 398: GENERAL_INFO 체인에 연결된 상품은 노출하지 않는다(불변식 7)
   if (FEED_EXCLUDED_CATEGORIES.includes(r.item.category)) return null;
   // 373 D4: 단계 기준 = generatedAt·행 fetchedAt 중 가장 오래된 값(feedFreshAt — buildFeedOutputs manifest 와 같은 값). D3: 미래 → nofeed.
   const stage = feedStage(opts.buildAtMs, feedFreshAt(opts.generatedAt, rows));
   if (stage === 'nofeed') return null;
   const showPrice = stage === 'full';
-  const generalInfo = !strictChainOk(r, day);
   const minRules = Array.isArray(r.minSpec?.rules) ? r.minSpec.rules : [];
   const ruled = minRules.length > 0;
-  const badge: FeedBadge = ruled && !generalInfo ? 'LISTED_PASS' : 'CHECK_NEEDED';
+  const badge: FeedBadge = ruled ? 'LISTED_PASS' : 'CHECK_NEEDED';
   const needKeys = [...referencedSpecKeys(r.minSpec)];
   const keyword = buildSearchKeyword(at, r);
 
@@ -346,10 +346,8 @@ export function selectFeedRows(
       if (!needKeys.every((k) => readSpecValue(r.item.specSchema, parsed, k).ok)) continue;
       if (evaluateRuleSet(r.item.specSchema, r.minSpec, parsed, 'MIN').verdict !== 'OK') continue;
       const rec = evaluateRuleSet(r.item.specSchema, r.recommendedSpec, parsed, 'RECOMMENDED').verdict;
-      if (!generalInfo) {
-        verdict = rec === 'OK' ? 'OK' : 'BELOW_RECOMMENDED';
-        specValues = { ...parsed };
-      }
+      verdict = rec === 'OK' ? 'OK' : 'BELOW_RECOMMENDED';
+      specValues = { ...parsed };
     }
     out.push({
       provider: row.provider,
@@ -364,7 +362,7 @@ export function selectFeedRows(
     });
   }
   out.sort(compareFeedRows);
-  return { badge, generalInfo, showPrice, rows: out };
+  return { badge, generalInfo: false, showPrice, rows: out };
 }
 
 /** 후기 레코드 자체: APPROVED ∧ verifiedUsage(불변식 7). 공개 노출 판정은 isTestimonialPublic(동물 타입까지). */

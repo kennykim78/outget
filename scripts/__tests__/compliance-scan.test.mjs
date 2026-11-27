@@ -4558,6 +4558,8 @@ for (const [name, rel, body] of [
   ['client jsx', 'client/src/x.jsx', "export const P = 'ph-03';"],
   ['client mjs', 'client/src/x.mjs', "export const P = 'ph-03';"],
   ['프리렌더 mjs', 'server/src/prerender/x.mjs', "export const P = 'ph-03';"],
+  // 398 C4: 시드의 이름형 사진 id(ph-budgie-habitat·ph-cp-… 등)도 고정 금지 — 예전엔 두 자리 숫자만 잡았다.
+  ['이름형 사진 id', 'client/src/w.ts', "export const P = 'ph-cp-syrian-cage';"],
   ['client asset 사진 경로', 'client/src/a.tsx', "export const A = '/assets/photos/cage.webp';"],
   ['client asset 품목 경로', 'client/src/a.ts', 'export const A = `/assets/items/${1}.webp`;'],
   ['client HOME_A_SCENE_PHOTOS', 'client/src/b.ts', "import { HOME_A_SCENE_PHOTOS } from '@ws/engine';"],
@@ -4578,7 +4580,6 @@ for (const [name, rel, body] of [
   ['client/src/test/ 는 제외', 'client/src/test/fx.ts', "export const P = 'ph-03';"],
   ['주석 안 id', 'client/src/z.ts', '// 예전에는 ph-03 을 고정했다\nexport const P = 1;'],
   ['엔진 장면 표는 대상 밖', 'server/src/engine/photo-resolve.ts', "export const S = ['ph-08'];"],
-  ['두 자리가 아닌 id', 'client/src/w.ts', "export const P = 'ph-cp-syrian-cage';"],
   ['주석 안 식별자', 'client/src/c.ts', '// engine resolvePhoto → publicPhotoOf\nexport const P = 1;'],
   ['주석 안 asset 경로', 'client/src/c.ts', '// /assets/photos/x.webp\nexport const P = 1;'],
   ['테스트 파일 asset 경로·식별자', 'client/src/c.test.tsx', "const a = '/assets/items/fx.webp'; resolvePhoto(a);"],
@@ -4673,4 +4674,149 @@ test('362 N12 C10-AFF-RUNTIME: 서버 런타임이 피드 로더에 닿으면 FA
     'server/src/prerender/product-feed.ts': 'export const loadProductFeed = () => null;\n',
   });
   expectAff(res, 'C10-AFF-RUNTIME', null, '런타임 → 피드 로더');
+});
+
+// ── 398 C1~C4(codex_C) + GENERAL_INFO 체인 피드 0 — 합성 픽스처(실제 종·규격 사실 아님) ─────────────
+const r398Aff = async (html, rel = 'hamster/golden/index.feed.html') => {
+  const { checkHtmlAff } = await import('../lib/rules-affiliate.mjs');
+  const findings = [];
+  checkHtmlAff(html, rel, false, (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }));
+  return findings;
+};
+const R398_IMG_MSG = /img|referrerpolicy|FEED_IMAGE_HOSTS|사진/;
+const r398ImgFails = (fs) => fs.filter((f) => f.rule === 'C11-FEED-OUT' && f.severity === 'FAIL' && R398_IMG_MSG.test(f.message));
+const r398Row = (thumb) => j(
+  '<html><body><main><section class="ws-supply-part ws-feed" data-ws-part="feed"><ul class="ws-feed-rows" role="list">',
+  '<li class="ws-feed-row" data-ws-merchant="COUPANG">', thumb, '<div class="ws-feed-body"><p class="ws-t-cta ws-feed-title">케이지</p></div></li>',
+  '</ul></section></main></body></html>',
+);
+const R398_LOCAL = '<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-hamster-syrian-wheel.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-hamster-syrian-wheel">';
+const R398_LOCAL_AI = j('<span class="ws-photo-frame ws-feed-photo">', '<img class="ws-photo" src="/assets/items/ph-item-perch.webp" alt="" loading="lazy" decoding="async" data-ws-photo="ph-item-perch">', '<span class="ws-photo-notice ws-t-meta" aria-hidden="true">x</span></span>');
+test('398 C1 C11-FEED-OUT clean: 피드 행 로컬 대체 사진(img.ws-photo · 실사·생성 틀)은 외부 썸네일 규칙 밖', async () => {
+  for (const thumb of [R398_LOCAL, R398_LOCAL_AI, '<span class="ws-photo ws-feed-photo" aria-hidden="true"></span>']) {
+    assert.deepEqual(r398ImgFails(await r398Aff(r398Row(thumb))), [], thumb);
+  }
+});
+for (const [name, thumb] of [
+  ['ws-photo 인데 외부 src', j('<img class="ws-photo ws-feed-photo" src="', HTTPS, 'evil.example/x.webp" alt="" data-ws-photo="ph-01">')],
+  ['ws-photo 인데 data-ws-photo 없음', '<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" alt="">'],
+  ['ws-photo 경로 순회', '<img class="ws-photo ws-feed-photo" src="/assets/photos/../x.webp" alt="" data-ws-photo="ph-01">'],
+  ['ws-photo 다른 로컬 폴더', '<img class="ws-photo ws-feed-photo" src="/assets/products/x.webp" alt="" data-ws-photo="ph-01">'],
+  ['ws-photo + srcset 외부', j('<img class="ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" srcset="', HTTPS, 'evil.example/x.webp 2x" alt="" data-ws-photo="ph-01">')],
+  ['ws-photo 와 ws-feed-thumb 동시(로컬 src)', '<img class="ws-feed-thumb ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" alt="" referrerpolicy="no-referrer" data-ws-photo="ph-01">'],
+  ['ws-photo 인데 피드 사진 자리 아님', '<img class="ws-photo ws-spec-sec-photo" src="/assets/photos/ph-01.webp" alt="" data-ws-photo="ph-01">'],
+  ['클래스 없는 로컬 img', '<img src="/assets/photos/ph-01.webp" alt="">'],
+  ['ws-feed-thumb 허용 밖 호스트', j('<img class="ws-feed-thumb" src="', HTTPS, 'evil.example/x.jpg" alt="" referrerpolicy="no-referrer">')],
+  ['ws-feed-thumb no-referrer 없음', j('<img class="ws-feed-thumb" src="', HTTPS, FIMG, '/kf/x.jpg" alt="">')],
+]) {
+  test(`398 C1 C11-FEED-OUT: ${name} → FAIL(느슨해지지 않음)`, async () => {
+    assert.ok(r398ImgFails(await r398Aff(r398Row(thumb))).length > 0, name);
+  });
+}
+
+const R398_VAR = 'parrot/budgie/index.feed.html';
+const R398_VAR_NP = 'parrot/budgie/index.feed-noprice.html';
+const r398Page = (body, ws) => page(`<main class="ws-page" data-ws-route="TYPE" data-ws-type="budgie"><h1>픽스처 앵무</h1>${body}</main>`, ws);
+/** 390 시드 체인(budgie, cp-390, req-390·item-390 / req-390-other·item-390-other) 위에 산출물만 바꿔 scanOutputs 를 직접 부른다. */
+async function scan398({ seed = noop, out = noop, feedManifest = null } = {}) {
+  const root = await makeRoot({
+    seed: (d) => { withGeneral390Seed(d); seed(d, general390Chain(d)); },
+    output: (o) => { budgieOut(`<p>${GI_NOTICE}</p>`)(o); out(o); if (feedManifest) o['feed-manifest.json'] = JSON.stringify(feedManifest); },
+    manifest: budgieManifest,
+  });
+  const { readSeed, computeExposure, seedDigest } = await import('../lib/seed-exposure.mjs');
+  const { scanOutputs } = await import('../lib/rules-output.mjs');
+  const { loadBannedWords } = await import('../lib/normalize.mjs');
+  const { seed: sd } = readSeed(join(root, 'server/seed'));
+  const ex = computeExposure(sd, FIXED_NOW);
+  const findings = [];
+  assert.equal(scanOutputs({
+    root, dist: join(root, 'client/dist'), seed: sd, ex, digest: seedDigest(join(root, 'server/seed')),
+    bw: loadBannedWords(join(root, 'server/src/seed/banned-words.json')), requireOutput: true,
+    add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }),
+  }), 'RUN');
+  return { ex, findings, fails: (rule, fileEnd) => findings.filter((f) => f.rule === rule && f.severity === 'FAIL' && (!fileEnd || String(f.file).endsWith(fileEnd))) };
+}
+const r398GiReq = (_d, chain) => Object.assign(chain.requirement, general390Meta());
+const R398_FM = (pages) => ({ v: 1, generatedAt: FEED_GEN, priceUntil: FEED_GEN, blockUntil: FEED_GEN, variants: { full: [], noprice: [] }, pages });
+
+test('398 C2 C9-GENERAL clean: GI 종 피드 변형 HTML 에도 고지 1회 → FAIL 0', async () => {
+  const res = await scan398({ seed: r398GiReq, out: (o) => { o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p>`); o[R398_VAR_NP] = r398Page(`<p>${GI_NOTICE}</p>`); }, feedManifest: R398_FM({ full: [R398_VAR], noprice: [R398_VAR_NP] }) });
+  assert.deepEqual(res.fails('C9-GENERAL'), []);
+  assert.deepEqual(res.fails('C3-OUT-ROUTE'), []);
+});
+for (const [name, listed] of [['feed-manifest pages 에 등록', true], ['feed-manifest 없이 디스크에만', false]]) {
+  test(`398 C2 C9-GENERAL: 기본 HTML 고지 유지·피드 변형에서만 삭제(${name}) → 변형 파일 FAIL`, async () => {
+    const res = await scan398({ seed: r398GiReq, out: (o) => { o[R398_VAR] = r398Page('<p>준비물</p>'); }, feedManifest: listed ? R398_FM({ full: [R398_VAR], noprice: [] }) : null });
+    assert.ok(res.fails('C9-GENERAL', R398_VAR).some((f) => /0회\(기대 1회\)/.test(f.message)), JSON.stringify(res.findings));
+    assert.deepEqual(res.fails('C9-GENERAL', BUDGIE_HTML), []);
+  });
+}
+test('398 C2 C6-IMG-SPECIES: 피드 변형 HTML 에만 사용 불가 사진(data-ws-photo) → 변형 파일 FAIL', async () => {
+  const res = await scan398({ seed: r398GiReq, out: (o) => { o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p><img class="ws-photo ws-feed-photo" src="/assets/photos/ph-01.webp" alt="" data-ws-photo="ph-01">`); }, feedManifest: R398_FM({ full: [R398_VAR], noprice: [] }) });
+  assert.ok(res.fails('C6-IMG-SPECIES', R398_VAR).some((f) => /사용 불가.*ph-01/.test(f.message)), JSON.stringify(res.findings));
+  assert.deepEqual(res.fails('C6-IMG-SPECIES', BUDGIE_HTML), []);
+});
+for (const [name, out, pages] of [
+  ['기본 라우트 없는 변형 파일', (o) => { o['parrot/ghost/index.feed.html'] = r398Page(''); }, null],
+  ['feed-manifest pages 에 있는데 파일 없음', noop, { full: [R398_VAR], noprice: [] }],
+  ['feed-manifest pages 가 변형 이름 아님', noop, { full: ['parrot/budgie/index.html'], noprice: [] }],
+]) {
+  test(`398 C2 C3-OUT-ROUTE: ${name} → FAIL`, async () => {
+    const res = await scan398({ out, feedManifest: pages ? R398_FM(pages) : null });
+    assert.ok(res.fails('C3-OUT-ROUTE').some((f) => /피드 변형/.test(f.message)), JSON.stringify(res.findings));
+  });
+}
+
+const r398Block = (over = {}, rowOver = {}) => ({
+  v: 1, typeId: 'hamster-golden', supplyItemId: 'cage', badge: 'LISTED_PASS', generalInfo: false,
+  rows: [{ provider: 'COUPANG', title: '넓은 케이지', url: `${HTTPS}${FCP}/a/Mk1x`, imageUrl: null, verdict: 'OK', specValues: {}, ...rowOver }],
+  ...over,
+});
+test('398 C3 C4-BANNED: 피드 JSON(full·noprice) 제목 금지어 → FAIL, 정상 제목 → 0', async () => {
+  for (const f of ['hamster/golden/feed/cage.json', 'hamster/golden/feed/cage.noprice.json']) {
+    const bad = await scan398({ out: (o) => { o[f] = JSON.stringify(r398Block({}, { title: j(KO.safe, ' 케이지') })); } });
+    assert.ok(bad.fails('C4-BANNED', f).length > 0, JSON.stringify(bad.findings));
+    const ok = await scan398({ out: (o) => { o[f] = JSON.stringify(r398Block()); } });
+    assert.deepEqual([...ok.fails('C4-BANNED', f), ...ok.fails('C4-STEM', f), ...ok.fails('C11-FEED-OUT', f)], []);
+  }
+});
+
+test('398 GI C11-FEED-OUT: GENERAL_INFO 체인 쌍의 피드 JSON·generalInfo:true·ws-data data.feed → FAIL, VERIFIED 체인 → 0', async () => {
+  const gf = 'parrot/budgie/feed/item-390.json';
+  const ws = (items) => ({ v: 1, route: { kind: 'TYPE', path: '/parrot/budgie', typeId: 'budgie' }, layer: null, data: { types: [], requirements: [], products: [], bundles: [], vets: [], testimonials: [], feed: { v: 1, stage: 'full', items, rail: [] } } });
+  const res = await scan398({
+    seed: r398GiReq,
+    out: (o) => {
+      o[gf] = JSON.stringify(r398Block({ typeId: 'budgie', supplyItemId: 'item-390' }));
+      o['hamster/golden/feed/cage.json'] = JSON.stringify(r398Block({ generalInfo: true }));
+      o[R398_VAR] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390']));
+      o[R398_VAR_NP] = r398Page(`<p>${GI_NOTICE}</p>`, ws(['item-390-other']));
+    },
+    feedManifest: R398_FM({ full: [R398_VAR], noprice: [R398_VAR_NP] }),
+  });
+  assert.ok(res.ex.pairs.has('budgie|item-390'), 'GI 쌍은 노출(체인 메타)');
+  assert.ok(res.fails('C11-FEED-OUT', gf).some((f) => /GENERAL_INFO/.test(f.message)), JSON.stringify(res.findings));
+  assert.ok(res.fails('C11-FEED-OUT', 'hamster/golden/feed/cage.json').some((f) => /generalInfo/.test(f.message)), JSON.stringify(res.findings));
+  assert.ok(res.fails('C11-FEED-OUT', R398_VAR).some((f) => /GENERAL_INFO/.test(f.message)), JSON.stringify(res.findings));
+  assert.deepEqual(res.fails('C11-FEED-OUT', R398_VAR_NP), [], 'VERIFIED 체인 품목(item-390-other)은 통과');
+});
+
+test('398 C4 C6-IMG-SPECIES-SRC: 실제 시드 사진 id 전부를 잡고, 비슷한 문자열은 잡지 않는다', async () => {
+  const { PHOTO_ID_LITERAL_RE } = await import('../lib/rules-source.mjs');
+  const ids = JSON.parse(readFileSync(resolve(HERE, '..', '..', 'server', 'seed', 'photos.json'), 'utf8')).map((p) => p.id);
+  assert.ok(ids.length > 12);
+  for (const id of ids) {
+    assert.ok(PHOTO_ID_LITERAL_RE.test(id), `시드 id ${id}`);
+    assert.ok(PHOTO_ID_LITERAL_RE.test(`<span data-ws-photo="${id}">`), `속성 안 ${id}`);
+  }
+  for (const s of ['graph-1', 'alpha-beta', 'ph', 'ph-', 'phone-1', 'ws-ph-cage', 'x_ph-01', 'ph-${id}', 'PH-01', 'ph--x', 'ph-01x_']) {
+    assert.ok(!PHOTO_ID_LITERAL_RE.test(s), `오탐 ${s}`);
+  }
+});
+test('398 C4 C6-IMG-SPECIES-SRC: client 소스에 "ph-budgie-habitat" 고정 → FAIL', async () => {
+  const rel = 'client/src/x.ts';
+  const res = await scanSrcPhoto(rel, 'export const P = "ph-budgie-habitat";');
+  expectFail(res, 'C6-IMG-SPECIES-SRC');
+  assert.ok(srcPhotoOf(res).some((f) => f.file === rel && f.line === 1), JSON.stringify(srcPhotoOf(res)));
 });

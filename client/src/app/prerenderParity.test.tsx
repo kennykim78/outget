@@ -11,7 +11,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { COPY } from '@ws/copy';
 import type { RouteKind } from '@ws/engine';
 import { resetFeedCacheForTest } from '../supply/feedBlock';
-import { layerStore, readLayerState } from '../ui/layer/useLayer';
+import { layerNav, layerStore, readLayerState } from '../ui/layer/useLayer';
 import { boot } from './boot';
 import { readPageData } from './pageData';
 
@@ -1162,17 +1162,23 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
     180_000,
   );
 
-  it.each(['close-button', 'escape'] as const)('닫기(%s): replaceState(부모) · history.length 불변 · main 유지 · 고지 0', async (how) => {
-    const { before, dialog } = await openSit(sitPages(affSite)[0]);
-    const len = window.history.length;
-    if (how === 'escape') fireEvent.keyDown(document, { key: 'Escape' });
-    else fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
-    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
-    expect(window.location.pathname).toBe(before.parent);
-    expect(window.history.length).toBe(len);
-    expect(readLayerState(window.history.state)).toBeNull();
-    expect(norm(mainEl().textContent)).toBe(before.mainText);
-    expect(document.querySelectorAll('[data-ws-aff]')).toHaveLength(0);
+  // 398 B-2: 이 문서의 route·헤더·본문은 진입 종 기준 — 닫기는 URL 만 바꾸지 않고 부모 문서로 실제 이동(location.replace, history.length 불변).
+  it.each(['close-button', 'escape'] as const)('닫기(%s): location.replace(부모) 1회 · URL 을 부모로 바꿔 쓰지 않음 · history.length 불변', async (how) => {
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    try {
+      const p = sitPages(affSite)[0];
+      const { before, dialog } = await openSit(p);
+      const len = window.history.length;
+      if (how === 'escape') fireEvent.keyDown(document, { key: 'Escape' });
+      else fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      fireEvent.keyDown(document, { key: 'Escape' }); // 연타 — 이동 두 번 없음
+      await waitFor(() => expect(nav).toHaveBeenCalledTimes(1));
+      expect(nav).toHaveBeenCalledWith(before.parent);
+      expect(window.location.pathname).toBe(p.route.path);
+      expect(window.history.length).toBe(len);
+    } finally {
+      nav.mockRestore();
+    }
   });
 
   // 387(384 D2): 대안 품목은 이 문서 ws-data 에 실린다(대조 타입 문서와 같은 노출 경로) → 대안 링크는 타입 문서처럼 push 로 대안 L4.
@@ -1287,14 +1293,19 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
 
   const titleOf = (p: BuiltPageLite): string => new DOMParser().parseFromString(p.html, 'text/html').title;
 
-  it('387 D3: 닫은 뒤 document.title = 부모 /supplies/{item} 문서 제목', async () => {
-    const p = pageAt(SIT_WHEEL, realSite);
-    document.title = titleOf(p);
-    const { dialog } = await openSit(p);
-    fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
-    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
-    expect(window.location.pathname).toBe('/supplies/wheel');
-    expect(document.title).toBe(titleOf(pageAt('/supplies/wheel', realSite)));
+  // 398 B-2: 닫은 뒤 제목·본문은 실제 부모 문서(프리렌더 /supplies/wheel)가 낸다 — 이동 대상이 그 문서다.
+  it('387 D3 · 398 B-2: 닫기 = 부모 /supplies/{item} 문서로 이동(그 문서 제목 = 부모 제목)', async () => {
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    try {
+      const p = pageAt(SIT_WHEEL, realSite);
+      document.title = titleOf(p);
+      const { dialog } = await openSit(p);
+      fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      await waitFor(() => expect(nav).toHaveBeenCalledWith('/supplies/wheel'));
+      expect(titleOf(pageAt('/supplies/wheel', realSite))).not.toBe(titleOf(p));
+    } finally {
+      nav.mockRestore();
+    }
   });
 
   /** Navigation API 흉내(jsdom 미구현): 같은 오리진 history 항목 URL 목록 + 현재 위치. */
@@ -1320,16 +1331,21 @@ describe('383 /supplies/{item}/{type} — 프리렌더 ↔ 하이드레이션 L4
     replace.mockRestore();
   });
 
-  it('387 D4: 앞 항목이 부모가 아니면(새 탭·다른 문서에서 진입) 이전처럼 replaceState(부모)', async () => {
+  it('387 D4 · 398 B-2: 앞 항목이 부모가 아니면(새 탭·다른 문서에서 진입) location.replace(부모)', async () => {
     stubNavigation(['/supplies', SIT_WHEEL], 1);
     const back = vi.spyOn(window.history, 'back');
-    const { dialog } = await openSit(pageAt(SIT_WHEEL, realSite));
-    const len = window.history.length;
-    fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
-    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
-    expect(back).not.toHaveBeenCalled();
-    expect(window.location.pathname).toBe('/supplies/wheel');
-    expect(window.history.length).toBe(len);
-    back.mockRestore();
+    const nav = vi.spyOn(layerNav, 'replace').mockImplementation(() => undefined);
+    try {
+      const { dialog } = await openSit(pageAt(SIT_WHEEL, realSite));
+      const len = window.history.length;
+      fireEvent.click(within(dialog).getByRole('button', { name: COPY.supplyLayer.close }));
+      await waitFor(() => expect(nav).toHaveBeenCalledWith('/supplies/wheel'));
+      expect(back).not.toHaveBeenCalled();
+      expect(window.location.pathname).toBe(SIT_WHEEL);
+      expect(window.history.length).toBe(len);
+    } finally {
+      back.mockRestore();
+      nav.mockRestore();
+    }
   });
 });

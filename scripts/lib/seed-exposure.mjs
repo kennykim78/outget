@@ -583,6 +583,14 @@ export function computeExposure(seed, asOf) {
   const productStrictChain = (t, req, itemId) =>
     ok(t) && allOk(profiles.get(t.careProfileId)) && allOk(reqIdGroups.get(req.id)) && allOk(items.get(itemId));
 
+  // 398 GI: 피드(몰 상품) 쌍 — 상품과 같은 엄격 체인(엔진 selectFeedRows strictChainOk 미러). GENERAL_INFO 체인 쌍은 피드 0.
+  const feedStrictPairs = new Set();
+  for (const [key, req] of pairReq) {
+    const [tid, itemId] = key.split('|');
+    const t = types.get(tid);
+    if (t && productStrictChain(t, req, itemId)) feedStrictPairs.add(key);
+  }
+
   const productTypes = new Set();
   const productIds = idsWhere(rows('curatedProducts'), (p) => {
     if (!(p.status === 'ACTIVE' && ok(p) && p.meetsMinSpec === true && Array.isArray(p.careProfileIds))) return false;
@@ -675,5 +683,5 @@ export function computeExposure(seed, asOf) {
   for (const p of rows('photos')) if (isObj(p) && ccByPhotos.includes(p.id)) licenseUrls.set(p.id, p.licenseUrl);
   // 362 N16(365/367 틈): 피드 금지 품목 — SupplyItem 행 중 하나라도 FOOD/HEALTH 면(엔진 FEED_EXCLUDED_CATEGORIES 미러, 같은 id 여러 행도 fail-closed).
   const feedExcludedItems = new Set([...items].filter(([, rs]) => rs.some((r) => FEED_EXCLUDED_CATEGORY_SET.has(r?.category))).map(([id]) => id));
-  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes, feedExcludedItems };
+  return { ids, types, pairs, productTypes, vetRegions, ccByPhotos, licenseUrls, tipTypes, feedExcludedItems, feedStrictPairs };
 }

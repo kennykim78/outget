@@ -1,11 +1,11 @@
 // app/deepLink — 딥링크 레이어 판정(C-R5-5 · D-55).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { COPY, formatCopy } from '@ws/copy';
 import type { WsLayer } from '@ws/engine';
 import LayerHost from '../ui/layer/LayerHost';
-import { layerStore } from '../ui/layer/useLayer';
+import { layerNav, layerStore } from '../ui/layer/useLayer';
 import { golden, pageOf } from '../test/fixtures';
 import { deepLinkFor } from './deepLink';
 import { routeView } from './routeView';
@@ -88,18 +88,85 @@ describe('deepLinkFor', () => {
   });
 
   // 383(PRD 183-187): 용품으로 찾기의 /supplies/{item}/{type} 도 같은 L4. 부모 = /supplies/{item}(프리렌더 misc.ts 가 선언한 부모, 같은 문서).
-  it('SUPPLY_ITEM_TYPE + L4: 부모 = /supplies/{item}(같은 문서), L4 아닌 레이어 → null', () => {
+  it('SUPPLY_ITEM_TYPE + L4: 부모 = /supplies/{item}(다른 문서 — 398 B-2), L4 아닌 레이어 → null', () => {
     const extra = { typeId: golden.id, path: '/supplies/cage/hamster-golden' };
     const p = pageOf('SUPPLY_ITEM_TYPE', {}, { ...extra, layer: { kind: 'L4', typeId: golden.id, itemId: 'cage' } });
     expect(deepLinkFor(p, { kind: 'L4', wsId: 'supplyRequirements#r1' }, golden)).toEqual({
       kind: 'L4',
       props: { typeId: golden.id, itemId: 'cage' },
       parent: '/supplies/cage',
-      documentParent: false,
+      documentParent: true,
       wsId: 'supplyRequirements#r1',
       backToParent: true,
     });
     expect(deepLinkFor(pageOf('SUPPLY_ITEM_TYPE', {}, { ...extra, layer: { kind: 'L5', typeId: golden.id, itemId: 'cage' } }), null, null)).toBeNull();
+  });
+
+  // 398 B-2: 이 문서의 route·헤더·본문은 진입 종({type}) 기준 — 부모 /supplies/{item} 은 다른 문서다.
+  //   닫기 = 바로 앞 항목이 부모 문서면 history.back, 아니면 location.replace(부모) — URL 만 바꾸는 replaceState 금지.
+  describe('398 B-2: SUPPLY_ITEM_TYPE L4 직접 진입 → 닫기 = 실제 부모 문서', () => {
+    const sit = '/supplies/cage/hamster-golden';
+    const page = pageOf('SUPPLY_ITEM_TYPE', {}, { typeId: golden.id, path: sit, layer: { kind: 'L4', typeId: golden.id, itemId: 'cage' } });
+    const registry = { L4: { title: '케이지', Component: () => null }, L5: { title: '규격', Component: () => null } };
+
+    function run(body: (ctx: { replace: ReturnType<typeof vi.fn>; back: ReturnType<typeof vi.spyOn> }) => Promise<void> | void) {
+      return async () => {
+        const oldUrl = window.location.href;
+        const oldState: unknown = window.history.state;
+        const oldTitle = document.title;
+        act(() => layerStore.resetForTest());
+        window.history.replaceState(null, '', sit);
+        const replace = vi.fn();
+        const navSpy = vi.spyOn(layerNav, 'replace').mockImplementation(replace);
+        const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+        const view = render(createElement(LayerHost, { registry }));
+        try {
+          const link = deepLinkFor(page, null, golden)!;
+          act(() => layerStore.initDeepLink(link.kind, link.props, link.parent, link));
+          await body({ replace, back });
+        } finally {
+          view.unmount();
+          navSpy.mockRestore();
+          back.mockRestore();
+          Reflect.deleteProperty(window, 'navigation');
+          act(() => layerStore.resetForTest());
+          window.history.replaceState(oldState, '', oldUrl);
+          document.title = oldTitle;
+        }
+      };
+    }
+
+    it('Navigation API 없음 → ✕ = location.replace(/supplies/cage), back 0, URL 만 바꾸지 않는다', run(({ replace, back }) => {
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(replace).toHaveBeenCalledWith('/supplies/cage');
+      expect(back).not.toHaveBeenCalled();
+      expect(window.location.pathname).toBe(sit);
+      // 연타(이동 도착 전)는 두 번째 이동을 만들지 않는다.
+      act(() => layerStore.close());
+      expect(replace).toHaveBeenCalledTimes(1);
+    }));
+
+    it('L5 위에서 ✕ → go(-1) 뒤 딥링크 항목에서 location.replace(부모)', run(async ({ replace, back }) => {
+      act(() => layerStore.open('L5', { typeId: golden.id, itemId: 'cage' }, { url: '/hamster/golden/check/cage' }));
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      await waitFor(() => expect(replace).toHaveBeenCalledWith('/supplies/cage'), { timeout: 5000 });
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(back).not.toHaveBeenCalled();
+    }));
+
+    it('바로 앞 항목이 부모 문서면 ✕ = history.back, replace 0', run(({ replace, back }) => {
+      Object.defineProperty(window, 'navigation', {
+        configurable: true,
+        value: {
+          entries: () => [{ url: `${location.origin}/supplies/cage`, sameDocument: false }, { url: `${location.origin}${sit}`, sameDocument: true }],
+          currentEntry: { index: 1 },
+        },
+      });
+      fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+      expect(back).toHaveBeenCalledTimes(1);
+      expect(replace).not.toHaveBeenCalled();
+    }));
   });
 
   it('레이어 없는 TYPE·HOME·타입 불일치 → null', () => {
