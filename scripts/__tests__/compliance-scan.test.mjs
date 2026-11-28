@@ -5296,26 +5296,46 @@ for (const surface of ['L4', '몰 레일']) for (const stage of ['full', 'nopric
 test('400 C10 exact=false parser and findings fingerprint', async () => {
   const { parseSelector } = await import('../lib/rules-affiliate.mjs');
   const { createHash } = await import('node:crypto');
-  const selectors = [...r400UncertainSelectors, ...r400RelationCases.map(([s]) => s)];
+  // Frozen C10 coverage: unrelated client CSS edits must not change this baseline.
+  const selectors = [
+    ...r400UncertainSelectors, ...r400RelationCases.map(([s]) => s),
+    ':root', '*', 'html', 'body', '#root', '.ws-aff-note',
+    '.ws-footer > .ws-aff-note', '.ws-footer > .ws-aff-note ~ .ws-footer-copy',
+    '.ws-layer > .ws-aff-note', '.ws-btn', 'a[rel~=sponsored]',
+    'a:not([rel~=sponsored])', '.ws-btn:hover', '.ws-btn::before',
+    'p:not(.ws-aff-note)', 'p:not(section p)', 'a:not(div a)', '.absent + p', 'svg|p',
+    '.ws-aff-note,\n.ws-footer-copy',
+    '.ws-btn:hover,\n.ws-btn:focus-visible',
+    ':is(.ws-aff-note, .ws-btn)',
+  ];
+  // Keep live CSS coverage for the default argument, outside the pinned hash.
   const src = resolve(HERE, '../../client/src');
   for (const file of readdirSync(src, { recursive: true }).filter((f) => f.endsWith('.css')).sort()) {
     for (const chunk of readFileSync(join(src, file), 'utf8').split('}')) {
       const ob = chunk.lastIndexOf('{');
-      if (ob >= 0) selectors.push(chunk.slice(0, ob).split(/[;{}]/).at(-1).trim());
+      if (ob < 0) continue;
+      const selector = chunk.slice(0, ob).split(/[;{}]/).at(-1).trim();
+      assert.deepEqual(parseSelector(selector), parseSelector(selector, false), `${file}: ${selector}`);
     }
   }
   const { sink, checkCssAff } = await r400Context();
   const desc = (rel) => ({ name: 'a', classes: ['ws-btn'], attrs: { rel } });
   sink.pairs.set('pair', { aff: desc('sponsored'), merch: desc('noopener'), rel: 'index.html', line: 1 });
-  const results = selectors.map((selector) => {
-    const findings = [];
-    for (const declaration of ['display:none', 'line-clamp:2', 'color:red']) {
-      checkCssAff(`${selector}{${declaration}}`, 'feed.css', 1, sink, (...f) => { if (f[0] === 'C10-AFF-OUT') findings.push(f); });
-    }
-    assert.deepEqual(parseSelector(selector), parseSelector(selector, false));
-    return [parseSelector(selector, false), findings];
-  });
-  const hash = createHash('sha256').update(JSON.stringify(results)).digest('hex');
-  // Captured before the 401 fix: 849 selectors, 2547 C10 evaluations.
-  assert.equal(hash, 'f59d8e68a7f2b48a32249fa258e81673b2110b48f87007b26ffc57d05ab68ad9', `${selectors.length} selectors / ${selectors.length * 3} C10 evaluations`);
+  const fingerprint = (inputs) => {
+    const results = inputs.map((input) => {
+      const selector = input.replace(/\r\n?/g, '\n');
+      const findings = [];
+      for (const declaration of ['display:none', 'line-clamp:2', 'color:red']) {
+        checkCssAff(`${selector}{${declaration}}`, 'feed.css', 1, sink, (...f) => { if (f[0] === 'C10-AFF-OUT') findings.push(f); });
+      }
+      assert.deepEqual(parseSelector(selector), parseSelector(selector, false));
+      return [parseSelector(selector, false), findings];
+    });
+    return createHash('sha256').update(JSON.stringify(results)).digest('hex');
+  };
+  const hash = fingerprint(selectors);
+  assert.equal(fingerprint(selectors.map((s) => s.replace(/\r?\n/g, '\r\n'))), hash, 'CRLF and LF corpus fingerprints');
+  // Captured from pre-401 rules-affiliate.mjs (485c0dc), verified against current:
+  // 84 frozen selectors, 252 C10 evaluations; parser output and findings use LF.
+  assert.equal(hash, '16bdc200166f388c352b00f942b4864e093a879105ae5e6019cc369a5b1ec502', `${selectors.length} selectors / ${selectors.length * 3} C10 evaluations`);
 });
