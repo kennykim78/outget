@@ -1435,6 +1435,8 @@ export function scanAffiliateSources(root, add, bw = null) {
 
 // ── 산출물(C10-AFF-OUT) ───────────────────────────────────────
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+// C11 :empty: RAWTEXT / script data / RCDATA에서는 <!-- -->도 텍스트다.
+const TEXT_BODY = new Set(['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'plaintext', 'textarea', 'title', 'noscript']);
 /** 요소 트리(정형 프리렌더 HTML 대상) — { name, attrs, start, openEnd, end, parent }. 닫는 태그 짝 찾기는 이름별 개수로 선형. 부모 인덱스 < 자식 인덱스. */
 export function elementTree(html) {
   const masked = maskNonMarkup(html);
@@ -1474,6 +1476,22 @@ const classesOf = (e) => (e.attrs.class ?? '').split(/\s+/).filter(Boolean);
  */
 const HIDE_STYLE_RE =
   /display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|(?<![\w-])opacity\s*:\s*(?:0+(?:\.0*)?|\.0+)(?![\d.])|white-space\s*:\s*nowrap|text-wrap(?:-mode)?\s*:\s*nowrap|line-clamp|text-overflow|font-size\s*:\s*0(?![.\d])|(?<![\w-])(?:max-)?(?:height|width)\s*:\s*0(?![.\d])|(?<![\w-])clip(?:-path)?\s*:|(?<![\w-])(?:zoom|scale)\s*:\s*0(?![.\d])|scale\(\s*0(?![.\d])|(?<![\w-])color\s*:\s*transparent|text-indent\s*:\s*-|(?<![\w-])(?:left|top|right|bottom|margin-left|margin-top)\s*:\s*-\d{3,}|content-visibility\s*:\s*hidden/i;
+/** 400: 피드 제목은 2줄 이상 말줄임 허용. 고지/버튼의 HIDE_STYLE_RE 판정은 그대로 둔다. */
+function hidesFeedTitle(body) {
+  return styleDecls(body).some(([prop, value]) => {
+    if (prop === 'line-clamp' || prop === '-webkit-line-clamp') {
+      return !(value === 'none' || (/^\+?\d+$/.test(value) && Number(value) >= 2));
+    }
+    if (HIDE_STYLE_RE.test(`${prop}:${value}`)) return true;
+    // 소수 표기 0 및 논리 크기·투명 글자도 완전 숨김에 포함한다(min-width:0 같은 정상 레이아웃 제외).
+    if (/^(?:font-size|line-height|opacity|zoom|scale|(?:max-)?(?:width|height|inline-size|block-size))$/.test(prop)
+      && /^[+-]?(?:0+(?:\.0*)?|\.0+)(?:[a-z%]+)?$/.test(value)) return true;
+    if ((prop === 'color' || prop === '-webkit-text-fill-color') && value !== null
+      && (value === 'transparent' || ALPHA0_RE.test(normColor(value)))) return true;
+    return (prop === 'transform' || prop === 'translate') && value !== null
+      && /(?:^|[\s,(])(?:-\d{3,}(?:\.\d+)?(?:px|%|vw|vh)|[+-]?\d{4,}(?:\.\d+)?px)\b/i.test(value);
+  });
+}
 function hiddenEl(e) {
   return (
     e.attrs.hidden !== undefined ||
@@ -1693,7 +1711,7 @@ const relTokens = (v) => [...new Set((v ?? '').toLowerCase().split(/\s+/).filter
 
 /**
  * 전체 HTML 검사. 부모별 자식 목록·가장 가까운 .ws-search·레이어 aside·숨김 상속을 한 번에 색인(선형) — Codex LOW(제곱 비용).
- *   sink(선택) 에 고지 요소 사슬(CSS 숨김 검사)·제휴/상인 a 사슬(CSS 버튼 동등 검사)·인라인 <style> 을 모은다.
+ *   sink(선택) 에 고지·피드 제목 사슬(CSS 숨김 검사)·제휴/상인 a 사슬(CSS 버튼 동등 검사)·인라인 <style> 을 모은다.
  */
 export function checkHtmlAff(html, rel, dev, add, sink = null) {
   const fail = (line, msg) => add('C10-AFF-OUT', 'FAIL', rel, line, msg);
@@ -1772,6 +1790,29 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     for (let p = i; p >= 0; p = els[p].parent) out.push(descOf(els[p]));
     return out;
   };
+  if (sink) {
+    sink.feedTitles ??= new Map();
+    // C11 전용 문맥: 부모/직전 요소 형제를 공유한다. 텍스트·주석은 형제가 아니다.
+    // C10의 기존 chain과 매처는 그대로 유지한다.
+    const nodes = [];
+    const lastChild = new Map();
+    for (let i = 0; i < n; i++) {
+      const e = els[i];
+      nodes.push({ ...descOf(e), parent: nodes[e.parent] ?? null,
+        previous: lastChild.get(e.parent) ?? null,
+        empty: !children.has(i) && (TEXT_BODY.has(e.name)
+          ? html.slice(e.openEnd, e.end)
+          : html.slice(e.openEnd, e.end).replace(/<!--[\s\S]*?-->/g, '')) === '',
+      });
+      lastChild.set(e.parent, nodes[i]);
+    }
+    for (let i = 0; i < n; i++) {
+      if (feedUp[i] < 0 || els[i].name !== 'p' || !classesOf(els[i]).includes('ws-feed-title')) continue;
+      const chain = chainOf(i);
+      // 같은 조상 사슬이어도 형제 문맥은 다를 수 있어 제목별로 보관한다.
+      sink.feedTitles.set(JSON.stringify([rel, i]), { chain, element: nodes[i], rel, line: lineOf(els[i].start) });
+    }
+  }
   // 블록별 상인 a(일반 http·쿠팡 제외)·쿠팡 계열 포함 첫 시작 — a 마다 .ws-search 조상 사슬을 따라 등록(중첩 깊이만큼).
   const blocks = new Map();
   const block = (s) => {
@@ -2256,6 +2297,8 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
 
 // ── CSS 선택자(고지 숨김·버튼 동등) — 경량 대조: 형제 결합자·의사 클래스는 「맞을 수 있음」(fail-closed 쪽 과대 근사) ─────────
 const IDENT_RE = /(?:[\w-]|\\[\s\S])+/y;
+// C11은 이스케이프 없는 단순 ASCII 식별자만 평가한다. C10의 기존 해석과 분리.
+const EXACT_IDENT_RE = /^(?:[a-zA-Z_]|--|-[a-zA-Z_])[\w-]*$/;
 /** 요소 자신을 꾸미지 않는 의사 요소(글자를 숨기지 못함) — 이 compound 는 고지·버튼에 적용되지 않는다. */
 const SKIP_PSEUDO_EL = /^(?:before|after|marker|placeholder|selection|backdrop|file-selector-button|-webkit-.*|-moz-.*|-ms-.*)$/;
 const LEGACY_PSEUDO_EL = new Set(['before', 'after', 'first-line', 'first-letter']);
@@ -2268,17 +2311,27 @@ const unesc = (s) =>
       return m;
     }
   });
-function parseAttrSel(body) {
+function parseAttrSel(body, exact = false) {
+  if (exact) {
+    // 이름/문자열/플래그를 모두 허용 목록으로 제한한다. 그 밖은 미확인.
+    const simple = /^\s*([\w-]+)\s*(?:([~|^$*]?=)\s*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([\w-]+))\s*([iIsS])?)?\s*$/.exec(body);
+    if (!simple || !EXACT_IDENT_RE.test(simple[1])
+      || (simple[5] !== undefined && !EXACT_IDENT_RE.test(simple[5]))) return null;
+  }
   const m = /^\s*([\w:-]+)\s*(?:([~|^$*]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\s\]]+))\s*([iIsS])?)?\s*$/.exec(body);
   if (!m) return null;
   return { name: m[1].toLowerCase(), op: m[2] ?? null, val: m[3] ?? m[4] ?? m[5] ?? '', ci: (m[6] ?? '').toLowerCase() === 'i' };
 }
-/** 복합 선택자 → { compounds, combs } | null(해석 불가). combs[k] = compounds[k] 앞 결합자(' ' '>' '+' '~'), combs[0]=null. */
-export function parseSelector(sel) {
+/** 복합 선택자 → { compounds, combs } | null(해석 불가). exact는 C11 전용이며 C10 기본 해석은 보존한다.
+ * combs[k] = compounds[k] 앞 결합자(' ' '>' '+' '~'), combs[0]=null. */
+export function parseSelector(sel, exact = false) {
   const out = { compounds: [], combs: [] };
   let cur = null;
   let comb = null;
   const s = sel.trim();
+  // 토큰화 전에 거른다. hex escape 끝의 공백을 결합자로 오해하지 않으며,
+  // :not() 안에서도 null → 1(미확인)을 유지한다.
+  if (exact && /[^\x09\x0a\x0c\x0d\x20-\x7e]|\\/.test(s)) return null;
   for (let i = 0; i < s.length; ) {
     const c = s[i];
     if (/\s/.test(c)) {
@@ -2288,6 +2341,7 @@ export function parseSelector(sel) {
       continue;
     }
     if (c === '>' || c === '+' || c === '~') {
+      if (exact && (!out.compounds.length || (comb !== null && comb !== ' '))) return null;
       comb = c;
       cur = null;
       i++;
@@ -2302,9 +2356,10 @@ export function parseSelector(sel) {
     const ident = (at) => {
       IDENT_RE.lastIndex = at;
       const m = IDENT_RE.exec(s);
-      return m ? m[0] : null;
+      return m && (!exact || EXACT_IDENT_RE.test(m[0])) ? m[0] : null;
     };
     if (c === '*') {
+      if (exact && (cur.tag !== null || cur.ids.length || cur.classes.length || cur.attrs.length || cur.pseudo)) return null;
       cur.tag = '*';
       i++;
     } else if (c === '#' || c === '.') {
@@ -2315,7 +2370,7 @@ export function parseSelector(sel) {
     } else if (c === '[') {
       const j = s.indexOf(']', i);
       if (j < 0) return null;
-      const a = parseAttrSel(s.slice(i + 1, j));
+      const a = parseAttrSel(s.slice(i + 1, j), exact);
       if (!a) return null;
       cur.attrs.push(a);
       i = j + 1;
@@ -2333,29 +2388,38 @@ export function parseSelector(sel) {
           if (s[i] === '(') d++;
           else if (s[i] === ')' && --d === 0) break;
         }
+        if (exact && i === s.length) return null;
         arg = s.slice(open + 1, i);
         i++;
       }
+      if (exact && arg !== null && (dbl || LEGACY_PSEUDO_EL.has(name) || name === 'empty')) {
+        cur.unknown = true;
+        continue;
+      }
       if (dbl || LEGACY_PSEUDO_EL.has(name)) {
         if (SKIP_PSEUDO_EL.test(name)) cur.skip = true;
+        else if (exact) cur.unknown = true;
       } else cur.pseudo = true;
       if (dbl || LEGACY_PSEUDO_EL.has(name)) {
         // 의사 요소 — 위에서 처리
       } else if (name === 'empty') cur.empty = true;
       else if (name === 'not' && arg !== null) {
-        // 276: :not(단순 compound 목록)은 평가한다 — 고지를 빼는 규칙(p:not(.ws-aff-note))의 오탐 제거. 결합자가 든 인수 등
-        //   평가할 수 없는 인수는 「맞을 수 있음」(알 수 없음) 그대로 — 숨김 선언이 없으면 결과에 영향 없음.
-        const parts = splitSelectorList(arg).map(parseSelector);
-        if (parts.length > 0 && parts.every((p) => p !== null && p.compounds.length === 1)) cur.nots.push(...parts.map((p) => p.compounds[0]));
-      }
+        // C10(276)은 단순 compound만 평가한다. C11은 전체 선택자와 미확인 인수를 보관해
+        //   실제 요소 관계에서 3값으로 부정한다(미확인을 일치로 뒤집어 숨김을 놓치지 않음).
+        const parts = splitSelectorList(arg).map((part) => parseSelector(part, exact));
+        if (exact) {
+          (cur.notSelectors ??= []).push(...(parts.length ? parts : [null]));
+        } else if (parts.length > 0 && parts.every((p) => p !== null && p.compounds.length === 1)) cur.nots.push(...parts.map((p) => p.compounds[0]));
+      } else if (exact) cur.unknown = true;
     } else {
       const v = ident(i);
       if (!v) return null;
+      if (exact && (cur.tag !== null || cur.ids.length || cur.classes.length || cur.attrs.length || cur.pseudo)) return null;
       cur.tag = unesc(v).toLowerCase();
       i += v.length;
     }
   }
-  return out.compounds.length ? out : null;
+  return out.compounds.length && !(exact && comb !== null) ? out : null;
 }
 function attrMatch(a, d) {
   let v = d.attrs[a.name];
@@ -2409,6 +2473,71 @@ function selectorMatches(p, ch) {
   };
   return m(p.compounds.length - 1, 0);
 }
+/** C11: 0=불일치, 1=미확인, 2=일치. 부정은 확실한 일치만 제외한다. */
+function feedSelectorMatch(p, element) {
+  if (p === null) return 1;
+  // Case-sensitive / ASCII-insensitive 결과가 갈리면 HTML 속성별 규칙이나
+  // quirks mode를 추측하지 않는다. :not()도 2 - 1 = 1로 미확인을 보존한다.
+  const fold = (s) => s.replace(/[A-Z]/g, (ch) => ch.toLowerCase());
+  const compare = (actual, wanted, test = (a, b) => a === b) => {
+    if (actual === undefined) return 0;
+    if (typeof actual !== 'string' || /[^\x20-\x7e]/.test(actual) || /[^\x20-\x7e]/.test(wanted)) return 1;
+    const sensitive = test(actual, wanted);
+    const insensitive = test(fold(actual), fold(wanted));
+    return sensitive !== insensitive ? 1 : sensitive ? 2 : 0;
+  };
+  const attribute = (a, e) => {
+    if (!Object.hasOwn(e.attrs, a.name)) return 0;
+    if (a.op === null) return 2;
+    const tests = {
+      '=': (v, w) => v === w,
+      '~=': (v, w) => w !== '' && v.split(/[\t\n\f\r ]+/).includes(w),
+      '|=': (v, w) => v === w || v.startsWith(`${w}-`),
+      '^=': (v, w) => w !== '' && v.startsWith(w),
+      '$=': (v, w) => w !== '' && v.endsWith(w),
+      '*=': (v, w) => w !== '' && v.includes(w),
+    };
+    return Object.hasOwn(tests, a.op) ? compare(e.attrs[a.name], a.val, tests[a.op]) : 1;
+  };
+  const compound = (c, e) => {
+    if (c.skip || (c.empty && !e.empty)) return 0;
+    let result = c.unknown ? 1 : 2;
+    if (c.tag && c.tag !== '*') result = Math.min(result, compare(e.name, c.tag));
+    for (const id of c.ids) result = Math.min(result, compare(e.id, id));
+    for (const cls of c.classes) {
+      // HTML class 토큰화는 ASCII 공백만. 일반 \s는 NBSP 등을 잘못 나눈다.
+      const tokens = (e.attrs.class ?? '').split(/[\t\n\f\r ]+/).filter(Boolean);
+      result = Math.min(result, Math.max(0, ...tokens.map((token) => compare(token, cls))));
+    }
+    for (const attr of c.attrs) result = Math.min(result, attribute(attr, e));
+    for (const not of c.notSelectors ?? []) {
+      result = Math.min(result, 2 - feedSelectorMatch(not, e));
+    }
+    return result;
+  };
+  const match = (ci, e) => {
+    if (!e) return 0;
+    const own = compound(p.compounds[ci], e);
+    if (own === 0 || ci === 0) return own;
+    const comb = p.combs[ci];
+    if (comb === '>') return Math.min(own, match(ci - 1, e.parent));
+    if (comb === '+') return Math.min(own, match(ci - 1, e.previous));
+    const link = comb === '~' ? 'previous' : 'parent';
+    let left = 0;
+    for (let next = e[link]; next; next = next[link]) {
+      left = Math.max(left, match(ci - 1, next));
+      if (left === 2) break;
+    }
+    return Math.min(own, left);
+  };
+  return match(p.compounds.length - 1, element);
+}
+function feedTitleMatches(p, title) {
+  // 이전 형식의 외부 sink에는 요소 관계가 없다 — 숨김 가능성을 놓치지 않는다.
+  if (!title.element) return true;
+  for (let e = title.element; e; e = e.parent) if (feedSelectorMatch(p, e) !== 0) return true;
+  return false;
+}
 /** 선택자 목록을 깊이 0 쉼표로 나눈다. */
 function splitSelectorList(s) {
   const out = [];
@@ -2459,7 +2588,9 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
   const lineOfCss = lineIndex(src);
   const notes = sink ? [...sink.notes.values()] : [];
   const pairs = sink ? [...sink.pairs.values()] : [];
+  const feedTitles = [...(sink?.feedTitles?.values() ?? [])];
   const fail = (off, msg) => add('C10-AFF-OUT', 'FAIL', rel, baseLine + lineOfCss(off) - 1, msg);
+  const feedFail = (off, msg) => add('C11-FEED-OUT', 'FAIL', rel, baseLine + lineOfCss(off) - 1, msg);
   let off = 0;
   for (const chunk of src.split('}')) {
     const ob = chunk.lastIndexOf('{');
@@ -2469,6 +2600,21 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
       const body = chunk.slice(ob + 1);
       const at = off + ob;
       if (sel !== '' && !sel.startsWith('@')) {
+        // 고지/버튼 분기와 독립적으로 검사: 제목에만 허용한 말줄임이 기존 규칙을 완화하지 않는다.
+        if (feedTitles.length > 0 && hidesFeedTitle(body)) {
+          for (const one of splitSelectorList(sel)) {
+            const p = parseSelector(one, true);
+            if (p === null) {
+              feedFail(at, `해석할 수 없는 선택자(${L(one.slice(0, 40))})에 숨김·축소 선언 — 피드 상품 제목 적용 여부 판정 불가(fail-closed)`);
+              break;
+            }
+            const hit = feedTitles.find((title) => feedTitleMatches(p, title));
+            if (hit) {
+              feedFail(at, `선택자 ${L(one.slice(0, 40))} 의 숨김·축소 선언이 피드 상품 제목(또는 조상)에 적용된다(${L(hit.rel)}:${hit.line})`);
+              break;
+            }
+          }
+        }
         const hides = HIDE_STYLE_RE.test(body);
         // .ws-aff-note 를 직접 겨누는 규칙 — :not(…) 안의 언급(고지를 빼는 규칙)은 제외(276 오탐 수정)
         if (sel.replace(/:not\((?:[^()]|\([^()]*\))*\)/gi, '').includes('.ws-aff-note') && hides) fail(at, '.ws-aff-note 에 숨김·축소 선언(display:none·visibility·opacity 0·nowrap·line-clamp·clip 등) 금지');
@@ -2554,7 +2700,7 @@ export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPU
     return; // C3-OUT-ROUTE 가 FAIL
   }
   const dev = isObj(m) && m.mode === 'development';
-  const sink = { notes: new Map(), pairs: new Map(), styles: [], popularSorts, feedRows: [] };
+  const sink = { notes: new Map(), pairs: new Map(), feedTitles: new Map(), styles: [], popularSorts, feedRows: [] };
   const rowKeys = new Set(); // 399 R-2: 피드 JSON 행
   const feedJson = new Set();
   const fmPath = join(dist, 'feed-manifest.json');

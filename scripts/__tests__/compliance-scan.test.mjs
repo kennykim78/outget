@@ -4,7 +4,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, unlinkSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -4951,7 +4951,7 @@ function r2cSection(surface, rows, stage = 'full') {
     ? `<section class="ws-supply-part ws-feed" data-ws-part="feed" aria-labelledby="ws-feed-title"><h3 id="ws-feed-title" class="ws-t-label ws-supply-head">몰 검색 결과</h3><p class="ws-t-meta ws-muted ws-feed-sub">쇼핑몰 상품명에 적힌 정보로 골랐어요. 실제 규격은 몰에서 확인해요.</p>${note('ws-aff-feed-cage')}<ul class="ws-feed-rows" role="list">${rows}</ul></section>`
     : `<section class="ws-rail-section ws-rail-section--product ws-home-sec ws-mall-sec" data-ws-section="mall" aria-labelledby="ws-sec-mall-title"><div class="ws-rail-head"><div class="ws-rail-heading ws-home-sec-head"><h2 id="ws-sec-mall-title" class="ws-t-display ws-home-sec-title">몰에 올라온 상품</h2>${stage === 'full' ? '<p class="ws-t-body ws-muted ws-home-sec-lead">몰 가격은 확인한 날 기준이에요. 몰에서 달라질 수 있어요.</p>' : ''}${note('ws-aff-feed-home')}</div><div class="ws-rail-tools"></div></div><ul class="ws-rail ws-products" role="list" tabindex="0" aria-labelledby="ws-sec-mall-title">${rows}</ul></section>`;
 }
-async function r2cScan({ surface = 'L4', stage = 'full', title = R2C_TITLE, badge = 'LISTED_PASS', mutate = (s) => s, mutatePage = (s) => s, ...opts } = {}) {
+async function r2cScan({ surface = 'L4', stage = 'full', title = R2C_TITLE, badge = 'LISTED_PASS', mutate = (s) => s, mutatePage = (s) => s, cssFiles = {}, ...opts } = {}) {
   const { scanAffiliateOutputs } = await import('../lib/rules-affiliate.mjs');
   const dir = mkdtempSync(resolve(HERE, '../../_workspace/ws-r399c-'));
   try {
@@ -4973,6 +4973,7 @@ async function r2cScan({ surface = 'L4', stage = 'full', title = R2C_TITLE, badg
       : `<main id="main" class="ws-page ws-home-b" data-ws-route="TYPE" data-ws-type="hamster-golden">${section}</main>`;
     const ws = JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed } }).replaceAll('<', '\\u003c');
     put(`hamster/golden/index.feed${stage === 'noprice' ? '-noprice' : ''}.html`, mutatePage(`<html lang="ko"><body><div id="root">${body}<footer class="ws-footer"><p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">${AFF_NOTE}</p><p class="ws-footer-copy">© WithSmall</p></footer></div><script id="ws-data" type="application/json">${ws}</script></body></html>`));
+    for (const [file, css] of Object.entries(cssFiles)) put(file, css);
     const findings = [];
     scanAffiliateOutputs({ root: dir, dist, add: (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message }) });
     return findings.filter((f) => f.severity === 'FAIL');
@@ -5028,4 +5029,313 @@ test('399 R-2c 피드: 파서가 누락하는 속성·잘못된 선택 조합도
   }
   assert.ok((await r2cScan({ badge: 'CHECK_NEEDED', spec: true })).some((f) => f.rule === 'C11-FEED-OUT'), 'CHECK_NEEDED 에 규격 줄');
   assert.ok((await r2cScan({ surface: '몰 레일', price: true, mutate: (s) => s.replace(/<p class="ws-t-meta ws-feed-price">[\s\S]*?<\/p>/, '') })).some((f) => f.rule === 'C11-FEED-OUT'), '가격 없이 확인일만');
+});
+
+
+// 400: Protect feed titles/ancestors in CSS files and <style>; accept the real client CSS.
+function r400Html(surface = 'L4', stage = 'full') {
+  const rail = surface === 'L4' ? [] : [{ supplyItemId: 'cage', title: R2C_TITLE, url: R2_URL, verdict: 'OK' }];
+  const feed = { v: 1, stage, items: surface === 'L4' ? ['cage'] : [], rail };
+  const section = r2cSection(surface, r2cRow({ surface }), stage);
+  const content = surface === 'L4'
+    ? `<main></main><aside class="ws-layer" id="ws-layer" data-ws-layer="L4" role="dialog" aria-labelledby="ws-layer-title" data-ws-id="supplyRequirements#req-cage">${section}</aside>`
+    : `<main id="main" class="ws-page ws-home-b" data-ws-route="TYPE" data-ws-type="hamster-golden">${section}</main>`;
+  return `<html lang="ko"><body><div id="root">${content}<footer class="ws-footer"><p class="ws-t-meta ws-aff-note" data-ws-aff="note-f">${AFF_NOTE}</p><p class="ws-footer-copy">© WithSmall</p></footer></div><script id="ws-data" type="application/json">${JSON.stringify({ v: 1, route: { typeId: 'hamster-golden' }, data: { feed } })}</script></body></html>`;
+}
+async function r400Context(surface = 'L4', stage = 'full', mutate = (html) => html) {
+  const { checkHtmlAff, checkCssAff } = await import('../lib/rules-affiliate.mjs');
+  const sink = { notes: new Map(), pairs: new Map(), styles: [], feedRows: [], feedTitles: new Map() };
+  const findings = [];
+  const add = (rule, severity, file, line, message) => findings.push({ rule, severity, file, line, message });
+  checkHtmlAff(mutate(r400Html(surface, stage)), `hamster/golden/index.feed${stage === 'noprice' ? '-noprice' : ''}.html`, false, add, sink);
+  assert.deepEqual(findings, [], 'valid HTML fixture');
+  return { sink, findings, add, checkCssAff };
+}
+async function r400Css(css, surface = 'L4') {
+  const { sink, findings, add, checkCssAff } = await r400Context(surface);
+  checkCssAff(css, 'assets/feed.css', 7, sink, add);
+  return findings;
+}
+for (const surface of ['L4', '몰 레일']) {
+  for (const stage of ['full', 'noprice']) for (const source of ['file', 'inline']) {
+    test(`400 output CSS ${surface} ${stage} ${source}: title display:none -> C11-FEED-OUT`, async () => {
+      const css = '\n.ws-feed-title { display: none }';
+      const fails = await r2cScan({ surface, stage,
+        cssFiles: source === 'file' ? { 'assets/feed.css': css } : {},
+        mutatePage: (s) => source === 'inline' ? s.replace('<body>', `<head><style>${css}</style></head>\n<body>`) : s,
+      });
+      const hit = fails.find((f) => f.rule === 'C11-FEED-OUT');
+      assert.ok(hit, JSON.stringify(fails));
+      assert.ok(hit.file.endsWith(source === 'file' ? 'assets/feed.css' : `index.feed${stage === 'noprice' ? '-noprice' : ''}.html`));
+      assert.equal(hit.line, 2);
+    });
+  }
+  const ancestors = surface === 'L4' ? ['.ws-feed-body', '.ws-feed-row', '.ws-feed-rows', '.ws-feed', 'aside.ws-layer'] : ['.ws-feed-card', '.ws-products', '.ws-mall-sec', 'main.ws-page'];
+  for (const selector of ['.ws-feed-title', 'p', 'li p', '.ws-t-cta', 'li > p', '[class~="ws-feed-title"]', 'p:not(.ws-aff-note)', ':is(.ws-feed-title)', 'html', 'body', '#root', ...ancestors]) {
+    if (surface === 'L4' && selector === 'li > p') continue;
+    test(`400 selector ${surface} ${selector}: title/ancestor hidden -> FAIL`, async () => {
+      const fs = await r400Css(`${selector} { display:none }`, surface);
+      assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT'), JSON.stringify(fs));
+    });
+  }
+  for (const declaration of [
+    'display:none', 'visibility:hidden', 'visibility:collapse', 'opacity:0', 'opacity:.0 !important',
+    'font-size:0', 'font-size:0.0px', 'width:0', 'max-width:0', 'height:0', 'max-height:0.0px',
+    'clip:rect(0,0,0,0)', 'clip-path:inset(100%)', 'color:transparent', '-webkit-text-fill-color:transparent',
+    'color:rgba(0,0,0,0)', 'text-indent:-9999px', 'position:absolute;left:-9999px',
+    'transform:translateX(-10000px)', 'content-visibility:hidden', 'scale:0', 'transform:scale(0)',
+    'line-clamp:0', '-webkit-line-clamp:0', 'line-clamp:1', 'line-clamp:var(--unknown)',
+    'display:-webkit-box;overflow:hidden;line-clamp:2;opacity:0',
+    'line-clamp:0;line-clamp:2',
+  ]) {
+    test(`400 hidden ${surface} ${declaration} -> FAIL`, async () => {
+      for (const selector of ['.ws-feed-title', ...ancestors.slice(0, 2)]) {
+        const fs = await r400Css(`${selector} { ${declaration} }`, surface);
+        assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT'), `${selector}: ${JSON.stringify(fs)}`);
+      }
+    });
+  }
+  test(`400 unparseable selector ${surface}: fail-closed`, async () => {
+    const fs = await r400Css('svg|p { display:none }', surface);
+    assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT' && /fail-closed/.test(f.message)), JSON.stringify(fs));
+  });
+  test(`400 visible ${surface}: multiline clamp and nonzero size -> FAIL 0`, async () => {
+    for (const clamp of ['2', '3', '12', '2 !important', 'none']) {
+      assert.deepEqual(await r400Css(`.ws-feed-title { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:${clamp}; line-clamp:${clamp}; font-size:0.875rem; min-width:0; max-height:2.5em }`, surface), []);
+    }
+  });
+  test(`400 unrelated ${surface}: siblings/children/responsive hiding -> FAIL 0`, async () => {
+    assert.deepEqual(await r400Css(`
+      @media (max-width: 700px) { .ws-feed-photo, .ws-feed-title span, .ws-feed-rows > .other, .ws-feed-body:empty { display:none } }
+      .ws-feed-title::before { opacity:0 }
+      p:not(.ws-feed-title):not(.ws-aff-note) { display:none }
+      .absent .ws-feed-title { display:none }
+      @keyframes fade { from { opacity:0 } to { opacity:1 } }
+    `, surface), []);
+  });
+  for (const stage of ['full', 'noprice']) {
+    test(`400 real client CSS ${surface} ${stage}: tokens and valid HTML -> FAIL 0`, async () => {
+      const { sink, findings, add, checkCssAff } = await r400Context(surface, stage);
+      const src = resolve(HERE, '../../client/src');
+      const files = readdirSync(src, { recursive: true }).filter((f) => f.endsWith('.css')).sort();
+      assert.ok(files.some((f) => f.replaceAll('\\', '/') === 'styles/tokens.css'));
+      assert.ok(files.some((f) => f.replaceAll('\\', '/') === 'styles/home.css'));
+      for (const file of files) checkCssAff(readFileSync(join(src, file), 'utf8'), file, 1, sink, add);
+      assert.deepEqual(findings, [], JSON.stringify(findings));
+    });
+  }
+}
+test('400 existing disclosure/merchant rules: title clamp exception leaves C10 unchanged', async () => {
+  const { sink, checkCssAff } = await r400Context();
+  const desc = (rel) => ({ name: 'a', classes: ['ws-btn'], attrs: { rel } });
+  sink.pairs.set('pair', { aff: desc('sponsored'), merch: desc('noopener'), rel: 'index.html', line: 1 });
+  for (const css of ['.ws-aff-note{line-clamp:2}', 'p{line-clamp:2}', '.ws-aff-note{display:none}', 'a[rel~=sponsored]{color:red}']) {
+    const run = (s) => {
+      const fs = [];
+      checkCssAff(css, 'assets/feed.css', 1, s, (...f) => { if (f[0] === 'C10-AFF-OUT') fs.push(f); });
+      return fs;
+    };
+    const before = run({ ...sink, feedTitles: new Map() });
+    assert.ok(before.length > 0, css);
+    assert.deepEqual(run(sink), before, css);
+  }
+});
+
+// 400 MED: sibling direction/adjacency and complex negation must use the actual tree.
+const r400RelationCases = [
+  ['.absent+.ws-feed-title', 0],
+  ['.absent~.ws-feed-title', 0],
+  ['.ws-feed-title:not(li p)', 0],
+  ['.ws-feed-title:not(table td)', 1],
+  ['.ws-feed-title:not(.a > .b)', 0],
+  ['.ws-feed-title:not(.missing > .b)', 1],
+  ['.before + .ws-feed-title', 1],
+  ['.earlier ~ .ws-feed-title', 1],
+  ['.earlier + .ws-feed-title', 0],
+  ['.after ~ .ws-feed-title', 0],
+  ['.after + .ws-feed-title', 0],
+  ['.outer-only ~ .ws-feed-title', 0],
+  ['.ws-feed-title:not(.before + p)', 0],
+  ['.ws-feed-title:not(.earlier ~ p)', 0],
+  ['.ws-feed-title:not(.absent + p)', 1],
+  ['.ws-feed-title:not(.a > p)', 0],
+  ['.ws-feed-title:not(.missing > p)', 1],
+  ['.ws-feed-title:not(table td, .a > p)', 0],
+  ['.ws-feed-title:not(:not(li p))', 1],
+  ['.ws-feed-title:not(:not(table td))', 0],
+  ['.ws-feed-title:not(li:hover p)', 1],
+  ['.ws-feed-title:not(:is(li p))', 1],
+  ['.ws-feed-title:not(svg|p)', 1],
+  ['.ws-feed-title:not(p >)', 1],
+  ['.ws-feed-title:not(::first-line)', 1],
+  ['.ws-feed-title:unsupported(foo)', 1],
+  ['.outer-before + .a > .ws-feed-title', 1],
+  ['.outer-earlier ~ .a .ws-feed-title', 1],
+  ['.outer-earlier + .a .ws-feed-title', 0],
+  ['.absent + .a .ws-feed-title', 0],
+  ['.absent ~ .a > .ws-feed-title', 0],
+  ['.outer-before + .a', 1],
+  ['.absent ~ .a', 0],
+  ['.ws-feed-title:not(.outer-before + .a > p)', 0],
+  ['.ws-feed-title:not(.absent ~ .a > p)', 1],
+];
+for (const surface of ['L4', '몰 레일']) for (const stage of ['full', 'noprice']) {
+  for (const [selector, expected] of r400RelationCases) {
+    test(`400 MED relations ${surface} ${stage}: ${selector} -> FAIL ${expected}`, async () => {
+      const { checkHtmlAff, checkCssAff } = await import('../lib/rules-affiliate.mjs');
+      const sink = { notes: new Map(), pairs: new Map(), styles: [] };
+      const title = `<p class="ws-t-cta ws-feed-title">${R2C_TITLE}</p>`;
+      const siblings = '<i class="earlier"></i><i class="before"></i>text<!-- comment -->';
+      const html = r400Html(surface, stage).replace(title,
+        `<i class="outer-only outer-earlier"></i><i class="outer-before"></i><div class="a">${siblings}${title.replace('ws-feed-title', 'ws-feed-title b')}<i class="after"></i></div>`);
+      // Structural validation is independent: this fixture intentionally adds selector context.
+      checkHtmlAff(html, 'index.html', false, () => {}, sink);
+      const fs = [];
+      checkCssAff(`${selector}{display:none}`, 'assets/feed.css', 7, sink, (...f) => fs.push(f));
+      const feed = fs.filter((f) => f[0] === 'C11-FEED-OUT' && f[1] === 'FAIL');
+      assert.equal(feed.length, expected, JSON.stringify(feed));
+      if (expected) assert.equal(feed[0][3], 7);
+    });
+  }
+  for (const selector of ['.absent+.ws-feed-title', '.absent~.ws-feed-title', '.ws-feed-title:not(li p)', '.ws-feed-title:not(table td)']) {
+    test(`400 MED original ${surface} ${stage}: ${selector}`, async () => {
+      const { sink, findings, add, checkCssAff } = await r400Context(surface, stage);
+      checkCssAff(`${selector}{display:none}`, 'assets/feed.css', 7, sink, add);
+      assert.equal(findings.filter((f) => f.rule === 'C11-FEED-OUT').length, selector.includes('table') ? 1 : 0);
+    });
+  }
+}
+test('400 MED identical title chains retain different sibling contexts', async () => {
+  const { checkHtmlAff, checkCssAff } = await import('../lib/rules-affiliate.mjs');
+  const sink = { notes: new Map(), pairs: new Map(), styles: [] };
+  checkHtmlAff('<section data-ws-part="feed"><ul><li><i class="before"></i><p class="ws-feed-title">A</p></li><li><p class="ws-feed-title">B</p></li></ul></section>', 'index.html', false, () => {}, sink);
+  const fs = [];
+  checkCssAff('.before + .ws-feed-title{display:none}', 'feed.css', 1, sink, (...f) => fs.push(f));
+  assert.equal(fs.filter((f) => f[0] === 'C11-FEED-OUT').length, 1);
+});
+test('400 MED C10 baseline: sibling/complex-not approximation and button discrimination unchanged', async () => {
+  const { sink, checkCssAff } = await r400Context();
+  const desc = (rel) => ({ name: 'a', classes: ['ws-btn'], attrs: { rel } });
+  sink.pairs.set('pair', { aff: desc('sponsored'), merch: desc('noopener'), rel: 'index.html', line: 1 });
+  for (const [selector, expected] of [
+    ['.absent + p', 1], ['.absent ~ p', 1], ['p:not(section p)', 1],
+    ['p:not(.ws-aff-note)', 0], ['p:not(table td)', 1], ['.absent p', 0],
+    ['a[rel~=sponsored]', 1], ['a:not([rel~=sponsored])', 1], ['a:not(div a)', 0],
+  ]) {
+    const fs = [];
+    checkCssAff(`${selector}{display:none}`, 'feed.css', 1, sink, (...f) => fs.push(f));
+    assert.equal(fs.filter((f) => f[0] === 'C10-AFF-OUT').length, expected, selector);
+  }
+});
+
+// 401: only the allowlisted, unambiguous syntax may prove a C11 mismatch.
+const r400UncertainSelectors = [
+  String.raw`[class~="ws-\70 robe"]`, String.raw`[cl\61 ss~="ws-probe"]`,
+  String.raw`.ws-\70 robe`, String.raw`#ws-\70 robe`, String.raw`\73 pan`,
+  String.raw`.ws-prob\e`, String.raw`#ws-prob\e`, String.raw`s\pan`,
+  '[dir="RTL"]', '[DIR="RTL" i]', '[dir="RTL" s]',
+  '[class~="WS-PROBE"]', '[id="WS-PROBE"]', '.WS-PROBE', '#WS-PROBE',
+  '[data-token="AB-CD EF"]', '[data-token~="EF"]', '[data-token|="AB"]',
+  '[data-token^="AB"]', '[data-token$="EF"]', '[data-token*="CD"]',
+  ':is(span)', ':where(span)', ':has(*)', ':unknown(foo)',
+  '[data-token="ab-cd ef" unknown]', 'span:empty(foo)',
+];
+for (const surface of ['L4', '몰 레일']) for (const stage of ['full', 'noprice']) {
+  const target = surface === 'L4' ? 'aside' : '.ws-mall-sec';
+  const insert = (html, sibling) => html.replace(surface === 'L4' ? '<aside ' : '<section ', `${sibling}$&`);
+  test(`400 HIGH original escaped sibling ${surface} ${stage}`, async () => {
+    const selector = surface === 'L4'
+      ? String.raw`[class~="ws-feed-\70 hoto"] + .ws-feed-body`
+      : String.raw`[class~="ws-feed-\69 tem"] + .ws-feed-title`;
+    const { sink, findings, add, checkCssAff } = await r400Context(surface, stage);
+    checkCssAff(`${selector}{display:none}`, 'feed.css', 1, sink, add);
+    assert.equal(findings.filter((f) => f.rule === 'C11-FEED-OUT').length, 1);
+  });
+  for (const selector of r400UncertainSelectors) {
+    test(`400 HIGH unknown stays unknown ${surface} ${stage}: ${selector}`, async () => {
+      const { sink, checkCssAff } = await r400Context(surface, stage, (html) => insert(html,
+        '<span class="ws-probe" id="ws-probe" dir="rtl" data-token="ab-cd ef"></span>'));
+      // Both positive and nested negative forms must keep unknown = possible hiding.
+      for (const probe of [selector, `span:not(${selector})`, `span:not(:not(${selector}))`]) {
+        const fs = [];
+        checkCssAff(`${probe} + ${target} .ws-feed-title{display:none}`, 'feed.css', 1, sink, (...f) => fs.push(f));
+        assert.equal(fs.filter((f) => f[0] === 'C11-FEED-OUT').length, 1, probe);
+      }
+    });
+  }
+  test(`400 HIGH simple selector allowlist ${surface} ${stage}`, async () => {
+    const { sink, checkCssAff } = await r400Context(surface, stage, (html) => insert(html,
+      '<SPAN class="ws-probe" id="ws-probe" dir="rtl" data-token="ab-cd ef"></SPAN>'));
+    for (const [selector, expected] of [
+      ['SPAN', 1], ['SPAN:not(span)', 0], ['em', 0], ['.absent', 0], ['#absent', 0],
+      ['[absent]', 0], ['[DIR="rtl"]', 1], ['[dir="ltr"]', 0], ['[dir="ltr" i]', 0],
+      ['[data-token~="ef"]', 1], ['[data-token|="ab"]', 1], ['[data-token^="ab"]', 1],
+      ['[data-token$="ef"]', 1], ['[data-token*="cd"]', 1], ['[data-token*="missing"]', 0],
+      ['span:not([dir="rtl"])', 0], ['span:not([dir="ltr"])', 1],
+    ]) {
+      const fs = [];
+      checkCssAff(`${selector} + ${target} .ws-feed-title{display:none}`, 'feed.css', 1, sink, (...f) => fs.push(f));
+      assert.equal(fs.filter((f) => f[0] === 'C11-FEED-OUT').length, expected, selector);
+    }
+  });
+  for (const tag of ['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'textarea', 'title', 'noscript', 'span']) {
+    test(`400 MED empty text mode ${surface} ${stage}: ${tag}`, async () => {
+      for (const body of ['', '<!-- foo -->', ' ', 'text']) {
+        const { sink, checkCssAff } = await r400Context(surface, stage, (html) => insert(html, `<${tag}>${body}</${tag}>`));
+        const empty = body === '' || (tag === 'span' && body === '<!-- foo -->');
+        for (const [pseudo, expected] of [[':empty', Number(empty)], [':not(:empty)', Number(!empty)]]) {
+          const fs = [];
+          checkCssAff(`${tag}${pseudo} + ${target} .ws-feed-title{display:none}`, 'feed.css', 1, sink, (...f) => fs.push(f));
+          assert.equal(fs.filter((f) => f[0] === 'C11-FEED-OUT').length, expected, `${pseudo}: ${body}`);
+        }
+      }
+    });
+  }
+}
+
+test('400 C10 exact=false parser and findings fingerprint', async () => {
+  const { parseSelector } = await import('../lib/rules-affiliate.mjs');
+  const { createHash } = await import('node:crypto');
+  // Frozen C10 coverage: unrelated client CSS edits must not change this baseline.
+  const selectors = [
+    ...r400UncertainSelectors, ...r400RelationCases.map(([s]) => s),
+    ':root', '*', 'html', 'body', '#root', '.ws-aff-note',
+    '.ws-footer > .ws-aff-note', '.ws-footer > .ws-aff-note ~ .ws-footer-copy',
+    '.ws-layer > .ws-aff-note', '.ws-btn', 'a[rel~=sponsored]',
+    'a:not([rel~=sponsored])', '.ws-btn:hover', '.ws-btn::before',
+    'p:not(.ws-aff-note)', 'p:not(section p)', 'a:not(div a)', '.absent + p', 'svg|p',
+    '.ws-aff-note,\n.ws-footer-copy',
+    '.ws-btn:hover,\n.ws-btn:focus-visible',
+    ':is(.ws-aff-note, .ws-btn)',
+  ];
+  // Keep live CSS coverage for the default argument, outside the pinned hash.
+  const src = resolve(HERE, '../../client/src');
+  for (const file of readdirSync(src, { recursive: true }).filter((f) => f.endsWith('.css')).sort()) {
+    for (const chunk of readFileSync(join(src, file), 'utf8').split('}')) {
+      const ob = chunk.lastIndexOf('{');
+      if (ob < 0) continue;
+      const selector = chunk.slice(0, ob).split(/[;{}]/).at(-1).trim();
+      assert.deepEqual(parseSelector(selector), parseSelector(selector, false), `${file}: ${selector}`);
+    }
+  }
+  const { sink, checkCssAff } = await r400Context();
+  const desc = (rel) => ({ name: 'a', classes: ['ws-btn'], attrs: { rel } });
+  sink.pairs.set('pair', { aff: desc('sponsored'), merch: desc('noopener'), rel: 'index.html', line: 1 });
+  const fingerprint = (inputs) => {
+    const results = inputs.map((input) => {
+      const selector = input.replace(/\r\n?/g, '\n');
+      const findings = [];
+      for (const declaration of ['display:none', 'line-clamp:2', 'color:red']) {
+        checkCssAff(`${selector}{${declaration}}`, 'feed.css', 1, sink, (...f) => { if (f[0] === 'C10-AFF-OUT') findings.push(f); });
+      }
+      assert.deepEqual(parseSelector(selector), parseSelector(selector, false));
+      return [parseSelector(selector, false), findings];
+    });
+    return createHash('sha256').update(JSON.stringify(results)).digest('hex');
+  };
+  const hash = fingerprint(selectors);
+  assert.equal(fingerprint(selectors.map((s) => s.replace(/\r?\n/g, '\r\n'))), hash, 'CRLF and LF corpus fingerprints');
+  // Captured from pre-401 rules-affiliate.mjs (485c0dc), verified against current:
+  // 84 frozen selectors, 252 C10 evaluations; parser output and findings use LF.
+  assert.equal(hash, '16bdc200166f388c352b00f942b4864e093a879105ae5e6019cc369a5b1ec502', `${selectors.length} selectors / ${selectors.length * 3} C10 evaluations`);
 });
