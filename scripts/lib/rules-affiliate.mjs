@@ -1476,20 +1476,288 @@ const classesOf = (e) => (e.attrs.class ?? '').split(/\s+/).filter(Boolean);
  */
 const HIDE_STYLE_RE =
   /display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|(?<![\w-])opacity\s*:\s*(?:0+(?:\.0*)?|\.0+)(?![\d.])|white-space\s*:\s*nowrap|text-wrap(?:-mode)?\s*:\s*nowrap|line-clamp|text-overflow|font-size\s*:\s*0(?![.\d])|(?<![\w-])(?:max-)?(?:height|width)\s*:\s*0(?![.\d])|(?<![\w-])clip(?:-path)?\s*:|(?<![\w-])(?:zoom|scale)\s*:\s*0(?![.\d])|scale\(\s*0(?![.\d])|(?<![\w-])color\s*:\s*transparent|text-indent\s*:\s*-|(?<![\w-])(?:left|top|right|bottom|margin-left|margin-top)\s*:\s*-\d{3,}|content-visibility\s*:\s*hidden/i;
-/** 400: 피드 제목은 2줄 이상 말줄임 허용. 고지/버튼의 HIDE_STYLE_RE 판정은 그대로 둔다. */
-function hidesFeedTitle(body) {
-  return styleDecls(body).some(([prop, value]) => {
+// C11만 CSS escape를 복원한다. 문자열 내용은 토큰이 아니므로 그대로 보존한다.
+function feedCssUnescape(src) {
+  let value = '';
+  let invalid = false;
+  let quote = '';
+  // escape된 구분자가 var() 문법으로 바뀌지 않도록 동일한 6자리 escape로 정규화한다.
+  // 정의/참조 양쪽이 같은 표현을 사용하므로 --x\, 같은 이름도 정확히 대조된다.
+  const decodedChar = (cp) => {
+    const c = String.fromCodePoint(cp);
+    return /[\s\\"'()[\]{},;:/]/.test(c) ? `\\${cp.toString(16).padStart(6, '0')}` : c;
+  };
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (quote) {
+      value += c;
+      if (c === '\\' && i + 1 < src.length) value += src[++i];
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '"' || c === "'") { quote = c; value += c; continue; }
+    if (c !== '\\') { value += c; continue; }
+    const hex = /^[\da-f]{1,6}/i.exec(src.slice(i + 1, i + 7));
+    if (hex) {
+      const cp = parseInt(hex[0], 16);
+      const invalidCodePoint = cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff);
+      invalid ||= invalidCodePoint;
+      value += invalidCodePoint ? '\ufffd' : decodedChar(cp);
+      i += hex[0].length;
+      if (/[\t\n\f\r ]/.test(src[i + 1] ?? '')) {
+        if (src[i + 1] === '\r' && src[i + 2] === '\n') i++;
+        i++;
+      }
+    } else if (i + 1 === src.length || /[\n\r\f]/.test(src[i + 1])) {
+      invalid = true;
+    } else {
+      const cp = src.codePointAt(++i);
+      value += decodedChar(cp);
+      if (cp > 0xffff) i++;
+    }
+  }
+  return { value, invalid };
+}
+// 403: C11 전용 파서. 사용자 속성 이름/참조의 대소문자와 문자열 안의 구분자를 보존한다.
+function feedStyleDecls(style) {
+  const src = stripCssComments(style);
+  const out = [];
+  let start = 0;
+  let depth = 0;
+  let quote = '';
+  for (let i = 0; i <= src.length; i++) {
+    const c = src[i];
+    if (i < src.length) {
+      if (c === '\\' && i + 1 < src.length) { i++; continue; }
+      if (quote) { if (c === quote || /[\n\r\f]/.test(c)) quote = ''; continue; }
+      if (c === '"' || c === "'") { quote = c; continue; }
+      if (c === '(' || c === '[') depth++;
+      if (c === ')' || c === ']') depth = Math.max(0, depth - 1);
+    }
+    if (i !== src.length && (c !== ';' || depth !== 0)) continue;
+    const part = src.slice(start, i);
+    let colon = 0;
+    for (; colon < part.length; colon++) {
+      if (part[colon] === '\\') { colon++; continue; }
+      if (part[colon] === ':') break;
+    }
+    start = i + 1;
+    if (colon === part.length) continue;
+    const name = feedCssUnescape(part.slice(0, colon));
+    const decoded = feedCssUnescape(part.slice(colon + 1).trim());
+    // escape된 공백은 정규화된 토큰으로 보존한 뒤 문법상 바깥 공백만 제거한다.
+    const prop = name.value.trim();
+    out.push([prop.startsWith('--') ? prop : prop.toLowerCase(), decoded.value.replace(/!\s*important\s*$/i, '').trim(), name.invalid || decoded.invalid]);
+  }
+  return out;
+}
+
+// MED 4 방침: 캐스케이드·범위와 fallback 사용 여부를 따지지 않고 모든 정의·대체값을 보수적으로 합친다.
+// 후보 곱은 64개, 값 길이는 8192자, 깊이는 128, 한 값의 해석 작업은 8192회로 제한.
+// 상한 초과는 관련 숨김 속성에서만 판정 불가 FAIL. 미선언/순환 var 자체는 숨김으로 취급하지 않는다.
+function feedVarResolver(cssTexts, sink) {
+  const definitions = new Map();
+  const invalidDefinitions = new Set();
+  const collect = (body) => {
+    for (const [prop, value, invalid] of feedStyleDecls(body)) {
+      if (!prop.startsWith('--')) continue;
+      if (invalid) invalidDefinitions.add(prop);
+      if (!definitions.has(prop)) definitions.set(prop, new Set());
+      definitions.get(prop).add(value);
+    }
+  };
+  for (const css of cssTexts) {
+    const src = blankNonElementAtRules(stripCssComments(css));
+    for (const chunk of src.split('}')) {
+      const ob = chunk.lastIndexOf('{');
+      if (ob >= 0) collect(chunk.slice(ob + 1));
+    }
+  }
+  for (const s of sink?.feedInlineStyles ?? []) collect(s.style);
+  // 외부 호출자가 만든 기존 sink 형식도 지원한다.
+  const visited = new Set();
+  for (const title of sink?.feedTitles?.values() ?? []) {
+    for (let e = title.element; e && !visited.has(e); e = e.parent) {
+      visited.add(e);
+      collect(e.attrs.style ?? '');
+    }
+  }
+  const memo = new Map();
+  const results = new Map();
+  const unknown = 'var(--unresolved)';
+  return (value) => {
+    if (results.has(value)) return results.get(value);
+    let work = 8192;
+    const active = new Set();
+    const result = (values = [], limited = false, cyclic = false) => ({ values: new Set(values), limited, cyclic });
+    const add = (to, from) => {
+      to.limited ||= from.limited;
+      to.cyclic ||= from.cyclic;
+      for (const v of from.values) {
+        if (v.length > 8192 || (!to.values.has(v) && to.values.size >= 64)) { to.limited = true; break; }
+        to.values.add(v);
+      }
+    };
+    const variable = (name, depth) => {
+      if (invalidDefinitions.has(name)) return result([], true);
+      if (active.has(name)) return result([unknown], false, true);
+      if (memo.has(name)) return memo.get(name);
+      if (depth > 128 || --work < 0) return result([], true);
+      active.add(name);
+      const out = result();
+      for (const v of definitions.get(name) ?? []) {
+        add(out, expand(v, depth + 1));
+        if (out.limited) break;
+      }
+      active.delete(name);
+      if (out.values.size === 0 && !out.limited) out.values.add(unknown);
+      // 순환을 끊은 중간 결과는 다른 시작점에서 재사용하지 않는다.
+      if (!out.cyclic && !out.limited) memo.set(name, out);
+      return out;
+    };
+    const expand = (text, depth) => {
+      if (depth > 128 || --work < 0 || text.length > 8192) return result([], true);
+      let out = result(['']);
+      let start = 0;
+      let quote = '';
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '\\') { i++; continue; }
+        if (quote) { if (text[i] === quote) quote = ''; continue; }
+        if (text[i] === '"' || text[i] === "'") { quote = text[i]; continue; }
+        if (text.slice(i, i + 4).toLowerCase() !== 'var(' || (i > 0 && /[\w-]/.test(text[i - 1]))) continue;
+        let level = 1;
+        let comma = -1;
+        let end = i + 4;
+        let innerQuote = '';
+        for (; end < text.length; end++) {
+          const c = text[end];
+          if (c === '\\') { end++; continue; }
+          if (innerQuote) { if (c === innerQuote) innerQuote = ''; continue; }
+          if (c === '"' || c === "'") { innerQuote = c; continue; }
+          if (c === '(') level++;
+          if (c === ')' && --level === 0) break;
+          if (c === ',' && level === 1 && comma < 0) comma = end;
+        }
+        if (end === text.length) break;
+        const name = text.slice(i + 4, comma < 0 ? end : comma).trim();
+        const choices = result();
+        add(choices, variable(name, depth + 1));
+        // 정적 검사에서는 선언 후보와 대체값 모두 숨김 가능성에 포함한다.
+        if (comma >= 0) {
+          choices.values.delete(unknown);
+          add(choices, expand(text.slice(comma + 1, end).trim(), depth + 1));
+        }
+        const next = result([], out.limited || choices.limited, out.cyclic || choices.cyclic);
+        for (const prefix of out.values) {
+          for (const choice of choices.values) {
+            if (--work < 0) { next.limited = true; break; }
+            add(next, result([prefix + text.slice(start, i) + choice]));
+            if (next.limited) break;
+          }
+          if (next.limited) break;
+        }
+        out = next;
+        start = end + 1;
+        i = end;
+        if (out.limited) return out;
+      }
+      const completed = result([], out.limited, out.cyclic);
+      for (const prefix of out.values) add(completed, result([prefix + text.slice(start)]));
+      return completed;
+    };
+    const out = expand(value, 0);
+    results.set(value, out);
+    return out;
+  };
+}
+
+const FEED_ZERO_RE = /^[+-]?(?:0+(?:\.0*)?|\.0+)(?:e[+-]?\d+)?(?:[a-z%]+)?$/i;
+const FEED_FONT_SIZE_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:%|px|cm|mm|q|in|pt|pc|r?(?:em|ex|cap|ch|ic|lh)|[sld]?v(?:w|h|i|b|min|max)|cq(?:w|h|i|b|min|max))$/i;
+function feedFontTokens(value) {
+  const tokens = [];
+  let start = 0;
+  let depth = 0;
+  let quote = '';
+  for (let i = 0; i <= value.length; i++) {
+    const c = value[i];
+    if (i < value.length) {
+      if (c === '\\') { i++; continue; }
+      if (quote) { if (c === quote) quote = ''; continue; }
+      if (c === '"' || c === "'") { quote = c; continue; }
+      if (c === '(') depth++;
+      if (c === ')') depth = Math.max(0, depth - 1);
+    }
+    if (i !== value.length && (depth !== 0 || (!/\s/.test(c) && c !== '/'))) continue;
+    if (i > start) tokens.push(value.slice(start, i));
+    if (c === '/') tokens.push(c);
+    start = i + 1;
+  }
+  return tokens;
+}
+function feedCalcZero(token) {
+  // 일반 함수의 계산은 하지 않는다. 단일 0 리터럴의 calc만 확정할 수 있다.
+  const literal = /^calc\(\s*([^()]*)\)$/.exec(token)?.[1].trim();
+  return literal !== undefined && FEED_ZERO_RE.test(literal);
+}
+function feedFontZero(value) {
+  // 첫 크기 토큰까지만 본다. 굵기 700과 글꼴 이름 속 숫자는 크기가 아니다.
+  // 중첩 함수 안의 공백·슬래시는 크기/줄높이 구분자가 아니다.
+  const tokens = feedFontTokens(value);
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const zeroNumber = /^[+-]?(?:0+(?:\.0*)?|\.0+)(?:e[+-]?\d+)?$/i.test(t);
+    const length = FEED_FONT_SIZE_RE.test(t);
+    // 각도·단위 없는 굵기 함수는 크기가 아니다. 내부 길이·백분율·크기 낱말만 후보로 삼는다.
+    const fn = /^[a-z-][\w-]*\(/i.test(t)
+      && (t.slice(t.indexOf('(') + 1).match(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:[a-z]+|%)?|[a-z-][\w-]*/gi) ?? [])
+        .some((part) => FEED_FONT_SIZE_RE.test(part)
+          || Object.hasOwn(FONT_KEYWORD_PX, part) || /^(?:smaller|larger|math)$/.test(part));
+    const size = length || zeroNumber || fn
+      || Object.hasOwn(FONT_KEYWORD_PX, t) || /^(?:smaller|larger|math)$/.test(t);
+    if (size) {
+      const lineHeight = tokens[i + 2] ?? '';
+      return zeroNumber || (length && parseFloat(t) === 0) || (fn && feedCalcZero(t))
+        || (tokens[i + 1] === '/' && (FEED_ZERO_RE.test(lineHeight) || feedCalcZero(lineHeight)));
+    }
+  }
+  return false;
+}
+const FEED_HIDE_PROP_RE = /^(?:display|visibility|opacity|white-space|text-wrap(?:-mode)?|(?:-webkit-)?line-clamp|text-overflow|font(?:-size)?|line-height|(?:max-)?(?:height|width|inline-size|block-size)|clip(?:-path)?|zoom|scale|transform|translate|(?:-webkit-text-fill-)?color|text-indent|left|top|right|bottom|margin-left|margin-top|content-visibility)$/;
+/** 400/403: 피드 제목 전용. 고지/버튼의 HIDE_STYLE_RE·styleShrink 판정은 그대로 둔다. */
+function hidesFeedTitle(body, resolveValue) {
+  // 교체 전 styleDecls 경로도 유지: 불균형 괄호/따옴표가 뒤의 리터럴 숨김 선언을 삼켜도 검출한다.
+  // var 의존 판정은 새 경로가 담당한다(정상 line-clamp:var(--lines) 등을 재차 오탐하지 않는다).
+  const literalHidden = (prop, value) => {
     if (prop === 'line-clamp' || prop === '-webkit-line-clamp') {
       return !(value === 'none' || (/^\+?\d+$/.test(value) && Number(value) >= 2));
     }
     if (HIDE_STYLE_RE.test(`${prop}:${value}`)) return true;
-    // 소수 표기 0 및 논리 크기·투명 글자도 완전 숨김에 포함한다(min-width:0 같은 정상 레이아웃 제외).
     if (/^(?:font-size|line-height|opacity|zoom|scale|(?:max-)?(?:width|height|inline-size|block-size))$/.test(prop)
-      && /^[+-]?(?:0+(?:\.0*)?|\.0+)(?:[a-z%]+)?$/.test(value)) return true;
-    if ((prop === 'color' || prop === '-webkit-text-fill-color') && value !== null
+      && FEED_ZERO_RE.test(value)) return true;
+    if ((prop === 'color' || prop === '-webkit-text-fill-color')
       && (value === 'transparent' || ALPHA0_RE.test(normColor(value)))) return true;
-    return (prop === 'transform' || prop === 'translate') && value !== null
+    return (prop === 'transform' || prop === 'translate')
       && /(?:^|[\s,(])(?:-\d{3,}(?:\.\d+)?(?:px|%|vw|vh)|[+-]?\d{4,}(?:\.\d+)?px)\b/i.test(value);
+  };
+  const declarations = feedStyleDecls(body);
+  const resolvedDeclarations = new Set(declarations.map(([prop, raw]) => JSON.stringify([prop.toLowerCase(), raw.toLowerCase()])));
+  if (styleDecls(body).some(([prop, raw]) => {
+    if (prop.startsWith('--')) return false;
+    const decoded = feedCssUnescape(raw ?? '').value;
+    // 새 파서도 읽은 var 선언만 위임한다. 파서가 삼킨 선언은 교체 전 판정을 그대로 보존한다.
+    if (/var\(/i.test(decoded) && resolvedDeclarations.has(JSON.stringify([prop, decoded.toLowerCase()]))) return false;
+    return literalHidden(prop, raw ?? '');
+  })) return true;
+  return declarations.some(([prop, raw, invalid]) => {
+    if (prop.startsWith('--')) return false;
+    const resolved = resolveValue(raw);
+    if (invalid || resolved.limited) return FEED_HIDE_PROP_RE.test(prop)
+      || FEED_HIDE_PROP_RE.test(prop.replace(/^-(?:webkit|moz|ms|o)-/, ''))
+      || HIDE_STYLE_RE.test(`${prop}:${raw}`);
+    return [...resolved.values].some((candidate) => {
+      const value = candidate.toLowerCase().trim();
+      return literalHidden(prop, value) || (prop === 'font' && feedFontZero(value));
+    });
   });
 }
 function hiddenEl(e) {
@@ -1790,6 +2058,7 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     for (let p = i; p >= 0; p = els[p].parent) out.push(descOf(els[p]));
     return out;
   };
+  const feedInlineByElement = new Map();
   if (sink) {
     sink.feedTitles ??= new Map();
     // C11 전용 문맥: 부모/직전 요소 형제를 공유한다. 텍스트·주석은 형제가 아니다.
@@ -1805,6 +2074,14 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
           : html.slice(e.openEnd, e.end).replace(/<!--[\s\S]*?-->/g, '')) === '',
       });
       lastChild.set(e.parent, nodes[i]);
+    }
+    sink.feedInlineStyles ??= [];
+    for (let i = 0; i < n; i++) {
+      if (els[i].attrs.style !== undefined) {
+        const inline = { style: els[i].attrs.style, element: nodes[i], rel, line: lineOf(els[i].start), structureReported: false };
+        sink.feedInlineStyles.push(inline);
+        feedInlineByElement.set(els[i], inline);
+      }
     }
     for (let i = 0; i < n; i++) {
       if (feedUp[i] < 0 || els[i].name !== 'p' || !classesOf(els[i]).includes('ws-feed-title')) continue;
@@ -2064,7 +2341,11 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
       let m;
       while ((m = attr.exec(raw)) !== null) {
         const key = m[1].toLowerCase();
-        if (!Object.hasOwn(allowed, key) || !valueMatches(e.attrs[key], allowed[key])) return false;
+        if (!Object.hasOwn(allowed, key) || !valueMatches(e.attrs[key], allowed[key])) {
+          // 실제 구조 검사에서 이 요소의 style 속성을 거부한 경우만 중복 숨김 보고를 생략한다.
+          if (key === 'style' && feedInlineByElement.has(e)) feedInlineByElement.get(e).structureReported = true;
+          return false;
+        }
         end = attr.lastIndex;
       }
       return e.dupAttrs.length === 0 && (VOID.has(e.name) ? /^\s*\/?\s*$/ : /^\s*$/).test(raw.slice(end));
@@ -2583,12 +2864,14 @@ function blankNonElementAtRules(src) {
   }
   return out;
 }
-export function checkCssAff(css, rel, baseLine, sink, add) {
+export function checkCssAff(css, rel, baseLine, sink, add, feedResolve = null) {
   const src = blankNonElementAtRules(css.replace(/\/\*[\s\S]*?\*\//g, (x) => x.replace(/[^\n]/g, ' ')));
   const lineOfCss = lineIndex(src);
   const notes = sink ? [...sink.notes.values()] : [];
   const pairs = sink ? [...sink.pairs.values()] : [];
   const feedTitles = [...(sink?.feedTitles?.values() ?? [])];
+  const resolveFeedValue = feedTitles.length > 0
+    ? feedResolve ?? feedVarResolver([css, ...(sink?.styles ?? []).map((s) => s.css)], sink) : null;
   const fail = (off, msg) => add('C10-AFF-OUT', 'FAIL', rel, baseLine + lineOfCss(off) - 1, msg);
   const feedFail = (off, msg) => add('C11-FEED-OUT', 'FAIL', rel, baseLine + lineOfCss(off) - 1, msg);
   let off = 0;
@@ -2601,7 +2884,7 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
       const at = off + ob;
       if (sel !== '' && !sel.startsWith('@')) {
         // 고지/버튼 분기와 독립적으로 검사: 제목에만 허용한 말줄임이 기존 규칙을 완화하지 않는다.
-        if (feedTitles.length > 0 && hidesFeedTitle(body)) {
+        if (feedTitles.length > 0 && hidesFeedTitle(body, resolveFeedValue)) {
           for (const one of splitSelectorList(sel)) {
             const p = parseSelector(one, true);
             if (p === null) {
@@ -2766,6 +3049,17 @@ export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPU
     }
   }
   // CSS — 고지(.ws-aff-note 직접·일반 선택자·조상) 숨김·축소 0, 제휴 a 차등 선택자 0(111 §0 · D-37)
-  for (const [abs, rel] of cssFiles) checkCssAff(readFileSync(abs, 'utf8'), rel, 1, sink, add);
-  for (const s of sink.styles) checkCssAff(s.css, s.rel, s.line, sink, add);
+  // 403: 사용 파일보다 뒤에 나오는 정의도 보도록 전체 CSS/인라인 선언을 먼저 수집한다.
+  const styles = [...cssFiles.map(([abs, rel]) => ({ css: readFileSync(abs, 'utf8'), rel, line: 1 })), ...sink.styles];
+  const resolveFeedValue = feedVarResolver(styles.map((s) => s.css), sink);
+  for (const s of styles) checkCssAff(s.css, s.rel, s.line, sink, add, resolveFeedValue);
+  const titleAncestors = new Set();
+  for (const title of sink.feedTitles.values()) {
+    for (let e = title.element; e && !titleAncestors.has(e); e = e.parent) titleAncestors.add(e);
+  }
+  for (const s of sink.feedInlineStyles ?? []) {
+    if (!s.structureReported && titleAncestors.has(s.element) && hidesFeedTitle(s.style, resolveFeedValue)) {
+      add('C11-FEED-OUT', 'FAIL', s.rel, s.line, '인라인 style 의 숨김·축소 선언이 피드 상품 제목(또는 조상)에 적용된다');
+    }
+  }
 }
