@@ -5141,6 +5141,288 @@ test('400 existing disclosure/merchant rules: title clamp exception leaves C10 u
   }
 });
 
+// 403: feed-only custom-property resolution and font shorthand (no file hashes).
+for (const declaration of [
+  '--x:none;display:var(--x)',
+  'font:0/0 sans-serif', 'font:0 sans-serif', 'font:0px sans-serif',
+  'font:700 14px/0 sans-serif', 'font:italic 700 14px / .0 sans-serif',
+  '--size:0;font:700 var(--size)/1.4 sans-serif',
+  '--lh:0;font:14px/var(--lh) sans-serif',
+  '--font:0/0 sans-serif;font:var(--font)',
+  '--x:var(--y);--y:none;display:var(--x)',
+  'display:var(--missing, var(--other, none))',
+  '--x:block;display:var(--x, none)',
+  '--x:var(--y);--y:var(--x);display:var(--x, none)',
+  '--x:var(--y, none);--y:var(--x);display:var(--x)',
+  '--x:0;font-size:var(--x)px',
+  '--alpha:0;color:rgb(0 0 0 / var(--alpha))',
+  '--rgb:0,0,0;--alpha:0;color:rgba(var(--rgb),var(--alpha))',
+  '--ink:transparent;color:var(--ink)',
+  '--ink:#1230;-webkit-text-fill-color:var(--ink)',
+  '--x:0;transform:scale(var(--x))',
+  '--x:0;-webkit-transform:scale(var(--x))',
+  '--x:-10000px;transform:translateX(var(--x))',
+  '--x:0;max-width:var(--x)', '--x:0;line-height:var(--x)',
+  '--x:1;-webkit-line-clamp:var(--x)',
+  '--X:none;--x:block;display:var(--X)',
+]) {
+  test(`403 hidden custom property/font: ${declaration}`, async () => {
+    const fs = await r400Css(`.ws-feed-title{${declaration}}`);
+    assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT'), declaration);
+  });
+}
+for (const declaration of [
+  'font:700 14px/1.4 sans-serif', 'font:14px / 1.4 sans-serif',
+  'font:caption', 'font:menu', 'font:inherit', 'font:700 14px "Zero 0"',
+  '--ws-ink:#27392e;color:var(--ws-ink)', '--w:24rem;max-width:var(--w)',
+  '--size:14px;--lh:1.4;font:700 var(--size)/var(--lh) sans-serif',
+  '--alpha:1;color:rgb(0 0 0 / var(--alpha))',
+  'color:var(--missing)', 'display:var(--missing, block)',
+  '--x:var(--y);--y:var(--x);display:var(--x, block)',
+  '--x:var(--x);color:var(--x)',
+  '--X:none;--x:block;display:var(--x)',
+  '--lines:2;line-clamp:var(--lines)',
+  'line-clamp:var(--missing, var(--other, 2))',
+  '--name:"a; b: var(--missing)";font:700 14px/1.4 var(--name)',
+  '--x:var(--y);--y:var(--x, block);display:var(--x)',
+  '--unused:none;max-width:var(--w, 30rem)',
+  '--unused:none;background:var(--bg, white)',
+]) {
+  test(`403 visible custom property/font: ${declaration}`, async () => {
+    assert.deepEqual(await r400Css(`.ws-feed-title{${declaration}}`), []);
+  });
+}
+for (const selector of [':root', '.ws-feed-body', '.other', '.ws-feed-title']) {
+  test(`403 declarations after use in another rule: ${selector}`, async () => {
+    const fs = await r400Css(`.ws-feed-title{display:var(--x)}${selector}{--x:none}`);
+    assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT'));
+  });
+}
+for (const origin of ['file', 'style', 'inline', 'title-inline']) {
+  test(`403 output variable sources across files: ${origin}`, async () => {
+    const fs = await r2cScan({
+      cssFiles: { 'assets/a-use.css': '.ws-feed-title{display:var(--x)}',
+        ...(origin === 'file' ? { 'assets/z-vars.css': ':root{--x:var(--y)}.other{--y:none}' } : {}) },
+      mutatePage: (html) => origin === 'style' ? html.replace('<body>', '<head><style>:root{--x:none}</style></head><body>')
+        : origin === 'inline' ? html.replace('<body>', '<body style="--x:none">')
+          : origin === 'title-inline' ? html.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" style="--x:none"') : html,
+    });
+    assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT' && f.file.endsWith('a-use.css')), JSON.stringify(fs));
+  });
+}
+test('403 inline title consumer resolves external variables', async () => {
+  const fs = await r2cScan({ cssFiles: { 'assets/vars.css': ':root{--x:none}' },
+    mutatePage: (html) => html.replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" style="display:var(--x)"') });
+  assert.equal(fs.length, 2, JSON.stringify(fs));
+  assert.ok(fs.every((f) => f.rule === 'C11-FEED-OUT' && /렌더러 허용 구조/.test(f.message)), JSON.stringify(fs));
+});
+test('403 remaining hide properties resolve variables before their existing predicate', async () => {
+  for (const [prop, value] of [
+    ['visibility', 'collapse'], ['opacity', '0'], ['white-space', 'nowrap'], ['text-wrap-mode', 'nowrap'],
+    ['text-overflow', 'ellipsis'], ['height', '0'], ['max-height', '0'], ['inline-size', '.0px'],
+    ['max-block-size', '0'], ['clip', 'rect(0,0,0,0)'], ['clip-path', 'inset(100%)'],
+    ['zoom', '0'], ['scale', '0'], ['text-indent', '-9999px'], ['top', '-9999px'],
+    ['margin-left', '-9999px'], ['content-visibility', 'hidden'],
+  ]) {
+    const fs = await r400Css(`:root{--x:${value}}.ws-feed-title{${prop}:var(--x)}`);
+    assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT'), prop);
+  }
+});
+test('403 inline consumers: visible title passes, ancestor zero font fails', async () => {
+  const visible = await r2cScan({ cssFiles: { 'assets/vars.css': ':root{--ink:#27392e;--size:14px;--lh:1.4}' },
+    mutatePage: (html) => html.replace('class="ws-t-cta ws-feed-title"',
+      'class="ws-t-cta ws-feed-title" style="color:var(--ink);font:700 var(--size)/var(--lh) sans-serif"') });
+  // 렌더러 구조 검사는 제목의 style 속성 자체를 거부한다. 기존 구조 판정은 유지하고 숨김 오탐만 검사한다.
+  assert.equal(visible.length, 2, JSON.stringify(visible));
+  assert.ok(visible.every((f) => /렌더러 허용 구조/.test(f.message)), JSON.stringify(visible));
+  const fs = await r2cScan({ cssFiles: { 'assets/vars.css': ':root{--size:0}' },
+    mutatePage: (html) => html.replace('class="ws-feed-body"', 'class="ws-feed-body" style="font:var(--size)/1.4 sans-serif"') });
+  assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT' && /렌더러 허용 구조/.test(f.message)), JSON.stringify(fs));
+  assert.ok(fs.every((f) => !/인라인 style/.test(f.message)), JSON.stringify(fs));
+});
+// 403 보완 4: 각도·굵기 함수는 건너뛰고 실제 크기·줄높이를 검사한다.
+for (const prefix of ['oblique calc(0deg)', 'oblique calc(10deg)', 'calc(400)']) {
+  for (const [suffix, hidden] of [['14px/1.4', false], ['0/1.4', true], ['14px/0e0', true]]) {
+    for (const variable of [false, true]) {
+      const declaration = variable
+        ? `--prefix:${prefix};--size:${suffix};font:var(--prefix) var(--size) sans-serif`
+        : `font:${prefix} ${suffix} sans-serif`;
+      test(`403 supplement 4 function role: ${declaration}`, async () => {
+        const findings = await r400Css(`.ws-feed-title{${declaration}}`);
+        if (hidden) assert.ok(findings.some((f) => f.rule === 'C11-FEED-OUT'), declaration);
+        else assert.deepEqual(findings, []);
+      });
+    }
+  }
+}
+for (const size of ['calc(0px)', 'calc(0%)', 'calc(14px + 0px)', 'min(14px, 2vw)', 'calc(small)']) {
+  for (const variable of [false, true]) {
+    const declaration = variable
+      ? `--size:${size};font:var(--size)/0e0 sans-serif`
+      : `font:${size}/0e0 sans-serif`;
+    test(`403 supplement 4 retains size function line height: ${declaration}`, async () => {
+      assert.ok((await r400Css(`.ws-feed-title{${declaration}}`)).some((f) => f.rule === 'C11-FEED-OUT'));
+    });
+  }
+}
+for (const size of ['calc(0px)', 'calc(0%)']) {
+  test(`403 supplement 4 retains zero size: ${size}`, async () => {
+    for (const declaration of [`font:${size}/1.4 sans-serif`, `--size:${size};font:var(--size)/1.4 sans-serif`]) {
+      assert.ok((await r400Css(`.ws-feed-title{${declaration}}`)).some((f) => f.rule === 'C11-FEED-OUT'));
+    }
+  });
+}
+// 403 보완 3: 함수 내부 0, 지수 줄높이, escape된 이름 끝 공백의 재현/대조군.
+for (const declaration of [
+  'font:calc(14px + 0px + 2vw)/1.4 sans-serif',
+  'font:calc(14px + 0 * 1px)/1.4 sans-serif',
+  '--size:calc(14px + 0px + 2vw);font:var(--size)/1.4 sans-serif',
+  '--size:calc(14px + 0 * 1px);font:var(--size)/1.4 sans-serif',
+  'font:clamp(14px, calc(0px + 2vw), 24px)/1.4 sans-serif',
+  'font:calc(14px + (0px / 2))/calc(1 + 0) sans-serif',
+  'font:calc(14px + 0px)/calc(1 + 0) "Family 0"',
+  'font:14px/calc(1 + 0) sans-serif',
+  'font:calc(14px)/1.4 "Family 0"',
+  'font:oblique 0deg 14px/1e0 sans-serif',
+  '--lh:1e-1;font:14px/var(--lh) sans-serif',
+  String.raw`--x\ :block;display:var(--x\000020)`,
+  String.raw`--x\ :none;--x:block;display:var(--x)`,
+]) {
+  test(`403 supplement 3 visible: ${JSON.stringify(declaration)}`, async () => {
+    assert.deepEqual(await r400Css(`.ws-feed-title{${declaration}}`), []);
+  });
+}
+for (const declaration of [
+  'font:oblique 10deg 14px/0e0 sans-serif',
+  '--lh:0e0;font:14px/var(--lh) sans-serif',
+  'font:14px/0e0px sans-serif', 'font:14px/-0.0e+2px sans-serif',
+  'font:14px/.0e-2 sans-serif', 'font:14px/0 sans-serif',
+  'line-height:0e0', '--lh:0e0;line-height:var(--lh)',
+  'font:calc(14px + 0px)/0 sans-serif',
+  'font:calc(14px + 0px)/0e0 sans-serif',
+  'font:calc(0px)/1.4 sans-serif',
+  'font:calc( 0px )/1.4 sans-serif',
+  '--size:calc(0px);font:var(--size)/1.4 sans-serif',
+  'font:14px/calc(0) sans-serif',
+  '--lh:calc(0px);font:14px/var(--lh) sans-serif',
+  String.raw`--x\ :none;display:var(--x\ )`,
+  String.raw`--x\ :none;display:var(--x\000020)`,
+  String.raw`--x\000020:none;display:var(--x\ )`,
+  String.raw`  --x\  :none;display:var(--x\000020)`,
+]) {
+  test(`403 supplement 3 hidden: ${JSON.stringify(declaration)}`, async () => {
+    const findings = await r400Css(`.ws-feed-title{${declaration}}`);
+    assert.ok(findings.some((f) => f.rule === 'C11-FEED-OUT'), declaration);
+  });
+}
+
+// 403 review: 먼저 실패를 확인한 재현 입력과 정상 대조군.
+for (const declaration of [
+  '--bad:);display:none', 'bad:);color:rgba(0,0,0,0)', 'color:"broken\n;display:none',
+  'line-clamp', 'font:oblique 10deg 0/1 sans-serif',
+  String.raw`--x:n\6f ne;display:var(--x)`,
+  String.raw`--x:none;display:v\61 r(--x)`,
+  String.raw`--\78:none;display:var(--x)`,
+  String.raw`--x:none;display:var(--\78)`,
+  String.raw`display:n\6f ne`, String.raw`color:r\67 ba(0,0,0,0)`,
+  String.raw`font:oblique 10deg \30/1 sans-serif`,
+  String.raw`--x:\0;display:var(--x)`, String.raw`display:\110000`,
+  'display:bad\\\nvalue', 'display:bad\\',
+  'bad:(;line-clamp:var(--missing)',
+  String.raw`--x\):none;display:var(--x\))`,
+  String.raw`--x\,:none;display:var(--x\,)`,
+  'font:oblique 10deg 0e0px/1 serif', 'font:oblique 10deg 0e0/1 serif',
+  String.raw`--😀:none;display:var(--\😀)`,
+]) {
+  test(`403 review hidden/undecodable: ${JSON.stringify(declaration)}`, async () => {
+    assert.ok((await r400Css(`.ws-feed-title{${declaration}}`)).some((f) => f.rule === 'C11-FEED-OUT'), declaration);
+  });
+}
+test('403 review legacy declaration recovery retains every literal hide family', async () => {
+  for (const prefix of ['--bad:);', 'bad:);', 'bad:(;', 'bad:[;', 'bad:"broken\n;', "bad:'broken;", 'bad:];']) {
+    for (const hidden of ['display:none', 'visibility:hidden', 'opacity:0', 'line-clamp',
+      'line-clamp:1', 'font-size:0', 'color:rgba(0,0,0,0)', 'transform:translateX(-10000px)']) {
+      assert.ok((await r400Css(`.ws-feed-title{${prefix}${hidden}}`)).some((f) => f.rule === 'C11-FEED-OUT'), `${prefix}${hidden}`);
+    }
+  }
+});
+for (const declaration of [
+  'font:oblique 0deg 14px/1.4 sans-serif', 'font:oblique 10deg 14px/1.4 sans-serif',
+  'font:oblique 0turn medium/1.4 sans-serif',
+  'font:700 14px/1.4 "Family; 0"', '--name:"Family; 0";font:700 14px/1.4 var(--name)',
+  String.raw`--x:b\6c ock;display:v\61 r(--x)`,
+  String.raw`--\58:none;--x:block;display:var(--x)`,
+  String.raw`--lines:\32;line-clamp:var(--lines)`,
+  String.raw`--na\+me:block;display:var(--na\+me)`,
+  String.raw`--lines:2;line-clamp:v\61 r(--lines)`,
+  '--X:2;--x:1;line-clamp:var(--X)',
+  String.raw`--x\):block;display:var(--x\000029)`,
+  String.raw`--x\,:block;display:var(--x\00002c)`,
+  String.raw`background:\110000`,
+]) {
+  test(`403 review visible font/escape: ${declaration}`, async () => {
+    assert.deepEqual(await r400Css(`.ws-feed-title{${declaration}}`), []);
+  });
+}
+test('403 review font size units exclude angles and other dimensions', async () => {
+  for (const unit of ['px', 'em', 'rem', 'ex', 'rex', 'ch', 'rch', 'cap', 'rcap', 'ic', 'ric', 'lh', 'rlh',
+    'vw', 'vh', 'vi', 'vb', 'vmin', 'vmax', 'svw', 'lvh', 'dvi', 'cqw', 'cqh', 'cqi', 'cqb', 'cqmin', 'cqmax',
+    'cm', 'mm', 'Q', 'in', 'pt', 'pc', '%', '']) {
+    assert.ok((await r400Css(`.ws-feed-title{font:oblique 10deg 0${unit}/1 serif}`)).length > 0, unit);
+  }
+  for (const unit of ['deg', 'rad', 'grad', 'turn', 's', 'ms', 'Hz', 'dpi', 'fr']) {
+    assert.deepEqual(await r400Css(`.ws-feed-title{font:oblique 0${unit} 14px/1.4 serif}`), [], unit);
+  }
+});
+for (const surface of ['L4', '몰 레일']) for (const style of ['display:none', 'font:oblique 0deg 14px/1.4 sans-serif']) {
+  test(`403 review inline duplicate ${surface}: ${style}`, async () => {
+    const fs = await r2cScan({ surface, mutatePage: (html) => html.replace('class="ws-t-cta ws-feed-title"',
+      `class="ws-t-cta ws-feed-title" style="${style}"`) });
+    assert.equal(fs.length, 2, JSON.stringify(fs));
+    assert.ok(fs.every((f) => /렌더러 허용 구조/.test(f.message)), JSON.stringify(fs));
+  });
+}
+test('403 review unrelated structure failure must not suppress unreported inline cause', async () => {
+  const fs = await r2cScan({ mutatePage: (html) => html.replace('class="ws-feed-body"', 'class="wrong-body"')
+    .replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" style="display:none"') });
+  assert.ok(fs.some((f) => /렌더러 허용 구조/.test(f.message)), JSON.stringify(fs));
+  assert.ok(fs.some((f) => /인라인 style/.test(f.message)), JSON.stringify(fs));
+});
+test('403 review same line ancestor and title styles deduplicate by element', async () => {
+  const fs = await r2cScan({ mutatePage: (html) => html.replace('<body>', '<body style="display:none">')
+    .replace('class="ws-feed-body"', 'class="wrong-body"')
+    .replace('class="ws-t-cta ws-feed-title"', 'class="ws-t-cta ws-feed-title" style="display:none"') });
+  assert.equal(fs.filter((f) => /인라인 style/.test(f.message)).length, 1, JSON.stringify(fs));
+});
+test('403 review MED 4 retains conservative scope and fallback policy', async () => {
+  for (const css of [
+    ':root{--x:block}.ws-feed-title{display:var(--x,none)}',
+    '.never{--x:none}.ws-feed-title{--x:block;display:var(--x)}',
+  ]) assert.ok((await r400Css(css)).some((f) => f.rule === 'C11-FEED-OUT'), css);
+});
+
+test('403 bounded variable combinations and cycles terminate', async () => {
+  const defs = Array.from({ length: 20 }, (_, i) => `.other${i}{--x${i}:1;--x${i}:2}`).join('');
+  const fs = await r400Css(`${defs}.ws-feed-title{font:${Array.from({ length: 20 }, (_, i) => `var(--x${i})`).join(' ')} 0/0 sans-serif}`);
+  assert.ok(fs.some((f) => f.rule === 'C11-FEED-OUT'));
+  const cycle = Array.from({ length: 200 }, (_, i) => `--x${i}:var(--x${(i + 1) % 200})`).join(';');
+  const cyclic = await r400Css(`:root{${cycle}}.ws-feed-title{display:var(--x0,none)}`);
+  assert.ok(cyclic.some((f) => f.rule === 'C11-FEED-OUT'));
+});
+test('403 real client styles, tokens and existing bundle together: FAIL 0', async () => {
+  const cssFiles = {};
+  for (const folder of ['client/src', 'client/dist']) {
+    const dir = resolve(HERE, '../..', folder);
+    assert.ok(existsSync(dir), `${folder} fixture must exist (no build)`);
+    const files = readdirSync(dir, { recursive: true }).filter((f) => f.endsWith('.css'));
+    assert.ok(files.length > 0, folder);
+    for (const file of files) cssFiles[`${folder}/${file.replaceAll('\\', '/')}`] = readFileSync(join(dir, file), 'utf8');
+  }
+  for (const surface of ['L4', '몰 레일']) for (const stage of ['full', 'noprice']) {
+    assert.deepEqual(await r2cScan({ surface, stage, cssFiles }), []);
+  }
+});
+
 // 400 MED: sibling direction/adjacency and complex negation must use the actual tree.
 const r400RelationCases = [
   ['.absent+.ws-feed-title', 0],
