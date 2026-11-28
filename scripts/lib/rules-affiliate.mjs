@@ -1474,6 +1474,22 @@ const classesOf = (e) => (e.attrs.class ?? '').split(/\s+/).filter(Boolean);
  */
 const HIDE_STYLE_RE =
   /display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|(?<![\w-])opacity\s*:\s*(?:0+(?:\.0*)?|\.0+)(?![\d.])|white-space\s*:\s*nowrap|text-wrap(?:-mode)?\s*:\s*nowrap|line-clamp|text-overflow|font-size\s*:\s*0(?![.\d])|(?<![\w-])(?:max-)?(?:height|width)\s*:\s*0(?![.\d])|(?<![\w-])clip(?:-path)?\s*:|(?<![\w-])(?:zoom|scale)\s*:\s*0(?![.\d])|scale\(\s*0(?![.\d])|(?<![\w-])color\s*:\s*transparent|text-indent\s*:\s*-|(?<![\w-])(?:left|top|right|bottom|margin-left|margin-top)\s*:\s*-\d{3,}|content-visibility\s*:\s*hidden/i;
+/** 400: 피드 제목은 2줄 이상 말줄임 허용. 고지/버튼의 HIDE_STYLE_RE 판정은 그대로 둔다. */
+function hidesFeedTitle(body) {
+  return styleDecls(body).some(([prop, value]) => {
+    if (prop === 'line-clamp' || prop === '-webkit-line-clamp') {
+      return !(value === 'none' || (/^\+?\d+$/.test(value) && Number(value) >= 2));
+    }
+    if (HIDE_STYLE_RE.test(`${prop}:${value}`)) return true;
+    // 소수 표기 0 및 논리 크기·투명 글자도 완전 숨김에 포함한다(min-width:0 같은 정상 레이아웃 제외).
+    if (/^(?:font-size|line-height|opacity|zoom|scale|(?:max-)?(?:width|height|inline-size|block-size))$/.test(prop)
+      && /^[+-]?(?:0+(?:\.0*)?|\.0+)(?:[a-z%]+)?$/.test(value)) return true;
+    if ((prop === 'color' || prop === '-webkit-text-fill-color') && value !== null
+      && (value === 'transparent' || ALPHA0_RE.test(normColor(value)))) return true;
+    return (prop === 'transform' || prop === 'translate') && value !== null
+      && /(?:^|[\s,(])(?:-\d{3,}(?:\.\d+)?(?:px|%|vw|vh)|[+-]?\d{4,}(?:\.\d+)?px)\b/i.test(value);
+  });
+}
 function hiddenEl(e) {
   return (
     e.attrs.hidden !== undefined ||
@@ -1693,7 +1709,7 @@ const relTokens = (v) => [...new Set((v ?? '').toLowerCase().split(/\s+/).filter
 
 /**
  * 전체 HTML 검사. 부모별 자식 목록·가장 가까운 .ws-search·레이어 aside·숨김 상속을 한 번에 색인(선형) — Codex LOW(제곱 비용).
- *   sink(선택) 에 고지 요소 사슬(CSS 숨김 검사)·제휴/상인 a 사슬(CSS 버튼 동등 검사)·인라인 <style> 을 모은다.
+ *   sink(선택) 에 고지·피드 제목 사슬(CSS 숨김 검사)·제휴/상인 a 사슬(CSS 버튼 동등 검사)·인라인 <style> 을 모은다.
  */
 export function checkHtmlAff(html, rel, dev, add, sink = null) {
   const fail = (line, msg) => add('C10-AFF-OUT', 'FAIL', rel, line, msg);
@@ -1772,6 +1788,14 @@ export function checkHtmlAff(html, rel, dev, add, sink = null) {
     for (let p = i; p >= 0; p = els[p].parent) out.push(descOf(els[p]));
     return out;
   };
+  if (sink) {
+    sink.feedTitles ??= new Map();
+    for (let i = 0; i < n; i++) {
+      if (feedUp[i] < 0 || els[i].name !== 'p' || !classesOf(els[i]).includes('ws-feed-title')) continue;
+      const chain = chainOf(i);
+      sink.feedTitles.set(JSON.stringify(chain), { chain, rel, line: lineOf(els[i].start) });
+    }
+  }
   // 블록별 상인 a(일반 http·쿠팡 제외)·쿠팡 계열 포함 첫 시작 — a 마다 .ws-search 조상 사슬을 따라 등록(중첩 깊이만큼).
   const blocks = new Map();
   const block = (s) => {
@@ -2459,7 +2483,9 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
   const lineOfCss = lineIndex(src);
   const notes = sink ? [...sink.notes.values()] : [];
   const pairs = sink ? [...sink.pairs.values()] : [];
+  const feedTitles = [...(sink?.feedTitles?.values() ?? [])];
   const fail = (off, msg) => add('C10-AFF-OUT', 'FAIL', rel, baseLine + lineOfCss(off) - 1, msg);
+  const feedFail = (off, msg) => add('C11-FEED-OUT', 'FAIL', rel, baseLine + lineOfCss(off) - 1, msg);
   let off = 0;
   for (const chunk of src.split('}')) {
     const ob = chunk.lastIndexOf('{');
@@ -2469,6 +2495,21 @@ export function checkCssAff(css, rel, baseLine, sink, add) {
       const body = chunk.slice(ob + 1);
       const at = off + ob;
       if (sel !== '' && !sel.startsWith('@')) {
+        // 고지/버튼 분기와 독립적으로 검사: 제목에만 허용한 말줄임이 기존 규칙을 완화하지 않는다.
+        if (feedTitles.length > 0 && hidesFeedTitle(body)) {
+          for (const one of splitSelectorList(sel)) {
+            const p = parseSelector(one);
+            if (p === null) {
+              feedFail(at, `해석할 수 없는 선택자(${L(one.slice(0, 40))})에 숨김·축소 선언 — 피드 상품 제목 적용 여부 판정 불가(fail-closed)`);
+              break;
+            }
+            const hit = feedTitles.find((title) => title.chain.some((_, k) => selectorMatches(p, title.chain.slice(k))));
+            if (hit) {
+              feedFail(at, `선택자 ${L(one.slice(0, 40))} 의 숨김·축소 선언이 피드 상품 제목(또는 조상)에 적용된다(${L(hit.rel)}:${hit.line})`);
+              break;
+            }
+          }
+        }
         const hides = HIDE_STYLE_RE.test(body);
         // .ws-aff-note 를 직접 겨누는 규칙 — :not(…) 안의 언급(고지를 빼는 규칙)은 제외(276 오탐 수정)
         if (sel.replace(/:not\((?:[^()]|\([^()]*\))*\)/gi, '').includes('.ws-aff-note') && hides) fail(at, '.ws-aff-note 에 숨김·축소 선언(display:none·visibility·opacity 0·nowrap·line-clamp·clip 등) 금지');
@@ -2554,7 +2595,7 @@ export function scanAffiliateOutputs({ root, dist, add, popularSorts = FEED_POPU
     return; // C3-OUT-ROUTE 가 FAIL
   }
   const dev = isObj(m) && m.mode === 'development';
-  const sink = { notes: new Map(), pairs: new Map(), styles: [], popularSorts, feedRows: [] };
+  const sink = { notes: new Map(), pairs: new Map(), feedTitles: new Map(), styles: [], popularSorts, feedRows: [] };
   const rowKeys = new Set(); // 399 R-2: 피드 JSON 행
   const feedJson = new Set();
   const fmPath = join(dist, 'feed-manifest.json');
